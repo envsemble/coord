@@ -106,7 +106,7 @@ test('the AppImage keeps the sandbox in its desktop entry and starts', async () 
 
 test('the Windows installer installs per user, starts and uninstalls', async () => {
   test.skip(process.platform !== 'win32', 'Windows only');
-  test.skip(process.env.ATLAS_E2E_INSTALLER !== '1', 'Installs Atlas for the current user; set ATLAS_E2E_INSTALLER=1 (CI does).');
+  test.skip(process.env.ATLAS_E2E_INSTALLER !== '1', 'Installs Atlas for the current user; set ATLAS_E2E_INSTALLER=1.');
   const installer = packagedInstaller();
   test.skip(!installer, 'Build the installer first with npm run package.');
   const target = path.join(temporaryDirectory('atlas-install-'), 'Atlas');

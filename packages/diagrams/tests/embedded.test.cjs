@@ -10,7 +10,7 @@ const {
   buildEmbeddedCSS,
   SCOPES,
 } = require("../scripts/build-embedded-css.cjs");
-const { loadComponents: components } = require("./load-components.cjs");
+const { loadComponents: components } = require("./loadComponents.cjs");
 // The viewer of one diagram, given its body.
 async function viewer(body, includeArtifacts = false) {
   const file = { path: "d.puml", text: `@startuml\n${body}\n@enduml\n` };
@@ -22,9 +22,9 @@ async function viewer(body, includeArtifacts = false) {
 }
 test("native panel consumes lean payloads and CSS cannot restyle its host", async () => {
   const { prepared } = await viewer("class Account");
-  const { AtlasPanel } = components();
+  const { DiagramPanel } = components();
   const html = renderToStaticMarkup(
-    createElement(AtlasPanel, { payload: prepared.payload, theme: "light" }),
+    createElement(DiagramPanel, { payload: prepared.payload, theme: "light" }),
   );
   // The host's theme reaches the panel root, the panel's envUI Theme.
   const panel = html.slice(0, html.indexOf(">"));
@@ -61,10 +61,10 @@ test("native panel consumes lean payloads and CSS cannot restyle its host", asyn
 test("an empty diagram prepares and exports a readable viewer", async () => {
   const { prepared, file } = await viewer("", true);
   assert.deepEqual(prepared.payload.views, []);
-  const { AtlasPanel } = components();
+  const { DiagramPanel } = components();
   assert(
     renderToStaticMarkup(
-      createElement(AtlasPanel, { payload: prepared.payload }),
+      createElement(DiagramPanel, { payload: prepared.payload }),
     ).includes("No entities"),
   );
   const exported = await buildViewer({ prepared, file });
@@ -72,7 +72,7 @@ test("an empty diagram prepares and exports a readable viewer", async () => {
 });
 
 test("A proposal opens its change view in both viewers, with the focus and the review it was given", () => {
-  const { DiagramViewer, AtlasPanel } = components();
+  const { DiagramViewer, DiagramPanel } = components();
   const { reviewedPayload } = components("src/viewer/reviewedPayload.js");
   const target = { kind: "node", id: "course" };
   const changeView = { model: { id: "changes" }, views: [{ key: "all" }] };
@@ -89,7 +89,7 @@ test("A proposal opens its change view in both viewers, with the focus and the r
   };
   const payload = {
     comparison,
-    learning: { walkthroughs: [], scenarios: [] },
+    scenarios: { scenarios: [] },
     model: { id: "proposal", document },
     views: [],
   };
@@ -97,7 +97,7 @@ test("A proposal opens its change view in both viewers, with the focus and the r
   const shown = reviewedPayload(payload);
   assert.equal(shown.payload.model, changeView.model);
   assert.equal(shown.payload.views, changeView.views);
-  assert.equal(shown.payload.learning, payload.learning);
+  assert.equal(shown.payload.scenarios, payload.scenarios);
   assert.equal(shown.payload.comparison, undefined);
   assert.equal(shown.review.comparison, comparison);
   assert.equal(shown.review.baselineDate, "Oct 8, 2026");
@@ -111,8 +111,9 @@ test("A proposal opens its change view in both viewers, with the focus and the r
     DiagramViewer({ ...payload }).props.review,
   );
   // Both viewers render it directly, with no wrapper to remount when a host
-  // switches between a capture and its proposals.
-  const panel = AtlasPanel({ payload, focus: target });
+  // switches between a capture and its proposals. The panel is memoized; its
+  // render function is the memo's type.
+  const panel = DiagramPanel.type({ payload, focus: target });
   assert.equal(panel.props.payload.model, changeView.model);
   assert.equal(panel.props.review.comparison, comparison);
   assert.equal(panel.props.focus, target);
@@ -146,7 +147,7 @@ test("Focus on a member or a removed element of a proposal resolves in its chang
   });
   const { payload } = prepared.get("proposal.puml");
   const { inspectionTarget } = components("src/model/inspectionTarget.js");
-  const { indexViewerModel } = components("src/model/domainModel.js");
+  const { indexViewerModel } = components("src/model/viewerModelIndex.js");
   const view = payload.comparison.changeView;
   const index = indexViewerModel(view.model);
   // The removed class and the removed member are both still there to inspect.

@@ -1,14 +1,14 @@
 import { Profiler, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { DiagramCanvas } from "../src/visualization/DiagramCanvas";
+import { DiagramCanvas } from "../src/canvas/DiagramCanvas";
 import { useInspection } from "../src/viewer/useInspection";
-import { UMLDiagram } from "../src/visualization/UMLDiagram";
+import { UMLDiagram } from "../src/canvas/UMLDiagram";
 import { renderToStaticMarkup } from "react-dom/server";
-import { useSVGExport } from "../src/visualization/useSVGExport";
+import { useSVGExport } from "../src/canvas/useSVGExport";
 import { Theme } from "@envsemble/envui";
 import "@envsemble/envui/styles.css";
-import "../src/ui/styles.css";
-import "../src/visualization/styles.css";
+import "../src/viewer/viewer.css";
+import "../src/canvas/canvas.css";
 
 // Deliberately independent of any source project or layout algorithm. Keep
 // all elements mounted to measure the renderer, not fixture generation.

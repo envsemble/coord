@@ -6,9 +6,6 @@ Desktop.ini
 .idea/
 .vscode/
 .codex/
-.atlas/prepared/
-.atlas/results/
-.atlas/exports/
 artifacts/
 
 # Local secrets and environment files

@@ -7,10 +7,10 @@ import {
   useRef,
   useState,
 } from "react";
-import { DiagramCanvas } from "../visualization/DiagramCanvas";
-import { useSVGExport } from "../visualization/useSVGExport";
-import { sameTarget } from "../visualization/interaction";
-import { indexViewerModel } from "../model/domainModel";
+import { DiagramCanvas } from "../canvas/DiagramCanvas";
+import { useSVGExport } from "../canvas/useSVGExport";
+import { sameTarget } from "../canvas/interaction";
+import { indexViewerModel } from "../model/viewerModelIndex";
 import {
   Dialog,
   EmptyState,
@@ -19,11 +19,11 @@ import {
 } from "@envsemble/envui";
 import { Panel } from "../ui/Panel";
 import { ViewerToolbar } from "./ViewerToolbar";
-import { About } from "./DetailsContent";
+import { About } from "./About";
 import { useInspection, inspectedTarget } from "./useInspection";
-import { InspectorContent } from "./InspectorContent";
+import { Inspector } from "../details/Inspector";
 import { useArtifactArchive } from "./useArtifactArchive";
-import { createZoomStore } from "../ui/zoomStore";
+import { createZoomStore } from "./zoomStore";
 import { ProvenanceBadge } from "./ProvenanceBadge";
 import { reviewedPayload } from "./reviewedPayload";
 import { useInspectorWidth } from "./useInspectorWidth";
@@ -91,7 +91,7 @@ function ViewerContent({
   views,
   exports: exportData,
   snippets = {},
-  learning: guide = null,
+  scenarios = null,
   focus = null,
   review = null,
   provenanceDocument,
@@ -104,13 +104,13 @@ function ViewerContent({
   const theme = preference?.theme || ambientTheme;
   const [selected, setSelected] = useState(null);
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [learningOpen, setLearningOpen] = useState(false);
-  const [sidebarHidden, setSidebarHidden] = useState(false);
+  const [scenariosOpen, setScenariosOpen] = useState(false);
+  const [detailsHidden, setDetailsHidden] = useState(false);
   const [overview, setOverview] = useState(overviewByDefault);
   const { hovered, preview, hover, keepHover, clearHover } = useInspection({
     previewEnabled:
-      !sidebarHidden && !(review && overview && !selected && !learningOpen),
-    previewVisible: !!selected || learningOpen,
+      !detailsHidden && !(review && overview && !selected && !scenariosOpen),
+    previewVisible: !!selected || scenariosOpen,
   });
   const [focusRequest, setFocusRequest] = useState(null);
   // A member asked for by a focus (such as a plan's link) is shown in its
@@ -136,14 +136,14 @@ function ViewerContent({
       clearHover();
       setSelected((old) => (sameTarget(old, target) ? old : target));
       setAboutOpen(false);
-      setLearningOpen(false);
+      setScenariosOpen(false);
     },
     [clearHover],
   );
   const clear = useCallback(() => {
     setSelected(null);
     setAboutOpen(false);
-    setLearningOpen(false);
+    setScenariosOpen(false);
     clearHover();
   }, [clearHover]);
   const choose = useCallback(
@@ -169,8 +169,8 @@ function ViewerContent({
     select,
     hover,
     onShowPanel: () => {
-      setSidebarHidden(false);
-      setLearningOpen(false);
+      setDetailsHidden(false);
+      setScenariosOpen(false);
     },
   });
   const { diagramURL, backgroundURL } = useSVGExport(
@@ -183,9 +183,9 @@ function ViewerContent({
   );
   const inspected = inspectedTarget(preview, selected);
   const element = index.getElement(inspected);
-  const showOverview = !!changes && overview && !element && !learningOpen;
-  const sidebarOpen =
-    !sidebarHidden && (!!element || learningOpen || showOverview);
+  const showOverview = !!changes && overview && !element && !scenariosOpen;
+  const detailsOpen =
+    !detailsHidden && (!!element || scenariosOpen || showOverview);
   useEffect(() => {
     setSelected(null);
     setFocusRequest(null);
@@ -194,7 +194,7 @@ function ViewerContent({
   }, [model.id, clearHover]);
   const onHover = useCallback(
     (target) => {
-      if (target) setLearningOpen(false);
+      if (target) setScenariosOpen(false);
       hover(target);
     },
     [hover],
@@ -225,8 +225,8 @@ function ViewerContent({
   }, [index, selected, select]);
   // New content in the inspector starts at its top.
   const inspector = useRef(null);
-  const showing = learningOpen
-    ? "learning"
+  const showing = scenariosOpen
+    ? "scenarios"
     : selected
       ? `${selected.kind}:${selected.id}`
       : showOverview
@@ -246,11 +246,11 @@ function ViewerContent({
   // Reopening or widening details must not leave the selected node
   // underneath them.
   useLayoutEffect(() => {
-    if (sidebarOpen && selected?.kind === "node")
+    if (detailsOpen && selected?.kind === "node")
       cameraRef.current?.revealNode(selected.id);
-  }, [sidebarOpen, settledWidth]);
-  // Learning findings can point at relations and sets as well as classes.
-  const inspectLearning = (id) => {
+  }, [detailsOpen, settledWidth]);
+  // Scenario findings can point at relations and sets as well as classes.
+  const inspectScenarioFinding = (id) => {
     if (index.nodes.has(id)) return choose(id);
     const groupView = views.find((v) =>
       v.diagram.generalizationGroups?.some((g) => g.id === id),
@@ -265,15 +265,15 @@ function ViewerContent({
   return (
     <div
       ref={viewerRef}
-      className={`viewer${sidebarOpen ? " inspecting" : ""}${changes?.fade ? " fade-unchanged" : ""}${resize.resizing ? " resizing" : ""}`}
+      className={`viewer${detailsOpen ? " inspecting" : ""}${changes?.fade ? " fade-unchanged" : ""}${resize.resizing ? " resizing" : ""}`}
       style={resize.style}
     >
       <ViewerToolbar
         ref={toolbarRef}
         density={density}
-        reviewControls={changes?.controls(sidebarOpen && showOverview)}
+        reviewControls={changes?.controls(detailsOpen && showOverview)}
         provenance={provenanceDocument}
-        guided={!!guide}
+        hasScenarios={!!scenarios}
         {...{
           model,
           views,
@@ -284,11 +284,11 @@ function ViewerContent({
           zoomStore,
           diagramURL,
         }}
-        sidebarHidden={sidebarHidden}
-        sidebarOpen={sidebarOpen}
-        learningOpen={learningOpen}
+        detailsHidden={detailsHidden}
+        detailsOpen={detailsOpen}
+        scenariosOpen={scenariosOpen}
         aboutOpen={aboutOpen}
-        onSidebar={() => setSidebarHidden((hidden) => !hidden)}
+        onDetails={() => setDetailsHidden((hidden) => !hidden)}
         onView={(key) => {
           if (key === viewKey) return;
           const next = views.find((v) => v.key === key).diagram;
@@ -307,10 +307,10 @@ function ViewerContent({
           setFields(!fields);
         }}
         themeToggle={!!preference}
-        onLearn={() => {
+        onScenarios={() => {
           clearHover();
-          setSidebarHidden(false);
-          setLearningOpen(sidebarHidden || !learningOpen);
+          setDetailsHidden(false);
+          setScenariosOpen(detailsHidden || !scenariosOpen);
         }}
         onChoose={choose}
         onAbout={() => {
@@ -333,26 +333,26 @@ function ViewerContent({
         ref={inspector}
         id="inspector"
         className="inspector"
-        open={sidebarOpen}
+        open={detailsOpen}
         label={
-          learningOpen
+          scenariosOpen
             ? "Model guide"
             : showOverview
               ? "Changes in this proposal"
               : "Model details"
         }
         title={
-          learningOpen
+          scenariosOpen
             ? "Understand the model"
             : showOverview
               ? "Changes"
               : null
         }
         toolbar={
-          !learningOpen && element && changes ? changes.navigation : null
+          !scenariosOpen && element && changes ? changes.navigation : null
         }
         closeLabel="Hide details"
-        onClose={() => setSidebarHidden(true)}
+        onClose={() => setDetailsHidden(true)}
         resizer={resize.separator}
         onPointerEnter={keepHover}
         onPointerLeave={() => hover(null)}
@@ -361,20 +361,19 @@ function ViewerContent({
           if (!e.currentTarget.contains(e.relatedTarget)) hover(null);
         }}
       >
-        {sidebarOpen && (
-          <InspectorContent
-            learning={learningOpen}
+        {detailsOpen && (
+          <Inspector
+            showScenarios={scenariosOpen}
             element={element}
             inspected={inspected}
             member={sameTarget(inspected, selected) ? member : null}
             model={model}
-            views={views}
             snippets={snippets}
-            guide={guide}
+            scenarios={scenarios}
             changes={changes}
             showOverview={showOverview}
             onChoose={choose}
-            onInspectLearning={inspectLearning}
+            onInspectScenario={inspectScenarioFinding}
           />
         )}
       </Panel>

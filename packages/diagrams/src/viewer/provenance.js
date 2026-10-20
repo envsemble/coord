@@ -34,7 +34,7 @@ export function formatCaptureDate(value) {
   return `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
 }
 
-export function sourceKindLabel(kind) {
+function sourceKindLabel(kind) {
   if (typeof kind !== "string" || !kind) return "";
   return (
     SOURCE_KINDS[kind.toLowerCase()] ||

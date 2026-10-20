@@ -1,31 +1,31 @@
 // The Atlas desktop app's main process: single instance, windows that each show one computer's
 // projects, the application menu, and the typed message channel the windows use. Projects are read
 // by the Atlas host of the computer they are on: this computer's, which this process starts in a
-// utility process (main/localHost.ts), or a paired computer's. The app keeps its own state in the
-// home database (main/state.ts).
+// utility process (main/host/localHost.ts), or a paired computer's. The app keeps its own state in the
+// home database (main/appState.ts).
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { app, dialog, Menu, nativeTheme, powerMonitor, protocol, shell } from 'electron';
-import { hostRunning } from '@envsemble/atlas-host';
-import { atlasHome, HomeDatabase, legacyData, legacyDataDirectory, legacySettings, migrateHomeFiles, migrateLegacyData, pendingHomeFiles, prepareHome } from '@envsemble/atlas-planning';
+import { atlasHome, electronDataDirectory, HomeDatabase, prepareHome } from '@envsemble/atlas/planning';
 import icon from '../build/icon.png?asset';
-import { Connections } from './connections.ts';
-import { dropImports, registerIpc } from './ipc.ts';
-import { LocalHost } from './localHost.ts';
+import { Computers } from './computers/computers.ts';
+import { dropImports, registerIpc } from './windows/ipc.ts';
+import { LocalHost } from './host/localHost.ts';
 import { RotatingLog } from './log.ts';
-import { buildMenu } from './menu.ts';
-import { refusalMessage, startupRefusal, type Refusal } from './refusal.ts';
-import { scheme } from './protocol.ts';
-import { DesktopState } from './state.ts';
-import { WindowManager } from './windows.ts';
+import { buildMenu } from './windows/menu.ts';
+import { refusalMessage, startupRefusal, type Refusal } from './startupRefusal.ts';
+import { scheme } from './windows/protocol.ts';
+import { AppState } from './appState.ts';
+import { WindowManager } from './windows/windowManager.ts';
 import type { AboutInfo } from '../shared/contract.ts';
+import { isProjectListing } from '../shared/validate.ts';
 
 // Atlas keeps its state in the Atlas home (~/.atlas, shared with the `atlas` command). Electron's
 // own files and Chromium's caches stay in Electron's per-user folder, except for a home chosen with
 // ATLAS_HOME (tests, a separate instance), which keeps them too. Setting this before the lock scopes
-// the single instance to it; older versions kept all their files there and share that lock.
+// the single instance to it.
 const dataDirectory = atlasHome();
-const electronData = process.env.ATLAS_HOME ? path.join(dataDirectory, 'electron') : legacyDataDirectory();
+const electronData = process.env.ATLAS_HOME ? path.join(dataDirectory, 'electron') : electronDataDirectory();
 app.setPath('userData', electronData);
 app.setPath('sessionData', path.join(electronData, 'chromium'));
 app.setAppUserModelId('dev.envsemble.atlas');
@@ -51,51 +51,14 @@ if (refusal) {
   app.quit();
 } else {
   await prepareHome();
-  const waiting = (process.env.ATLAS_HOME ? null : await moveLegacyData()) ?? await homeFilesBusy();
   let database: HomeDatabase | null = null;
-  if (waiting) refuseHome(waiting);
-  else {
-    try { database = HomeDatabase.open(dataDirectory); } catch (error) {
-      refuseHome(`Atlas cannot open its home database: ${(error as Error).message}`);
-    }
+  try { database = HomeDatabase.open(dataDirectory); } catch (error) {
+    refuseHome(`Atlas cannot open its home database: ${(error as Error).message}`);
   }
-  if (database) {
-    // What Atlas kept in its home before the database moves into it, before the host starts.
-    const migration = await migrateHomeFiles(database);
-    if (migration.imported.length || migration.failed.length) log.info('Moved the home\'s files into its database', { ...migration });
-    start(database);
-  }
+  if (database) start(database);
 }
 
-/**
- * The home's files from before its database are imported as Atlas starts, but not while an older
- * `atlas serve` works from them. Returns why it cannot start, or null.
- */
-async function homeFilesBusy(): Promise<string | null> {
-  if (!(await pendingHomeFiles(dataDirectory)).some(name => !name.startsWith('usage/')) || !await hostRunning(dataDirectory)) return null;
-  return `An older atlas serve is using Atlas's settings in ${dataDirectory}. Stop it, then start Atlas again to move them into the home's database.`;
-}
-
-/**
- * Move the old data folder's files into the home. Holding the lock means no older Atlas app uses
- * them, but an older `atlas serve` may. Only the packaged app moves them on its own; a development
- * run leaves them to `atlas setup`, as the user's own Atlas may still be an older version that needs
- * them. Atlas never starts on the home while its settings wait (host/, connections, desktop state, the
- * recent list), or it would fill the home with new ones and the move would then set the user's own
- * aside; logs and statistics left behind are merged or set aside later. Returns why it cannot start, or null.
- */
-async function moveLegacyData(): Promise<string | null> {
-  if (!(await legacyData(electronData)).length) return null;
-  if (!app.isPackaged) return !(await legacySettings(electronData)).length ? null : `Atlas's settings are still in ${electronData}. A development run does not move them: run atlas setup to move them into ${dataDirectory}, or set ATLAS_HOME to develop with a separate home.`;
-  if (await hostRunning(electronData)) return `An older atlas serve is using Atlas's settings in ${electronData}. Stop it, then start Atlas again to move them into ${dataDirectory}.`;
-  const migration = await migrateLegacyData(dataDirectory, electronData);
-  log.info('Moved the old data folder into the home', { from: electronData, ...migration });
-  // What could not move (a file held open elsewhere) would otherwise be shadowed by the home's new settings.
-  const left = await legacySettings(electronData);
-  return left.length ? `Some of Atlas's settings could not be moved from ${electronData} into ${dataDirectory} (${migration.failed.filter(item => left.includes(item.split(':')[0])).join('; ') || left.join(', ')}). Close any other program using them, then start Atlas again.` : null;
-}
-
-/** Leave without touching the home's settings while the old data folder's wait to be moved. */
+/** Leave without touching the home when its database cannot be opened. */
 function refuseHome(reason: string) {
   log.warn('Not started: the home is not ready', { reason });
   process.stderr.write(reason + '\n');
@@ -127,14 +90,14 @@ function refuse(found: Refusal) {
 
 function start(database: HomeDatabase) {
   const devUrl = !app.isPackaged && process.env.ELECTRON_RENDERER_URL ? process.env.ELECTRON_RENDERER_URL : null;
-  const state = new DesktopState(database);
+  const state = new AppState(database);
   // The chosen theme reaches every window as prefers-color-scheme, and themes Atlas's own menus and dialogs.
   nativeTheme.themeSource = state.theme;
   const devTools = !app.isPackaged;
   let manager: WindowManager;
 
   const openLogs = () => { void shell.openPath(log.directory); };
-  // Help › About Atlas is a dialog in the window; these are its facts.
+  // About Atlas, in the menu, is a dialog in the window; these are its facts.
   const systems: Record<string, string> = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
   const about = (): AboutInfo => ({
     version: app.getVersion(), electron: process.versions.electron, chromium: process.versions.chrome, node: process.versions.node,
@@ -144,22 +107,23 @@ function start(database: HomeDatabase) {
   const localHost = new LocalHost({
     entry: path.join(import.meta.dirname, 'host.js'), dataDirectory, version: app.getVersion(), log,
     // A restarted host has a new owner token; the connection reads it again and reconnects.
-    onRestart: () => connections.local.wake(),
+    onRestart: () => computers.local.wake(),
   });
-  const connections: Connections = new Connections({
+  const computers: Computers = new Computers({
     database, localHost, log,
     onEvent: (client, event, data) => {
-      if (event === 'folder.changed') { manager.folderChanged(client, data as never); return; }
-      const hostId = client === connections.local ? null : connections.hostIdOf(client);
-      if (client !== connections.local && hostId === null) return;
-      if (event === 'projects.changed') manager.projectsChanged(hostId);
+      if (event === 'project.changed') { manager.projectChanged(client, data as never); return; }
+      const hostId = client === computers.local ? null : computers.hostIdOf(client);
+      if (client !== computers.local && hostId === null) return;
+      // A listing that does not read as one (from another computer's host, say) is asked for again instead.
+      if (event === 'projects.changed') { const listed = (data as { projects?: unknown } | null)?.projects; manager.projectsChanged(hostId, isProjectListing(listed) ? listed : undefined); }
       else if (event === 'access.changed') manager.accessChanged(hostId, data as never);
     },
     onStatus: (client, status, detail) => manager.connectionChanged(client, status, detail),
   });
 
   manager = new WindowManager({
-    state, database, log, connections, version: app.getVersion(), icon, devUrl, devTools,
+    state, database, log, computers, version: app.getVersion(), icon, devUrl, devTools,
     preload: path.join(import.meta.dirname, '../preload/index.cjs'),
     rendererDirectory: path.join(import.meta.dirname, '../renderer'),
   });
@@ -187,7 +151,7 @@ function start(database: HomeDatabase) {
     if (hostStopped) return;
     event.preventDefault();
     hostStopped = true;
-    connections.closeAll();
+    computers.closeAll();
     void Promise.race([localHost.stop(), new Promise(resolve => setTimeout(resolve, 3000))]).finally(() => app.quit());
   });
   app.on('will-quit', () => database.close());
@@ -197,16 +161,17 @@ function start(database: HomeDatabase) {
     Menu.setApplicationMenu(null);
     registerIpc(manager, { openLogs, about });
     buildMenu(manager, { openLogs, devTools });
-    try { await localHost.start(); }
-    catch (error) {
+    // The host starts while the windows open: the connection waits for its owner token.
+    const hostStarted = localHost.start().catch(async error => {
       log.error('Host could not start', error);
-      await dialog.showMessageBox({ type: 'error', title: 'Atlas', message: 'Atlas could not start reading projects.', detail: (error as Error).message + '\n\nDetails are in the log (Help › Open Logs).', buttons: ['OK'] });
-    }
-    connections.local.start();
+      await dialog.showMessageBox({ type: 'error', title: 'Atlas', message: 'Atlas could not start reading projects.', detail: (error as Error).message + '\n\nDetails are in the log (Open Logs, in the menu).', buttons: ['OK'] });
+    });
+    computers.local.start();
     // The window buttons in each title bar follow the theme.
     nativeTheme.on('updated', () => { for (const window of manager.all()) window.updateTitleBar(); });
     // After sleep, connections may be dead without either side knowing: try them all again now.
-    powerMonitor.on('resume', () => connections.wakeAll());
+    powerMonitor.on('resume', () => computers.wakeAll());
     manager.restore();
+    await hostStarted;
   });
 }

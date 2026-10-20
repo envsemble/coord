@@ -15,7 +15,7 @@ import {
 import {
   DiagramViewer,
   UMLDiagram,
-  AtlasPanel,
+  DiagramPanel,
   ProvenanceBadge,
   describeProvenance,
   type Provenance,
@@ -56,7 +56,7 @@ async function smoke() {
   return (
     <>
       <DiagramViewer {...prepared.payload} />
-      <AtlasPanel
+      <DiagramPanel
         payload={prepared.payload}
         theme="dark"
         leading={<select aria-label="Diagram" />}

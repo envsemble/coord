@@ -1,9 +1,8 @@
 ---
-schema_version: 1
+schema_version: 2
 kind: plan
 id: work-0001
 title: Saved payment methods
-repositories: [shop]
 created: "2026-09-02"
 updated: "2026-09-30"
 design_status: accepted
@@ -12,6 +11,7 @@ accepted_at: "2026-09-15"
 completed_at: null
 supersedes: []
 superseded_by: null
+continues: [work-0004]
 ---
 
 # Saved payment methods

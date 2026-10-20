@@ -1,5 +1,6 @@
-export type { Document, DocumentContent, DocumentUsage, HistoryEntry, Issue, LedgerStep, ModelUsage, Repository, Usage, Work, WorkProgress, WorkStatistics } from '@envsemble/atlas-planning/types';
+export type { AgentShare, Document, DocumentContent, HistoryEntry, Issue, LedgerStep, ModelShare, Work, WorkProgress, WorkStatistics } from '@envsemble/atlas/planning/types';
 export type {
-  AccessSettings, AccessState, Computer, ComputerRef, DiagramEntry, DiagramIndexEntry, DiagramReference, FolderChange, PairedDevice, PairingGrant,
-  PairingLinkView, Project, ProjectRepository, ProjectState, ProjectWork, Snapshot, TabState, Target, UiState, WindowInfo,
+  AccessSettings, AccessState, Computer, ComputerRef, DiagramEntry, DiagramIndexEntry, DiagramReference, OpenProjectChange, PagePlace, PairedDevice, PairingGrant,
+  PairingLinkView, Place, Project, ProjectChangeRequest, ProjectPlace, ProjectState, ProjectStatistics, ProjectSummary, ProjectWork, ProjectWorkState, ReferenceInput, ResolvedReference,
+  LoadedUi, SearchKind, SearchResult, SessionActivity, Snapshot, SnapshotWork, Target, UiState, WindowInfo, WorkActivity, WorkCommit, WorkSession, WorkTimeline,
 } from '../shared/contract';

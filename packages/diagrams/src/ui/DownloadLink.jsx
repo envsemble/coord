@@ -1,6 +1,6 @@
 import { Button } from "@envsemble/envui";
 import { useBlobURL } from "./useBlobURL";
-import { DownloadIcon } from "./Icons";
+import { DownloadIcon } from "./icons";
 
 /** A text button that downloads data held in memory. */
 export function DownloadLink({ data, filename, type, children, ...props }) {

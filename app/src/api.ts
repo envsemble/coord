@@ -1,14 +1,13 @@
 // The renderer's view of the main process: typed calls over the preload bridge. Failures arrive as
-// structured values and are rethrown here as AtlasError, so components can check `code`.
-import type { AtlasBridge, ErrorCode, Result } from '../shared/contract';
+// structured values and are rethrown here as AtlasError (app/shared/errors.ts), so components can check `code`.
+import { withWorkDocuments } from '@envsemble/atlas/host/contract';
+import type { AtlasBridge, Result, Snapshot } from '../shared/contract';
+import { AtlasError } from '../shared/errors';
+
+export { AtlasError };
 
 declare global {
   interface Window { atlas: AtlasBridge }
-}
-
-export class AtlasError extends Error {
-  readonly code: ErrorCode;
-  constructor(code: ErrorCode, message: string) { super(message); this.name = 'AtlasError'; this.code = code; }
 }
 
 async function unwrap<T>(pending: Promise<Result<T>>): Promise<T> {
@@ -23,38 +22,49 @@ type Unwrapped = {
 
 const bridge = (): AtlasBridge => window.atlas;
 
-export const api: Unwrapped = {
+/** The snapshot arrives with each document once; the work items get theirs again here. */
+export const api: Omit<Unwrapped, 'snapshot'> & { snapshot(projectId: string): Promise<Snapshot> } = {
   info: () => unwrap(bridge().info()),
   projects: () => unwrap(bridge().projects()),
-  createProject: (name, repositories) => unwrap(bridge().createProject(name, repositories)),
-  updateProject: (project, change) => unwrap(bridge().updateProject(project, change)),
-  adoptProject: project => unwrap(bridge().adoptProject(project)),
-  openProject: project => unwrap(bridge().openProject(project)),
-  closeProject: project => unwrap(bridge().closeProject(project)),
-  snapshot: project => unwrap(bridge().snapshot(project)),
-  document: (project, path) => unwrap(bridge().document(project, path)),
-  diagrams: (project, work) => unwrap(bridge().diagrams(project, work)),
-  diagram: (project, work, path) => unwrap(bridge().diagram(project, work, path)),
-  references: (project, work, path) => unwrap(bridge().references(project, work, path)),
-  diagramIndex: project => unwrap(bridge().diagramIndex(project)),
-  recordView: (project, event) => unwrap(bridge().recordView(project, event)),
+  createProject: (name, folders) => unwrap(bridge().createProject(name, folders)),
+  search: query => unwrap(bridge().search(query)),
+  chooseFolder: () => unwrap(bridge().chooseFolder()),
+  updateProject: (projectId, change) => unwrap(bridge().updateProject(projectId, change)),
+  openProject: projectId => unwrap(bridge().openProject(projectId)),
+  closeProject: projectId => unwrap(bridge().closeProject(projectId)),
+  snapshot: projectId => unwrap(bridge().snapshot(projectId)).then(withWorkDocuments),
+  work: projectId => unwrap(bridge().work(projectId)),
+  document: (projectId, path) => unwrap(bridge().document(projectId, path)),
+  diagrams: (projectId, work) => unwrap(bridge().diagrams(projectId, work)),
+  diagram: (projectId, work, path) => unwrap(bridge().diagram(projectId, work, path)),
+  references: (projectId, work, path) => unwrap(bridge().references(projectId, work, path)),
+  diagramIndex: projectId => unwrap(bridge().diagramIndex(projectId)),
+  projectStatistics: (projectId, from, to, unit) => unwrap(bridge().projectStatistics(projectId, from, to, unit)),
+  allStatistics: (from, to, unit) => unwrap(bridge().allStatistics(from, to, unit)),
   loadUi: () => unwrap(bridge().loadUi()),
   saveUi: state => unwrap(bridge().saveUi(state)),
-  reveal: (project, path) => unwrap(bridge().reveal(project, path)),
+  resolveReferences: (projectId, items) => unwrap(bridge().resolveReferences(projectId, items)),
+  workSessions: (projectId, work) => unwrap(bridge().workSessions(projectId, work)),
+  workTimeline: (projectId, work) => unwrap(bridge().workTimeline(projectId, work)),
+  reveal: (projectId, path) => unwrap(bridge().reveal(projectId, path)),
   openExternal: url => unwrap(bridge().openExternal(url)),
+  openReference: (projectId, reference) => unwrap(bridge().openReference(projectId, reference)),
+  openShown: (place, path) => unwrap(bridge().openShown(place, path)),
+  editor: () => unwrap(bridge().editor()),
+  setEditor: editor => unwrap(bridge().setEditor(editor)),
   copy: text => unwrap(bridge().copy(text)),
   command: command => unwrap(bridge().command(command)),
   theme: () => unwrap(bridge().theme()),
   setTheme: preference => unwrap(bridge().setTheme(preference)),
   about: () => unwrap(bridge().about()),
-  exportPlan: (project, work) => unwrap(bridge().exportPlan(project, work)),
-  chooseImport: project => unwrap(bridge().chooseImport(project)),
+  exportPlan: (projectId, work) => unwrap(bridge().exportPlan(projectId, work)),
+  chooseImport: projectId => unwrap(bridge().chooseImport(projectId)),
   confirmImport: token => unwrap(bridge().confirmImport(token)),
   cancelImport: token => unwrap(bridge().cancelImport(token)),
   computers: () => unwrap(bridge().computers()),
   switchComputer: (hostId, newWindow) => unwrap(bridge().switchComputer(hostId, newWindow)),
-  pairRemote: (link, code) => unwrap(bridge().pairRemote(link, code)),
-  forgetRemote: hostId => unwrap(bridge().forgetRemote(hostId)),
+  pairComputer: (link, code) => unwrap(bridge().pairComputer(link, code)),
+  forgetComputer: hostId => unwrap(bridge().forgetComputer(hostId)),
   accessState: hostId => unwrap(bridge().accessState(hostId)),
   updateAccess: settings => unwrap(bridge().updateAccess(settings)),
   createPairing: (hostId, address, grant) => unwrap(bridge().createPairing(hostId, address, grant)),
@@ -67,7 +77,7 @@ export const api: Unwrapped = {
   onAccessChanged: listener => bridge().onAccessChanged(listener),
 };
 
-/** A file inside a project's folder, served by the window's own `atlas:` protocol. */
-export function fileUrl(project: string, path: string) {
-  return 'atlas://planning/' + project + '/' + path.split('/').map(encodeURIComponent).join('/');
+/** A file inside a project's planning folder, served by the window's own `atlas:` protocol. */
+export function fileUrl(projectId: string, path: string) {
+  return 'atlas://planning/' + projectId + '/' + path.split('/').map(encodeURIComponent).join('/');
 }

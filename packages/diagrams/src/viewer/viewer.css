@@ -1,0 +1,897 @@
+/* Viewer chrome. Controls are envUI components; this sheet only arranges
+   them over the canvas and styles Atlas-owned markup, using envUI's tokens.
+   Hosts load envUI's stylesheet; the offline file bundles it. */
+:root,
+.atlas-page,
+.atlas-panel {
+  /* Floating panes over the canvas: a hairline in both themes and a shadow
+     that reads on light canvases. */
+  --atlas-elevation:
+    0 0 0 0.0625rem
+      color-mix(in srgb, var(--color-text-primary) 9%, transparent),
+    0 0.0625rem 0.1875rem
+      color-mix(in srgb, var(--color-canvas-dark) 14%, transparent),
+    0 0.5rem 1.5rem -0.5rem
+      color-mix(in srgb, var(--color-canvas-dark) 28%, transparent);
+  --atlas-gutter: var(--space-3);
+  --inspector-width: clamp(20rem, 38cqw, 30rem);
+}
+body {
+  margin: 0;
+  overflow: hidden;
+}
+
+/* Layout: the grid canvas is full-bleed; every control floats over it. */
+.viewer {
+  position: relative;
+  height: 100dvh;
+  overflow: hidden;
+  container: atlas-viewer / size;
+}
+.atlas-overlay-top {
+  position: absolute;
+  z-index: 20;
+  top: var(--atlas-gutter);
+  left: var(--atlas-gutter);
+  right: var(--atlas-gutter);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+.atlas-overlay-top > * {
+  pointer-events: auto;
+}
+/* With the host's own navigation (such as a work item's sections) the
+   overlay has two rows: that navigation and the tools on the first, the
+   diagram's navigation island below them. Each island keeps its cell, so a
+   crowded overlay shows as an island wrapping its controls. */
+.atlas-overlay-top.stacked {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  justify-items: start;
+}
+.atlas-overlay-top.stacked > .atlas-overlay-sections {
+  grid-area: 1 / 1;
+}
+.atlas-overlay-top.stacked > .island-start {
+  grid-area: 2 / 1 / 3 / -1;
+}
+.atlas-overlay-top.stacked > .island-end {
+  grid-area: 1 / 3;
+  justify-self: end;
+}
+/* At the tightest density a long model name gives way, rather than the
+   navigation wrapping its controls. */
+.atlas-overlay-top.tighter > .island-start {
+  flex-wrap: nowrap;
+}
+.atlas-overlay-top.tighter > .island-start > :not(.island-leading) {
+  flex-shrink: 0;
+}
+.atlas-overlay-top.tighter .island-leading > * {
+  min-width: 0;
+}
+
+.atlas-island {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  max-width: 100%;
+  box-shadow: var(--atlas-elevation);
+}
+.atlas-island.inline {
+  display: inline-flex;
+  box-shadow: none;
+}
+.island-end {
+  margin-left: auto;
+}
+.island-divider {
+  flex: none;
+  width: 0.0625rem;
+  height: 1.25rem;
+  margin: 0 var(--space-1);
+  background: var(--color-border-strong);
+}
+.island-leading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.brand-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--control-height-small);
+  height: var(--control-height-small);
+}
+.brand-mark svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+.island-title {
+  max-width: 28ch;
+  margin: 0 var(--space-2) 0 var(--space-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.zoom-readout {
+  min-width: 4rem;
+}
+/* Concept search: an inline field, or a toggle with a popup when crowded. */
+/* In a crowded toolbar the field opens below the whole tools island. */
+.search {
+  display: flex;
+  align-items: center;
+}
+.search-toggle {
+  display: none;
+}
+.search-field {
+  position: relative;
+  width: clamp(10rem, 20cqw, 15rem);
+}
+.suggestions {
+  display: none;
+  position: absolute;
+  z-index: 31;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  width: max-content;
+  min-width: 100%;
+  max-width: 20rem;
+  max-height: 18rem;
+  overflow: auto;
+  box-shadow: var(--atlas-elevation);
+}
+.suggestions.open {
+  display: grid;
+  gap: 0.125rem;
+}
+.suggestion {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 2.25rem;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-row-inner);
+  background: transparent;
+  color: var(--color-text-primary);
+  font: var(--type-body-small);
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.suggestion:hover,
+.suggestion:focus-visible {
+  background: var(--color-state-layer-hover);
+}
+.suggestion:active {
+  background: var(--color-state-layer-pressed);
+}
+.suggestion:focus-visible {
+  outline: 0.125rem solid var(--color-focus-ring);
+  outline-offset: -0.125rem;
+}
+.suggestion-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.suggestion-detail {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+/* Provenance: where a model came from, as a badge and a detail line. */
+.atlas-provenance {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  box-shadow: var(--atlas-elevation);
+}
+.atlas-provenance.inline {
+  box-shadow: none;
+}
+/* The standalone viewer's badge beside the model's title. */
+.island-provenance {
+  display: inline-flex;
+  flex: none;
+  margin-inline-end: var(--space-1);
+}
+.provenance-detail {
+  min-width: 0;
+  margin-inline-end: var(--space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Floating panes beside the canvas: the inspector. Its content scrolls
+   inside it, so the resize handle on its inner edge stays in place. */
+.panel {
+  display: none;
+  position: absolute;
+  z-index: 15;
+  top: var(--atlas-top-inset, 4rem);
+  right: var(--atlas-gutter);
+  width: min(22.5rem, calc(100% - 2 * var(--atlas-gutter)));
+  max-height: calc(100% - var(--atlas-top-inset, 4rem) - var(--atlas-gutter));
+  box-shadow: var(--atlas-elevation);
+  user-select: text;
+}
+.panel.open {
+  display: flex;
+  flex-direction: column;
+}
+.panel-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: inherit;
+}
+/* The handle straddles the pane's inner edge; a line shows on hover (after a
+   moment, as envUI's sidebar's) and focus, and while dragging. */
+.panel-resize {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  bottom: 0;
+  left: -0.3125rem;
+  width: 0.625rem;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+.panel-resize::after {
+  content: "";
+  position: absolute;
+  top: var(--space-5);
+  bottom: var(--space-5);
+  left: calc(50% - 0.0625rem);
+  width: 0.125rem;
+  border-radius: 0.0625rem;
+  background: transparent;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.panel-resize:hover::after {
+  background: var(--color-border-hover);
+  transition-delay: var(--motion-duration-medium);
+}
+.panel-resize:focus-visible::after,
+.viewer.resizing .panel-resize::after {
+  background: var(--color-focus-ring);
+  transition-delay: 0s;
+}
+/* While the details are resized, the width follows the pointer and no text
+   is selected. */
+.viewer.resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+.viewer.resizing .panel {
+  user-select: none;
+}
+.panel-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-2) var(--space-5);
+  background: var(--color-pane);
+}
+/* Without a title, the close button floats over the content's top corner on a
+   pane-coloured backing, and stays there while the content scrolls. */
+.panel-header.compact {
+  top: var(--space-3);
+  width: fit-content;
+  margin: var(--space-3) var(--space-3)
+    calc(-1 * (var(--control-height-small) + var(--space-3))) auto;
+  padding: 0;
+  border-radius: var(--md-sys-shape-corner-full);
+}
+.panel-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-5) var(--space-5);
+}
+.panel-header.compact + .panel-content {
+  padding-top: var(--space-5);
+}
+.panel-header.compact + .panel-content > .detail-header:first-child {
+  padding-inline-end: calc(var(--control-height-small) + var(--space-1));
+}
+.inspector {
+  width: min(var(--inspector-width), calc(100% - 2 * var(--atlas-gutter)));
+}
+
+/* Inspector content. */
+.detail-header {
+  display: grid;
+  gap: var(--space-3);
+}
+.detail-title {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.detail-icon {
+  display: inline-grid;
+  flex: none;
+  padding-top: 0.0625rem;
+  color: var(--color-icon);
+  font-size: 1.25rem;
+}
+.detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.detail-owner {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+.detail-description {
+  white-space: pre-wrap;
+}
+/* Text read by assistive technology, not shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* A proposal's changes, in the panel: added, changed and removed. */
+[data-change="added"] {
+  --change-color: var(--change-added);
+}
+[data-change="modified"] {
+  --change-color: var(--change-modified);
+}
+[data-change="removed"] {
+  --change-color: var(--change-removed);
+}
+.change-mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 0.3125rem;
+  background: color-mix(in srgb, var(--change-color) 16%, transparent);
+  color: var(--change-color);
+  font: 600 0.8125rem / 1 var(--font-family-code);
+}
+.change-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0 var(--space-3);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: color-mix(in srgb, var(--change-color) 16%, transparent);
+  color: var(--change-color);
+  font: var(--type-body-small);
+  font-weight: 500;
+}
+
+/* The changes overview: groups of rows, each a button. */
+.change-groups {
+  display: grid;
+  gap: var(--space-5);
+}
+.changes-overview .change-group {
+  display: grid;
+  gap: var(--space-2);
+}
+.change-relations {
+  margin-top: var(--space-1);
+}
+.change-group-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.change-subheading {
+  margin: var(--space-1) 0 0 var(--space-2);
+}
+.change-rows {
+  display: grid;
+  gap: 0.125rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.change-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 2.5rem;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-row-inner);
+  background: var(--color-row);
+  color: var(--color-row-text);
+  font: var(--type-body-small);
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.change-rows > li:first-child > .change-row,
+.change-rows > .change-row:first-child {
+  border-start-start-radius: var(--radius-standard);
+  border-start-end-radius: var(--radius-standard);
+}
+.change-rows > li:last-child > .change-row,
+.change-rows > .change-row:last-child {
+  border-end-start-radius: var(--radius-standard);
+  border-end-end-radius: var(--radius-standard);
+}
+.change-row.static {
+  cursor: default;
+}
+button.change-row:hover {
+  background: var(--color-row-hover);
+}
+button.change-row:active {
+  background: var(--color-row-pressed);
+}
+button.change-row:focus-visible {
+  outline: 0.125rem solid var(--color-focus-ring);
+  outline-offset: -0.125rem;
+}
+button.change-row[aria-current="true"] {
+  box-shadow: inset 0.1875rem 0 0 var(--change-color);
+}
+.change-row > .change-mark {
+  margin-top: 0.0625rem;
+}
+.change-row-text {
+  display: grid;
+  flex: 1;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.change-row-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.change-row-name {
+  min-width: 0;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.change-row-tag {
+  flex: none;
+  color: var(--color-row-detail);
+}
+.change-row-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  color: var(--color-row-detail);
+  font: var(--font-size-code) / 1.5 var(--font-family-code);
+  overflow-wrap: anywhere;
+}
+.change-token {
+  color: var(--change-color);
+}
+.change-token-glyph {
+  margin-inline-end: 0.125rem;
+  font-weight: 500;
+}
+.change-token.more {
+  color: var(--color-row-detail);
+}
+/* Why a listed change does not open: no view draws it. */
+.change-row-note {
+  color: var(--color-row-detail);
+  font: var(--type-body-small);
+  font-style: italic;
+}
+
+/* Above a changed element's details: back, previous and next. */
+.change-navigation {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.change-back {
+  flex: none;
+  white-space: nowrap;
+}
+.change-stepper {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+}
+.change-position {
+  min-width: 4.5rem;
+  color: var(--color-text-muted);
+  font: var(--type-body-small);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Details: titled sections, change lists and code places. */
+.detail-section {
+  padding-top: var(--space-4);
+  border-top: 0.0625rem solid var(--color-border-strong);
+}
+.detail-section-title {
+  color: var(--color-text-muted);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.change-list,
+.member-list,
+.relation-end-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.change-list {
+  gap: var(--space-2);
+}
+.change-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--color-text-primary);
+  font: var(--type-body-small);
+}
+.change-line-text {
+  display: grid;
+  flex: 1;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.change-key,
+.change-detail {
+  color: var(--color-text-muted);
+}
+.change-before {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+.change-after {
+  text-decoration: none;
+}
+.change-arrow {
+  margin: 0 var(--space-1);
+  color: var(--color-text-muted);
+}
+.signature {
+  min-width: 0;
+  color: var(--color-text-primary);
+  font: var(--font-size-code) / 1.55 var(--font-family-code);
+  overflow-wrap: anywhere;
+}
+[data-change] > .change-line-text > .signature,
+.member[data-change] > .signature,
+.member[data-change] > .member-text > .signature {
+  color: var(--change-color);
+}
+.member[data-change="removed"] .signature,
+.change-line[data-change="removed"] .signature {
+  text-decoration: line-through;
+}
+.member-list {
+  gap: 0;
+}
+.member {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: 0.3125rem 0;
+  border-bottom: 0.0625rem solid
+    color-mix(in srgb, var(--color-border-strong) 60%, transparent);
+}
+.member:last-child {
+  border-bottom: 0;
+}
+/* The member a focus asked for, such as a plan's link to it. */
+.member.focused {
+  border-radius: var(--radius-standard);
+  background: color-mix(in srgb, var(--color-focus-ring) 14%, transparent);
+  box-shadow: inset 0.1875rem 0 0 var(--color-focus-ring);
+  padding-inline-start: var(--space-2);
+}
+.member > .signature {
+  flex: 1;
+}
+/* A described member: its signature, and its description below it. */
+.member-text {
+  display: grid;
+  flex: 1;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.member-description {
+  color: var(--color-text-muted);
+}
+.member-list.marked .member:not([data-change]) {
+  padding-inline-start: calc(1.125rem + var(--space-2));
+}
+.member-type,
+.column-flags {
+  color: var(--color-text-muted);
+}
+.member-line {
+  flex: none;
+  color: var(--color-text-quiet);
+  font: var(--font-size-code) / 1.55 var(--font-family-code);
+  font-variant-numeric: tabular-nums;
+}
+.member-line::before {
+  content: "L";
+}
+.column-flags {
+  flex: none;
+  font: var(--type-body-small);
+}
+.proposed-location code {
+  font: 0.92em var(--font-family-code);
+  overflow-wrap: anywhere;
+}
+.code-where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 var(--space-3);
+}
+.code-path {
+  min-width: 0;
+  color: var(--color-text-primary);
+  font: var(--font-size-code) / 1.5 var(--font-family-code);
+  overflow-wrap: anywhere;
+}
+.code-lines {
+  flex: none;
+  color: var(--color-text-muted);
+  font: var(--type-body-small);
+}
+.code-source-link {
+  justify-self: start;
+}
+.relation-ends {
+  gap: var(--space-1);
+}
+
+/* Scenarios: the examples of a class diagram. */
+.example-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.example-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  font: var(--type-body-small);
+}
+.relation-role {
+  min-width: 4.5rem;
+  color: var(--color-text-muted);
+  font: var(--type-body-small);
+}
+.relation-end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-bottom: 0.0625rem solid var(--color-border-strong);
+}
+.relation-end .count-badge {
+  margin-inline-start: auto;
+}
+.relation-end:last-child {
+  border-bottom: 0;
+}
+.source-code {
+  margin: 0;
+  padding: var(--space-3);
+  overflow: auto;
+  border-radius: var(--radius-standard);
+  background: var(--color-canvas);
+  color: var(--color-text-primary);
+  font: var(--font-size-code) / 1.6 var(--font-family-code);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.source-code:focus-visible,
+.code-snippet:focus-visible {
+  outline: 0.125rem solid var(--color-focus-ring);
+  outline-offset: 0.125rem;
+}
+/* Prepared source excerpts keep their source line numbers. */
+.code-snippet {
+  margin: 0;
+  padding: var(--space-2) 0;
+  overflow: auto;
+  border-radius: var(--radius-standard);
+  background: var(--color-canvas);
+  color: var(--color-text-primary);
+  font: var(--font-size-code) / 1.65 var(--font-family-code);
+  tab-size: 2;
+}
+.code-line::before {
+  content: attr(data-line);
+  display: inline-block;
+  position: sticky;
+  left: 0;
+  width: 2.75rem;
+  padding: 0 var(--space-3) 0 var(--space-2);
+  margin-right: var(--space-2);
+  color: var(--color-text-quiet);
+  background: var(--color-canvas);
+  text-align: right;
+  user-select: none;
+}
+/* light-dark() follows the colour scheme envUI's theme sets. GitHub's light
+   and dark themes share their font styles. */
+.shiki .code-line > span {
+  color: light-dark(var(--shiki-light), var(--shiki-dark));
+  font-style: var(--shiki-dark-font-style, var(--shiki-light-font-style));
+  font-weight: var(--shiki-dark-font-weight, var(--shiki-light-font-weight));
+}
+.shortcut-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+.shortcut {
+  display: grid;
+  grid-template-columns: minmax(7rem, max-content) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: baseline;
+}
+.shortcut dt {
+  color: var(--color-text-muted);
+}
+.shortcut dd {
+  margin: 0;
+}
+
+.atlas-portal.about-content .shortcut-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+.atlas-portal.about-content .shortcut {
+  display: grid;
+  grid-template-columns: minmax(7rem, max-content) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: baseline;
+}
+.atlas-portal.about-content .shortcut dt {
+  color: var(--color-text-muted);
+}
+.atlas-portal.about-content .shortcut dd {
+  margin: 0;
+}
+
+.viewer-error {
+  display: grid;
+  gap: var(--space-4);
+  justify-items: start;
+  max-width: 32.5rem;
+  margin: 15vh auto;
+  padding: var(--space-5);
+}
+
+/* Measured density: when the islands no longer fit on one row, search
+   collapses to a button whose field opens below it. */
+.atlas-overlay-top.tight .search-toggle {
+  display: inline-flex;
+}
+.atlas-overlay-top.tight .search-field {
+  display: none;
+  position: absolute;
+  z-index: 31;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  width: min(20rem, calc(100cqw - 2 * var(--space-2)));
+  padding: var(--space-2);
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--color-pane);
+  box-shadow: var(--atlas-elevation);
+}
+.atlas-overlay-top.tight .search.open .search-field {
+  display: block;
+}
+.atlas-overlay-top.tight .suggestions {
+  left: 0;
+  right: 0;
+  width: auto;
+  max-width: none;
+}
+.atlas-overlay-top.tight .island-title,
+.atlas-overlay-top.tight .collapsible-label {
+  display: none;
+}
+.view-select {
+  max-width: 11rem;
+}
+
+/* Narrow panels (embedded cards, phones): tighter gutters, full-width panes. */
+@container atlas-viewer (max-width: 640px) {
+  .atlas-overlay-top {
+    --atlas-gutter: var(--space-2);
+    gap: var(--space-1);
+  }
+  /* Beside the host's navigation the tools no longer fit: they take the
+     row below the diagram's navigation. */
+  .atlas-overlay-top.stacked {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .atlas-overlay-top.stacked > .island-start {
+    grid-area: 2 / 1;
+  }
+  .atlas-overlay-top.stacked > .island-end {
+    grid-area: 3 / 1;
+  }
+  .panel,
+  .inspector {
+    left: var(--space-2);
+    right: var(--space-2);
+    width: auto;
+    max-height: calc(100% - var(--atlas-top-inset, 4rem) - var(--space-2));
+  }
+  /* Spanning the width, the details cannot be resized. */
+  .panel-resize {
+    display: none;
+  }
+  .island-title,
+  .collapsible-label {
+    display: none;
+  }
+}
+@container atlas-viewer (max-width: 420px) {
+  .provenance-detail,
+  .island-provenance {
+    display: none;
+  }
+}
+/* A narrow inspector keeps its change navigation on one row: back becomes an icon. */
+@container atlas-viewer (max-width: 960px) {
+  .change-back-label {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .diagram-element,
+  .suggestion {
+    transition: none;
+  }
+}

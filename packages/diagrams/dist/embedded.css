@@ -499,7 +499,7 @@
 }
 .atlas-panel .change-token-glyph {
   margin-inline-end: 0.125rem;
-  font-weight: 600;
+  font-weight: 500;
 }
 .atlas-panel .change-token.more {
   color: var(--color-row-detail);
@@ -538,7 +538,7 @@
   text-align: center;
 }
 
-/* Details: titled sections, change lists, code places and references. */
+/* Details: titled sections, change lists and code places. */
 .atlas-panel .detail-section {
   padding-top: var(--space-4);
   border-top: 0.0625rem solid var(--color-border-strong);
@@ -550,7 +550,6 @@
 }
 .atlas-panel .change-list,.atlas-panel
 .member-list,.atlas-panel
-.reference-list,.atlas-panel
 .relation-end-list {
   display: grid;
   margin: 0;
@@ -657,9 +656,7 @@
   flex: none;
   font: var(--type-body-small);
 }
-.atlas-panel .proposed-location code,.atlas-panel
-.reference-excerpt code,.atlas-panel
-.detail-rationale code {
+.atlas-panel .proposed-location code {
   font: 0.92em var(--font-family-code);
   overflow-wrap: anywhere;
 }
@@ -684,73 +681,11 @@
 .atlas-panel .code-source-link {
   justify-self: start;
 }
-.atlas-panel .detail-rationale {
-  white-space: pre-wrap;
-}
-.atlas-panel .reference-list {
-  gap: var(--space-3);
-}
-.atlas-panel .reference {
-  display: grid;
-  gap: 0.125rem;
-}
-.atlas-panel .reference-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  min-height: var(--control-height-small);
-}
-.atlas-panel .reference-head > .reference-link {
-  min-width: 0;
-  text-align: start;
-}
-.atlas-panel .reference-toggle {
-  flex: none;
-}
-.atlas-panel .reference-title {
-  font: var(--type-body-small);
-  font-weight: 500;
-}
-/* Two lines of the passage; the rest on request. */
-.atlas-panel .reference-excerpt {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-}
-.atlas-panel .reference-excerpt.expanded {
-  display: block;
-  white-space: pre-wrap;
-  -webkit-line-clamp: unset;
-  line-clamp: none;
-}
 .atlas-panel .relation-ends {
   gap: var(--space-1);
 }
 
-/* The model guide: walkthrough steps and examples. */
-.atlas-panel .walkthrough-steps {
-  display: grid;
-  gap: var(--space-3);
-  margin: 0;
-  padding-inline-start: var(--space-5);
-  list-style: decimal;
-}
-.atlas-panel .walkthrough-steps > li::marker {
-  color: var(--color-text-muted);
-}
-.atlas-panel .walkthrough-steps > li {
-  padding-inline-start: var(--space-1);
-}
-.atlas-panel .step-links {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-3);
-  margin-top: var(--space-1);
-}
+/* Scenarios: the examples of a class diagram. */
 .atlas-panel .example-head {
   display: flex;
   flex-wrap: wrap;
@@ -828,14 +763,6 @@
   color: light-dark(var(--shiki-light), var(--shiki-dark));
   font-style: var(--shiki-dark-font-style, var(--shiki-light-font-style));
   font-weight: var(--shiki-dark-font-weight, var(--shiki-light-font-weight));
-}
-.atlas-panel .learning-question {
-  padding-inline-start: var(--space-3);
-  border-inline-start: 0.125rem solid var(--color-link);
-}
-.atlas-panel .open-question {
-  padding-inline-start: var(--space-3);
-  border-inline-start: 0.125rem solid var(--color-border-strong);
 }
 .atlas-panel .shortcut-list {
   display: grid;

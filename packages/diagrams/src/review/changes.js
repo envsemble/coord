@@ -9,7 +9,7 @@ export const CHANGE_LABELS = {
   modified: "Changed",
   removed: "Removed",
 };
-export const CHANGE_STATUSES = ["added", "modified", "removed"];
+const CHANGE_STATUSES = ["added", "modified", "removed"];
 const GLYPHS = { added: "+", modified: "~", removed: "−" };
 export const changeGlyph = (status) => GLYPHS[status] || "";
 
@@ -38,7 +38,7 @@ const edgeEnds = (edge) =>
  * Element id → display name: classes, their members (owner.member), and
  * relations, which read as their ends when their own name says nothing more.
  */
-export function nameIndex(...models) {
+function nameIndex(...models) {
   const names = new Map();
   // The first model's name wins: the proposal's, then the baseline's for
   // what the proposal removed.
@@ -713,22 +713,31 @@ export function rollupChanges(comparison, model, views) {
   };
 }
 
-const counted = new WeakMap();
+const rollups = new WeakMap();
+/**
+ * A comparison's rolled-up changes, computed once per comparison and shared by
+ * everything that reads them (the Changes button's count and the viewer's
+ * review). The cached rollup is reused while it was built from the same model
+ * and views.
+ */
+export function cachedRollup(comparison, model, views) {
+  const cached = rollups.get(comparison);
+  if (cached && cached.model === model && cached.views === views)
+    return cached.rollup;
+  const rollup = rollupChanges(comparison, model, views);
+  rollups.set(comparison, { model, views, rollup });
+  return rollup;
+}
+
 /**
  * How many changes a proposal's payload lists, as its Changes button counts
- * them; null for a payload that is not a proposal. Counted once per payload.
+ * them; null for a payload that is not a proposal. Counted once per comparison.
  */
 export function changeCount(payload) {
   const comparison = payload?.comparison;
   if (!comparison?.changes) return null;
-  if (!counted.has(payload)) {
-    const view = comparison.changeView || payload;
-    counted.set(
-      payload,
-      rollupChanges(comparison, view.model, view.views)?.count ?? 0,
-    );
-  }
-  return counted.get(payload);
+  const view = comparison.changeView || payload;
+  return cachedRollup(comparison, view.model, view.views)?.count ?? 0;
 }
 
 // Singular names for the parts a table lists, in a list's tokens.

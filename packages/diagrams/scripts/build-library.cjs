@@ -7,8 +7,10 @@ async function buildLibrary() {
   );
   const built = await build({
     absWorkingDir: path.resolve(__dirname, ".."),
-    entryPoints: ["src/index.js"],
-    outfile: "dist/react.mjs",
+    // The viewer, and the Atlas mark alone for an app that draws it before it needs the viewer.
+    entryPoints: { react: "src/index.js", mark: "src/ui/AtlasMark.jsx" },
+    outdir: "dist",
+    outExtension: { ".js": ".mjs" },
     bundle: true,
     format: "esm",
     platform: "neutral",

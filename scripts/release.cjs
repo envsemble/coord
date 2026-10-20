@@ -162,10 +162,7 @@ ${status}`,
     );
     for (const [name, data] of Object.entries(tracked)) {
       const parts = name.split("/");
-      if (
-        (SOURCE_FOLDERS.includes(parts[0]) || SOURCE_FILES.includes(name)) &&
-        !parts.includes(".atlas")
-      )
+      if (SOURCE_FOLDERS.includes(parts[0]) || SOURCE_FILES.includes(name))
         files.set(name, data);
     }
     const manifest = {

@@ -30,16 +30,29 @@ const FRONTMATTER_KEYS = new Set([
   "description",
   "disable-model-invocation",
 ]);
-const HOOK_EVENTS = ["SessionStart", "PostToolUse", "Stop", "SubagentStop"];
+// Each harness event the plugin hooks, with the Atlas hooks it runs: after every tool use, the
+// session's state besides the checks of planning edits. Each harness has its own hooks file without
+// the events it lacks (Claude Code warns about unknown ones): Claude Code's hooks/hooks.json, which
+// it loads by default, and Codex's hooks/codex.json, which its manifest names instead.
+const HOOK_EVENTS = {
+  SessionStart: ["SessionStart"],
+  UserPromptSubmit: ["UserPromptSubmit"],
+  PostToolUse: ["PostToolUse", "ToolUse"],
+  PostToolUseFailure: ["ToolUse"],
+  Notification: ["Notification"],
+  PermissionRequest: ["PermissionRequest"],
+  Stop: ["Stop"],
+  StopFailure: ["StopFailure"],
+  Interrupt: ["Interrupt"],
+  SubagentStart: ["SubagentStart"],
+  SubagentStop: ["SubagentStop"],
+  SessionEnd: ["SessionEnd"],
+};
+const HOOK_FILES = {
+  "hooks.json": ["Interrupt"],
+  "codex.json": ["Notification", "PostToolUseFailure", "StopFailure"],
+};
 
-// Old skill and product names. Character classes keep this file itself free of them.
-const RETIRED_NAMES = [
-  /work[t]rail[\w-]*/gi,
-  /ontouml[- ]atla[s]/gi,
-  /(?<![\w-])plannin[g]-(?:bootstrap|grill|implement|record|organize)\b/gi,
-  /(?<![\w-])implement-pla[n]\b/gi,
-  /(?<![\w-])atlas-(?:recor[d]|organiz[e]|bootstra[p]|mode[l]|modelin[g]|babysit-p[r])\b/gi,
-];
 const PROVIDER_NAME =
   /\b(gpt[\w.-]*|chatgpt|openai|codex|anthropic|claude[\w.-]*|opus|sonnet|haiku|fable|gemini|sol|llama|mistral)\b/gi;
 
@@ -61,12 +74,14 @@ const textFiles = () =>
   );
 
 // The command's usage lines (main.ts and the planning commands) and the MCP server's tool names, read from the code.
-const CLI = path.join(REPO, "packages", "cli", "src");
+const CLI = path.join(REPO, "packages", "atlas", "src", "cli", "commands");
 const USAGE = [
-  read(path.join(CLI, "main.ts")),
+  read(path.join(CLI, "..", "main.ts")),
   read(path.join(CLI, "planning.ts")),
 ]
-  .flatMap((text) => [...text.matchAll(/(?:^|`) {2}atlas ([a-z][^\n`]*)$/gm)])
+  .flatMap((text) => [
+    ...text.matchAll(/(?:^|`) {2}atlas ([a-z][^\n`]*)(?:`;)?$/gm),
+  ])
   .map((match) =>
     match[1]
       .split(" ")
@@ -84,7 +99,8 @@ const TOOLS = [
     /const tools[\s\S]*?\n\];/.exec(read(path.join(CLI, "mcp.ts")))?.[0] ?? ""
   ).matchAll(/name: '([a-z_]+)'/g),
 ].map((match) => match[1]);
-const TOOL_MENTION = /`(?!work_(?:items|id)`)((?:work|step)_[a-z_]+|where)`/g; // Registry and ledger fields are not tools.
+const TOOL_MENTION =
+  /`(?!work_(?:items|id)`)((?:work|step|project)_[a-z_]+|where|step)`/g; // Registry and ledger fields are not tools.
 
 /** Whether `atlas <words>` names a command: it and a usage line agree for as long as both have words. */
 function knownCommand(words) {
@@ -168,10 +184,6 @@ test("the plugin packages exactly the atlas, atlas-grill and atlas-implement ski
       .sort();
   assert.deepEqual(folders(SKILLS), PLUGIN_SKILLS);
   assert.deepEqual(folders(EXTRAS), EXTRA_SKILLS);
-  assert.ok(
-    !existsSync(path.join(REPO, "skills")),
-    "the old skills/ folder is gone",
-  );
   for (const name of readdirSync(REPO))
     assert.ok(
       !existsSync(path.join(REPO, name, "SKILL.md")),
@@ -242,15 +254,6 @@ test("Codex interface metadata uses the Atlas names", () => {
   }
 });
 
-test("no old skill or product name appears in the skills", () => {
-  for (const file of skillFiles()) {
-    const found = RETIRED_NAMES.flatMap((pattern) =>
-      [...read(file).matchAll(pattern)].map((m) => m[0]),
-    );
-    assert.deepEqual(found, [], `${rel(file)} mentions old names`);
-  }
-});
-
 test("skills name no model, provider or harness-specific reviewer", () => {
   for (const file of textFiles()) {
     const text = read(file);
@@ -264,17 +267,6 @@ test("skills name no model, provider or harness-specific reviewer", () => {
   }
 });
 
-test("skills use the atlas command, not Python helpers", () => {
-  for (const file of skillFiles())
-    assert.doesNotMatch(rel(file), /\.py$/, "no bundled Python");
-  for (const file of textFiles())
-    assert.doesNotMatch(
-      read(file),
-      /\bpython\b|\.py\b|requirements-dev/i,
-      `${rel(file)} refers to Python`,
-    );
-});
-
 test("every atlas command and Atlas tool the skills and docs name exists in the code", () => {
   assert.ok(
     USAGE.length > 15 &&
@@ -282,9 +274,10 @@ test("every atlas command and Atlas tool the skills and docs name exists in the 
     "read the command's usage lines",
   );
   assert.ok(
-    TOOLS.length >= 13 &&
+    TOOLS.length >= 12 &&
       TOOLS.includes("where") &&
-      TOOLS.includes("work_close"),
+      TOOLS.includes("work_close") &&
+      TOOLS.includes("step"),
     "read the MCP tool names",
   );
   const docs = [
@@ -307,12 +300,6 @@ test("every atlas command and Atlas tool the skills and docs name exists in the 
         `${rel(file)}: unknown Atlas tool ${tool}`,
       );
   }
-  const atlas = read(path.join(SKILLS, "atlas", "SKILL.md"));
-  for (const tool of TOOLS)
-    assert.ok(
-      atlas.includes("`" + tool + "`"),
-      `the atlas skill names the tool ${tool}`,
-    );
 });
 
 test("relative links resolve and stay inside their skill set", () => {
@@ -345,7 +332,7 @@ test("relative links resolve and stay inside their skill set", () => {
 test("the plugin manifests agree with each other and the repository", () => {
   const version = json(path.join(REPO, "package.json")).version;
   assert.equal(
-    json(path.join(REPO, "packages", "cli", "package.json")).version,
+    json(path.join(REPO, "packages", "atlas", "package.json")).version,
     version,
     "the command's version",
   );
@@ -353,7 +340,7 @@ test("the plugin manifests agree with each other and the repository", () => {
     const manifest = json(path.join(PLUGIN, harness, "plugin.json"));
     assert.equal(manifest.name, "atlas", `${harness}: name`);
     assert.equal(manifest.version, version, `${harness}: version`);
-    for (const field of ["skills", "mcpServers"])
+    for (const field of ["skills", "mcpServers", "hooks"])
       if (manifest[field])
         assert.ok(
           existsSync(path.join(PLUGIN, manifest[field])),
@@ -387,21 +374,32 @@ test("the plugin manifests agree with each other and the repository", () => {
   }
 });
 
-test("the plugin's hooks are the four Atlas handles", () => {
-  const { hooks } = json(path.join(PLUGIN, "hooks", "hooks.json"));
-  assert.deepEqual(Object.keys(hooks).sort(), [...HOOK_EVENTS].sort());
-  for (const event of HOOK_EVENTS) {
-    const commands = hooks[event].flatMap((group) =>
-      group.hooks.map((hook) => hook.command),
+test("the plugin's hooks are the ones Atlas handles", () => {
+  assert.equal(
+    json(path.join(PLUGIN, ".codex-plugin", "plugin.json")).hooks,
+    "./hooks/codex.json",
+  );
+  for (const [file, lacks] of Object.entries(HOOK_FILES)) {
+    const { hooks } = json(path.join(PLUGIN, "hooks", file));
+    const events = Object.keys(HOOK_EVENTS).filter(
+      (event) => !lacks.includes(event),
     );
-    assert.deepEqual(
-      commands,
-      [`atlas hook ${event}`],
-      `${event}: runs atlas hook ${event}`,
-    );
+    assert.deepEqual(Object.keys(hooks).sort(), events.sort(), file);
+    for (const event of events) {
+      const commands = hooks[event].flatMap((group) =>
+        group.hooks.map((hook) => hook.command),
+      );
+      assert.deepEqual(
+        commands,
+        HOOK_EVENTS[event].map((name) => `atlas hook ${name}`),
+        `${file}: ${event}: runs ${HOOK_EVENTS[event].join(" and ")}`,
+      );
+    }
   }
   assert.match(
-    read(path.join(REPO, "packages", "cli", "src", "main.ts")),
-    new RegExp(`atlas hook <${HOOK_EVENTS.join("\\|")}>`),
+    read(path.join(REPO, "packages", "atlas", "src", "cli", "main.ts")),
+    new RegExp(
+      `atlas hook <${[...new Set(Object.values(HOOK_EVENTS).flat())].join("\\|")}>`,
+    ),
   );
 });

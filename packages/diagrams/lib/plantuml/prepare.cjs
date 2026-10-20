@@ -131,8 +131,6 @@ const strip = ({
   evidence,
   primarySource,
   status,
-  rationale,
-  questions,
   description,
   location,
   ...rest
@@ -220,10 +218,9 @@ async function prepareDiagrams({
       baselineId: baselineSummary ? baselineSummary.path : own ? own.id : null,
       ...(own ? { captureId: own.id } : {}),
       snapshots: [own, compared].filter(Boolean),
-      context: { records: [], links: [] },
       comparison: null,
     };
-    const { assessScenario } = require("../learning/scenarios.cjs");
+    const { assessScenario } = require("../scenarios/assess.cjs");
     const exemplified = scenarios.get(summary.path) || [];
     const entry = {
       key: summary.path,
@@ -232,9 +229,8 @@ async function prepareDiagrams({
       semantic: semanticOf(model),
       views: [],
       snippets,
-      learning: exemplified.length
+      scenarios: exemplified.length
         ? {
-            walkthroughs: [],
             scenarios: exemplified.map((scenario) => ({
               ...scenario,
               result: assessScenario(model, scenario),
@@ -249,8 +245,8 @@ async function prepareDiagrams({
     return entry;
   };
   const prepared = new Map();
-  const { prepareEntry } = require("../build/buildViewer.cjs");
-  const { prepareEntries } = require("../build/prepareComparison.cjs");
+  const { prepareEntry } = require("../payload/buildViewer.cjs");
+  const { prepareEntries } = require("../payload/prepareComparison.cjs");
   for (const summary of wanted) {
     if (prepared.has(summary.path)) continue;
     if (summary.family) {

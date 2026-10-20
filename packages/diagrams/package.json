@@ -1,6 +1,6 @@
 {
   "name": "@envsemble/atlas-diagrams",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "private": true,
   "description": "Internal Atlas diagram package: Atlas's PlantUML subset, captures from code and databases, layout, the React viewer and offline export",
   "repository": {
@@ -18,6 +18,7 @@
     "preview": "node scripts/preview.cjs",
     "check": "node scripts/check.cjs",
     "test": "node scripts/test.cjs",
+    "test:quick": "node scripts/test.cjs --quick",
     "format": "prettier --write development vite.config.mjs src \"lib/**/*.{cjs,ts}\" scripts tests examples schemas/*.json package.json && prettier --plugin=prettier-plugin-java --write lib/capture/java/*.java",
     "format:check": "prettier --check development vite.config.mjs src \"lib/**/*.{cjs,ts}\" scripts tests examples package.json && prettier --plugin=prettier-plugin-java --check lib/capture/java/*.java",
     "check:types": "tsc --noEmit -p tsconfig.contracts.json",
@@ -30,7 +31,7 @@
     "node": ">=22.12.0"
   },
   "devDependencies": {
-    "@envsemble/envui": "0.6.0",
+    "@envsemble/envui": "0.7.0",
     "@types/react": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
     "peggy": "5.1.0",
@@ -66,8 +67,12 @@
       "types": "./src/index.d.ts",
       "default": "./dist/react.mjs"
     },
-    "./viewer.css": "./src/ui/styles.css",
-    "./diagram.css": "./src/visualization/styles.css",
+    "./mark": {
+      "types": "./src/ui/AtlasMark.d.ts",
+      "default": "./dist/mark.mjs"
+    },
+    "./viewer.css": "./src/viewer/viewer.css",
+    "./diagram.css": "./src/canvas/canvas.css",
     "./embedded.css": "./dist/embedded.css",
     "./database-source-schema": "./schemas/database-source-schema.json",
     "./code-source-schema": "./schemas/code-source-schema.json"

@@ -1,10 +1,10 @@
 # Diagrams
 
-Diagrams are `.puml` files in a work item, in Atlas's subset of PlantUML. Write and edit them as ordinary files; there are no diagram tools. The hooks run `atlas check` after each edit and hand back what is wrong, line by line; run `atlas check <file>` yourself when hooks are not installed. The full guide is `docs/diagrams.md` in the Atlas repository.
+Diagrams are `.puml` files in a work item, in Atlas's subset of PlantUML. Write and edit them as ordinary files; there are no diagram tools. After each edit, Atlas checks the diagram and hands back what is wrong, line by line. The full guide is `docs/diagrams.md` in the Atlas repository.
 
 ## When to make one
 
-Offer a diagram when the work settles domain concepts, boundaries or data structure, and make it if the user agrees. Plain UI or tooling work gets none. Capture code or a database when the work changes them, and build proposals on the capture.
+Make a diagram when the work settles domain concepts, boundaries or data structure and a picture would help the user and you understand it the same way; plain UI or tooling work gets none. When the work changes existing code or a database, capture it and build proposals on the capture, so the diagram starts from the real structure instead of a remembered one.
 
 ## Where it goes
 

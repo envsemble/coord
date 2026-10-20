@@ -1,48 +1,72 @@
 name: CI
-# Runs for main only while the account has no Actions minutes to spare: PRs into dev are
-# validated locally (see CONTRIBUTING). Run it by hand on any branch with workflow_dispatch.
+# One job for pull requests into dev and main once they are ready for review, on the Linux runner
+# the envsemble organization variable CI_LINUX_RUNNER names. The end-to-end suite has its own
+# workflow, for pull requests into main (e2e.yml), and releases have theirs (release.yml).
 on:
-  push:
-    branches: [main]
   pull_request:
-    branches: [main]
-  workflow_dispatch:
+    branches: [dev, main]
+    types: [opened, synchronize, reopened, ready_for_review]
 permissions:
   contents: read
   # @envsemble/envui comes from GitHub Packages, which needs a token even to install.
   packages: read
+  # The first step lists the pull request's files.
+  pull-requests: read
+defaults:
+  run:
+    shell: bash
+# A new push cancels the run for the pull request's older head.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
-  node:
-    name: Node (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: bash
+  ci:
+    name: CI
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ${{ vars.CI_LINUX_RUNNER }}
+    timeout-minutes: 20
     env:
       WRANGLER_SEND_METRICS: "false"
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
+      # A pull request that changes only documentation (Markdown files and docs/) runs only this
+      # step and Betterleaks. Markdown the product ships or tests (the plugin's skills, extras and
+      # the end-to-end fixtures) is not documentation. If listing the files fails, the checks run.
+      - name: List the changed files
+        id: changes
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          PRODUCT: ^(plugin|extras|app/e2e/fixtures)/
+        run: |
+          # A renamed file counts by its old path too.
+          files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$NUMBER/files?per_page=100" \
+            --jq '.[] | .filename, (.previous_filename // empty)')
+          if grep -qvE '(\.md$|^docs/)' <<<"$files" || grep -qE "$PRODUCT" <<<"$files"; then
+            echo code=true >> "$GITHUB_OUTPUT"
+          else
+            echo code=false >> "$GITHUB_OUTPUT"
+            echo "::notice title=Documentation only::The checks are skipped; Betterleaks still runs."
+          fi
       - uses: actions/setup-node@v4
+        if: ${{ steps.changes.outputs.code != 'false' }}
         with:
           node-version: "24"
           cache: npm
           registry-url: https://npm.pkg.github.com
           scope: "@envsemble"
       - uses: actions/setup-java@v4
+        if: ${{ steps.changes.outputs.code != 'false' }}
         with:
           distribution: temurin
           java-version: "21"
-      # GitHub service containers run only on Linux runners, so the
-      # PostgreSQL 17 capture fixture exists only on Linux. The disposable
-      # fixture uses trust authentication and has no credentials.
+      # The disposable PostgreSQL 17 capture fixture uses trust authentication and has no credentials.
       - name: Start the PostgreSQL 17 fixture
-        if: runner.os == 'Linux'
+        if: ${{ steps.changes.outputs.code != 'false' }}
         run: |
           docker run --detach --name atlas-postgres --publish 5432:5432 \
             --env POSTGRES_USER=atlas_fixture --env POSTGRES_DB=atlas_fixture \
@@ -56,125 +80,33 @@ jobs:
           done
           [ "$status" = healthy ]
           echo "ATLAS_TEST_POSTGRES=postgresql://atlas_fixture@127.0.0.1:5432/atlas_fixture" >> "$GITHUB_ENV"
-      - name: Note the skipped PostgreSQL fixture
-        if: runner.os != 'Linux'
-        run: echo "::notice title=PostgreSQL fixture skipped::The PostgreSQL 17 capture test runs on Linux only; GitHub service containers are unavailable on ${{ runner.os }}."
       - run: npm ci
+        if: ${{ steps.changes.outputs.code != 'false' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npm run format:check && npm run check:types
+        if: ${{ steps.changes.outputs.code != 'false' }}
       # Workspace tests: diagrams, planning (reader and ported helpers), the atlas command and the app.
       - run: npm test
-      - run: npm run build --workspace @envsemble/atlas-app
-      - run: npm run check && npm run check:package && npm run check:performance
-      # The plan export viewer bundles the diagram viewer built above, so it is rebuilt after it.
-      - run: npm run build --workspace @envsemble/atlas-planning
-      - run: git diff --exit-code -- packages/diagrams/index.html packages/diagrams/downloads packages/diagrams/dist packages/planning/dist
-      - run: npm run check:release
-      - run: npm run release:assemble -- artifacts/release
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: atlas-${{ matrix.os }}-${{ github.sha }}
-          path: |
-            artifacts/
-            app/artifacts/
-          if-no-files-found: error
-          retention-days: 7
-  skills:
-    name: Skills (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: npm
-          registry-url: https://npm.pkg.github.com
-          scope: "@envsemble"
-      - run: npm ci
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # The plugin packaging test (plugin/tests/*.test.mjs): its skills, manifests and hooks need only Node.
+        if: ${{ steps.changes.outputs.code != 'false' }}
+      # The plugin packaging test (plugin/tests/*.test.mjs): its skills, manifests and hooks.
       - run: npm run test:skills
-  desktop:
-    name: Desktop (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 40
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: npm
-          registry-url: https://npm.pkg.github.com
-          scope: "@envsemble"
-      - run: npm ci
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor, which Chromium's
-      # sandbox needs. Allow them (see the app README) rather than running without the sandbox.
-      - name: Allow the Chromium sandbox
-        if: runner.os == 'Linux'
-        run: |
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          sudo apt-get update && sudo apt-get install --yes xvfb
-      # Unsigned NSIS installer on Windows, AppImage on Linux, in app/release.
-      - run: npm run package --workspace @envsemble/atlas-app
-      - name: End-to-end tests against the packaged app
-        env:
-          # Also install and uninstall the Windows installer on the disposable runner.
-          ATLAS_E2E_INSTALLER: "1"
-        run: |
-          if [ "$RUNNER_OS" = Linux ]; then xvfb-run --auto-servernum npm run test:e2e --workspace @envsemble/atlas-app
-          else npm run test:e2e --workspace @envsemble/atlas-app; fi
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: atlas-desktop-${{ matrix.os }}-${{ github.sha }}
-          path: |
-            app/release/*.exe
-            app/release/*.AppImage
-            app/playwright-report/
-            app/test-results/
-          if-no-files-found: warn
-          retention-days: 7
-  verify:
-    name: CI
-    needs: [node, skills, desktop]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require all verification jobs to pass
-        env:
-          NODE: ${{ needs.node.result }}
-          SKILLS: ${{ needs.skills.result }}
-          DESKTOP: ${{ needs.desktop.result }}
-        run: test "$NODE" = success && test "$SKILLS" = success && test "$DESKTOP" = success
-  betterleaks:
-    name: Betterleaks
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Install pinned Betterleaks
+        if: ${{ steps.changes.outputs.code != 'false' }}
+      - run: npm run build --workspace @envsemble/atlas-app
+        if: ${{ steps.changes.outputs.code != 'false' }}
+      - run: npm run check && npm run check:package && npm run check:performance
+        if: ${{ steps.changes.outputs.code != 'false' }}
+      # The plan export viewer bundles the diagram viewer built above, so it is rebuilt after it.
+      - run: npm run build --workspace @envsemble/atlas
+        if: ${{ steps.changes.outputs.code != 'false' }}
+      - run: git diff --exit-code -- packages/diagrams/index.html packages/diagrams/downloads packages/diagrams/dist packages/atlas/dist
+        if: ${{ steps.changes.outputs.code != 'false' }}
+      # The release assembles reproducibly; nothing is kept from it.
+      - run: npm run check:release
+        if: ${{ steps.changes.outputs.code != 'false' }}
+      # Also after a failed check, so one run reports both.
+      - name: Scan the history with Betterleaks
+        if: ${{ !cancelled() }}
         env:
           BETTERLEAKS_VERSION: "1.8.1"
           BETTERLEAKS_SHA256: "efa407244e1ea8e35f582b8a42becdeac08bdead04f68eb752adda722d583c2a"

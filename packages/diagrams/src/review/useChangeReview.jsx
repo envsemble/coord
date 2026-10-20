@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Button, Counter, Tooltip } from "@envsemble/envui";
-import { ToolButton } from "../ui/Button";
-import { FadeIcon, ProposalIcon } from "../ui/Icons";
+import { ToolButton } from "../ui/ToolButton";
+import { FadeIcon, ProposalIcon } from "../ui/icons";
 import { ChangeNavigation, ChangesOverview } from "./ChangesOverview";
-import { rollupChanges, rowFor } from "./changes";
+import { cachedRollup, rowFor } from "./changes";
 
 // The overview opens with a proposal when the window leaves the diagram room
 // beside it; in smaller windows the Changes button opens it.
@@ -31,8 +31,10 @@ export function useChangeReview({
   hover,
   onShowPanel,
 }) {
+  // The rollup is shared with the Changes button's count, computed once per
+  // comparison.
   const rollup = useMemo(
-    () => (review ? rollupChanges(review.comparison, model, views) : null),
+    () => (review ? cachedRollup(review.comparison, model, views) : null),
     [review, model, views],
   );
   // Details read the rollup; one object per rollup keeps them memoized.
@@ -78,6 +80,26 @@ export function useChangeReview({
     handoff.current = { to: "overview", key: current?.key };
     back();
   }, [back, current]);
+  // The overview keeps one element while its inputs stay the same, so a hover
+  // elsewhere in the viewer does not rebuild the list.
+  const baselineDate = review?.baselineDate;
+  const profile = model.document?.profile;
+  const activeKey = current?.key;
+  const content = useMemo(
+    () =>
+      rollup ? (
+        <ChangesOverview
+          rollup={rollup}
+          baselineDate={baselineDate}
+          profile={profile}
+          active={activeKey}
+          handoff={handoff}
+          onSelect={openRow}
+          onHover={hover}
+        />
+      ) : null,
+    [rollup, baselineDate, profile, activeKey, openRow, hover],
+  );
   if (!rollup) return null;
   return {
     rollup,
@@ -139,16 +161,6 @@ export function useChangeReview({
       />
     ),
     /** The overview list for the inspector. */
-    content: (
-      <ChangesOverview
-        rollup={rollup}
-        baselineDate={review.baselineDate}
-        profile={model.document?.profile}
-        active={current?.key}
-        handoff={handoff}
-        onSelect={openRow}
-        onHover={hover}
-      />
-    ),
+    content,
   };
 }
