@@ -478,7 +478,7 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
     ['&Help', ['Open &Logs', '&About Atlas']],
   ]);
   await applicationMenu(app, '&File', 'New &Project…');
-  await expect(window.getByRole('dialog', { name: 'New project' })).toBeVisible();
+  await expect(window.getByRole('dialog', { name: 'Create project' })).toBeVisible();
   await window.keyboard.press('Escape');
   // The shortcuts: search, Files on a plan, back and forward.
   await section(window, 'Plans').click();
