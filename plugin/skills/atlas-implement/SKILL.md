@@ -15,7 +15,7 @@ Invocation authorizes implementing the selected plan, opening and updating its P
 
 ## Start
 
-1. Select the work the user names, else the registry's `current_plan`. Read the plan, its glossary and ADRs, the relevant code and current documentation, and only the history this work needs. Surface contradictions instead of implementing a replaced design.
+1. Select the work the user names, else the registry's `current_plan`. Read the plan, its glossary, the relevant code and current documentation, and only the history this work needs. Surface contradictions instead of implementing a replaced design.
 2. A request to implement a draft is acceptance now: record it with `work_accept`.
 3. Commit the plan, then call `work_start` with the agreed steps, one per meaningful deliverable or milestone, and update the plan's `summary` to say implementation started.
 4. When the work has diagrams captured from code or databases, capture again before starting (`atlas capture <source.json> --work <work-id> --name before`) and at the end (`… --name after --compares before.puml`), so the app shows the system before and after; [diagrams](../atlas/references/diagrams.md) describes the source.

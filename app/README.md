@@ -2,7 +2,7 @@
 
 ![The Atlas hub in the light theme on the computer Workstation: eight open plans of the projects Northwind, Platform and Field app, grouped as In progress (one blocked, three being implemented, two with an agent's live dot), Drafts and Other open work, each row with its state, title, number, project, one-line summary, steps done with the planning steps in their own colour, and when it changed](assets/atlas-desktop.jpg)
 
-Atlas is a desktop app for planning repositories: active and archived work, plans, ledgers, glossaries, ADRs, evidence, shared knowledge, Git activity, work and usage statistics and each plan's diagrams. Every window opens on the hub, one list of every plan of the computer's projects, and shows one place at a time: the hub, a plan, a diagram or a document. Discuss changes with your agent in chat; the agent edits the records, and Atlas shows them as they change.
+Atlas is a desktop app for Atlas projects: their active and archived work items, each with its plan, steps, glossary, diagrams, Git activity and statistics. Every window opens on the hub, one list of every plan of the computer's projects, and shows one place at a time: the hub, a plan, a diagram or a document. Discuss changes with your agent in chat; the agent edits the records, and Atlas shows them as they change.
 
 ## Install
 

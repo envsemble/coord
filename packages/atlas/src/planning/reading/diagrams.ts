@@ -157,12 +157,9 @@ export class DiagramCatalog {
   async references(snapshot: PlanningIndex, workId: string | undefined, filename: string): Promise<DiagramReference[]> {
     const same = this.same(snapshot);
     const document = snapshot.documents.find(file => same(file.path, filename));
-    if (!workId) {
-      if (document?.category !== 'knowledge') throw new PlanningError('Choose an indexed shared knowledge document.', 403);
-    } else {
-      this.work(snapshot, workId);
-      if (!document || (document.workId !== workId && document.category !== 'knowledge')) throw new PlanningError('Choose an indexed work or knowledge document.', 403);
-    }
+    if (workId) this.work(snapshot, workId);
+    // A work item's documents, and the planning folder's documents outside every work item.
+    if (!document || (document.workId !== null && document.workId !== workId)) throw new PlanningError('Choose an indexed document of this work item or of the planning folder.', 403);
     if (!/\.md$/i.test(document.path)) return [];
     const content = await readDocument(this.planningRoot, document.path);
     // The Markdown parser loads when first needed: this module comes with plan export, which every command loads.

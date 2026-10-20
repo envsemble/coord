@@ -44,7 +44,7 @@ export function write(file: string, text: string) { mkdirSync(path.dirname(file)
 export const read = (root: string, relative: string) => readFileSync(path.join(root, relative), 'utf8');
 export function plan(id: string, fields: Record<string, string> = {}) {
   const values: Record<string, string> = { title: '"Existing work"', created: '"2026-10-01"', updated: '"2026-10-02"', design_status: 'draft', implementation_status: 'not_started', accepted_at: 'null', completed_at: 'null', ...fields };
-  return ['---', 'schema_version: 2', 'kind: plan', 'id: ' + id, ...Object.entries(values).map(([key, value]) => key + ': ' + value), 'supersedes: []', 'superseded_by: null', '---', '', '# Existing work', '', 'See [the other work](../0002-other/plan.md) and [the glossary](../../knowledge/glossary.md).', ''].join('\n');
+  return ['---', 'schema_version: 2', 'kind: plan', 'id: ' + id, ...Object.entries(values).map(([key, value]) => key + ': ' + value), 'supersedes: []', 'superseded_by: null', '---', '', '# Existing work', '', 'See [the other work](../0002-other/plan.md) and [the glossary](../../notes/glossary.md).', ''].join('\n');
 }
 const registry = (directory: string) => JSON.stringify({ schema_version: 2, name: 'Planning', folders: [path.join(directory, 'shop')], work_items: [
   { id: 'work-0001', path: 'active/0001-existing', current_plan: 'active/0001-existing/plan.md' },
@@ -62,7 +62,7 @@ export function planningFolder(directory: string, name = 'planning') {
     write(path.join(template, 'active/0001-existing/plan.md'), plan('work-0001'));
     write(path.join(template, 'active/0002-other/plan.md'), plan('work-0002').replace('[the other work](../0002-other/plan.md)', '[the first](../0001-existing/plan.md#why)'));
     write(path.join(template, 'active/0003-unregistered/notes.md'), '# Notes\n');
-    write(path.join(template, 'knowledge/glossary.md'), '# Glossary\n');
+    write(path.join(template, 'notes/glossary.md'), '# Glossary\n');
     write(path.join(template, 'README.md'), '# Planning\n\n- [Existing](active/0001-existing/plan.md)\n- [Ledger][ledger]\n\n[ledger]: <active/0001-existing/ledger.md>\n\n```\n[not a link](active/0001-existing/plan.md)\n```\n');
     git(template, 'init', '-q');
     git(template, 'add', '-A');

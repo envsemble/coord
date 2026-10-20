@@ -20,7 +20,7 @@ test('the search follows what changes in a project no window has open', async t 
   // Listed, as the app lists them, the projects are searched; a file written and changed, and a diagram changed, are found.
   await owner.connection.request('projects.list', {});
   assert.deepEqual(await found('narwhal'), []);
-  const notes = path.join(planning, 'knowledge', 'notes.md');
+  const notes = path.join(planning, 'notes', 'notes.md');
   writeFileSync(notes, '# Notes\n\nThe narwhal migrates.\n');
   await eventually('narwhal', ['Notes']);
   writeFileSync(notes, '# Notes\n\nThe beluga migrates.\n');

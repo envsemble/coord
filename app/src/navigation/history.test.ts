@@ -9,7 +9,7 @@ const at = (target: Target, project = shop): ProjectPlace => ({ project, target 
 const hub = hubPlace();
 const plan = at(workTarget('work-0001'));
 const other = at(workTarget('work-0001'), coord);
-const notes = at(fileTarget('knowledge/notes.md'));
+const notes = at(fileTarget('notes/notes.md'));
 
 test('each new place shown follows the current entry; the same place again adds nothing', () => {
   let history = startHistory(hub);

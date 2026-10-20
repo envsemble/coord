@@ -79,11 +79,11 @@ test('on Linux a watch that cannot be added ends watching and reports the error,
 test('on Linux an error from any folder watch ends watching and is reported once', async () => {
   const directory = temporary();
   const root = path.join(directory, 'planning');
-  const fake = linuxSystem(root, ['', 'active', 'knowledge']);
+  const fake = linuxSystem(root, ['', 'active', 'notes']);
   const errors: Error[] = [];
   const watcher = watchFolder(root, { onChange: () => undefined, onError: error => errors.push(error) }, fake.system);
   try {
-    fake.watched.get('knowledge')!.emit('error', new Error('EACCES: permission denied'));
+    fake.watched.get('notes')!.emit('error', new Error('EACCES: permission denied'));
     fake.watched.get('active')!.emit('error', new Error('EACCES: permission denied'));
     await pause(10);
     assert.equal(errors.length, 1);
@@ -117,7 +117,7 @@ async function waitFor(condition: () => boolean, timeout = 5000) {
 
 test('folders that are never watched (they would exhaust inotify watches on Linux)', () => {
   for (const ignored of ['.git/objects', '.git/objects/ab', 'node_modules', 'active/x/node_modules/y', '__pycache__', 'active/0001/.atlas/prepared', 'active/0001/.atlas/results/x.json', 'active/0001/.atlas/exports', '.atlas-import.lock', '.atlas-import.lock.takeover', '.atlas-import-1b2c', '.\\node_modules', 'knowledge\\node_modules\\x']) assert.ok(ignoredPath(ignored), ignored);
-  for (const watched of ['.git', '.git/HEAD', '.git/refs/heads/main', 'active', 'active/0001/.atlas', 'active/0001/.atlas/statistics.jsonl', 'knowledge/node.md', 'planning.json']) assert.ok(!ignoredPath(watched), watched);
+  for (const watched of ['.git', '.git/HEAD', '.git/refs/heads/main', 'active', 'active/0001/.atlas', 'active/0001/.atlas/statistics.jsonl', 'notes/node.md', 'planning.json']) assert.ok(!ignoredPath(watched), watched);
 });
 
 test('only changes that can alter the view count, and bursts coalesce', async () => {
@@ -165,8 +165,8 @@ test('in the home, only what the project list shows counts: registries, plans, l
     ['shop', 'folders'], ['shop/active', 'folders'], ['shop/archive/0002-old', 'folders'],
     ['shop/active/0001-cart/CONTEXT.md', 'maybe'], ['shop/legacy/plan-notes.md', 'maybe'],
     ['shop/active/0001-cart/diagrams/orders.puml', false], ['shop/active/0001-cart/evidence/plan.md', false], ['shop/.git/HEAD', false], ['shop/.git/index', false],
-    ['shop/notes.txt', false], ['shop/knowledge/planning.json', false], ['diagrams/active/0001-cart/plan.md', true], ['shop/active/evidence/ledger.md', true], ['shop\\active\\0001-cart\\ledger.md', true],
+    ['shop/notes.txt', false], ['shop/notes/planning.json', false], ['diagrams/active/0001-cart/plan.md', true], ['shop/active/evidence/ledger.md', true], ['shop\\active\\0001-cart\\ledger.md', true],
   ] as const) assert.equal(projectListChange(relative), change, String(relative));
   for (const folder of ['shop/.git', 'shop/.git/objects', 'shop/active/0001/evidence', 'shop/node_modules', 'shop/.atlas-import-1']) assert.ok(ignoredInHome(folder), folder);
-  for (const folder of ['shop', 'shop/active', 'shop/active/0001', 'shop/active/0001/diagrams', 'shop/knowledge', 'diagrams', 'evidence/active/0001', 'shop/active/diagrams', 'shop/active/evidence', 'shop/knowledge/diagrams']) assert.ok(!ignoredInHome(folder), folder);
+  for (const folder of ['shop', 'shop/active', 'shop/active/0001', 'shop/active/0001/diagrams', 'shop/notes', 'diagrams', 'evidence/active/0001', 'shop/active/diagrams', 'shop/active/evidence', 'shop/notes/diagrams']) assert.ok(!ignoredInHome(folder), folder);
 });

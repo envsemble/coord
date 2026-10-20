@@ -70,7 +70,6 @@ test('case-insensitive filesystem paths preserve selected plans, ownership, and 
     git('add', '.'); git('commit', '--no-verify', '-m', 'Register differently cased paths');
     const result = await loadPlanning(setup.root);
     assert.equal(result.caseSensitivePaths, false);
-    assert.equal(result.documents.find(document => document.path === 'Knowledge/Example/note.md')?.category, 'knowledge');
     assert.equal(result.work[0].location, 'active');
     assert.equal(result.work[0].currentPlan, 'active/0001-example/Plan.md');
     assert.equal(result.work[0].documents[0].key, 'work-0001:Plan.md');

@@ -1,17 +1,16 @@
 # Planning
 
-This locally versioned repository, in the Atlas home, is an Atlas project: it holds intended work, implementation records, historical rationale, and scoped engineering knowledge for the folders it covers. Its name is the `name` in `planning.json`.
+This Git repository, in the Atlas home, is an Atlas project: its work items, each a plan with its steps. Its name is the `name` in `planning.json`.
 
-Start with [AGENTS.md](AGENTS.md) for governance and [PLANS.md](PLANS.md) for work identity, metadata, and lifecycle. [planning.json](planning.json) is the authoritative index of the project's folders and work. [plan-frontmatter.md](plan-frontmatter.md) is an example plan header.
+[AGENTS.md](AGENTS.md) says how agents work here, [PLANS.md](PLANS.md) defines the plan, registry and ledger formats, and [planning.json](planning.json) lists the project's folders and work. [plan-frontmatter.md](plan-frontmatter.md) is an example plan header.
 
 ## Folders
 
-The project is this planning folder and the folders it covers on this computer, listed in `planning.json` (`folders`): a session in one of them, or inside one, belongs to this project, and so does a session in this planning folder. Atlas keeps no repositories: the same repository may be checked out in several folders, and agents name the repository a reference is about themselves (`owner/repo#12`, `owner/repo@4ab195a`). Sharing this planning repository does not share every repository's constraints.
+The project covers the folders listed in `planning.json` (`folders`): a session in one of them, or inside one, belongs to this project, and so does a session in this planning folder. Atlas keeps no repositories: references name theirs in full (`owner/repo#12`, `owner/repo@4ab195a`).
 
-## Work and knowledge
+## Work
 
-- `active/` holds discussion, planning, implementation, and other work expected to resume.
-- `archive/` holds accessible completed or deliberately closed work with its original supporting documents.
-- `knowledge/` holds selective, scoped lessons, decisions, and observations useful beyond one work item, linked to their origins.
+- `active/` holds work expected to continue.
+- `archive/` holds completed, superseded and abandoned work.
 
-Work items are created, started, closed and archived through the Atlas tools, which allocate their numbers and keep the registry current. Use registry entries to find current work; folder numbers and the newest filenames do not establish design authority. Current code, tests, and canonical product documentation establish present reality. Plans preserve intent and rationale.
+The Atlas tools create, start, close and archive work items, allocate their numbers and keep the registry current. Find current work through the registry, not by folder numbers or file dates.

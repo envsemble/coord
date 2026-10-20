@@ -1,11 +1,11 @@
 ---
 name: atlas
-description: "Plans, records and organizes work in Atlas projects: planning folders in the Atlas home with plans, steps, glossaries and diagrams. Use whenever the user mentions Atlas, a project, a work item, a plan or a ledger; when they design something or ask for work big enough to plan; when they want something recorded, reviewed or brought up to date. Small, direct coding tasks need none of it."
+description: "Records projects and their work items in Atlas: plans, steps, glossaries and diagrams in planning folders in the Atlas home. Use whenever the user mentions Atlas, a project, a work item, a plan or a ledger; when they design something or ask for work big enough to plan; when they want something recorded, reviewed or brought up to date. Small, direct coding tasks need none of it."
 ---
 
 # Atlas
 
-Atlas keeps plans in projects. A project is a planning folder, its own Git repository in the Atlas home (`~/.atlas/planning/<name>`), and the folders on this computer where its work happens. This skill finds the project, decides when to plan, records the work and keeps it current. Two workflows build on it, each run only when the user asks for it by name: [atlas-grill](../atlas-grill/SKILL.md) questions the user in rounds until a design is settled, and [atlas-implement](../atlas-implement/SKILL.md) implements an accepted plan.
+Atlas keeps plans in projects. A project is a planning folder, its own Git repository in the Atlas home (`~/.atlas/planning/<name>`), and the folders on this computer where its work happens. Atlas records projects and their work items, nothing else. This skill finds the project, decides when to plan, records the work and keeps it current. Two workflows build on it, each run only when the user asks for it by name: [atlas-grill](../atlas-grill/SKILL.md) questions the user in rounds until a design is settled, and [atlas-implement](../atlas-implement/SKILL.md) implements an accepted plan.
 
 The planning folder's own [AGENTS.md](assets/planning/AGENTS.md) (what is true, what to keep) and [PLANS.md](assets/planning/PLANS.md) (the plan, registry and ledger formats) govern; read them before changing anything there. This skill says what to do and when.
 
@@ -30,15 +30,13 @@ Find facts yourself; put only genuine decisions to the user, each with your reco
 Record as understanding settles, not only at the end:
 
 - **The plan's `summary`:** keep it saying what the work is and where it stands, when the design settles, at acceptance and as the work moves. The body does not repeat the header.
-- **`plan.md`:** the outcome, scope, decisions, dependencies, edge cases and completion checks, in whatever shape the work needs. Label proposals and open questions; never present your recommendation as the user's decision.
+- **`plan.md`:** the outcome, scope, decisions with their reasons, dependencies, edge cases and completion checks, in whatever shape the work needs. Label proposals and open questions; never present your recommendation as the user's decision.
 - **The ledger's steps:** the planning steps exist from creation; keep them true with the step tools. The ledger holds nothing else but, during implementation, its final-review list.
 - **`CONTEXT.md`:** the work's glossary, updated the moment a term resolves ([format](../atlas-grill/references/CONTEXT-FORMAT.md)).
-- **`docs/adr/`:** only for a decision that is hard to reverse, surprising without context and the result of a real tradeoff ([format](../atlas-grill/references/ADR-FORMAT.md)).
-- **`knowledge/`:** decisions and lessons useful beyond one work item, with their scope and source. A small task with something worth keeping gets one record here, without a work item.
 
 Write PRs, issues and commits in full, naming the repository from the checkout you work in: `owner/repo#12`, `owner/repo@4ab195a`, or their URLs. Atlas links these; `#12` and a bare hash stay plain text.
 
-Keep one record per thing, and update it rather than adding summaries. Skip transcripts, command logs and lessons drawn from routine edits.
+Keep one record per thing, and update it rather than adding summaries. Skip transcripts and command logs. Lessons that outlive the work belong in the repository's own `AGENTS.md` or documentation, not in Atlas.
 
 When the user agrees to the plan, record it with `work_accept` and update the summary. Accepting a plan does not start it.
 
@@ -59,7 +57,7 @@ The tools change planning state; each validates, refuses with the reason, and ne
 | `work_archive`, `work_reopen`                        | archive superseded (by which work) or abandoned (why) work; bring archived work back |
 | `work_continue`                                      | record that a work item continues other work, in any project                         |
 
-Everything else is an ordinary file: plan bodies, the final-review list, glossaries, ADRs, knowledge and diagrams. Edit them directly at their absolute paths, from any folder; after each edit, Atlas checks the file and hands back what to fix. Do not hand-edit what the tools own: the registry's work items, the header statuses and dates, the ledger header, and moves between `active/` and `archive/`.
+Everything else is an ordinary file: plan bodies, the final-review list, glossaries, diagrams and whatever else a work folder holds. Edit them directly at their absolute paths, from any folder; after each edit, Atlas checks the file and hands back what to fix. Do not hand-edit what the tools own: the registry's work items, the header statuses and dates, the ledger header, and moves between `active/` and `archive/`.
 
 Commit planning changes yourself, in the planning folder's Git with explicit pathspecs (`git -C <planning-folder> add -- <paths>`), at coherent points. Keep planning and product commits apart.
 
@@ -71,17 +69,13 @@ A project is a name and its folders, such as `~/work/shop`. Check with `where` t
 
 ## Work across projects
 
-When the user asks to review, organize or bring Atlas up to date:
+When the user asks to review projects or bring Atlas up to date:
 
 1. **List the projects** with `where`. Go through the ones the user names, otherwise every active one.
 2. **Read each project's active work:** for every active work item, its plan and `work_status`.
 3. **Reconcile it with what happened.** The evidence is the Git history of the repositories in the project's folders, their PRs where the host is reachable, the planning folder's history and, when the harness offers it, the sessions that planned or implemented the work. Look for steps done but still open, merged PRs the summary lacks, decisions settled in a conversation but missing from the plan, finished or replaced work still active, and a stale `blocked`.
 4. **Update what the evidence settles** (steps, summaries, links), citing the commit, PR or date. **Ask before consequential changes** (closing, archiving, reopening, removing steps, rewriting decisions, opening work), each with its evidence and your recommendation, one project at a time.
 5. **Commit** each planning folder, and end with a short account per project: what changed, and what awaits the user.
-
-## Organize existing material
-
-To bring notes, plans or records lying in the project's folders into the project, follow [organization](references/organization.md).
 
 ## Diagrams
 

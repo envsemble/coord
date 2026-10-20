@@ -1,6 +1,6 @@
 # Northwind planning
 
-This local Git repository holds planned work, implementation records and scoped engineering knowledge for [Northwind Shop](../shop). Start with [AGENTS.md](AGENTS.md) for governance and [PLANS.md](PLANS.md) for work identity, metadata and lifecycle. [planning.json](planning.json) is the authoritative index of the project's folders and work. [plan-frontmatter.md](plan-frontmatter.md) is the minimal metadata example, not a work item.
+This local Git repository holds planned work and implementation records for [Northwind Shop](../shop). Start with [AGENTS.md](AGENTS.md) for governance and [PLANS.md](PLANS.md) for work identity, metadata and lifecycle. [planning.json](planning.json) is the authoritative index of the project's folders and work. [plan-frontmatter.md](plan-frontmatter.md) is an example plan header.
 
 ## Folders
 
@@ -22,10 +22,10 @@ The folders this project covers on this computer are listed in `planning.json` (
 
 Numbers show registration order, not priority. Current code, tests and the shop's own documentation establish present behaviour; plans record intent and rationale.
 
-## Knowledge
+## Notes
 
-- [Payments constraints](knowledge/shop/payments-constraints.md): PCI scope, token scope, step-up and authorisation expiry for `shop`.
-- [Inventory schema notes](knowledge/shop/inventory-schema.md): available-stock rule, WMS sync concurrency and a SQLite key quirk.
+- [Payments constraints](notes/shop/payments-constraints.md): PCI scope, token scope, step-up and authorisation expiry for `shop`.
+- [Inventory schema notes](notes/shop/inventory-schema.md): available-stock rule, WMS sync concurrency and a SQLite key quirk.
 
 ## Diagrams
 

@@ -1,6 +1,6 @@
 # Plan export
 
-A plan export is one self-contained HTML file that carries a whole work item: its plan, ledger, glossary, decision records, supporting notes, evidence, attachments and diagrams. Anyone can open it in a browser to read the plan offline. Atlas can import it into another planning folder as new work. This is the way to share a plan; a single diagram is a `.puml` file of its own.
+A plan export is one self-contained HTML file that carries a whole work item: its plan, ledger, glossary, diagrams and every other file in its folder. Anyone can open it in a browser to read the plan offline. Atlas can import it into another planning folder as new work. This is the way to share a plan; a single diagram is a `.puml` file of its own.
 
 ```sh
 atlas plan export work-0003 --planning-dir planning              # writes customer-notifications-work-0003.atlas-plan.html
@@ -68,7 +68,7 @@ Embedded content is displayed, never executed. Raw HTML in Markdown is left out.
 
    Every other byte, diagrams included, is as exported: a diagram names no work, and its references to other diagrams are relative to it, so captures stay frozen.
 
-8. `evidence/import-provenance.json` records the original planning folder, work ID, title, location and folder, the export time and Atlas version, and every rewrite and cleared reference with its original value. It uses the export's own spelling of the evidence folder. When that name is taken (compared as a case-insensitive, normalizing filesystem would, so `Import-Provenance.json` counts), as when re-importing an imported item, the earlier record is kept and this one is written as `import-provenance-2.json`.
+8. `import-provenance.json`, in the work folder, records the original planning folder, work ID, title, location and folder, the export time and Atlas version, and every rewrite and cleared reference with its original value. It uses the export's own spelling of the evidence folder. When that name is taken (compared as a case-insensitive, normalizing filesystem would, so `Import-Provenance.json` counts), as when re-importing an imported item, the earlier record is kept and this one is written as `import-provenance-2.json`.
 9. The item is registered in `planning.json` by inserting its entry after the last one, in the style of its neighbours (indentation, inline or multi-line arrays, line endings and byte order mark). The rest of the file is untouched.
 10. The import runs `atlas planning check` on the result. If the import would add any error, everything it wrote is rolled back and it fails with `TARGET`, listing the errors. Each rollback step runs on its own: `planning.json` is restored only if it still holds the text this import wrote, the work folder is removed with retries, and a location folder the import created is removed when empty.
 11. Nothing is committed, and the README index is left for the user or an agent; the import notes say so.

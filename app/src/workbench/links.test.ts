@@ -11,12 +11,12 @@ test('links to a plan open the work item, and to other documents, its ledger too
   const owner = { id: 'work-0001', path: 'active/0001-example', currentPlan: 'active/0001-example/plan.md', ledger: 'active/0001-example/ledger.md' } as Work;
   const plan = { path: 'active/0001-example/plan.md', workId: 'work-0001', category: 'plan' } as Document;
   const ledger = { path: 'active/0001-example/ledger.md', workId: 'work-0001', category: 'ledger' } as Document;
-  const nested = { path: 'active/0001-example/docs/decision #1.md', workId: 'work-0001', category: 'decision' } as Document;
-  const knowledge = { path: 'knowledge/terms.md', workId: null, category: 'knowledge' } as Document;
+  const nested = { path: 'active/0001-example/docs/decision #1.md', workId: 'work-0001', category: 'document' } as Document;
+  const notes = { path: 'notes/terms.md', workId: null, category: 'document' } as Document;
   assert.deepEqual(documentTarget(plan, owner, 'whats-new'), { kind: 'work', work: 'work-0001', anchor: 'whats-new' });
   assert.deepEqual(documentTarget(ledger, owner), { kind: 'file', path: ledger.path, anchor: null }, 'the ledger is a file like any other');
   assert.deepEqual(documentTarget(nested, owner, 'déjà-vu--choices'), { kind: 'file', path: nested.path, anchor: 'déjà-vu--choices' });
-  assert.deepEqual(documentTarget(knowledge, undefined, 'api_contract'), { kind: 'file', path: 'knowledge/terms.md', anchor: 'api_contract' });
+  assert.deepEqual(documentTarget(notes, undefined, 'api_contract'), { kind: 'file', path: 'notes/terms.md', anchor: 'api_contract' });
   const project = 'f-' + 'a'.repeat(32);
   const id = (target: ReturnType<typeof documentTarget>, of = project) => placeId({ project: of, target });
   assert.equal(id(documentTarget(plan, owner, 'a')), id(documentTarget(plan, owner)), 'a plan is one thing, wherever it was opened');

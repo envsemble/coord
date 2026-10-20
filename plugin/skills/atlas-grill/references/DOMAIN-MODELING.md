@@ -1,6 +1,6 @@
 # Domain Modeling
 
-Actively build and sharpen the project's domain model as you design. This is the *active* discipline: challenging terms, inventing edge-case scenarios, and writing the glossary and decisions down the moment they crystallise. (Merely *reading* `CONTEXT.md` for vocabulary is not this discipline: that's a one-line habit any skill can do. This discipline is for when you're changing the model, not just consuming it.)
+Actively build and sharpen the project's domain model as you design. This is the *active* discipline: challenging terms, inventing edge-case scenarios, and writing the glossary and decisions down the moment they crystallise (terms in `CONTEXT.md`, decisions in `plan.md`). (Merely *reading* `CONTEXT.md` for vocabulary is not this discipline: that's a one-line habit any skill can do. This discipline is for when you're changing the model, not just consuming it.)
 
 ## File structure
 
@@ -9,31 +9,23 @@ Keep work-specific records in the selected planning work item. Most work items h
 ```text
 <planning-root>/active/NNNN-descriptive-name/
 ├── plan.md
-├── CONTEXT.md
-└── docs/
-    └── adr/
-        ├── 0001-event-sourced-orders.md
-        └── 0002-postgres-for-write-model.md
+└── CONTEXT.md
 ```
 
-If a `CONTEXT-MAP.md` exists in the work item, it points to where each context's work-specific records live:
+If a `CONTEXT-MAP.md` exists in the work item, it points to each context's glossary:
 
 ```text
 <planning-root>/active/NNNN-descriptive-name/
 ├── plan.md
 ├── CONTEXT-MAP.md
-├── docs/
-│   └── adr/                          ← work-wide decisions
 └── contexts/
     ├── ordering/
-    │   ├── CONTEXT.md
-    │   └── docs/adr/                 ← context-specific decisions
+    │   └── CONTEXT.md
     └── billing/
-        ├── CONTEXT.md
-        └── docs/adr/
+        └── CONTEXT.md
 ```
 
-Create files lazily: only when you have something to write. If no `CONTEXT.md` exists, create one when the first term is resolved. If no `docs/adr/` exists, create it when the first ADR is needed. Use a map only when multiple domain contexts actually require routing. Preserve existing `CONTEXT.md` and map conventions; link canonical product documentation rather than moving it or duplicating a competing account. The whole work item, including these original records, stays together after archiving.
+Create files lazily: only when you have something to write. If no `CONTEXT.md` exists, create one when the first term is resolved. Use a map only when multiple domain contexts actually require routing. Preserve existing `CONTEXT.md` and map conventions; link canonical product documentation rather than moving it or duplicating a competing account. The whole work item, including these original records, stays together after archiving.
 
 ## During the session
 
@@ -58,13 +50,3 @@ When the user states how something works, check whether the code agrees. If you 
 When a term is resolved, update the work item's `CONTEXT.md` right there. Don't batch these up: capture them as they happen. Use the format in [CONTEXT-FORMAT.md](CONTEXT-FORMAT.md).
 
 `CONTEXT.md` should be totally devoid of implementation details. Do not treat `CONTEXT.md` as a spec, a scratch pad, or a repository for implementation decisions. It is a glossary and nothing else.
-
-### Offer ADRs sparingly
-
-Only offer to create an ADR when all three are true:
-
-1. **Hard to reverse**: the cost of changing your mind later is meaningful
-2. **Surprising without context**: a future reader will wonder "why did they do it this way?"
-3. **The result of a real trade-off**: there were genuine alternatives and you picked one for specific reasons
-
-If any of the three is missing, skip the ADR. Use the format in [ADR-FORMAT.md](ADR-FORMAT.md).

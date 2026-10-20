@@ -12,7 +12,7 @@ function temporary(t: TestContext) {
 }
 function write(file: string, text: string) { mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, text); }
 
-/** A planning folder with a plan in progress (its ledger, glossary, decision and diagram) and a closed one, knowledge, and files the search leaves out. */
+/** A planning folder with a plan in progress (its ledger, glossary, decision and diagram) and a closed one, notes, and files the search leaves out. */
 function planningFolder(root: string) {
   write(path.join(root, 'planning.json'), JSON.stringify({
     schema_version: 2, name: 'Shop', folders: [],
@@ -24,7 +24,7 @@ function planningFolder(root: string) {
   write(path.join(root, 'active/0012-saved-cards/docs/adr/0001-tokens.md'), '# Keep acquirer tokens only\n\nWe never store card numbers.\n');
   write(path.join(root, 'active/0012-saved-cards/diagrams/checkout.puml'), '@startuml\ntitle Checkout model\nclass "Saved Card" as SavedCard\nclass Order\nSavedCard --> Order\n@enduml\n');
   write(path.join(root, 'archive/0007-coupons/plan.md'), '---\nkind: plan\ntitle: Coupons\n---\n\n# Coupons\n\nDiscount codes at checkout.\n');
-  write(path.join(root, 'knowledge/payments.md'), '# Payments constraints\n\nTokens belong to one acquirer; a saved card cannot move between them.\n');
+  write(path.join(root, 'notes/payments.md'), '# Payments constraints\n\nTokens belong to one acquirer; a saved card cannot move between them.\n');
   write(path.join(root, 'active/0012-saved-cards/evidence/run.md'), '# Evidence of zebra\n');
   write(path.join(root, '.git/notes.md'), '# zebra\n');
   write(path.join(root, 'node_modules/x/readme.md'), '# zebra\n');
@@ -92,14 +92,14 @@ test('the index reads again only what changed once told, and knows large files b
   const index = new PlanningSearch(root);
   const find = async (text: string) => (await index.search(searchQuery(text)!, 'Shop')).map(hit => hit.title);
   assert.deepEqual(await find('flamingo'), []);
-  write(path.join(root, 'knowledge/birds.md'), '# Birds\n\nA flamingo.\n');
+  write(path.join(root, 'notes/birds.md'), '# Birds\n\nA flamingo.\n');
   assert.deepEqual(await find('flamingo'), [], 'until told, the index stands');
   index.invalidate();
   assert.deepEqual(await find('flamingo'), ['Birds']);
-  rmSync(path.join(root, 'knowledge/birds.md'));
+  rmSync(path.join(root, 'notes/birds.md'));
   index.invalidate();
   assert.deepEqual(await find('flamingo'), [], 'a removed file is gone');
-  write(path.join(root, 'knowledge/huge.md'), '# Huge\n\n' + 'flamingo '.repeat(searchFileLimit / 9 + 10));
+  write(path.join(root, 'notes/huge.md'), '# Huge\n\n' + 'flamingo '.repeat(searchFileLimit / 9 + 10));
   index.invalidate();
   assert.deepEqual(await find('flamingo'), [], 'a large file is not read');
   assert.deepEqual(await find('huge.md'), ['huge.md'], 'but found by its name');
@@ -161,12 +161,12 @@ test('indexing takes time linear in a file\'s size and gives the thread back bet
   const root = temporary(t);
   planningFolder(root);
   // Files that take a Markdown parser minutes: a large table, quotes nested deep, unclosed links.
-  write(path.join(root, 'knowledge/table.md'), '# Table\n\n| a | b |\n|---|---|\n' + '| cell | `x` |\n'.repeat(130_000));
-  write(path.join(root, 'knowledge/quotes.md'), '# Quotes\n\n' + Array.from({ length: 1000 }, (_, depth) => '>'.repeat(depth) + ' line').join('\n') + '\n');
-  write(path.join(root, 'knowledge/links.md'), '# Links\n\n' + '[a]('.repeat(250_000) + '\n');
-  write(path.join(root, 'knowledge/tags.md'), '# Tags\n\n' + '<a'.repeat(400_000) + '\n');
+  write(path.join(root, 'notes/table.md'), '# Table\n\n| a | b |\n|---|---|\n' + '| cell | `x` |\n'.repeat(130_000));
+  write(path.join(root, 'notes/quotes.md'), '# Quotes\n\n' + Array.from({ length: 1000 }, (_, depth) => '>'.repeat(depth) + ' line').join('\n') + '\n');
+  write(path.join(root, 'notes/links.md'), '# Links\n\n' + '[a]('.repeat(250_000) + '\n');
+  write(path.join(root, 'notes/tags.md'), '# Tags\n\n' + '<a'.repeat(400_000) + '\n');
   // Small, but nested deep: the parser would take seconds and run out of stack.
-  write(path.join(root, 'knowledge/deep.md'), '# Deep\n\n' + '>'.repeat(30_000) + ' x\n');
+  write(path.join(root, 'notes/deep.md'), '# Deep\n\n' + '>'.repeat(30_000) + ' x\n');
   let gap = 0, last = Date.now();
   const timer = setInterval(() => { gap = Math.max(gap, Date.now() - last); last = Date.now(); }, 10);
   const started = Date.now();
@@ -182,20 +182,20 @@ test('across kinds, exact and prefix titles rank together: a plan before heading
   const root = temporary(t);
   write(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Shop', folders: [], work_items: [{ id: 'work-0003', path: 'active/0003-design', current_plan: 'active/0003-design/plan.md' }] }));
   write(path.join(root, 'active/0003-design/plan.md'), '---\nkind: plan\ntitle: Design system tokens\n---\n\n# Design system tokens\n');
-  for (let index = 0; index < 60; index++) write(path.join(root, `knowledge/note-${index}.md`), `# Note ${index}\n\n## Design\n\nText.\n`);
-  write(path.join(root, 'knowledge/build/built.md'), '# Built notes\n');
-  write(path.join(root, 'knowledge/Cafe\u0301.md'), '# Cafe\u0301 menu\n');
+  for (let index = 0; index < 60; index++) write(path.join(root, `notes/note-${index}.md`), `# Note ${index}\n\n## Design\n\nText.\n`);
+  write(path.join(root, 'notes/build/built.md'), '# Built notes\n');
+  write(path.join(root, 'notes/Cafe\u0301.md'), '# Cafe\u0301 menu\n');
   const index = new PlanningSearch(root);
   const hits = (await index.search(searchQuery('design')!, 'Shop')).sort(compareHits);
   assert.deepEqual([hits[0].kind, hits[0].title], ['plan', 'Design system tokens']);
   assert.ok(hits.slice(1, 61).every(hit => hit.kind === 'heading' && hit.title === 'Design'));
-  assert.deepEqual((await index.search(searchQuery('built')!, 'Shop')).map(hit => hit.path), ['knowledge/build/built.md'], 'a folder named build is read');
+  assert.deepEqual((await index.search(searchQuery('built')!, 'Shop')).map(hit => hit.path), ['notes/build/built.md'], 'a folder named build is read');
   assert.deepEqual((await index.search(searchQuery('café')!, 'Shop')).map(hit => hit.title), ['Caf\u00e9 menu'], 'a decomposed title is composed');
   assert.deepEqual((await index.search(searchQuery('#3')!, 'Shop')).sort(compareHits).slice(0, 1).map(hit => [hit.kind, hit.tier]), [['plan', 0]], 'a plan by its number');
-  write(path.join(root, 'knowledge/v2/readme.md'), '# Readme\n');
+  write(path.join(root, 'notes/v2/readme.md'), '# Readme\n');
   index.invalidate();
-  assert.ok(!(await index.search(searchQuery('#2')!, 'Shop')).some(hit => hit.path === 'knowledge/v2/readme.md'), 'a one-character word does not match paths');
-  assert.ok((await index.search(searchQuery('v2')!, 'Shop')).some(hit => hit.path === 'knowledge/v2/readme.md' && hit.tier === 4), 'longer words do');
+  assert.ok(!(await index.search(searchQuery('#2')!, 'Shop')).some(hit => hit.path === 'notes/v2/readme.md'), 'a one-character word does not match paths');
+  assert.ok((await index.search(searchQuery('v2')!, 'Shop')).some(hit => hit.path === 'notes/v2/readme.md' && hit.tier === 4), 'longer words do');
 });
 
 test('a folder that takes long to read is waited for a while, then answered from what was read before', async t => {

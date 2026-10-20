@@ -37,7 +37,7 @@ function folder(t: test.TestContext) {
     'active/1/broken.puml': '@startuml\nclass A\nclass B\nA -up-> B\n@enduml\n',
     'active/1/plan.md': '---\nkind: plan\n---\n# Checkout\n\nSee [the glossary](glossary.puml).\n\n## Data model\n\nThe [order](glossary.puml#Order) and its [lines](./glossary.puml#Line), and [`not a link`](x.md).\n\n```\n[inside code](glossary.puml)\n```\n\n## Payments\n\n[Vault](proposals/vault.puml) · [elsewhere](../2/other.puml) · [web](https://example.com/a.puml)\n',
     'active/2/other.puml': '@startuml\nclass Other\n@enduml\n',
-    'knowledge/shop.md': '# Shop\n\n## Orders\n\n[Orders](../active/1/glossary.puml#Order)\n',
+    'notes/shop.md': '# Shop\n\n## Orders\n\n[Orders](../active/1/glossary.puml#Order)\n',
   };
   for (const [name, text] of Object.entries(files)) {
     mkdirSync(path.dirname(path.join(root, name)), { recursive: true });
@@ -46,7 +46,7 @@ function folder(t: test.TestContext) {
   const owner = (name: string) => name.startsWith('active/1/') ? 'work-1' : name.startsWith('active/2/') ? 'work-2' : null;
   const snapshot = {
     work: [{ id: 'work-1', path: 'active/1' }, { id: 'work-2', path: 'active/2' }],
-    documents: Object.keys(files).map(name => ({ path: name, workId: owner(name), category: name.startsWith('knowledge/') ? 'knowledge' : 'document' })),
+    documents: Object.keys(files).map(name => ({ path: name, workId: owner(name), category: 'document' })),
   } as unknown as Snapshot;
   return { root, snapshot, write: (name: string, text: string) => writeFileSync(path.join(root, name), text) };
 }
@@ -112,21 +112,21 @@ test('links in a document attach diagrams under their headings, with the element
     ['work-2', 'other.puml', 'other', 'payments', null],
   ]);
   assert.equal(references[3].provenance.kind, 'proposal');
-  // Shared knowledge links to work items' diagrams too.
-  assert.deepEqual((await catalog.references(snapshot, undefined, 'knowledge/shop.md')).map(item => [item.workId, item.path, item.section, item.element]), [['work-1', 'glossary.puml', 'orders', 'Order']]);
-  await assert.rejects(catalog.references(snapshot, 'work-2', 'active/1/plan.md'), /indexed work or knowledge/);
-  await assert.rejects(catalog.references(snapshot, 'work-1', '../../outside.md'), /indexed work or knowledge/);
-  await assert.rejects(catalog.references(snapshot, undefined, 'active/1/plan.md'), /shared knowledge/);
+  // A document outside every work item links to work items' diagrams too.
+  assert.deepEqual((await catalog.references(snapshot, undefined, 'notes/shop.md')).map(item => [item.workId, item.path, item.section, item.element]), [['work-1', 'glossary.puml', 'orders', 'Order']]);
+  await assert.rejects(catalog.references(snapshot, 'work-2', 'active/1/plan.md'), /indexed document/);
+  await assert.rejects(catalog.references(snapshot, 'work-1', '../../outside.md'), /indexed document/);
+  await assert.rejects(catalog.references(snapshot, undefined, 'active/1/plan.md'), /indexed document/);
   assert.deepEqual(await catalog.references({ ...snapshot, caseSensitivePaths: false }, 'work-1', 'ACTIVE/1/PLAN.MD').then(items => items.length), 5);
 });
 
 test('diagram links resolve against their document and stay inside the planning folder', () => {
   const links = (markdown: string, from = 'active/1/plan.md') => diagramLinks(markdown, from).map(link => [link.target, link.element, link.section]);
-  assert.deepEqual(links('[a](a.puml)\n# One\n[b](sub/b.puml#Order%20line "title")\n## **Two** [x](y)\n![d](<d e.puml>) [e](../../knowledge/e.puml)'), [
+  assert.deepEqual(links('[a](a.puml)\n# One\n[b](sub/b.puml#Order%20line "title")\n## **Two** [x](y)\n![d](<d e.puml>) [e](../../notes/e.puml)'), [
     ['active/1/a.puml', null, null],
     ['active/1/sub/b.puml', 'Order line', 'one'],
     ['active/1/d e.puml', null, 'two-x'],
-    ['knowledge/e.puml', null, 'two-x'],
+    ['notes/e.puml', null, 'two-x'],
   ]);
   assert.deepEqual(links('[a](../../../a.puml) [b](/b.puml) [c](https://x/c.puml) [d](#e) [f](f.md) `[g](g.puml)`\n~~~\n[h](h.puml)\n~~~'), []);
   assert.deepEqual(links('[a](a.puml) [again](a.puml)\n# A\n[a](a.puml)'), [['active/1/a.puml', null, null], ['active/1/a.puml', null, 'a']]);

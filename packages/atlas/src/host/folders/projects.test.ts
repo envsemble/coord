@@ -143,14 +143,14 @@ test('the search covers every active project of the home, best first', async t =
   // row of the database names is no project.
   const archived = path.join(data, 'planning', 'archived');
   cpSync(fixture, archived, { recursive: true });
-  writeFileSync(path.join(archived, 'knowledge', 'secret.md'), '# Archived walrus\n');
+  writeFileSync(path.join(archived, 'notes', 'secret.md'), '# Archived walrus\n');
   const other = path.join(data, 'planning', 'coord');
   cpSync(fixture, other, { recursive: true });
   writeFileSync(path.join(other, 'planning.json'), readFileSync(path.join(other, 'planning.json'), 'utf8').replace('"Northwind"', '"Coord"'));
-  writeFileSync(path.join(other, 'knowledge', 'walrus.md'), '# Coord walrus\n\nA walrus lives in Coord.\n');
+  writeFileSync(path.join(other, 'notes', 'walrus.md'), '# Coord walrus\n\nA walrus lives in Coord.\n');
   const outside = path.join(temporary(t, 'atlas-outside-'), 'Outside planning');
   cpSync(fixture, outside, { recursive: true });
-  writeFileSync(path.join(outside, 'knowledge', 'walrus.md'), '# Outside walrus\n');
+  writeFileSync(path.join(outside, 'notes', 'walrus.md'), '# Outside walrus\n');
   const database = HomeDatabase.open(data);
   try { database.addProject(realpathSync.native(outside), 'Outside', null, 'active'); } finally { database.close(); }
   const listed = await owner.connection.request('projects.list', {});
@@ -167,7 +167,7 @@ test('the search covers every active project of the home, best first', async t =
   assert.deepEqual((await search('carrier')).filter(hit => hit.kind === 'term' && hit.project === 'Northwind').map(hit => [hit.title, hit.path, hit.anchor]), [['Carrier', 'active/0002-order-fulfilment-model/CONTEXT.md', 'shipments']]);
   assert.deepEqual((await search('conceptual model')).filter(hit => hit.kind === 'diagram' && hit.project === 'Northwind').map(hit => [hit.title, hit.path, hit.work]), [['Fulfilment · conceptual model', 'active/0002-order-fulfilment-model/diagrams/fulfilment.puml', 'work-0002']]);
   assert.deepEqual(await first('savedpaymentmethod').then(hit => [hit.kind, hit.element, hit.work]), ['element', 'SavedPaymentMethod', 'work-0001']);
-  assert.deepEqual(await first('Payments constraints').then(hit => [hit.kind, hit.path, hit.work]), ['document', 'knowledge/shop/payments-constraints.md', null]);
+  assert.deepEqual(await first('Payments constraints').then(hit => [hit.kind, hit.path, hit.work]), ['document', 'notes/shop/payments-constraints.md', null]);
   assert.deepEqual(await first('Coord', 'Coord').then(hit => [hit.kind, hit.folderId, hit.path]), ['project', coord.folderId, null]);
   const text = await first('lives in', 'Coord');
   assert.deepEqual([text.kind, text.project, text.snippet], ['document', 'Coord', 'A walrus lives in Coord.'], 'text, with its snippet');

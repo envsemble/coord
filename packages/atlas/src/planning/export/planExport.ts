@@ -598,23 +598,12 @@ function clearCrossWorkReferences(text: string): { text: string; supersedes: str
 interface Rewrite { file: string; field: string; from: string | string[] | null; to: string | string[] | null }
 
 /**
- * Where to record this import: `evidence/import-provenance.json` in the export's own
- * spelling of the evidence folder, numbered when that name (compared as a
- * case-insensitive, normalizing filesystem would) is already taken.
+ * Where to record this import: `import-provenance.json` in the work folder, numbered when that
+ * name (compared as a case-insensitive, normalizing filesystem would) is already taken.
  */
 function provenanceFileName(names: Iterable<string>) {
-  const taken = new Set<string>(), folders = new Map<string, string>();
-  for (const name of names) {
-    taken.add(pathKey(name));
-    const segments = name.split('/');
-    for (let index = 1; index < segments.length; index++) {
-      const folder = segments.slice(0, index).join('/');
-      folders.set(pathKey(folder), folder);
-      taken.add(pathKey(folder));
-    }
-  }
-  const evidence = folders.get('evidence') ?? (taken.has('evidence') ? null : 'evidence');
-  const base = evidence === null ? 'import-provenance' : evidence + '/import-provenance';
+  const taken = new Set([...names].map(pathKey));
+  const base = 'import-provenance';
   let name = base + '.json';
   for (let suffix = 2; taken.has(pathKey(name)); suffix++) name = `${base}-${suffix}.json`;
   return name;
@@ -722,7 +711,7 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
     }
 
     const provenanceName = provenanceFileName(contents.keys());
-    if (!/^evidence\/import-provenance\.json$/i.test(provenanceName)) notes.push(`The export already carried an import record; this import is recorded in ${provenanceName}.`);
+    if (provenanceName !== 'import-provenance.json') notes.push(`The export already carried an import record; this import is recorded in ${provenanceName}.`);
     const provenance = {
       format: 'atlas/import-provenance', version: 1, importedAt: new Date().toISOString(),
       importedAs: target,

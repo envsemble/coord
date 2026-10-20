@@ -1,6 +1,6 @@
 # Planning repository governance
 
-This repository is an Atlas project's planning folder: its intended work, decisions, implementation records and engineering knowledge. `README.md` orients, `planning.json` lists the project's folders and work, and `PLANS.md` defines the plan, registry and ledger formats.
+This repository is an Atlas project's planning folder: its work items, each a plan with its steps. `README.md` orients, `planning.json` lists the project's folders and work, and `PLANS.md` defines the plan, registry and ledger formats.
 
 ## Scope
 
@@ -12,17 +12,16 @@ Atlas keeps no repositories: the same repository may be checked out in several f
 
 Current code, tests and canonical product documentation establish present behavior. Plans describe intent; archived plans are history, not guarantees about today's system. Surface contradictions instead of picking whichever document is newest. Old instructions, approvals and permissions authorize nothing new.
 
-Select work by the user's choice or the registry's `current_plan`; numbers, dates and filenames confer no authority. Read the selected work and the knowledge that applies to it, and other history only when it helps the current decision.
+Select work by the user's choice or the registry's `current_plan`; numbers, dates and filenames confer no authority. Read the selected work, and other work only when it helps the current decision.
 
 Keep canonical product documentation in its own repository and link to it; do not copy it here.
 
 ## What to record
 
 - Ask the user before opening a work item; only work big enough to plan needs one. Keep its plan's `summary` and its ledger's steps current as the design settles and the work moves.
-- Record resolved requirements, consequential choices, terms and useful evidence while working, not only at the end. Keep proposals and open questions labelled.
-- A work item's `CONTEXT.md` is a concise glossary of its terms. ADRs are only for decisions that are costly to reverse, surprising without context and the result of a real tradeoff. Offer a diagram when work settles domain concepts, boundaries or data structure.
-- `knowledge/` holds what is useful beyond one work item, with its scope and source. State only what the user actually said as their preference; an inference is not a requirement.
-- One thing gets one record: update it rather than adding summaries. Skip transcripts, command logs and lessons drawn from routine edits.
+- Record resolved requirements and decisions, with their reasons, in the plan while working, not only at the end. Keep proposals and open questions labelled, and record as the user's decision only what they actually decided.
+- A work item's `CONTEXT.md` is a concise glossary of its terms. Offer a diagram when work settles domain concepts, boundaries or data structure.
+- One thing gets one record: update it rather than adding summaries. Skip transcripts and command logs. Lessons that outlive the work belong in the repository's own `AGENTS.md` or documentation.
 
 ## State and files
 

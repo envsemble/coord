@@ -167,7 +167,7 @@ export function WorkPage({ work, snapshot, target }: { work: Work; snapshot: Sna
 export function FileView({ file, snapshot, anchor }: { file: Document; snapshot: Snapshot; anchor: string | null }) {
   const { project, notify, remote } = useWorkbench();
   const owner = snapshot.work.find(work => work.id === file.workId) ?? snapshot.work.find(work => file.path.startsWith(work.path + '/'));
-  const references = useReferences(file, file.workId, file.format === 'markdown' && (Boolean(file.workId) || file.category === 'knowledge'));
+  const references = useReferences(file, file.workId, file.format === 'markdown');
   const reveal = () => { api.reveal(project, file.path).catch(error => notify((error as Error).message, 'warning')); };
   return <div className="page file-page">
     <div className="work-trail">

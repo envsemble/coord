@@ -516,7 +516,7 @@ test("the search shows the host's results grouped by kind with their project, wo
   const results = [
     result({ kind: 'element', title: 'Shipment', work: 'work-0002', path: 'active/0002-order-fulfilment-model/diagrams/fulfilment.puml', element: 'Shipment' }),
     result({ kind: 'heading', title: 'Current checkout', snippet: 'card details are typed in again on every order', work: 'work-0001', path: 'active/0001-saved-payment-methods/plan.md', anchor: 'current-checkout' }),
-    result({ kind: 'document', title: 'Payments constraints', snippet: 'tokens only, never card numbers', path: 'knowledge/shop/payments-constraints.md' }),
+    result({ kind: 'document', title: 'Payments constraints', snippet: 'tokens only, never card numbers', path: 'notes/shop/payments-constraints.md' }),
     result({ kind: 'step', title: 'Wire placeOrderWithSavedMethod into checkout', work: 'work-0001', path: 'active/0001-saved-payment-methods/plan.md' }),
     result({ kind: 'project', title: 'Coord', folderId: coord, project: 'Coord' }),
   ];

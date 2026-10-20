@@ -9,6 +9,6 @@ const snapshot = { work: [work] } as unknown as Snapshot;
 test("Open in Editor opens what the place shows: a plan's document, a diagram's source, a file", () => {
   assert.equal(shownFile({ kind: 'work', work: 'work-0001', view: 'statistics' }, snapshot), 'active/0001-example/plan.md');
   assert.equal(shownFile({ kind: 'diagram', work: 'work-0001', path: 'diagrams/flow.puml' }, snapshot), 'active/0001-example/diagrams/flow.puml');
-  assert.equal(shownFile({ kind: 'file', path: 'knowledge/a.md' }, snapshot), 'knowledge/a.md');
+  assert.equal(shownFile({ kind: 'file', path: 'notes/a.md' }, snapshot), 'notes/a.md');
   assert.equal(shownFile({ kind: 'work', work: 'work-0009' }, snapshot), null);
 });

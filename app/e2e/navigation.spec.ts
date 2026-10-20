@@ -183,7 +183,7 @@ test('a link into a sibling project in the home opens there; one to a folder no 
 test('going back finds a document where it was before a jump to one of its headings, and one read on from there keeps its reading place', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
-  writeFileSync(path.join(home.folder, 'knowledge', 'shop', 'jump.md'), '# Jump\n\nSee [the current checkout](../../active/0001-saved-payment-methods/plan.md#current-checkout).\n');
+  writeFileSync(path.join(home.folder, 'notes', 'shop', 'jump.md'), '# Jump\n\nSee [the current checkout](../../active/0001-saved-payment-methods/plan.md#current-checkout).\n');
   launched = await launchProject(home);
   const { window, app } = launched;
   await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setSize(900, 480); });

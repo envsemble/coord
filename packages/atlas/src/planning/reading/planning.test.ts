@@ -165,10 +165,10 @@ test('distinct Unicode hardlink names do not establish normalization aliases', a
 test('Windows BOM registries load, and registries of another schema fail before reaching the UI', async () => {
   const setup = await fixture();
   try {
-    await mkdir(path.join(setup.root, 'knowledge/example'), { recursive: true });
-    await writeFile(path.join(setup.root, 'knowledge/example/lesson.md'), '# A lesson');
+    await mkdir(path.join(setup.root, 'notes/example'), { recursive: true });
+    await writeFile(path.join(setup.root, 'notes/example/lesson.md'), '# A lesson');
     await writeFile(path.join(setup.root, 'planning.json'), '\uFEFF' + registry([]));
-    assert.equal((await loadPlanning(setup.root)).documents.find(file => file.path === 'knowledge/example/lesson.md')?.category, 'knowledge');
+    assert.equal((await loadPlanning(setup.root)).documents.find(file => file.path === 'notes/example/lesson.md')?.category, 'document');
     for (const old of [{ schema_version: 1, folders: [], work_items: [] }, { schema_version: 2, work_items: [] }]) {
       await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify(old));
       await assert.rejects(loadPlanning(setup.root), /schema version 2/);

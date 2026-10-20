@@ -15,7 +15,7 @@ test('each kind of result opens where it is: a plan, a plan at a step, a documen
   // A step opens its plan with the step pointed out in its progress.
   assert.deepEqual(resultDestination(result({ kind: 'step', title: 'Build the hub', work: 'work-0023', path: 'active/0023-plans-hub/plan.md' })), { place: { project: folder, target: { kind: 'work', work: 'work-0023', anchor: null, step: 'Build the hub' } } });
   assert.deepEqual(resultDestination(result({ kind: 'heading', work: 'work-0023', path: 'active/0023-plans-hub/plan.md', anchor: 'why' })), { project: folder, path: 'active/0023-plans-hub/plan.md', anchor: 'why' });
-  assert.deepEqual(resultDestination(result({ kind: 'document', path: 'knowledge/shop.md' })), { project: folder, path: 'knowledge/shop.md', anchor: null });
+  assert.deepEqual(resultDestination(result({ kind: 'document', path: 'notes/shop.md' })), { project: folder, path: 'notes/shop.md', anchor: null });
   assert.deepEqual(resultDestination(result({ kind: 'term', path: 'CONTEXT.md', anchor: 'plan' })), { project: folder, path: 'CONTEXT.md', anchor: 'plan' });
   assert.deepEqual(resultDestination(result({ kind: 'element', work: 'work-0023', path: 'active/0023-plans-hub/diagrams/hub.puml', element: 'Hub' })), { project: folder, path: 'active/0023-plans-hub/diagrams/hub.puml', anchor: 'Hub' });
   assert.deepEqual(resultDestination(result({ kind: 'diagram', work: 'work-0023', element: 'Hub' })), { place: { project: folder, target: { kind: 'diagram', work: 'work-0023', path: null, element: 'Hub' } } });

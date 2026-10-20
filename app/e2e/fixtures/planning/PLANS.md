@@ -58,7 +58,7 @@ Every field but `summary` and `continues` is present. Write dates as quoted stri
 
 `work_create` assigns the next number across active and archived work, with a descriptive slug, writes the plan header and the ledger, and registers the work. Numbers show registration order, nothing more, and are never reused.
 
-Keep the work folder's root lean: `plan.md`, `ledger.md` and, when useful, `CONTEXT.md` (the glossary). Put qualifying ADRs under `docs/adr/`, diagrams under `diagrams/`, meaningful verification under `evidence/` and other retained material under `supporting/`; create no empty folders. Update existing records instead of adding parallel specifications, progress summaries or handoffs. Test or trial material stays in a labelled `evidence/<trial>-fixtures/` folder with a README, and is never registered as work.
+A work folder holds `plan.md`, `ledger.md`, `CONTEXT.md` (the glossary) when useful, diagrams under `diagrams/`, and whatever else the work needs; Atlas gives other files no meaning. Update existing records instead of adding parallel specifications, progress summaries or handoffs.
 
 `active/` holds work expected to continue; `archive/` holds completed, superseded and abandoned work. `work_close` refuses while steps are open or the work is blocked, then marks the implementation complete and archives the folder. `work_archive` archives unfinished work as `superseded` (naming its replacement) or `abandoned` (with the reason, written into the plan). `work_reopen` brings archived work back with new steps. Each move keeps the ID, the body and the supporting files, and updates the registry and links.
 

@@ -106,7 +106,7 @@ function assertRoundTrip(sourceWork: string, targetWork: string, from: string, t
       assert.equal(imported.toString('utf8').replace(to, from), bytes.toString('utf8'), `${name} differs only in its identity`);
     } else assert.deepEqual(imported, bytes, `${name} is byte-for-byte identical`);
   }
-  assert.deepEqual([...target.keys()].filter(name => !source.has(name)), ['evidence/import-provenance.json']);
+  assert.deepEqual([...target.keys()].filter(name => !source.has(name)), ['import-provenance.json']);
 }
 
 test('exports the whole work folder and imports it losslessly as new work', async t => {
@@ -143,7 +143,7 @@ test('exports the whole work folder and imports it losslessly as new work', asyn
   assert.match(after.slice(prefix, after.length - suffix), /^,\n {4}\{\n {6}"id": "work-0003",\n {6}"path": "active\/0003-checkout",\n {6}"current_plan": "active\/0003-checkout\/plan.md"\n {4}\}$/);
   assert.deepEqual(validatePlanning(target), { errors: [], warnings: [] });
 
-  const provenance = JSON.parse(readFileSync(path.join(target, 'active/0003-checkout/evidence/import-provenance.json'), 'utf8'));
+  const provenance = JSON.parse(readFileSync(path.join(target, 'active/0003-checkout/import-provenance.json'), 'utf8'));
   assert.deepEqual(provenance.source, { planningFolder: 'source', workId: 'work-0001', title: 'Checkout', location: 'active', path: 'active/0001-checkout' });
   assert.deepEqual(provenance.export, { exportedAt: now.toISOString(), atlasVersion: exported.manifest.atlasVersion, importedWith: exported.manifest.atlasVersion });
   assert.ok(readFileSync(path.join(target, 'active/0003-checkout/plan.md')).subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf])), 'the plan keeps its byte order mark');
@@ -175,8 +175,8 @@ test('keeps the archive location, takes the next free number and imports twice a
   assert.deepEqual(validatePlanning(target).errors, []);
   // Re-exporting an imported item keeps its earlier import record.
   const again = await importPlan(target, (await exportPlan(target, 'work-0005', { now })).html);
-  assert.ok(existsSync(path.join(target, again.path, 'evidence/import-provenance.json')));
-  assert.equal(JSON.parse(readFileSync(path.join(target, again.path, 'evidence/import-provenance-2.json'), 'utf8')).source.workId, 'work-0005');
+  assert.ok(existsSync(path.join(target, again.path, 'import-provenance.json')));
+  assert.equal(JSON.parse(readFileSync(path.join(target, again.path, 'import-provenance-2.json'), 'utf8')).source.workId, 'work-0005');
 });
 
 test('a draft imported without a ledger gets one with the planning steps, as new work does', async t => {
@@ -348,7 +348,7 @@ test('clears references to other work so the target stays valid, and rolls back 
   const second = await importPlan(target, (await exportPlan(source, 'work-0001', { now })).html);
   assert.ok(readFileSync(path.join(target, second.path, 'plan.md'), 'utf8').startsWith(BOM));
   assert.match(readFileSync(path.join(target, second.path, 'plan.md'), 'utf8'), /^superseded_by: null\ncontinues: \[\]$/m);
-  const provenance = JSON.parse(readFileSync(path.join(target, second.path, 'evidence/import-provenance.json'), 'utf8'));
+  const provenance = JSON.parse(readFileSync(path.join(target, second.path, 'import-provenance.json'), 'utf8'));
   assert.deepEqual(provenance.identityRewrites.find((item: { field: string }) => item.field === 'superseded_by'), { file: 'plan.md', field: 'superseded_by', from: 'work-0003', to: null });
   assert.deepEqual(validatePlanning(target).errors, []);
   // The viewer shows the handoffs as they stood at export time: the work it continues, the work continuing it.
@@ -421,12 +421,11 @@ test('records the import beside an existing record, whatever its case', async t 
   const directory = temporary(t);
   const source = path.join(directory, 'source'), target = path.join(directory, 'target');
   mkdirSync(source); fixture(source);
-  mkdirSync(path.join(source, 'archive/0002-legacy/evidence'));
-  writeFileSync(path.join(source, 'archive/0002-legacy/evidence/Import-Provenance.json'), '{"earlier": true}\n');
+  writeFileSync(path.join(source, 'archive/0002-legacy/Import-Provenance.json'), '{"earlier": true}\n');
   mkdirSync(target); fixture(target);
   const result = await importPlan(target, (await exportPlan(source, 'work-0002', { now })).html);
-  assert.equal(readFileSync(path.join(target, result.path, 'evidence/Import-Provenance.json'), 'utf8'), '{"earlier": true}\n');
-  assert.equal(JSON.parse(readFileSync(path.join(target, result.path, 'evidence/import-provenance-2.json'), 'utf8')).source.workId, 'work-0002');
+  assert.equal(readFileSync(path.join(target, result.path, 'Import-Provenance.json'), 'utf8'), '{"earlier": true}\n');
+  assert.equal(JSON.parse(readFileSync(path.join(target, result.path, 'import-provenance-2.json'), 'utf8')).source.workId, 'work-0002');
   assert.ok(result.notes.some(note => /import-provenance-2\.json/.test(note)));
 });
 

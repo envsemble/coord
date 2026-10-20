@@ -19,7 +19,7 @@ export function useReferences(file: Document | undefined, workId: string | null 
   const { project, revision } = useWorkbench();
   const [links, setLinks] = useState<DiagramReference[]>([]);
   useEffect(() => {
-    if (!file || !enabled || (!workId && file.category !== 'knowledge')) { setLinks([]); return; }
+    if (!file || !enabled) { setLinks([]); return; }
     let current = true;
     api.references(project, workId ?? null, file.path)
       .then(next => { if (current) setLinks(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next); })

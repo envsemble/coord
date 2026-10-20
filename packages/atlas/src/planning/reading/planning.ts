@@ -87,11 +87,8 @@ function format(filename: string) {
 }
 function category(relative: string) {
   const lower = relative.toLowerCase();
-  if (lower.startsWith('knowledge/')) return 'knowledge';
-  if (lower.includes('/docs/adr/')) return 'decision';
-  if (/(^|\/)ledger[^/]*\.md$/.test(lower)) return 'ledger';
+  if (/(^|\/)ledger\.md$/.test(lower)) return 'ledger';
   if (/(^|\/)context(?:-map)?\.md$/.test(lower)) return 'glossary';
-  if (lower.includes('/evidence/') || lower.includes('/artifacts/')) return 'evidence';
   return 'document';
 }
 async function hashFile(filename: string) {
