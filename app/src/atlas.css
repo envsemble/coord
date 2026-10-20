@@ -258,6 +258,9 @@ body { margin: 0; }
 .ledger-step { border-radius: var(--radius-standard); transition: background-color var(--motion-duration-medium) var(--motion-ease); }
 .ledger-step[data-found] { background: color-mix(in srgb, var(--color-tone-accent) 18%, transparent); }
 .ledger-step-doing span { font-weight: 500; }
+/* The steps a plan proposes while it is designed: dimmed under their label, not yet agreed. */
+.ledger-proposed { margin-block-start: var(--space-1); color: var(--color-text-muted); font-size: var(--font-size-label); font-weight: 500; letter-spacing: 0.02em; text-transform: uppercase; }
+.ledger-step[data-phase='proposed'] { opacity: 0.55; }
 /* Planning steps (settling the design) are told apart from implementation steps by a calm accent, in
    their marks and their part of the bar; their phase is also in their names. */
 .step-icon[data-phase='planning'] { color: color-mix(in srgb, var(--color-tone-accent) 45%, var(--color-tone-neutral)); }

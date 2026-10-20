@@ -33,6 +33,7 @@ test('a work item reads its plan, never its ledger, whatever its implementation'
 test('a ledger step is a planning step when its header says so, else an implementation step', () => {
   const step = (phase?: unknown) => ({ title: 'Settle the design', status: 'done', ...phase !== undefined && { phase } }) as LedgerStep;
   assert.equal(stepPhase(step('planning')), 'planning');
+  assert.equal(stepPhase(step('proposed')), 'proposed');
   assert.equal(stepPhase(step()), 'implementation', 'a step without a phase');
   assert.equal(stepPhase(step('implementation')), 'implementation');
   assert.equal(stepPhase(step('other')), 'implementation');

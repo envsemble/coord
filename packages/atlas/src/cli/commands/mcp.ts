@@ -9,7 +9,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
-  acceptWork, addSteps, archiveWork, closeWork, createWork, findPlanning, DatabaseVersionError, PlanningNotFoundError, removeStep, renameStep, reopenWork, setContinues,
+  acceptWork, addSteps, archiveWork, proposeSteps, closeWork, createWork, findPlanning, DatabaseVersionError, PlanningNotFoundError, removeStep, renameStep, reopenWork, setContinues,
   resolvePlanningFolder, setBlocked, setStepStatus, startWork, WorkError, workStatus, type LedgerStepStatus,
 } from '../../planning/index.ts';
 import type { Whereabouts } from '../../planning/projects/findProject.ts';
@@ -38,6 +38,7 @@ const object = (properties: Record<string, unknown>, required: string[] = []) =>
 /** What each action of the step tool takes, and how to say so when a call gets it wrong. */
 const stepFields = {
   add: { fields: ['steps'], needs: 'steps, a non-empty list of titles' },
+  propose: { fields: ['steps'], needs: 'steps, a list of titles (empty removes the proposed steps)' },
   set: { fields: ['step', 'status'], needs: 'step (its title) and status (todo, doing or done)' },
   rename: { fields: ['step', 'to'], needs: 'step (its title) and to (the new title)' },
   remove: { fields: ['step'], needs: 'step (its title)' },
@@ -51,10 +52,11 @@ const stepValid: Record<string, (value: unknown) => boolean> = {
 /** The step tool's action, refused unless the call gives exactly that action's fields, each well formed. */
 function stepAction(input: Arguments): StepAction {
   const action = input.action as StepAction;
-  if (typeof action !== 'string' || !Object.hasOwn(stepFields, action)) throw new WorkError('Give the step tool an action: add, set, rename or remove.');
+  if (typeof action !== 'string' || !Object.hasOwn(stepFields, action)) throw new WorkError('Give the step tool an action: add, propose, set, rename or remove.');
   const { fields, needs } = stepFields[action];
   const others = Object.keys(stepValid).filter(field => input[field] !== undefined && !(fields as readonly string[]).includes(field));
-  if (others.length || fields.some(field => !stepValid[field](input[field]))) throw new WorkError(`The step action ${action} needs ${needs}` + (others.length ? `, and not ${others.join(' or ')}.` : '.'));
+  const valid = (field: string) => action === 'propose' && field === 'steps' ? Array.isArray(input.steps) && input.steps.every(filled) : stepValid[field](input[field]);
+  if (others.length || fields.some(field => !valid(field))) throw new WorkError(`The step action ${action} needs ${needs}` + (others.length ? `, and not ${others.join(' or ')}.` : '.'));
   return action;
 }
 
@@ -98,16 +100,17 @@ const tools: Tool[] = [
   },
   {
     name: 'work_start',
-    description: 'Start implementing an accepted plan: its agreed steps (one per meaningful deliverable) go after the planning steps as todo. Commit the plan first.',
-    inputSchema: object({ work, steps: { ...titles(), minItems: 1 } }, ['work', 'steps']), run: (root, input) => startWork(root, input.work!, { steps: input.steps as string[] }),
+    description: 'Start implementing an accepted plan: its agreed steps (one per meaningful deliverable) go after the planning steps as todo, replacing the proposed ones; without steps, the proposed steps become them. Commit the plan first.',
+    inputSchema: object({ work, steps: { ...titles(), minItems: 1 } }, ['work']), run: (root, input) => startWork(root, input.work!, { steps: input.steps as string[] | undefined }),
   },
   {
     name: 'step',
-    description: "Change the ledger's steps. add: append todo steps when agreed scope grows (planning steps before work_start, implementation steps after). set: move a step to todo, doing or done as work on it starts or finishes. rename: retitle a step, keeping its place and status. remove: drop a step that was transferred or dropped; tell the user why.",
-    inputSchema: object({ work, action: { type: 'string', enum: Object.keys(stepFields) }, steps: { ...titles('For add.'), minItems: 1 }, step: { type: 'string', description: 'For set, rename and remove: the title as the ledger has it.' }, status: { type: 'string', enum: ['todo', 'doing', 'done'], description: 'For set.' }, to: { type: 'string', description: 'For rename: the new title.' } }, ['work', 'action']),
+    description: "Change the ledger's steps. add: append todo steps when agreed scope grows (planning steps before work_start, implementation steps after). propose: while planning, replace the plan's proposed implementation steps (shown as proposed until work_start). set: move a step to todo, doing or done as work on it starts or finishes. rename: retitle a step, keeping its place and status. remove: drop a step that was transferred or dropped; tell the user why.",
+    inputSchema: object({ work, action: { type: 'string', enum: Object.keys(stepFields) }, steps: titles('For add and propose.'), step: { type: 'string', description: 'For set, rename and remove: the title as the ledger has it.' }, status: { type: 'string', enum: ['todo', 'doing', 'done'], description: 'For set.' }, to: { type: 'string', description: 'For rename: the new title.' } }, ['work', 'action']),
     run: (root, input) => {
       const action = stepAction(input);
       if (action === 'add') return addSteps(root, input.work!, input.steps as string[]);
+      if (action === 'propose') return proposeSteps(root, input.work!, input.steps as string[]);
       if (action === 'set') return setStepStatus(root, input.work!, input.step as string, input.status as LedgerStepStatus);
       if (action === 'rename') return renameStep(root, input.work!, input.step as string, input.to as string);
       return removeStep(root, input.work!, input.step as string);

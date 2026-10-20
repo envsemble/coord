@@ -1,6 +1,7 @@
 // The ledger status header (PLANS.md, "Ledger status"), schema version 2: the agreed steps of the
 // work, each todo, doing or done, so progress and the work left can be shown: the planning steps
-// (`phase: planning`) from the work's creation, then the implementation steps (no phase). Both the
+// (`phase: planning`) from the work's creation, the steps the plan proposes while it is designed
+// (`phase: proposed`, todo, outside the progress), then the implementation steps (no phase). Both the
 // YAML reader (planningIndex.ts) and the restricted checker (check.ts) validate headers here, so they
 // cannot disagree. No imports: the app window and the plan export viewer use this module too.
 import type { LedgerStep, LedgerStepStatus, StepCounts, WorkProgress } from '../types.ts';
@@ -8,7 +9,7 @@ import type { LedgerStep, LedgerStepStatus, StepCounts, WorkProgress } from '../
 export const ledgerStepStatuses: readonly LedgerStepStatus[] = ['todo', 'doing', 'done'];
 const ledgerFields = ['schema_version', 'kind', 'work_id', 'updated', 'blocked', 'steps'];
 const stepFields = ['title', 'status', 'phase'];
-const phases = ['planning', 'implementation'];
+const phases = ['planning', 'proposed', 'implementation'];
 
 /** A ledger header that does not follow the contract; the message says what is wrong. */
 export class LedgerStatusError extends Error {
@@ -43,11 +44,12 @@ function steps(value: unknown): LedgerStep[] {
     if (typeof entry.title !== 'string') throw new LedgerStatusError(at + ' title must be a quoted string.');
     if (!text(entry.title)) throw new LedgerStatusError(at + ' needs a nonempty title.');
     if (typeof entry.status !== 'string' || !(ledgerStepStatuses as readonly string[]).includes(entry.status)) throw new LedgerStatusError(at + ' status must be todo, doing or done.');
-    if (Object.hasOwn(entry, 'phase') && !phases.includes(entry.phase as string)) throw new LedgerStatusError(at + ' phase must be planning or implementation.');
+    if (Object.hasOwn(entry, 'phase') && !phases.includes(entry.phase as string)) throw new LedgerStatusError(at + ' phase must be planning, proposed or implementation.');
+    if (entry.phase === 'proposed' && entry.status !== 'todo') throw new LedgerStatusError(at + ' is proposed, so its status must be todo.');
     const title = entry.title.trim();
     if (titles.has(title)) throw new LedgerStatusError('Ledger step titles must be unique: ' + title + '.');
     titles.add(title);
-    return { title, status: entry.status as LedgerStepStatus, ...entry.phase === 'planning' && { phase: 'planning' as const } };
+    return { title, status: entry.status as LedgerStepStatus, ...(entry.phase === 'planning' || entry.phase === 'proposed') && { phase: entry.phase } };
   });
 }
 
@@ -64,11 +66,15 @@ export function ledgerStatus(metadata: Record<string, unknown>, workId: string):
   if (!textOrNull(metadata.blocked)) throw new LedgerStatusError('Ledger blocked must be a nonempty string or null.');
   const list = steps(metadata.steps);
   const doing = list.filter(step => step.status === 'doing').map(step => step.title);
-  return { version: 2, current: doing.length ? doing.join('; ') : null, next: list.filter(step => step.status === 'todo').map(step => step.title), blocked: metadata.blocked as string | null, updated: calendarDate(metadata.updated), steps: list };
+  return { version: 2, current: doing.length ? doing.join('; ') : null, next: agreed(list).filter(step => step.status === 'todo').map(step => step.title), blocked: metadata.blocked as string | null, updated: calendarDate(metadata.updated), steps: list };
 }
 
-/** How far the agreed steps are: the estimate of work left is the steps not yet done. */
-export function stepCounts(steps: readonly LedgerStep[]): StepCounts {
+/** The agreed steps: all but the proposed ones, which only preview the plan's steps. */
+export const agreed = (steps: readonly LedgerStep[]) => steps.filter(step => step.phase !== 'proposed');
+
+/** How far the agreed steps are (proposed steps aside): the estimate of work left is the steps not yet done. */
+export function stepCounts(all: readonly LedgerStep[]): StepCounts {
+  const steps = agreed(all);
   const done = steps.filter(step => step.status === 'done').length;
   const doing = steps.filter(step => step.status === 'doing').length;
   return { total: steps.length, done, doing, todo: steps.length - done - doing, remaining: steps.length - done };

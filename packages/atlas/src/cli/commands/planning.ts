@@ -6,7 +6,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  acceptWork, addSteps, archiveWork, atlasHome, checkPaths, closeWork, createProject, createWork, setContinues, findPlanning, homePlanningFolders, planningName,
+  acceptWork, addSteps, archiveWork, proposeSteps, atlasHome, checkPaths, closeWork, createProject, createWork, setContinues, findPlanning, homePlanningFolders, planningName,
   planningFolderOf, readRegistry, readTemplates, removeStep, renameStep, reopenWork, resolvePlanningFolder, setBlocked, setStepStatus, startWork, withDatabaseAsync, workStatus,
   type LedgerStepStatus,
 } from '../../planning/index.ts';
@@ -18,8 +18,9 @@ export const planningUsage = `  atlas where [--cwd <dir>]
   atlas work create --title <title> [--summary <text>] [--slug <slug>] [--continues <work>...] [--planning-dir <dir>]
   atlas work continue <work-id> [<work>...] [--planning-dir <dir>]
   atlas work accept <work-id> [--planning-dir <dir>]
-  atlas work start <work-id> --step <title>... [--planning-dir <dir>]
+  atlas work start <work-id> [--step <title>...] [--planning-dir <dir>]
   atlas work step add <work-id> <title>... [--planning-dir <dir>]
+  atlas work step propose <work-id> [<title>...] [--planning-dir <dir>]
   atlas work step set <work-id> <title> <todo|doing|done> [--planning-dir <dir>]
   atlas work step rename <work-id> <title> <new-title> [--planning-dir <dir>]
   atlas work step remove <work-id> <title> [--planning-dir <dir>]
@@ -72,7 +73,7 @@ export async function project(args: string[], out: Output) {
   return 0;
 }
 
-const steps = ['add', 'set', 'rename', 'remove'];
+const steps = ['add', 'propose', 'set', 'rename', 'remove'];
 /** `atlas work <operation>`; `work report` is handled by main.ts. */
 export async function work(operation: string | undefined, args: string[], out: Output) {
   const line = usageOf(operation === 'step' ? `atlas work step ${steps.includes(args[0]) ? args[0] : ''}`.trim() : 'atlas work ' + operation);
@@ -114,9 +115,10 @@ export async function work(operation: string | undefined, args: string[], out: O
     case 'start': case 'reopen': {
       const { positional, values, lists } = parseOptions(args, { values: ['planning-dir'], lists: ['step'] }, line);
       const [id] = positionals(positional, ['work-id'], line);
-      if (!lists.step) throw new UsageError('the following arguments are required: --step', line);
+      // Started without steps, the work adopts its proposed steps.
+      if (!lists.step && operation === 'reopen') throw new UsageError('the following arguments are required: --step', line);
       const root = await planningDir(values, id);
-      print(out, operation === 'start' ? await startWork(root, id, { steps: lists.step }) : await reopenWork(root, id, { steps: lists.step }));
+      print(out, operation === 'start' ? await startWork(root, id, { steps: lists.step }) : await reopenWork(root, id, { steps: lists.step! }));
       return 0;
     }
     case 'block': {
@@ -134,6 +136,9 @@ export async function work(operation: string | undefined, args: string[], out: O
       if (action === 'add') {
         if (positional.length < 2) throw new UsageError('the following arguments are required: ' + (id ? 'title' : 'work-id, title'), line);
         print(out, await addSteps(await planningDir(values, id), id, positional.slice(1)));
+      } else if (action === 'propose') {
+        if (!id) throw new UsageError('the following arguments are required: work-id', line);
+        print(out, await proposeSteps(await planningDir(values, id), id, positional.slice(1)));
       } else if (action === 'set') {
         const [, title, status] = positionals(positional, ['work-id', 'title', 'status'], line);
         if (!['todo', 'doing', 'done'].includes(status)) throw new UsageError('argument status: expected todo, doing or done', line);

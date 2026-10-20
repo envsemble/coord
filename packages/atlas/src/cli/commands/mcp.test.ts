@@ -50,7 +50,7 @@ test('the MCP server serves the planning-state tools, resolving the planning fol
       assert.match((await inRoot('step', { work: 'work-0001', action: 'set', step: 'Review' })).content![0].text, /^The step action set needs step \(its title\) and status \(todo, doing or done\)\.$/);
       assert.match((await inRoot('step', { work: 'work-0001', action: 'remove', step: 'Review', status: 'done' })).content![0].text, /needs step \(its title\), and not status\.$/);
       assert.match((await inRoot('step', { work: 'work-0001', action: 'add', steps: [] })).content![0].text, /needs steps, a non-empty list of titles/);
-      assert.match((await inRoot('step', { work: 'work-0001', action: 'move' })).content![0].text, /action: add, set, rename or remove/);
+      assert.match((await inRoot('step', { work: 'work-0001', action: 'move' })).content![0].text, /action: add, propose, set, rename or remove/);
       await inRoot('step', { work: 'work-0001', action: 'set', step: 'Write docs', status: 'done' });
       await inRoot('work_block', { work: 'work-0001', reason: 'Waiting' });
       const closing = await inRoot('work_close', { work: 'work-0001' });

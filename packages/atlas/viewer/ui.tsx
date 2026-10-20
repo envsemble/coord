@@ -72,9 +72,11 @@ export function HandoffEntries({ items = [], kind, own }: { items?: HandoffLink[
 
 /**
  * The ledger's agreed steps, as the app shows them (app/src/plan/LedgerProgress.tsx): planning steps
- * (`phase: planning`) and implementation steps in one list, the planning ones in their own colour.
+ * (`phase: planning`) and implementation steps in one list, the planning ones in their own colour,
+ * and the proposed ones (`phase: proposed`) dimmed under a "Proposed" label.
  */
 const stepLabels: Record<LedgerStepStatus, string> = { done: 'Done', doing: 'In progress', todo: 'To do' };
+const phaseNames = { planning: 'Planning', proposed: 'Proposed', implementation: 'Implementation' } as const;
 export function LedgerSteps({ steps, before = null, after = null }: { steps: LedgerStep[]; before?: ReactNode; after?: ReactNode }) {
   const counts = stepCounts(steps);
   const planning = stepCounts(steps.filter(step => step.phase === 'planning'));
@@ -87,13 +89,14 @@ export function LedgerSteps({ steps, before = null, after = null }: { steps: Led
       <span className="step-bar-doing" style={{ width: share(counts.doing - planning.doing) }} />
     </span>}
     <p className="ledger-progress-summary">{stepSummary(counts)}</p>
-    {(steps.length > 0 || before || after) && <ol className="ledger-steps">{before}{steps.map(step => {
-      const phase = step.phase === 'planning' ? 'planning' : 'implementation';
-      const props = { className: 'step-icon', 'data-status': step.status, 'data-phase': phase, label: phase === 'planning' ? 'Planning step, ' + stepLabels[step.status].toLowerCase() : stepLabels[step.status] };
-      return <li key={step.title} className={'ledger-step ledger-step-' + step.status} data-phase={phase}
-        title={(phase === 'planning' ? 'Planning' : 'Implementation') + ' step: ' + step.title + ', ' + stepLabels[step.status].toLowerCase()}>
+    {(steps.length > 0 || before || after) && <ol className="ledger-steps">{before}{steps.map((step, index) => {
+      const phase = step.phase ?? 'implementation';
+      const props = { className: 'step-icon', 'data-status': step.status, 'data-phase': phase, label: phase === 'implementation' ? stepLabels[step.status] : phaseNames[phase] + ' step, ' + stepLabels[step.status].toLowerCase() };
+      const item = <li key={step.title} className={'ledger-step ledger-step-' + step.status} data-phase={phase}
+        title={phaseNames[phase] + ' step: ' + step.title + ', ' + stepLabels[step.status].toLowerCase()}>
         {step.status === 'done' ? <CheckCircle filled {...props} /> : step.status === 'doing' ? <Pending {...props} /> : <RadioButtonUnchecked {...props} />}<span>{step.title}</span>
       </li>;
+      return phase === 'proposed' && steps[index - 1]?.phase !== 'proposed' ? [<li key=" proposed" className="ledger-proposed">Proposed</li>, item] : item;
     })}{after}</ol>}
   </div>;
 }

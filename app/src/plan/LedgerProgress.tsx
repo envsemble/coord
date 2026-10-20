@@ -1,6 +1,7 @@
 // The ledger's agreed steps: a progress bar with the work left, and the steps themselves. Planning
 // steps (settling the design) and implementation steps form one list, told apart by colour, and by
-// name for assistive technology. While an agent works on the plan, the step in progress pulses, in
+// name for assistive technology. The steps a plan proposes while it is designed follow the planning
+// steps, dimmed under a "Proposed" label, outside the progress. While an agent works on the plan, the step in progress pulses, in
 // the list and in the bar; while one waits for the person, it turns amber.
 // The plan export viewer draws the same markup (packages/atlas/viewer/ui.tsx), without activity.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -11,6 +12,7 @@ import { stepPhase, type StepPhase } from './work';
 import type { ActivityState } from './status';
 
 const statusLabels: Record<LedgerStepStatus, string> = { done: 'Done', doing: 'In progress', todo: 'To do' };
+const phaseNames: Record<StepPhase, string> = { planning: 'Planning', proposed: 'Proposed', implementation: 'Implementation' };
 
 /**
  * A bar split into done and in-progress steps, over the steps still to do; the planning steps among
@@ -32,7 +34,7 @@ export function StepBar({ counts, planning, compact = false, live = null }: { co
 }
 
 function StepIcon({ status, phase = 'implementation' }: { status: LedgerStepStatus; phase?: StepPhase }) {
-  const props = { className: 'step-icon', 'data-status': status, 'data-phase': phase, label: phase === 'planning' ? 'Planning step, ' + statusLabels[status].toLowerCase() : statusLabels[status] };
+  const props = { className: 'step-icon', 'data-status': status, 'data-phase': phase, label: phase === 'implementation' ? statusLabels[status] : phaseNames[phase] + ' step, ' + statusLabels[status].toLowerCase() };
   return status === 'done' ? <CompleteIcon filled {...props} /> : status === 'doing' ? <InProgressIcon {...props} /> : <OpenIcon {...props} />;
 }
 
@@ -62,13 +64,14 @@ export function LedgerSteps({ steps, found = null, live = null, before = null, a
   return <div className="ledger-progress">
     <StepBar counts={counts} planning={planning} live={live} />
     <p className="ledger-progress-summary">{stepSummary(counts)}</p>
-    {(steps.length > 0 || before || after) && <ol ref={list} className="ledger-steps">{before}{steps.map(step => {
+    {(steps.length > 0 || before || after) && <ol ref={list} className="ledger-steps">{before}{steps.map((step, index) => {
       const phase = stepPhase(step);
-      return <li key={step.title} className={'ledger-step ledger-step-' + step.status} data-phase={phase} data-step={step.title} data-found={marked === step.title ? '' : undefined}
+      const item = <li key={step.title} className={'ledger-step ledger-step-' + step.status} data-phase={phase} data-step={step.title} data-found={marked === step.title ? '' : undefined}
         data-live={step.status === 'doing' && live ? live : undefined}
-        title={(phase === 'planning' ? 'Planning' : 'Implementation') + ' step: ' + step.title + ', ' + statusLabels[step.status].toLowerCase()}>
+        title={phaseNames[phase] + ' step: ' + step.title + ', ' + statusLabels[step.status].toLowerCase()}>
         <StepIcon status={step.status} phase={phase} /><span>{step.title}</span>
       </li>;
+      return phase === 'proposed' && (index === 0 || stepPhase(steps[index - 1]) !== 'proposed') ? [<li key=" proposed" className="ledger-proposed">Proposed</li>, item] : item;
     })}{after}</ol>}
   </div>;
 }

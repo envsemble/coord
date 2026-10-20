@@ -31,7 +31,7 @@ Record as understanding settles, not only at the end:
 
 - **The plan's `summary`:** keep it saying what the work is and where it stands, when the design settles, at acceptance and as the work moves. The body does not repeat the header.
 - **`plan.md`:** the outcome, scope, decisions with their reasons, dependencies, edge cases and completion checks, in whatever shape the work needs. Label proposals and open questions; never present your recommendation as the user's decision.
-- **The ledger's steps:** the planning steps exist from creation; keep them true with the `step` tool. The ledger holds nothing else but, during implementation, its final-review list.
+- **The ledger's steps:** the planning steps exist from creation; keep them true with the `step` tool. Once the plan names its implementation steps, propose them (action `propose`), so they show before the work starts. The ledger holds nothing else but, during implementation, its final-review list.
 - **`CONTEXT.md`:** the work's glossary, updated the moment a term resolves ([format](../atlas-grill/references/CONTEXT-FORMAT.md)).
 
 Write PRs, issues and commits in full, naming the repository from the checkout you work in: `owner/repo#12`, `owner/repo@4ab195a`, or their URLs. Atlas links these; `#12` and a bare hash stay plain text.

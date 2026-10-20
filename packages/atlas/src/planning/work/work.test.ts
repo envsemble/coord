@@ -8,7 +8,7 @@ import path from 'node:path';
 import { validatePlanning } from '../check/check.ts';
 import { checkPaths, fileCheckers } from '../check/checkPaths.ts';
 import { remoteRepository } from '../references/remotes.ts';
-import { acceptWork, addSteps, archiveWork, closeWork, createWork, setContinues, planningLedger, removeStep, renameStep, reopenWork, setBlocked, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
+import { acceptWork, addSteps, archiveWork, proposeSteps, closeWork, createWork, setContinues, planningLedger, removeStep, renameStep, reopenWork, setBlocked, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
 import { git, plan, planningFolder, read, temporary, today, write } from '../testing.ts';
 
 const errorsOf = (root: string) => validatePlanning(root).errors;
@@ -89,6 +89,27 @@ test('new work has its planning steps from the start: added to while designing, 
   assert.deepEqual(errorsOf(root), []);
 });
 
+test('a plan proposes its steps while designed, outside the progress; starting adopts or replaces them', async t => {
+  const root = planningFolder(temporary(t));
+  const [first, second] = [await createWork(root, { title: 'Refunds', summary: 'Refunds.' }, today), await createWork(root, { title: 'Invoices', summary: 'Invoices.' }, today)];
+  const shape = (steps: { title: string; status: string; phase?: string }[]) => steps.filter(step => step.phase !== 'planning').map(step => [step.title, step.status, step.phase]);
+  await proposeSteps(root, first.workId, ['Old idea'], today);
+  // Each proposal replaces the last, after the planning steps; it adds nothing to the progress.
+  const proposed = await proposeSteps(root, first.workId, ['Build', 'Ship'], today);
+  assert.deepEqual([shape(proposed.steps), proposed.progress], [[['Build', 'todo', 'proposed'], ['Ship', 'todo', 'proposed']], '0 of 4 steps done · 4 left']);
+  await assert.rejects(proposeSteps(root, first.workId, ['Accepted'], today), /already has these steps: Accepted/);
+  await assert.rejects(setStepStatus(root, first.workId, 'Build', 'doing', today), /only proposed/);
+  assert.deepEqual(errorsOf(root), []);
+  await proposeSteps(root, second.workId, ['Draft'], today);
+  for (const work of [first, second]) await acceptWork(root, work.workId, today);
+  git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'Plans');
+  // Without steps, starting adopts the proposed ones; with steps, they replace them.
+  assert.deepEqual(shape((await startWork(root, first.workId, {}, today)).steps), [['Build', 'todo', undefined], ['Ship', 'todo', undefined]]);
+  assert.deepEqual(shape((await startWork(root, second.workId, { steps: ['Send'] }, today)).steps), [['Send', 'todo', undefined]]);
+  await assert.rejects(proposeSteps(root, first.workId, ['Later'], today), /implementation has started/);
+  assert.deepEqual(errorsOf(root), []);
+});
+
 test('work in progress or partly done whose ledger has no implementation steps starts once', async t => {
   const root = planningFolder(temporary(t));
   const accepted = { design_status: 'accepted', accepted_at: '"2026-10-02"' };
@@ -119,7 +140,7 @@ test('a step without a phase is an implementation step, and a phase is planning 
   write(path.join(root, 'active/0001-existing/ledger.md'), header('  - title: "Design"\n    status: done\n    phase: planning\n  - title: "Build"\n    status: todo\n    phase: implementation\n'));
   assert.deepEqual([(await workStatus(root, 'work-0001')).steps, errorsOf(root)], [[{ title: 'Design', status: 'done', phase: 'planning' }, { title: 'Build', status: 'todo' }], []]);
   write(path.join(root, 'active/0001-existing/ledger.md'), header('  - title: "Build"\n    status: todo\n    phase: later\n'));
-  assert.match(errorsOf(root).join('\n'), /Ledger step 1 phase must be planning or implementation/);
+  assert.match(errorsOf(root).join('\n'), /Ledger step 1 phase must be planning, proposed or implementation/);
 });
 
 test('the design is accepted, then implementation starts with a ledger of its steps', async t => {

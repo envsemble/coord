@@ -252,7 +252,9 @@ export function planningLedger(workId: string, today: string, steps = planningSt
  * Whether the work is past planning, so new steps are implementation steps: only work whose
  * implementation is not_started, with no implementation step in its ledger, is still being planned.
  */
-const implementing = (loaded: Loaded) => loaded.planMetadata.implementation_status !== 'not_started' || loaded.ledgerSteps.some(step => step.phase !== 'planning');
+const implementing = (loaded: Loaded) => loaded.planMetadata.implementation_status !== 'not_started' || loaded.ledgerSteps.some(implementationStep);
+/** An implementation step: neither a planning step nor a proposed one. */
+const implementationStep = (step: LedgerStep) => !step.phase;
 
 /**
  * Create and register a work item: the next unused number across active, archived and registered
@@ -311,23 +313,25 @@ const withSteps = (loaded: Loaded, titles: string[], today: string) =>
 
 /**
  * Start implementation: `implementation_status: in_progress` and the given steps after the ledger's
- * planning steps.
+ * planning steps, in place of the proposed ones; without steps, the proposed steps become them.
  */
-export async function startWork(root: string, workId: string, request: { steps: string[] }, options: OperationOptions = {}): Promise<WorkResult> {
+export async function startWork(root: string, workId: string, request: { steps?: string[] }, options: OperationOptions = {}): Promise<WorkResult> {
   const today = dateOf(options);
-  const titles = stepTitles(request.steps);
-  if (!titles.length) throw new WorkError('Give the agreed steps: implementation starts with at least one.');
   const loaded = await load(root, workId);
+  const proposed = loaded.ledgerSteps.filter(step => step.phase === 'proposed').map(step => step.title);
+  const titles = request.steps === undefined ? proposed : stepTitles(request.steps);
+  if (!titles.length) throw new WorkError('Give the agreed steps: implementation starts with at least one.');
   if (loaded.planMetadata.design_status !== 'accepted') throw new WorkError(`The design is ${String(loaded.planMetadata.design_status)}; accept it before implementation starts.`);
   if (loaded.planMetadata.implementation_status === 'complete') throw new WorkError('The implementation is already complete; reopen the work instead.');
   // Started once already: the ledger has its implementation steps.
-  if (loaded.ledgerSteps.some(step => step.phase !== 'planning')) {
+  if (loaded.ledgerSteps.some(implementationStep)) {
     throw new WorkError('The implementation has started already; add steps with step add instead.');
   }
-  const taken = titles.filter(title => loaded.ledgerSteps.some(step => step.title === title));
+  const kept = { ...loaded, ledgerSteps: loaded.ledgerSteps.filter(step => step.phase !== 'proposed') };
+  const taken = titles.filter(title => kept.ledgerSteps.some(step => step.title === title));
   if (taken.length) throw new WorkError('The ledger already has these steps: ' + taken.join(', ') + '. Give new titles.');
   if (locationOf(loaded.entry.path) === 'archive') throw new WorkError('The work is archived; reopen it instead.');
-  const ledger = await writeLedger(loaded, withSteps(loaded, titles, today));
+  const ledger = await writeLedger(loaded, withSteps(kept, titles, today));
   const plan = await writePlan(loaded, { implementation_status: 'in_progress' }, today);
   return result(loaded.root, workId, [ledger, plan]);
 }
@@ -367,11 +371,28 @@ export async function addSteps(root: string, workId: string, titles: string[], o
   });
 }
 
+/**
+ * Propose the plan's implementation steps while it is designed: they replace the proposed steps,
+ * after the planning steps, and `work_start` without steps adopts them. An empty list removes them.
+ */
+export async function proposeSteps(root: string, workId: string, titles: string[], options: OperationOptions = {}) {
+  const proposed = stepTitles(titles);
+  return changeLedger(root, workId, options, (steps, loaded) => {
+    if (implementing(loaded)) throw new WorkError('The implementation has started; add steps with step add instead.');
+    const kept = steps.filter(step => step.phase !== 'proposed');
+    const taken = proposed.filter(title => kept.some(step => step.title === title));
+    if (taken.length) throw new WorkError('The ledger already has these steps: ' + taken.join(', ') + '. Give new titles.');
+    return { steps: [...kept, ...proposed.map(title => ({ title, status: 'todo' as const, phase: 'proposed' as const }))] };
+  });
+}
+
 /** Set a step's status: todo, doing or done. */
 export async function setStepStatus(root: string, workId: string, title: string, status: LedgerStepStatus, options: OperationOptions = {}) {
   if (!ledgerStepStatuses.includes(status)) throw new WorkError('A step status is todo, doing or done.');
   return changeLedger(root, workId, options, steps => {
-    steps[find(steps, title)].status = status;
+    const index = find(steps, title);
+    if (steps[index].phase === 'proposed') throw new WorkError(`"${steps[index].title}" is only proposed; it becomes a step to work on when the work starts.`);
+    steps[index].status = status;
     return { steps };
   });
 }
@@ -547,7 +568,7 @@ export async function closeWork(root: string, workId: string, options: Operation
   const loaded = await load(root, workId);
   if (loaded.planMetadata.design_status !== 'accepted') throw new WorkError(`The design is ${String(loaded.planMetadata.design_status)}; only accepted work is closed as complete. Archive it instead.`);
   if (locationOf(loaded.entry.path) !== 'active') throw new WorkError(`${workId} is not in active/ (${loaded.entry.path}).`);
-  if (!loaded.ledgerSteps.some(step => step.phase !== 'planning')) throw new WorkError(`${workId}'s ledger has no implementation steps: start it with the agreed steps and finish them before closing.`);
+  if (!loaded.ledgerSteps.some(implementationStep)) throw new WorkError(`${workId}'s ledger has no implementation steps: start it with the agreed steps and finish them before closing.`);
   const open = openItems(loaded);
   if (open.length) throw new WorkError(`${workId} cannot close while items are open. Finish them, or remove a dropped one with step remove.`, open);
   const moved = await move(loaded, 'archive');

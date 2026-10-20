@@ -48,7 +48,7 @@ test('a folder finds its planning folder in the home and drives a work item thro
   // Refusals exit 1 with the reason; usage errors exit 2.
   assert.match((await inRoot('work', 'start', 'work-0001', '--step', 'X')).stderr, /^atlas: The design is superseded; accept it/);
   assert.equal((await inRoot('work', 'status', 'work-0042')).status, 1);
-  for (const args of [['work'], ['work', 'status'], ['work', 'step', 'set', 'work-0002', 'Build', 'finished'], ['work', 'block', 'work-0002'], ['work', 'start', 'work-0002'], ['work', 'archive', 'work-0002', '--abandoned', '--superseded-by', 'work-0001', '--reason', 'x'], ['work', 'fly', 'work-0002']]) {
+  for (const args of [['work'], ['work', 'status'], ['work', 'step', 'set', 'work-0002', 'Build', 'finished'], ['work', 'block', 'work-0002'], ['work', 'reopen', 'work-0002'], ['work', 'archive', 'work-0002', '--abandoned', '--superseded-by', 'work-0001', '--reason', 'x'], ['work', 'fly', 'work-0002']]) {
     assert.equal((await inRoot(...args)).status, 2, args.join(' '));
   }
   // Outside every project's folders, a planning folder must be given.

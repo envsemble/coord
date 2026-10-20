@@ -20,7 +20,7 @@ export {
   type PlanExportPreview, type PlanImportResult, type PlanImportTarget,
 } from './export/planExport.ts';
 export { runProgram } from '../platform/run.ts';
-export { WorkError, workStatus, createWork, acceptWork, startWork, addSteps, setStepStatus, renameStep, removeStep, setBlocked, setContinues, closeWork, archiveWork, reopenWork, localDate } from './work/work.ts';
+export { WorkError, workStatus, createWork, acceptWork, startWork, addSteps, proposeSteps, setStepStatus, renameStep, removeStep, setBlocked, setContinues, closeWork, archiveWork, reopenWork, localDate } from './work/work.ts';
 export { readRegistry } from './registry/registry.ts';
 export { setRegistryName } from './registry/registryText.ts';
 export { findPlanning, resolvePlanningFolder, PlanningNotFoundError } from './projects/findProject.ts';

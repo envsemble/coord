@@ -9,9 +9,9 @@ export function defaultDocument(work: Work): Document | undefined {
     ?? work.documents.find(file => file.path !== work.ledger);
 }
 
-export type StepPhase = 'planning' | 'implementation';
+export type StepPhase = 'planning' | 'proposed' | 'implementation';
 /**
- * A ledger step's phase: planning when its header says `phase: planning`, else implementation (as
- * every step was before ledgers had planning steps).
+ * A ledger step's phase: planning or proposed as its header says, else implementation (as every
+ * step was before ledgers had planning steps).
  */
-export const stepPhase = (step: LedgerStep): StepPhase => step.phase === 'planning' ? 'planning' : 'implementation';
+export const stepPhase = (step: LedgerStep): StepPhase => step.phase === 'planning' || step.phase === 'proposed' ? step.phase : 'implementation';

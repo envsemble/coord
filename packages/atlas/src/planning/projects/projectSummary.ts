@@ -115,7 +115,8 @@ async function workOf(root: string, entry: { id: string; path: string; current_p
   const state: ProjectWorkState = closed ? 'closed' : blocked ? 'blocked' : implementation === 'in_progress' ? 'implementing'
     : !['partial', 'complete'].includes(String(implementation)) && design === 'draft' ? 'draft' : 'other';
   const outcome = !closed ? null : design === 'superseded' || design === 'abandoned' ? design : implementation === 'complete' ? 'complete' : null;
-  const steps = Array.isArray(ledger?.steps) ? (ledger.steps as Step[]) : null;
+  // Proposed steps preview the plan's steps: not counted, and never the step at hand.
+  const steps = Array.isArray(ledger?.steps) ? (ledger.steps as Step[]).filter(step => step?.phase !== 'proposed') : null;
   const counted = (list: Step[]) => ({ done: list.filter(step => step?.status === 'done').length, total: list.length });
   return {
     id: entry.id, title: text(planHeader?.title) ?? entry.path.split('/').at(-1)!, state, blocked,
