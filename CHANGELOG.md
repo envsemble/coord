@@ -23,7 +23,7 @@
 - **Sessions:** the hooks record when a session's turn starts and ends and when it waits for you. Agent time adds every agent up, subagents in full, with the time at least one worked on hover; reports keep time and tokens by model and reasoning effort, as planning or implementation. Codex's compressed rollouts are read.
 - **References:** the host resolves what a plan references: PRs with their state from `gh`, commits from the project's checkouts first, files in a checkout.
 - **Hooks are cheap:** an edit outside the planning folders costs about as much as starting Node, session logs are read from where the last report stopped, and a session that moves to another work item reports the one it left at its next turn end, prompt or end.
-- **Skills:** three, by name: `atlas` (planning and recording, on its own), `atlas-grill` (questioning in rounds) and `atlas-implement` (implementing an accepted plan, with at most three review rounds per step and a final-review list). Atlas records projects and work items, nothing else: no knowledge folder, ADR or evidence conventions, and the skills are about half as long.
+- **Skills:** three, by name: `atlas` (planning and recording, on its own), `atlas-grill` (questioning in rounds, with diagrams built on captures of the code when they help understanding) and `atlas-implement` (implementing an accepted plan, with at most three review rounds per step and a final-review list). Atlas records projects and work items, nothing else: no knowledge folder, ADR or evidence conventions, and the skills are about half as long. Agents make diagrams when they help mutual understanding, not only when asked.
 
 **The command and the host**
 

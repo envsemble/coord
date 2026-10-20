@@ -4,7 +4,7 @@ Diagrams are `.puml` files in a work item, in Atlas's subset of PlantUML. Write 
 
 ## When to make one
 
-Offer a diagram when the work settles domain concepts, boundaries or data structure, and make it if the user agrees. Plain UI or tooling work gets none. Capture code or a database when the work changes them, and build proposals on the capture.
+Make a diagram when the work settles domain concepts, boundaries or data structure and a picture would help the user and you understand it the same way; plain UI or tooling work gets none. When the work changes existing code or a database, capture it and build proposals on the capture, so the diagram starts from the real structure instead of a remembered one.
 
 ## Where it goes
 

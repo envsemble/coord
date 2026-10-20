@@ -64,7 +64,7 @@ When the user asks to review projects or bring Atlas up to date:
 
 ## Diagrams
 
-When the work settles domain concepts, boundaries or data structure, offer a diagram, and make it if the user agrees; plain UI or tooling work gets none. [Diagrams](references/diagrams.md) says how to write one.
+When the work settles domain concepts, boundaries or data structure and a diagram would help you and the user understand it the same way, make one, without waiting to be asked; plain UI or tooling work gets none. Build it on a capture of the existing code or database where there is one, rather than from memory. [Diagrams](references/diagrams.md) says how to write each kind.
 
 ## Close
 
