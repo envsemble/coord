@@ -6,7 +6,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  acceptWork, addSteps, archiveWork, proposeSteps, atlasHome, checkPaths, closeWork, createProject, createWork, setContinues, findPlanning, homePlanningFolders, planningName,
+  acceptWork, addSteps, archiveWork, proposeSteps, searchWork, tagWork, atlasHome, checkPaths, closeWork, createProject, createWork, setContinues, findPlanning, homePlanningFolders, planningName,
   planningFolderOf, readRegistry, readTemplates, removeStep, renameStep, reopenWork, resolvePlanningFolder, setBlocked, setStepStatus, startWork, withDatabaseAsync, workStatus,
   type LedgerStepStatus,
 } from '../../planning/index.ts';
@@ -15,7 +15,9 @@ import { parseOptions, positionals, UsageError, wantsHelp, type Output } from '.
 export const planningUsage = `  atlas where [--cwd <dir>]
   atlas project create --name <name> [--folder <folder>...] [--json]
   atlas work status <work-id> [--planning-dir <dir>]
-  atlas work create --title <title> [--summary <text>] [--slug <slug>] [--continues <work>...] [--planning-dir <dir>]
+  atlas work create --title <title> [--summary <text>] [--slug <slug>] [--continues <work>...] [--tag <tag>...] [--planning-dir <dir>]
+  atlas work tag <work-id> [--add <tag>...] [--remove <tag>...] [--planning-dir <dir>]
+  atlas work search [<word>...] [--tag <tag>...] [--status open|closed|all] [--planning-dir <dir>]
   atlas work continue <work-id> [<work>...] [--planning-dir <dir>]
   atlas work accept <work-id> [--planning-dir <dir>]
   atlas work start <work-id> [--step <title>...] [--planning-dir <dir>]
@@ -97,11 +99,24 @@ export async function work(operation: string | undefined, args: string[], out: O
       return 0;
     }
     case 'create': {
-      const { positional, values, lists } = parseOptions(args, { values: ['title', 'summary', 'slug', 'planning-dir'], lists: ['continues'] }, line);
+      const { positional, values, lists } = parseOptions(args, { values: ['title', 'summary', 'slug', 'planning-dir'], lists: ['continues', 'tag'] }, line);
       positionals(positional, [], line);
       if (!values.title) throw new UsageError('the following arguments are required: --title', line);
       const root = await planningDir(values, null);
-      print(out, await createWork(root, { title: values.title, slug: values.slug ?? null, summary: values.summary ?? null, continues: lists.continues ?? null }));
+      print(out, await createWork(root, { title: values.title, slug: values.slug ?? null, summary: values.summary ?? null, continues: lists.continues ?? null, tags: lists.tag ?? null }));
+      return 0;
+    }
+    case 'tag': {
+      const { positional, values, lists } = parseOptions(args, { values: ['planning-dir'], lists: ['add', 'remove'] }, line);
+      const [id] = positionals(positional, ['work-id'], line);
+      if (!lists.add && !lists.remove) throw new UsageError('give --add or --remove', line);
+      print(out, await tagWork(await planningDir(values, id), id, { add: lists.add, remove: lists.remove }));
+      return 0;
+    }
+    case 'search': {
+      const { positional, values, lists } = parseOptions(args, { values: ['planning-dir', 'status'], lists: ['tag'] }, line);
+      if (values.status !== undefined && !['open', 'closed', 'all'].includes(values.status)) throw new UsageError('argument --status: expected open, closed or all', line);
+      print(out, await searchWork(await planningDir(values, null), { query: positional.join(' '), tags: lists.tag, status: values.status as 'open' | 'closed' | 'all' | undefined }));
       return 0;
     }
     case 'continue': {

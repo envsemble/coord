@@ -7,7 +7,8 @@
 // only in the contract's date fields.
 import { readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { ledgerStatus } from '../work/ledger.ts';
+import { agreed, ledgerStatus } from '../work/ledger.ts';
+import { isTag, tagLimit } from '../work/tags.ts';
 import { HandoffGraph, handoffsOf, handoffText } from '../handoffs/handoffs.ts';
 
 const planFields = ['schema_version', 'kind', 'id', 'title', 'created', 'updated', 'design_status', 'implementation_status', 'accepted_at', 'completed_at', 'supersedes', 'superseded_by'];
@@ -32,7 +33,9 @@ export type Metadata = Record<string, MetadataValue>;
 /** In a ledger header, `steps` holds a block list of flat mappings. */
 const ledgerEntryLists = ['steps'];
 /** Fields that may start a block list of scalars on the following lines. */
-const scalarListFields = new Set(['supersedes', 'continues']);
+const scalarListFields = new Set(['supersedes', 'continues', 'tags']);
+/** The plan header's optional fields. */
+const optionalPlanFields = ['summary', 'continues', 'tags'];
 
 /** A metadata header the checker cannot certify; the message names the offending construct. */
 export class FrontmatterError extends Error {
@@ -359,7 +362,7 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     const missing = planFields.filter(field => !Object.hasOwn(metadata, field)).sort();
     if (missing.length) errors.push(prefix + 'missing fields: ' + missing.join(', '));
     if (!isInteger(metadata.schema_version) || metadata.schema_version !== 2) errors.push(prefix + 'schema_version must be integer 2');
-    const unknownFields = Object.keys(metadata).filter(field => !planFields.includes(field) && field !== 'summary' && field !== 'continues').sort();
+    const unknownFields = Object.keys(metadata).filter(field => !planFields.includes(field) && !optionalPlanFields.includes(field)).sort();
     if (unknownFields.length) errors.push(prefix + 'unknown fields: ' + unknownFields.join(', '));
     if (metadata.kind !== 'plan') errors.push(prefix + 'kind must be plan');
     if (metadata.id !== workId) errors.push(prefix + 'id disagrees with registry');
@@ -384,6 +387,12 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     if (chronology.some(([earlier, later]) => dates[earlier] && dates[later] && dates[earlier] > dates[later])) errors.push(prefix + 'Recorded lifecycle dates are out of order');
     if (metadata.completed_at !== null && metadata.completed_at !== undefined && metadata.implementation_status !== 'complete') errors.push(prefix + 'completed_at requires complete implementation_status');
     if (metadata.accepted_at !== null && metadata.accepted_at !== undefined && metadata.design_status === 'draft') errors.push(prefix + 'draft cannot claim accepted_at');
+    // Tags: what the work can be found by, each once; a plan without them has none.
+    const tags = metadata.tags;
+    if (tags !== undefined && tags !== null) {
+      if (!Array.isArray(tags) || !tags.every(isTag)) errors.push(prefix + `tags must be a list of tags: lowercase letters, digits, dots and hyphens, at most ${tagLimit} characters, such as ["0.8.0", "search"]`);
+      else if (new Set(tags).size !== tags.length) errors.push(prefix + 'tags lists a tag twice');
+    }
     const replaced = metadata.supersedes;
     if (!Array.isArray(replaced) || replaced.some(item => typeof item !== 'string' || !workIds.has(item))) errors.push(prefix + 'supersedes must list registered work IDs');
     else if (new Set(replaced as Scalar[]).size !== replaced.length || (replaced as Scalar[]).includes(workId as string)) errors.push(prefix + 'supersedes contains duplicate or self IDs');
@@ -421,7 +430,7 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
       let status;
       try { status = ledgerStatus(metadata, entry.id); }
       catch (error) { throw new FrontmatterError('invalid ledger status metadata: ' + (error as Error).message); }
-      openItems.set(entry.id, (status.steps ?? []).filter(step => step.status !== 'done').length + (status.blocked ? 1 : 0));
+      openItems.set(entry.id, agreed(status.steps ?? []).filter(step => step.status !== 'done').length + (status.blocked ? 1 : 0));
     } catch (error) {
       errors.push(path.relative(root, ledger) + ': ' + (error as Error).message);
     }

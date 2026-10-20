@@ -9,7 +9,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
-  acceptWork, addSteps, archiveWork, proposeSteps, closeWork, createWork, findPlanning, DatabaseVersionError, PlanningNotFoundError, removeStep, renameStep, reopenWork, setContinues,
+  acceptWork, addSteps, archiveWork, proposeSteps, projectTags, searchWork, tagWork, closeWork, createWork, findPlanning, DatabaseVersionError, PlanningNotFoundError, removeStep, renameStep, reopenWork, setContinues,
   resolvePlanningFolder, setBlocked, setStepStatus, startWork, WorkError, workStatus, type LedgerStepStatus,
 } from '../../planning/index.ts';
 import type { Whereabouts } from '../../planning/projects/findProject.ts';
@@ -25,6 +25,8 @@ const instructions = "Atlas keeps plans in projects: planning folders in the Atl
   + 'Ask the user before project_create or work_create, and open work items only for work big enough to plan; small tasks stay plain coding. '
   + 'Change planning state (work items, steps, blocked, closing, archiving) only through these tools; edit plan prose, glossaries and diagrams directly as files in the planning folder. '
   + 'When work continues other work (follow-ups moved off work that is closing, a next phase), record the handoff with continues. '
+  + "Tag work with what it will be searched for later: the release it ships in and the areas it touches, reusing the project's tags (where and work_tag count them). "
+  + 'Answer questions about past work with work_search. '
   + 'In planning files, write PRs and issues as owner/repo#N and commits as owner/repo@hash (or their URLs), naming the repository yourself, so Atlas links them. '
   + 'When you stop to wait for the user, begin your message with the question or decision you need. The tools never commit; commit planning changes yourself.';
 
@@ -91,8 +93,17 @@ const tools: Tool[] = [
   {
     name: 'work_create',
     description: 'Ask the user first; only for work big enough to plan. Create a work item: active/NNNN-slug/ with a draft plan.md (its header holds the summary) and a ledger with the planning steps (Understand the request, doing; Settle the design; Write the plan; Accepted). Then write the plan body directly, and keep the summary and planning steps true as the design settles.',
-    inputSchema: object({ title: { type: 'string' }, summary: { type: 'string', description: 'Two or three plain sentences, on one line: what the work is, why, and where it stands.' }, slug: { type: 'string', description: 'Folder name after the number; derived from the title by default.' }, continues }, ['title']),
-    run: (root, input) => createWork(root, { title: input.title as string, slug: (input.slug as string | undefined) ?? null, summary: (input.summary as string | undefined) ?? null, continues: (input.continues as string[] | undefined) ?? null }),
+    inputSchema: object({ title: { type: 'string' }, summary: { type: 'string', description: 'Two or three plain sentences, on one line: what the work is, why, and where it stands.' }, slug: { type: 'string', description: 'Folder name after the number; derived from the title by default.' }, continues, tags: titles('Its first tags, such as ["search"].') }, ['title']),
+    run: (root, input) => createWork(root, { title: input.title as string, slug: (input.slug as string | undefined) ?? null, summary: (input.summary as string | undefined) ?? null, continues: (input.continues as string[] | undefined) ?? null, tags: (input.tags as string[] | undefined) ?? null }),
+  },
+  {
+    name: 'work_tag', description: "Add and remove a work item's tags (lowercase letters, digits, dots and hyphens). Returns its tags and the project's, with counts.",
+    inputSchema: object({ work, add: titles(), remove: titles() }, ['work']), run: (root, input) => tagWork(root, input.work!, { add: input.add as string[] | undefined, remove: input.remove as string[] | undefined }),
+  },
+  {
+    name: 'work_search', description: "Find the project's work items, archived included, by tags (all of them) and words in their titles, summaries and tags.",
+    inputSchema: object({ query: { type: 'string' }, tags: titles(), status: { type: 'string', enum: ['open', 'closed', 'all'] } }),
+    run: async (root, input) => ({ planningFolder: root, work: await searchWork(root, { query: input.query as string | undefined, tags: input.tags as string[] | undefined, status: input.status as 'open' | 'closed' | 'all' | undefined }) }),
   },
   {
     name: 'work_accept', description: 'Record that the user agreed to the plan: design accepted today, planning steps done.',
@@ -144,11 +155,15 @@ const tools: Tool[] = [
 ];
 
 /**
- * `where` for the agent: the work's folder only when its plan does not name it, and the other
- * projects' summaries only when no project matches, as the agent then chooses among them.
+ * `where` for the agent: the work's folder only when its plan does not name it, the tags of the
+ * matching projects, and the other projects' summaries only when no project matches, as the agent
+ * then chooses among them.
  */
-function leanWhere(where: Whereabouts) {
-  const matches = where.matches.map(match => ({ ...match, work: match.work.map(({ path: folder, ...item }) => item.plan?.startsWith(folder + '/') ? item : { path: folder, ...item }) }));
+async function leanWhere(where: Whereabouts) {
+  const matches = await Promise.all(where.matches.map(async match => {
+    const tags = await projectTags(match.planningFolder).catch(() => ({}));
+    return { ...match, work: match.work.map(({ path: folder, ...item }) => item.plan?.startsWith(folder + '/') ? item : { path: folder, ...item }), ...Object.keys(tags).length && { tags } };
+  }));
   const projects = matches.length ? where.projects.map(({ work, ...project }) => work ? { ...project, work: work.map(({ summary: _, ...item }) => item) } : project) : where.projects;
   return { ...where, matches, projects };
 }
@@ -162,6 +177,7 @@ function shaped(name: string, value: unknown) {
   const { statistics: _, changed, warnings, ...status } = value as WorkResult;
   const notes = warnings.length ? { warnings } : {};
   if (ledgerTools.has(name)) return { planningFolder: status.planningFolder, workId: status.workId, steps: status.steps, progress: status.progress, blocked: status.blocked, ...notes };
+  if (name === 'work_tag') return { planningFolder: status.planningFolder, workId: status.workId, tags: status.tags, projectTags: (value as unknown as { projectTags: unknown }).projectTags, ...notes };
   return { ...status, changed, ...notes };
 }
 

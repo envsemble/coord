@@ -104,7 +104,7 @@ test('hooks give the session its planning context, check and link planning edits
   // An Atlas MCP tool call that changes a work item links it, from its input or its result; reading one does not.
   await run(['work', 'create', '--title', 'Refunds', '--planning-dir', root], { env });
   const about = { tool_input: { work: 'work-0003' }, tool_response: [{ type: 'text', text: JSON.stringify({ workId: 'work-0003', planningFolder: root }) }] };
-  await hook('PostToolUse', { tool_name: 'mcp__plugin_atlas_atlas__work_status', ...about });
+  for (const tool of ['work_status', 'work_search']) await hook('PostToolUse', { tool_name: 'mcp__plugin_atlas_atlas__' + tool, ...about });
   assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002']);
   await hook('PostToolUse', { tool_name: 'mcp__plugin_atlas_atlas__step', ...about });
   assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002', 'work-0003']);

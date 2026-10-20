@@ -8,7 +8,7 @@ import path from 'node:path';
 import { validatePlanning } from '../check/check.ts';
 import { checkPaths, fileCheckers } from '../check/checkPaths.ts';
 import { remoteRepository } from '../references/remotes.ts';
-import { acceptWork, addSteps, archiveWork, proposeSteps, closeWork, createWork, setContinues, planningLedger, removeStep, renameStep, reopenWork, setBlocked, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
+import { acceptWork, addSteps, archiveWork, proposeSteps, projectTags, searchWork, tagWork, closeWork, createWork, setContinues, planningLedger, removeStep, renameStep, reopenWork, setBlocked, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
 import { git, plan, planningFolder, read, temporary, today, write } from '../testing.ts';
 
 const errorsOf = (root: string) => validatePlanning(root).errors;
@@ -108,6 +108,31 @@ test('a plan proposes its steps while designed, outside the progress; starting a
   assert.deepEqual(shape((await startWork(root, second.workId, { steps: ['Send'] }, today)).steps), [['Send', 'todo', undefined]]);
   await assert.rejects(proposeSteps(root, first.workId, ['Later'], today), /implementation has started/);
   assert.deepEqual(errorsOf(root), []);
+});
+
+test('work is tagged, its tags written well formed and counted, and found by tags and words', async t => {
+  const root = planningFolder(temporary(t));
+  const refunds = await createWork(root, { title: 'Refunds', summary: 'Refunds to the card.', tags: ['0.8.0', 'Payments'] }, today);
+  assert.deepEqual(refunds.tags, ['0.8.0', 'payments']);
+  assert.ok(read(root, refunds.plan).includes('\ntags: ["0.8.0", "payments"]\n'));
+  const invoices = await createWork(root, { title: 'Invoices', summary: 'Invoices by mail.' }, today);
+  // Adding normalises and keeps each tag once; removing one it lacks changes nothing.
+  const tagged = await tagWork(root, invoices.workId, { add: ['Tag Search', '0.8.0', '0.8.0'], remove: ['nothing'] }, today);
+  assert.deepEqual([tagged.tags, tagged.projectTags], [['tag-search', '0.8.0'], { '0.8.0': 2, payments: 1, 'tag-search': 1 }]);
+  assert.deepEqual((await tagWork(root, invoices.workId, { remove: ['tag-search'] }, today)).tags, ['0.8.0']);
+  await assert.rejects(tagWork(root, invoices.workId, { add: ['!!'] }, today), /Not tags: "!!"/);
+  assert.deepEqual(await projectTags(root), { '0.8.0': 2, payments: 1 });
+  assert.deepEqual(errorsOf(root), []);
+  // Found by every tag given and every word, active and archived alike.
+  const ids = async (request: Parameters<typeof searchWork>[1]) => (await searchWork(root, request)).map(item => item.workId);
+  assert.deepEqual(await ids({ tags: ['0.8.0'] }), [invoices.workId, refunds.workId]);
+  assert.deepEqual(await ids({ tags: ['0.8.0', 'payments'] }), [refunds.workId]);
+  assert.deepEqual(await ids({ query: 'card', tags: ['0.8.0'] }), [refunds.workId]);
+  assert.deepEqual(await ids({ tags: ['0.8'] }), [], 'a tag matches exactly');
+  assert.deepEqual(await ids({ tags: ['0.8.0'], status: 'closed' }), []);
+  // A hand-written tag that is not well formed is an error.
+  write(path.join(root, refunds.plan), read(root, refunds.plan).replace('"payments"', '"Payments"'));
+  assert.match(errorsOf(root).join('\n'), /tags must be a list of tags/);
 });
 
 test('work in progress or partly done whose ledger has no implementation steps starts once', async t => {

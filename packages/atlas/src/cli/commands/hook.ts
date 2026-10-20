@@ -260,8 +260,8 @@ interface LinkRequest { planningFolder: string; workId: string; amending: boolea
 
 async function postToolUse(input: HookInput, home: string, links: SessionLinks): Promise<{ output: object | null; requests: LinkRequest[] }> {
   const requests: LinkRequest[] = [];
-  // Tools that change a work item link it; reading one (work_status) leaves the session where it is.
-  if (/^mcp__.*atlas.*__(?:step$|work_(?!status$))/.test(input.tool_name ?? '')) {
+  // Tools that change a work item link it; reading (work_status, work_search) leaves the session where it is.
+  if (/^mcp__.*atlas.*__(?:step$|work_(?!(?:status|search)$))/.test(input.tool_name ?? '')) {
     const about = toolWork(input);
     if (about) {
       const { resolvePlanningFolder } = await import('../../planning/projects/findProject.ts');

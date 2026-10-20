@@ -22,7 +22,7 @@ test('the MCP server serves the planning-state tools, resolving the planning fol
     try {
       assert.match(client.getInstructions() ?? '', /only through these tools/);
       const { tools } = await client.listTools();
-      assert.deepEqual(tools.map(tool => tool.name), ['where', 'project_create', 'work_status', 'work_create', 'work_accept', 'work_start', 'step', 'work_block', 'work_continue', 'work_close', 'work_archive', 'work_reopen']);
+      assert.deepEqual(tools.map(tool => tool.name), ['where', 'project_create', 'work_status', 'work_create', 'work_tag', 'work_search', 'work_accept', 'work_start', 'step', 'work_block', 'work_continue', 'work_close', 'work_archive', 'work_reopen']);
       assert.ok(tools.every(tool => (tool.description ?? '').length > 40), 'every tool says what it is for');
 
       const call = (name: string, args: object) => client.callTool({ name, arguments: args as Record<string, unknown> }) as Promise<Result>;

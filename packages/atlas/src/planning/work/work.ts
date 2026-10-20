@@ -10,7 +10,8 @@ import path from 'node:path';
 import { parseFrontmatter, type Metadata } from '../check/check.ts';
 import { appendToSection, setFields, setSteps, yamlValue } from './headerText.ts';
 import { HandoffGraph, parseHandoff, type HandoffReference } from '../handoffs/handoffs.ts';
-import { ledgerStatus, ledgerStepStatuses, stepCounts, stepSummary } from './ledger.ts';
+import { agreed, ledgerStatus, ledgerStepStatuses, stepCounts, stepSummary } from './ledger.ts';
+import { normalTag, tagCounts, tagsOf } from './tags.ts';
 import { appendRegistryEntries, RegistryFormatError, updateRegistryEntry } from '../registry/registryText.ts';
 import { stepLimit, workStatistics } from '../reports/reports.ts';
 import type { LedgerStep, LedgerStepStatus } from '../types.ts';
@@ -25,6 +26,8 @@ export interface WorkStatus {
   planningFolder: string; workId: string; title: string; path: string;
   /** The plan's `summary` header: a few plain sentences on what the work is, why, and where it stands. */
   summary: string | null;
+  /** The plan's `tags`: the release it ships in and the areas it touches. */
+  tags: string[];
   location: 'active' | 'archive' | 'other';
   plan: string;
   designStatus: string | null; implementationStatus: string | null;
@@ -163,7 +166,7 @@ async function describe(loaded: Loaded): Promise<WorkStatus> {
   const { entry, planMetadata: plan } = loaded;
   const statistics = (await workStatistics(loaded.root, [{ id: entry.id, path: entry.path, currentPlan: loaded.plan, completed: text(plan.completed_at) }]).catch(() => ({})) as Record<string, { reports: number; agentMs: number; tokens: number | null; primaryModel: string | null }>)[entry.id];
   return {
-    planningFolder: loaded.root, workId: entry.id, title: text(plan.title) ?? path.posix.basename(entry.path), summary: text(plan.summary)?.trim() || null, path: entry.path, location: locationOf(entry.path),
+    planningFolder: loaded.root, workId: entry.id, title: text(plan.title) ?? path.posix.basename(entry.path), summary: text(plan.summary)?.trim() || null, tags: tagsOf(plan.tags), path: entry.path, location: locationOf(entry.path),
     plan: loaded.plan,
     designStatus: text(plan.design_status), implementationStatus: text(plan.implementation_status),
     created: text(plan.created), updated: text(plan.updated), acceptedAt: text(plan.accepted_at), completedAt: text(plan.completed_at),
@@ -204,6 +207,75 @@ function nextNumber(registered: Partial<Entry>[], folders: string[]) {
 }
 export function slugOf(title: string) {
   return title.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50).replace(/-+$/, '') || 'work';
+}
+
+/** Tags as given, written well formed, each once; refused with the ones that cannot be tags. */
+function checkedTags(values: unknown): string[] {
+  if (!Array.isArray(values)) throw new WorkError('Give the tags as a list, such as ["0.8.0", "search"].');
+  const bad = values.filter(value => !normalTag(value));
+  if (bad.length) throw new WorkError(`Not tags: ${bad.map(value => JSON.stringify(value)).join(', ')}. A tag is lowercase letters, digits, dots and hyphens, such as 0.8.0 or tag-search.`);
+  return [...new Set(values.map(value => normalTag(value)!))];
+}
+
+/** How many of the project's work items carry each tag, active and archived. */
+export async function projectTags(input: string): Promise<Record<string, number>> {
+  const root = await planningRoot(input);
+  return tagCounts((await registeredPlans(root)).map(item => tagsOf(item.metadata.tags)));
+}
+
+/** The project's registered work items with their plan headers; ones that cannot be read are left out. */
+async function registeredPlans(root: string) {
+  const { workItems } = await registryOf(root);
+  const plans = await Promise.all(workItems.map(async item => {
+    if (typeof item?.id !== 'string' || typeof item.current_plan !== 'string' || typeof item.path !== 'string') return null;
+    try {
+      const metadata = parseFrontmatter(await readFile(file(root, item.current_plan), 'utf8'));
+      return metadata ? { id: item.id, path: item.path, metadata } : null;
+    } catch { return null; }
+  }));
+  return plans.filter(plan => plan !== null);
+}
+
+/**
+ * Add and remove a work item's tags (removing one it lacks changes nothing); the result also
+ * counts the project's tags, so agents reuse them.
+ */
+export async function tagWork(root: string, workId: string, request: { add?: string[]; remove?: string[] }, options: OperationOptions = {}): Promise<WorkResult & { projectTags: Record<string, number> }> {
+  const add = checkedTags(request.add ?? []), remove = new Set(checkedTags(request.remove ?? []));
+  if (!add.length && !remove.size) throw new WorkError('Give tags to add or remove.');
+  const loaded = await load(root, workId);
+  const tags = [...new Set([...tagsOf(loaded.planMetadata.tags), ...add])].filter(tag => !remove.has(tag));
+  const changed = [await writePlan(loaded, { tags }, dateOf(options))];
+  return { ...await result(loaded.root, workId, changed), projectTags: await projectTags(loaded.root) };
+}
+
+/** A found work item: what a search shows of it. */
+export interface FoundWork {
+  workId: string; title: string; summary: string | null; tags: string[]; location: 'active' | 'archive' | 'other';
+  designStatus: string | null; implementationStatus: string | null; created: string | null; updated: string | null; completedAt: string | null;
+}
+const folded = (value: string) => value.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase();
+
+/**
+ * The project's work items with every given tag and every word of the query (in the id, title,
+ * summary or tags, ignoring case and accents); open is active work, closed archived. Newest first.
+ */
+export async function searchWork(input: string, request: { query?: string; tags?: string[]; status?: 'open' | 'closed' | 'all' }): Promise<FoundWork[]> {
+  const root = await planningRoot(input);
+  const wanted = (request.tags ?? []).map(tag => normalTag(tag) ?? String(tag));
+  const words = folded(request.query ?? '').split(/\s+/).filter(Boolean);
+  const status = request.status ?? 'all';
+  const found: FoundWork[] = [];
+  for (const { id, path: folder, metadata } of await registeredPlans(root)) {
+    const location = locationOf(folder), tags = tagsOf(metadata.tags);
+    if (status === 'open' && location !== 'active' || status === 'closed' && location !== 'archive') continue;
+    if (!wanted.every(tag => tags.includes(tag))) continue;
+    const title = text(metadata.title) ?? path.posix.basename(folder), summary = text(metadata.summary)?.trim() || null;
+    const haystack = folded([id, title, summary ?? '', ...tags].join(' '));
+    if (!words.every(word => haystack.includes(word))) continue;
+    found.push({ workId: id, title, summary, tags, location, designStatus: text(metadata.design_status), implementationStatus: text(metadata.implementation_status), created: text(metadata.created), updated: text(metadata.updated), completedAt: text(metadata.completed_at) });
+  }
+  return found.sort((a, b) => (b.updated ?? '').localeCompare(a.updated ?? '') || b.workId.localeCompare(a.workId));
 }
 
 /**
@@ -261,13 +333,14 @@ const implementationStep = (step: LedgerStep) => !step.phase;
  * work, `active/NNNN-slug/plan.md` with a draft plan header (with its summary, when given), its
  * ledger with the planning steps, and its planning.json entry.
  */
-export async function createWork(input: string, request: { title: string; slug?: string | null; summary?: string | null; continues?: string[] | null }, options: OperationOptions = {}): Promise<WorkResult> {
+export async function createWork(input: string, request: { title: string; slug?: string | null; summary?: string | null; continues?: string[] | null; tags?: string[] | null }, options: OperationOptions = {}): Promise<WorkResult> {
   const today = dateOf(options);
   const title = oneLine(request.title, 'The title');
   const summary = request.summary == null || String(request.summary).trim() === '' ? null : oneLine(request.summary, 'The summary', summaryLimit);
   const root = await planningRoot(input);
   const registry = await registryOf(root);
   const continues = request.continues?.length ? checkedHandoffs(root, request.continues, null) : [];
+  const tags = request.tags?.length ? checkedTags(request.tags) : [];
   const slug = request.slug ? request.slug : slugOf(title);
   if (!slugPattern.test(slug) || slug.length > 80) throw new WorkError('The slug must be lowercase letters and digits joined by hyphens.');
   const folders = (await Promise.all(['active', 'archive'].map(location => readdir(path.join(root, location)).catch(() => [] as string[])))).flat();
@@ -278,7 +351,7 @@ export async function createWork(input: string, request: { title: string; slug?:
   try { registryText = appendRegistryEntries(registry.text, 'work_items', [{ id: workId, path: location, current_plan: plan }]); }
   catch (error) { if (error instanceof RegistryFormatError) throw new WorkError(error.message); throw error; }
   const planText = ['---', 'schema_version: 2', 'kind: plan', 'id: ' + workId, 'title: ' + JSON.stringify(title), ...summary ? ['summary: ' + JSON.stringify(summary)] : [],
-    `created: "${today}"`, `updated: "${today}"`, 'design_status: draft', 'implementation_status: not_started', 'accepted_at: null', 'completed_at: null', 'supersedes: []', 'superseded_by: null', ...continues.length ? ['continues: ' + yamlValue('continues', continues)] : [], '---', '', '# ' + title, ''].join('\n');
+    `created: "${today}"`, `updated: "${today}"`, 'design_status: draft', 'implementation_status: not_started', 'accepted_at: null', 'completed_at: null', 'supersedes: []', 'superseded_by: null', ...continues.length ? ['continues: ' + yamlValue('continues', continues)] : [], ...tags.length ? ['tags: ' + yamlValue('tags', tags)] : [], '---', '', '# ' + title, ''].join('\n');
   await mkdir(file(root, location), { recursive: true });
   try {
     await writeFile(file(root, plan), planText, { flag: 'wx' });
@@ -379,6 +452,7 @@ export async function proposeSteps(root: string, workId: string, titles: string[
   const proposed = stepTitles(titles);
   return changeLedger(root, workId, options, (steps, loaded) => {
     if (implementing(loaded)) throw new WorkError('The implementation has started; add steps with step add instead.');
+    if (locationOf(loaded.entry.path) !== 'active') throw new WorkError(`${workId} is not active work (${loaded.entry.path}).`);
     const kept = steps.filter(step => step.phase !== 'proposed');
     const taken = proposed.filter(title => kept.some(step => step.title === title));
     if (taken.length) throw new WorkError('The ledger already has these steps: ' + taken.join(', ') + '. Give new titles.');
@@ -391,7 +465,7 @@ export async function setStepStatus(root: string, workId: string, title: string,
   if (!ledgerStepStatuses.includes(status)) throw new WorkError('A step status is todo, doing or done.');
   return changeLedger(root, workId, options, steps => {
     const index = find(steps, title);
-    if (steps[index].phase === 'proposed') throw new WorkError(`"${steps[index].title}" is only proposed; it becomes a step to work on when the work starts.`);
+    if (steps[index].phase === 'proposed') throw new WorkError(`"${steps[index].title}" is only proposed: work_start makes the proposed steps agreed ones; once the work has started, remove it with step remove.`);
     steps[index].status = status;
     return { steps };
   });
@@ -433,10 +507,10 @@ export async function setBlocked(root: string, workId: string, reason: string | 
   return changeLedger(root, workId, options, () => ({ fields: { blocked: value } }));
 }
 
-/** What keeps a work item open: steps not done, and `blocked`. */
+/** What keeps a work item open: agreed steps not done, and `blocked`; proposed steps only preview. */
 function openItems(loaded: Loaded) {
   return [
-    ...loaded.ledgerSteps.filter(step => step.status !== 'done').map(step => `Step "${step.title}" is ${step.status}.`),
+    ...agreed(loaded.ledgerSteps).filter(step => step.status !== 'done').map(step => `Step "${step.title}" is ${step.status}.`),
     ...loaded.blocked ? ['Blocked: ' + loaded.blocked] : [],
   ];
 }
