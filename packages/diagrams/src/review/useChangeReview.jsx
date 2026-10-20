@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Button, Counter, Tooltip } from "@envsemble/envui";
-import { ToolButton } from "../ui/Button";
-import { FadeIcon, ProposalIcon } from "../ui/Icons";
+import { ToolButton } from "../ui/ToolButton";
+import { FadeIcon, ProposalIcon } from "../ui/icons";
 import { ChangeNavigation, ChangesOverview } from "./ChangesOverview";
 import { cachedRollup, rowFor } from "./changes";
 

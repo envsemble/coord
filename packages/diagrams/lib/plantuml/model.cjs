@@ -261,7 +261,6 @@ function convert(diagram, options = {}) {
     version: "",
     date: capture?.capturedAt?.slice(0, 10) || "",
     status: "",
-    repositories: [],
     sources,
     classes,
     relations,

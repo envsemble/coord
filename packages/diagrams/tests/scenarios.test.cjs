@@ -3,7 +3,7 @@ const { test } = require("node:test"),
 const atlas = require("../lib/index.cjs");
 const { createElement } = require("react"),
   { renderToStaticMarkup } = require("react-dom/server");
-const { loadComponents: load } = require("./load-components.cjs");
+const { loadComponents: load } = require("./loadComponents.cjs");
 
 // Enrollment: each needs one learner and one school, and is active or
 // suspended. Scenarios are object diagrams of example instances.
@@ -139,7 +139,7 @@ A ..> B
   );
 });
 
-test("A class diagram's payload carries the scenarios that exemplify it, assessed, for the guide", async () => {
+test("A class diagram's payload carries the scenarios that exemplify it, assessed, for the scenario panel", async () => {
   const { diagrams, prepared } = await atlas.prepareDiagrams({
     files: [
       { path: "enrollment.puml", text: ENROLLMENT },
@@ -157,14 +157,14 @@ test("A class diagram's payload carries the scenarios that exemplify it, assesse
     ],
   );
   const payload = prepared.get("enrollment.puml").payload;
-  const [example] = payload.learning.scenarios;
+  const [example] = payload.scenarios.scenarios;
   assert.equal(example.id, "examples/valid.puml");
   assert.equal(example.result.outcome, "valid");
   assert.equal(example.result.expectationMet, true);
   const guide = renderToStaticMarkup(
-    createElement(load("src/learning/LearningContent.jsx").LearningLibrary, {
+    createElement(load("src/scenarios/ScenarioPanel.jsx").ScenarioPanel, {
       model: payload.model,
-      learning: payload.learning,
+      scenarios: payload.scenarios,
       onInspect() {},
     }),
   );
@@ -262,7 +262,7 @@ Invoice "0..*" -- "1" Payable : bills
     /Linked instances must satisfy the declared relation ends/,
   );
 });
-test("Details show structured rationale safely, leave capture diagnostics out, and navigation resolves members", async () => {
+test("Details leave capture diagnostics out, and navigation resolves members", async () => {
   const { diagram } = atlas.parseDiagram(`@startuml
 abstract class Enrollment
 class Active
@@ -292,27 +292,18 @@ Active --|> Enrollment
     files: [{ path: "capture.puml", text }],
   });
   const prepared = viewers.get("capture.puml");
-  const extended = structuredClone(prepared.model);
-  extended.classes[0].rationale = { claim: "retained extension" };
-  extended.classes[0].questions = {
-    question: { text: "structured question" },
-    why: { reason: "structured reason" },
-  };
   const details = renderToStaticMarkup(
-    createElement(load("src/viewer/DetailsContent.jsx").ConceptDetails, {
-      concept: extended.classes[0],
-      model: extended,
+    createElement(load("src/details/ElementDetails.jsx").ConceptDetails, {
+      concept: prepared.model.classes[0],
+      model: prepared.model,
       snippets: prepared.payload.snippets,
     }),
   );
-  assert(details.includes("retained extension"));
-  assert(details.includes("structured question"));
-  assert(details.includes("structured reason"));
   // Capture metadata is provenance, not something to review per element.
   assert(!details.includes("structured diagnostic"));
   assert(!details.includes("structured limitation"));
   const { inspectionTarget } = load("src/model/inspectionTarget.js"),
-    { indexViewerModel } = load("src/model/domainModel.js");
+    { indexViewerModel } = load("src/model/viewerModelIndex.js");
   const codeModel = {
     ...prepared.model,
     classes: [

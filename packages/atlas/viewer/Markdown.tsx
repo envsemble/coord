@@ -110,11 +110,11 @@ export function Markdown({ path, body, files, diagrams, hideTitle, onFile, onAnc
         const target = resolveExportLink(href, path, files);
         if (target.external) return <a id={id} href={target.external} target="_blank" rel="noreferrer noopener">{children}<OpenInNew className="external-icon" /></a>;
         // A link to a diagram opens it, at the element its fragment names.
-        if (target.file && diagrams.some(diagram => diagram.path === target.file)) return <a id={id} href={'#' + new URLSearchParams({ tab: 'diagrams', diagram: target.file, ...(target.anchor ? { element: target.anchor } : {}) })} onClick={event => {
+        if (target.file && diagrams.some(diagram => diagram.path === target.file)) return <a id={id} href={'#' + new URLSearchParams({ section: 'diagrams', diagram: target.file, ...(target.anchor ? { element: target.anchor } : {}) })} onClick={event => {
           if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
           event.preventDefault(); onDiagram(target.file!, target.anchor);
         }}>{children}</a>;
-        if (target.file) return <a id={id} href={'#' + new URLSearchParams({ tab: 'files', file: target.file, ...(target.anchor ? { anchor: target.anchor } : {}) })} onClick={event => {
+        if (target.file) return <a id={id} href={'#' + new URLSearchParams({ section: 'files', file: target.file, ...(target.anchor ? { anchor: target.anchor } : {}) })} onClick={event => {
           if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
           event.preventDefault(); onFile(target.file!, target.anchor);
         }}>{children}</a>;

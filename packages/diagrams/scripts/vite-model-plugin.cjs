@@ -33,7 +33,7 @@ function modelPlugin({ root, buildPayload } = {}) {
   const modelDirectories = ["examples", "lib", "scripts"].map((dir) =>
     path.join(root, dir),
   );
-  const renderingDirectory = path.join(root, "src/visualization");
+  const renderingDirectory = path.join(root, "src/canvas");
   const inside = (file, directory) => {
     const relative = path.relative(directory, file);
     return (

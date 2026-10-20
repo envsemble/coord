@@ -371,10 +371,10 @@ body { margin: 0; }
   .diagrams-islands { gap: var(--space-1); }
 }
 .diagrams-notices { position: absolute; inset-block-end: 3.5rem; inset-inline-start: 50%; z-index: 40; display: grid; gap: var(--space-2); inline-size: min(35rem, calc(100% - 2rem)); transform: translateX(-50%); }
-.model-picker-button { min-inline-size: 0; max-inline-size: min(28rem, 60vw); }
-.model-picker-title { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diagram-picker-button { min-inline-size: 0; max-inline-size: min(28rem, 60vw); }
+.diagram-picker-title { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A long title gives way; the model's origin stays whole beside it. */
-.model-picker-button > .env-badge { flex: none; }
+.diagram-picker-button > .env-badge { flex: none; }
 
 /* Statistics */
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--space-3); }

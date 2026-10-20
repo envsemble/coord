@@ -12,15 +12,15 @@
 /* An export is a scrolling page, not the app's workbench: the diagrams take the window's height below the notice. */
 .plan-export .diagrams { flex: none; min-block-size: 0; block-size: max(32rem, calc(100dvh - var(--diagram-top, 12rem))); margin-inline: calc(-1 * var(--space-6)); }
 .plan-export .diagrams.fullscreen { block-size: auto; margin: 0; }
-.files-tab { display: grid; grid-template-columns: 16rem minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+.files-section { display: grid; grid-template-columns: 16rem minmax(0, 1fr); gap: var(--space-4); align-items: start; }
 /* The file tree sticks below the section switcher. */
 .file-tree { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-4)); display: flex; flex-direction: column; gap: var(--space-2); block-size: calc(100dvh - var(--atlas-sticky-top) - 2 * var(--space-4)); min-inline-size: 0; }
 .file-tree-view { flex: 1; min-block-size: 0; }
 .tree-empty { margin: 0; padding: var(--space-2); }
 @container (max-width: 62rem) {
-  .files-tab { grid-template-columns: 14rem minmax(0, 1fr); }
+  .files-section { grid-template-columns: 14rem minmax(0, 1fr); }
 }
 @media (max-width: 45rem) {
-  .files-tab { grid-template-columns: minmax(0, 1fr); }
+  .files-section { grid-template-columns: minmax(0, 1fr); }
   .file-tree { position: static; block-size: 16rem; }
 }

@@ -6,10 +6,7 @@ const { test } = require("node:test");
 const { transformSync } = require("esbuild");
 
 const code = transformSync(
-  fs.readFileSync(
-    path.join(__dirname, "../src/visualization/camera.js"),
-    "utf8",
-  ),
+  fs.readFileSync(path.join(__dirname, "../src/canvas/camera.js"), "utf8"),
   { format: "cjs" },
 ).code;
 
@@ -307,7 +304,7 @@ test("rapid input accumulates and reverses immediately at zoom limits", () => {
   h.detach();
 });
 
-test("opening or closing a sidebar keeps graph coordinates stable until Fit is requested", () => {
+test("opening or closing the details keeps graph coordinates stable until Fit is requested", () => {
   const h = harness();
   const before = h.read();
   h.canvas.clientWidth = 400;

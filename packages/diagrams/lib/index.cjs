@@ -20,9 +20,9 @@ module.exports = {
   resolveReference: (...args) =>
     require("./plantuml/prepare.cjs").resolveReference(...args),
   buildViewer: (...args) =>
-    require("./build/buildViewer.cjs").buildViewer(...args),
+    require("./payload/buildViewer.cjs").buildViewer(...args),
   writeViewer: (...args) =>
-    require("./build/buildViewer.cjs").writeViewer(...args),
+    require("./payload/buildViewer.cjs").writeViewer(...args),
   // Captures: diagrams written from code and databases.
   captureTypeScript: (...args) =>
     require("./capture/code.cjs").captureTypeScript(...args),

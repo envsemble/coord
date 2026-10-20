@@ -14,7 +14,7 @@ createRoot(document.getElementById("root")).render(
         exports={EXPORTS}
         snippets={SNIPPETS}
         comparison={typeof COMPARISON === "undefined" ? undefined : COMPARISON}
-        learning={typeof LEARNING === "undefined" ? undefined : LEARNING}
+        scenarios={typeof SCENARIOS === "undefined" ? undefined : SCENARIOS}
       />
     </ViewerErrorBoundary>
   </ThemePreferenceProvider>,

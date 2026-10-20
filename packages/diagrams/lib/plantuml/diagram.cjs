@@ -1364,7 +1364,7 @@ function checkDiagram(text, options = {}) {
       );
       problems.push(...found);
       if (!found.length) {
-        const { assessScenario } = require("../learning/scenarios.cjs");
+        const { assessScenario } = require("../scenarios/assess.cjs");
         const { diagramViewerModel } = require("./model.cjs");
         const result = assessScenario(
           diagramViewerModel(classes.diagram),

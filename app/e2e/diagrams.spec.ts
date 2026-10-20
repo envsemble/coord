@@ -17,7 +17,7 @@ async function openDiagrams(window: Page, title: string) {
   await palette.getByRole('combobox').fill(title);
   await expect(palette.getByRole('option').first()).toContainText(title);
   await palette.getByRole('combobox').press('Enter');
-  await expect(window.locator('.model-picker-title')).toHaveText(title);
+  await expect(window.locator('.diagram-picker-title')).toHaveText(title);
   await expect(window.locator('.diagrams .node').first()).toBeVisible();
 }
 
@@ -33,11 +33,11 @@ async function cameraSettled(window: Page) {
 
 const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 async function chooseDiagram(window: Page, title: string) {
-  await window.locator('.model-picker-button').click();
+  await window.locator('.diagram-picker-button').click();
   await window.getByRole('menu', { name: 'Choose a diagram' }).getByRole('menuitemradio', { name: new RegExp('^' + escaped(title)) }).click();
-  await expect(window.locator('.model-picker-title')).toHaveText(title);
+  await expect(window.locator('.diagram-picker-title')).toHaveText(title);
   // Off the canvas, so no element under the pointer previews its details.
-  await window.locator('.model-picker-button').hover();
+  await window.locator('.diagram-picker-button').hover();
 }
 
 test('the picker lists diagrams by family, one short line each, and switches between a capture and its proposals in place: nothing moves, and the details and the view stay', async () => {
@@ -46,8 +46,8 @@ test('the picker lists diagrams by family, one short line each, and switches bet
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 900));
   await openDiagrams(window, 'Checkout · captured TypeScript');
   // The picker names the diagram's origin.
-  await expect(window.locator('.model-picker-button')).toContainText('Generated from code');
-  await window.locator('.model-picker-button').click();
+  await expect(window.locator('.diagram-picker-button')).toContainText('Generated from code');
+  await window.locator('.diagram-picker-button').click();
   const menu = window.getByRole('menu', { name: 'Choose a diagram' });
   // The capture heads its family, then the alternatives over it, by title, each saying how much it changes.
   const family = menu.getByRole('group', { name: 'Checkout · captured TypeScript' });
@@ -57,8 +57,8 @@ test('the picker lists diagrams by family, one short line each, and switches bet
     /^Checkout · proposed payment methods\s*15 changes to the code captured Sep 14, 2026$/,
   ]);
   await menu.getByRole('menuitemradio', { name: /Checkout · proposed payment methods/ }).click();
-  await expect(window.locator('.model-picker-title')).toHaveText('Checkout · proposed payment methods');
-  await window.locator('.model-picker-button').hover();
+  await expect(window.locator('.diagram-picker-title')).toHaveText('Checkout · proposed payment methods');
+  await window.locator('.diagram-picker-button').hover();
 
   // An element every member has, inspected.
   await window.locator('.diagrams .node[data-name="CheckoutService"]').first().click();
@@ -224,10 +224,10 @@ test('a class diagram opens from its card with its scenarios as its guide and a 
   const card = window.locator('.diagram-card', { hasText: 'Fulfilment · conceptual model' }).first();
   await expect(card.locator('.element-chip')).toHaveText(['Order', 'Shipment']);
   await card.getByRole('button', { name: 'Open diagram' }).click();
-  await expect(window.locator('.model-picker-title')).toHaveText('Fulfilment · conceptual model');
+  await expect(window.locator('.diagram-picker-title')).toHaveText('Fulfilment · conceptual model');
   await expect(window.locator('.diagrams .node').first()).toBeVisible();
   // The scenario that exemplifies the class diagram is listed beside it.
-  await window.locator('.model-picker-button').click();
+  await window.locator('.diagram-picker-button').click();
   await expect(window.getByRole('menu', { name: 'Choose a diagram' }).getByRole('group', { name: 'Diagrams' }).getByRole('menuitemradio')).toHaveText([
     /^Fulfilment · conceptual model\s*Class diagram$/,
     /^Order 1042 split across Berlin and Leeds\s*Scenario of Fulfilment · conceptual model$/,
@@ -251,15 +251,15 @@ test('a class diagram opens from its card with its scenarios as its guide and a 
   // A chip opens the diagram at its element.
   await card.locator('.element-chip', { hasText: 'Shipment' }).click();
   // Off the canvas, so no element under the pointer previews its details.
-  await window.locator('.model-picker-button').hover();
+  await window.locator('.diagram-picker-button').hover();
   const details = window.locator('.inspector.open');
   await expect(details.getByRole('heading', { level: 1 })).toHaveText('Shipment');
   await window.keyboard.press('Alt+ArrowLeft');
   await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
   // A link in the text opens the diagram too, at the element its fragment names.
   await window.locator('.prose a', { hasText: 'orders' }).first().click();
-  await expect(window.locator('.model-picker-title')).toHaveText('Fulfilment · conceptual model');
-  await window.locator('.model-picker-button').hover();
+  await expect(window.locator('.diagram-picker-title')).toHaveText('Fulfilment · conceptual model');
+  await window.locator('.diagram-picker-button').hover();
   await expect(details.getByRole('heading', { level: 1 })).toHaveText('Order');
 });
 
@@ -283,11 +283,11 @@ test('a card sits under its heading however the heading is written, a fragment m
   await expect(after(questions.last())).toContainText('Order lines');
   // The chip names the class by its display name; the diagram opens at it.
   await table.locator('.element-chip').click();
-  await expect(window.locator('.model-picker-title')).toHaveText('Order lines');
-  await window.locator('.model-picker-button').hover();
+  await expect(window.locator('.diagram-picker-title')).toHaveText('Order lines');
+  await window.locator('.diagram-picker-button').hover();
   await expect(window.locator('.inspector.open').getByRole('heading', { level: 1 })).toHaveText('Order Item');
   // A diagram with problems is listed apart, and shows them instead of drawing.
-  await window.locator('.model-picker-button').click();
+  await window.locator('.diagram-picker-button').click();
   const problems = window.getByRole('menu', { name: 'Choose a diagram' }).getByRole('group', { name: 'With problems' });
   await expect(problems.getByRole('menuitemradio')).toHaveText([/^Broken\s*1 problem$/]);
   await problems.getByRole('menuitemradio').click();

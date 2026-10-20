@@ -1259,8 +1259,9 @@ test("a family lays out once: proposals and a later capture compare with their b
     for (const [id, place] of Object.entries(places(member)))
       if (base[id]) assert.deepEqual(place, base[id], `${member} ${id}`);
   // Where each comes from.
-  const { describeProvenance } =
-    require("./load-components.cjs").loadComponents("src/viewer/provenance.js");
+  const { describeProvenance } = require("./loadComponents.cjs").loadComponents(
+    "src/viewer/provenance.js",
+  );
   assert.match(
     describeProvenance(after.model.document).detail,
     /TypeScript · shop · captured Oct 20, 2026 · partial coverage/,

@@ -4,7 +4,6 @@
   "version": "",
   "date": "",
   "status": "",
-  "repositories": [],
   "sources": [
     {
       "id": "source:Checkout",
@@ -637,10 +636,6 @@
         }
       }
     ],
-    "context": {
-      "records": [],
-      "links": []
-    },
     "comparison": {
       "changes": {
         "changes": [
@@ -776,7 +771,6 @@
               "namespace": "src",
               "stereotype": "class"
             },
-            "rationale": [],
             "evidence": {
               "evidence": [
                 "source:Checkout"
@@ -797,7 +791,6 @@
               "name": "card",
               "type": "string"
             },
-            "rationale": [],
             "evidence": {
               "evidence": [
                 "source:Checkout"
@@ -817,7 +810,6 @@
               "name": "payWithSaved",
               "type": "payWithSaved(methodId: string): Promise<string>"
             },
-            "rationale": [],
             "evidence": {
               "evidence": [
                 "source:Checkout"
@@ -838,7 +830,6 @@
               "name": "savedMethod",
               "type": "SavedMethod"
             },
-            "rationale": [],
             "evidence": {
               "evidence": [
                 "source:Checkout"
@@ -871,7 +862,6 @@
               "namespace": "src",
               "stereotype": "class"
             },
-            "rationale": [],
             "evidence": null
           },
           {
@@ -887,7 +877,6 @@
               "name": "id",
               "type": "string"
             },
-            "rationale": [],
             "evidence": null
           },
           {
@@ -903,7 +892,6 @@
               "name": "last4",
               "type": "string"
             },
-            "rationale": [],
             "evidence": null
           },
           {
@@ -919,7 +907,6 @@
               "name": "token",
               "type": "string"
             },
-            "rationale": [],
             "evidence": null
           },
           {
@@ -945,7 +932,6 @@
               "namespace": "src",
               "stereotype": "interface"
             },
-            "rationale": [],
             "evidence": {
               "evidence": [
                 "source:Vault"
@@ -965,7 +951,6 @@
               "name": "methodsOf",
               "type": "methodsOf(customerId: string): Promise<SavedMethod[]>"
             },
-            "rationale": [],
             "evidence": {
               "evidence": [
                 "source:Vault"
@@ -985,7 +970,6 @@
               "name": "save",
               "type": "save(customerId: string, token: string): Promise<SavedMethod>"
             },
-            "rationale": [],
             "evidence": {
               "evidence": [
                 "source:Vault"
@@ -1010,7 +994,6 @@
               "targetId": "SavedMethod",
               "targetMultiplicity": "0..1"
             },
-            "rationale": [],
             "evidence": null
           },
           {
@@ -1029,7 +1012,6 @@
               "targetId": "Vault",
               "targetMultiplicity": ""
             },
-            "rationale": [],
             "evidence": null
           },
           {
@@ -1049,7 +1031,6 @@
               "targetId": "SavedMethod",
               "targetMultiplicity": "0..*"
             },
-            "rationale": [],
             "evidence": null
           },
           {
@@ -1212,7 +1193,6 @@
               ],
               "type": "StructuralModel"
             },
-            "rationale": [],
             "evidence": null
           }
         ],
@@ -1225,23 +1205,7 @@
           "Stable identities only; no inference of cross-layer meaning. Layout and source locations are excluded."
         ],
         "baseRevision": "1c65d31e127eae52",
-        "proposedRevision": "7b11c892f1ed08d2",
-        "missingRationale": [
-          "Checkout",
-          "Checkout.card",
-          "Checkout.payWithSaved(methodId:string)",
-          "Checkout.savedMethod",
-          "SavedMethod",
-          "SavedMethod.id",
-          "SavedMethod.last4",
-          "SavedMethod.token",
-          "Vault",
-          "Vault.methodsOf(customerId:string)",
-          "Vault.save(customerId:string,token:string)",
-          "relation:Checkout:SavedMethod:pays%20with",
-          "relation:Checkout:Vault",
-          "relation:Vault:SavedMethod:keeps"
-        ]
+        "proposedRevision": "7b11c892f1ed08d2"
       }
     }
   }

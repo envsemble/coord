@@ -9,7 +9,7 @@ export const CHANGE_LABELS = {
   modified: "Changed",
   removed: "Removed",
 };
-export const CHANGE_STATUSES = ["added", "modified", "removed"];
+const CHANGE_STATUSES = ["added", "modified", "removed"];
 const GLYPHS = { added: "+", modified: "~", removed: "−" };
 export const changeGlyph = (status) => GLYPHS[status] || "";
 
@@ -38,7 +38,7 @@ const edgeEnds = (edge) =>
  * Element id → display name: classes, their members (owner.member), and
  * relations, which read as their ends when their own name says nothing more.
  */
-export function nameIndex(...models) {
+function nameIndex(...models) {
   const names = new Map();
   // The first model's name wins: the proposal's, then the baseline's for
   // what the proposal removed.

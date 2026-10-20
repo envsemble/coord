@@ -1,8 +1,8 @@
 import { forwardRef, useMemo } from "react";
 import { Text, ThemeToggle } from "@envsemble/envui";
-import { ToolButton } from "../ui/Button";
-import { CameraControls } from "../ui/CameraControls";
-import { ConceptSearch } from "../ui/ConceptSearch";
+import { ToolButton } from "../ui/ToolButton";
+import { CameraControls } from "./CameraControls";
+import { ConceptSearch } from "./ConceptSearch";
 import { ExportMenu, downloadData, downloadURL } from "../ui/ExportMenu";
 import { Island, IslandDivider } from "../ui/Island";
 import { ViewSwitcher } from "../ui/ViewSwitcher";
@@ -16,9 +16,9 @@ import {
   FieldsIcon,
   HideDetailsIcon,
   ImageIcon,
-  LearnIcon,
+  ScenariosIcon,
   ShowDetailsIcon,
-} from "../ui/Icons";
+} from "../ui/icons";
 
 /** The standalone viewer's downloads, for its export menu. */
 export function exportChoices({ exports, viewKey, fields, theme, diagramURL }) {
@@ -60,7 +60,7 @@ export function exportChoices({ exports, viewKey, fields, theme, diagramURL }) {
 
 // The standalone viewer uses the same floating islands as the embedded panel,
 // with offline-only controls (theme, exports, about) in the tools island. With
-// no model picker, its navigation island names the model and where it came
+// no diagram picker, its navigation island names the model and where it came
 // from (the detail, such as the capture date, as the badge's tooltip).
 export const ViewerToolbar = forwardRef(function ViewerToolbar(
   {
@@ -72,21 +72,21 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
     theme,
     zoomStore,
     diagramURL,
-    sidebarHidden,
-    sidebarOpen,
-    learningOpen,
+    detailsHidden,
+    detailsOpen,
+    scenariosOpen,
     aboutOpen,
     reviewControls,
     provenance,
-    guided = false,
+    hasScenarios = false,
     density = 0,
     themeToggle = false,
-    onSidebar,
+    onDetails,
     onView,
     onFields,
     onChoose,
     onAbout,
-    onLearn,
+    onScenarios,
     onZoom,
     onReset,
     onFit,
@@ -150,22 +150,22 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
           compact={density > 2}
         />
         <IslandDivider />
-        {guided && (
+        {hasScenarios && (
           <ToolButton
-            id="learn-toggle"
+            id="scenarios-toggle"
             label="Understand the model"
-            pressed={learningOpen && sidebarOpen}
-            icon={<LearnIcon />}
-            onClick={onLearn}
+            pressed={scenariosOpen && detailsOpen}
+            icon={<ScenariosIcon />}
+            onClick={onScenarios}
           />
         )}
         <ToolButton
-          id="sidebar-toggle"
-          label={sidebarHidden ? "Show details" : "Hide details"}
+          id="details-toggle"
+          label={detailsHidden ? "Show details" : "Hide details"}
           aria-controls="inspector"
-          aria-expanded={sidebarOpen}
-          icon={sidebarHidden ? <ShowDetailsIcon /> : <HideDetailsIcon />}
-          onClick={onSidebar}
+          aria-expanded={detailsOpen}
+          icon={detailsHidden ? <ShowDetailsIcon /> : <HideDetailsIcon />}
+          onClick={onDetails}
         />
         <IslandDivider />
         {themeToggle && <ThemeToggle id="theme-toggle" />}

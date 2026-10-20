@@ -8,7 +8,7 @@ const homes: string[] = [];
 test.afterEach(async () => { await close(launched); launched = undefined; for (const home of homes.splice(0)) removeDirectory(home); });
 
 /** What the window shows: the hub, a work item, a file or a diagram. */
-const shows = (window: Page) => window.locator('.hub h1, .work-header h1, .file-page .work-trail [aria-current="page"], .model-picker-title').first();
+const shows = (window: Page) => window.locator('.hub h1, .work-header h1, .file-page .work-trail [aria-current="page"], .diagram-picker-title').first();
 /** The last step of a work item's trail: its number. */
 const trailEnd = (window: Page) => window.locator('.work-main .breadcrumb [aria-current="page"]');
 /** Shows the work item Saved payment methods (#0001), or Customer order notifications (#0003). */
@@ -239,7 +239,7 @@ test('the mouse buttons close an open menu without going back, and one press goe
   await expect(shows(window)).toHaveText('Saved payment methods');
   await window.locator('.diagram-card').first().getByRole('button', { name: 'Open diagram' }).click();
   await expect(window.locator('.diagrams .node').first()).toBeVisible();
-  const diagram = (await window.locator('.model-picker-title').textContent())!;
+  const diagram = (await window.locator('.diagram-picker-title').textContent())!;
   // Windows and Linux report the buttons to the window too, as main's back or forward.
   const windowReports = (command: 'browser-backward' | 'browser-forward') => app.evaluate(({ BrowserWindow }, name) => { BrowserWindow.getAllWindows()[0].emit('app-command', {}, name); }, command);
 

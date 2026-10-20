@@ -19,7 +19,7 @@ const {
   keys,
   sql,
   underscores,
-} = require("./database-fixtures.cjs");
+} = require("./databaseFixtures.cjs");
 
 test(
   "D1 actual local Wrangler path is separately exercised and explicitly weaker than a transaction",

@@ -1,7 +1,7 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button, Counter, DisclosureNote, Stack, Text } from "@envsemble/envui";
-import { ToolButton } from "../ui/Button";
-import { BackIcon, NextIcon, PreviousIcon } from "../ui/Icons";
+import { ToolButton } from "../ui/ToolButton";
+import { BackIcon, NextIcon, PreviousIcon } from "../ui/icons";
 import { CHANGE_LABELS, changeGlyph } from "./changes";
 import { ChangeMark } from "./ChangeMark";
 

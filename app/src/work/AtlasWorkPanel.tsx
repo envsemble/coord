@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AtlasPanel, ViewerErrorBoundary, changeCount } from '@envsemble/atlas-diagrams/react';
+import { DiagramPanel, ViewerErrorBoundary, changeCount } from '@envsemble/atlas-diagrams/react';
 import type { ViewerPayload } from '@envsemble/atlas-diagrams';
 import '@envsemble/atlas-diagrams/embedded.css';
 import type { DiagramEntry, Target, Work } from '../types';
@@ -56,9 +56,9 @@ function DiagramPicker({ diagrams, selected, payloads, open, onOpenChange, onSel
   diagrams: DiagramEntry[]; selected: string; payloads: Map<string, ViewerPayload>; open: boolean; onOpenChange(open: boolean): void; onSelect(path: string): void;
 }) {
   const current = diagrams.find(diagram => diagram.path === selected);
-  return <Menu aria-label="Choose a diagram" align="start" density="compact" className="model-menu" open={open} onOpenChange={onOpenChange}
-    trigger={<Button variant="secondary" className="model-picker-button" startIcon={<DiagramIcon />} endIcon={<ExpandMore />}>
-      <span className="model-picker-title">{current?.title ?? (selected ? 'Unavailable diagram' : 'Choose a diagram')}</span>
+  return <Menu aria-label="Choose a diagram" align="start" density="compact" className="diagram-menu" open={open} onOpenChange={onOpenChange}
+    trigger={<Button variant="secondary" className="diagram-picker-button" startIcon={<DiagramIcon />} endIcon={<ExpandMore />}>
+      <span className="diagram-picker-title">{current?.title ?? (selected ? 'Unavailable diagram' : 'Choose a diagram')}</span>
       {current && <ProvenanceBadge provenance={current.provenance} />}
     </Button>}>
     <MenuRadioGroup value={selected} onValueChange={onSelect}>
@@ -161,7 +161,7 @@ export function AtlasWorkPanel({ work, target }: { work: Work; target: DiagramTa
   return <section className={'diagrams' + (fullscreen ? ' fullscreen' : '')} aria-label="Work diagrams">
     <div className="diagrams-canvas">
       {payload ? <ViewerErrorBoundary key={payload.family ?? selected} resetKey={payload.model.document?.revision.id}>
-        <AtlasPanel payload={payload} theme={theme} focus={focus}
+        <DiagramPanel payload={payload} theme={theme} focus={focus}
           leading={picker} fullscreen={fullscreen} onFullscreenChange={setFullscreen}
           inspectorWidth={inspectorWidth} onInspectorWidthChange={setInspectorWidth} />
       </ViewerErrorBoundary>

@@ -202,9 +202,9 @@ export function describeDiagrams(files: DiagramFile[]): DiagramSummary[];
  * family is a diagram and everything compared with it, directly or through
  * another member: its proposals, and a later capture with its own proposals.
  * Members' payloads share `family` (the root's path) and switch in place in
- * `AtlasPanel`. A proposal's or a comparing capture's payload carries
+ * `DiagramPanel`. A proposal's or a comparing capture's payload carries
  * `comparison`; a class diagram's carries the scenarios that exemplify it as
- * `learning`. Families lay out together, so ask for every path that is shown.
+ * `scenarios`. Families lay out together, so ask for every path that is shown.
  */
 export function prepareDiagrams(input: {
   files: DiagramFile[];
@@ -228,17 +228,10 @@ export interface SourceRecord {
   url?: string;
   anchor?: string;
 }
-export interface ModelingQuestion {
-  question: string;
-  why: string;
-  resolve: string;
-}
 export interface ElementEvidence {
   evidence?: string[];
   primarySource?: string;
   status?: "observed" | "inferred" | "unresolved";
-  rationale?: string;
-  questions?: ModelingQuestion[];
 }
 export interface ValidationIssue {
   code: string;
@@ -339,23 +332,12 @@ export interface CaptureMetadata {
   };
   [field: string]: unknown;
 }
-/** Planning records a model links to; a diagram file has none of its own. */
-export interface PlanningContext {
-  records: {
-    id: string;
-    kind: "plan" | "glossary" | "decision" | "scenario";
-    text: string;
-    [field: string]: unknown;
-  }[];
-  links: { elementId: string; recordId: string; [field: string]: unknown }[];
-}
 export interface ViewerModel {
   id: string;
   title: string;
   version: string;
   date: string;
   status: string;
-  repositories: { repo: string; commit: string }[];
   sources: SourceRecord[];
   classes: ViewerClass[];
   relations: ViewerAssociation[];
@@ -387,7 +369,6 @@ export interface ViewerModel {
       profile: ModelProfile;
       capture: CaptureMetadata;
     }[];
-    context: PlanningContext;
     comparison?: { changes?: SemanticComparison } | null;
   };
 }
@@ -487,7 +468,7 @@ export interface ExportData {
 }
 export interface ViewerPayload {
   /** The scenarios that exemplify a class diagram, assessed, when it has any. */
-  learning?: ModelLearning | null;
+  scenarios?: DiagramScenarios | null;
   model: ViewerModel & { validation: ValidationReport };
   views: Pick<
     PreparedView,
@@ -534,8 +515,6 @@ export interface Scenario {
   title: string;
   description?: string;
   expected: "valid" | "invalid";
-  elementIds?: string[];
-  contextIds?: string[];
   instances: { id: string; label?: string; classIds: string[] }[];
   links: { relationId: string; sourceId: string; targetId: string }[];
 }
@@ -552,17 +531,9 @@ export interface ScenarioResult {
   unassessed: { elementId: string | null; message: string }[];
   limitations: string[];
 }
-/** The viewer's guide to a model: its assessed examples. */
-export interface ModelLearning {
-  walkthroughs: {
-    id: string;
-    title: string;
-    contextIds?: string[];
-    elementIds?: string[];
-    steps: { text: string; viewKey?: string; elementIds: string[] }[];
-  }[];
+/** The scenarios that exemplify a class diagram, each assessed against it. */
+export interface DiagramScenarios {
   scenarios: (Scenario & { result: ScenarioResult })[];
-  scope?: string;
 }
 export interface SemanticChange {
   id: string;
@@ -571,7 +542,6 @@ export interface SemanticChange {
   kind: "added" | "removed" | "modified";
   name: unknown;
   properties: { key: string; before: ValueCell; after: ValueCell }[];
-  rationale?: PlanningContext["records"];
   evidence?: unknown;
 }
 export interface SemanticComparison {
@@ -580,7 +550,6 @@ export interface SemanticComparison {
   limitations: string[];
   baseRevision?: string;
   proposedRevision?: string;
-  missingRationale?: string[];
 }
 /**
  * An offline viewer in one HTML file: a viewer `prepared` with its artifacts

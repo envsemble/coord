@@ -6,7 +6,7 @@ import {
   useState,
 } from "react";
 import { flushSync } from "react-dom";
-import { sameTarget } from "../visualization/interaction";
+import { sameTarget } from "../canvas/interaction";
 import { createInspectionController } from "./inspection";
 
 export const inspectedTarget = (hovered, selected) => hovered || selected;

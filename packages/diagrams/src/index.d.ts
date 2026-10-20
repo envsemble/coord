@@ -6,10 +6,9 @@ import type {
 } from "react";
 import type {
   DiagramScene,
-  ModelLearning,
+  DiagramScenarios,
   ViewerPayload,
   ViewerModel,
-  PlanningContext,
   CaptureMetadata,
 } from "../lib/index";
 export type InspectionTarget = {
@@ -25,12 +24,11 @@ export const DiagramViewer: ComponentType<ViewerPayload>;
  * same `family` (members laid out together by `prepareDiagrams`) switches
  * in place: the camera, the view, the selection and the details stay.
  */
-export const AtlasPanel: ComponentType<{
+export const DiagramPanel: ComponentType<{
   payload: ViewerPayload;
   theme?: "dark" | "light";
   focus?: InspectionTarget | { kind: "view"; id: string };
-  onReference?(record: PlanningContext["records"][number]): void;
-  /** Host content rendered at the start of the floating top-left toolbar island (e.g. a model picker). */
+  /** Host content rendered at the start of the floating top-left toolbar island (e.g. a diagram picker). */
   leading?: ReactNode;
   /**
    * The host's own navigation (such as a work item's sections), shown first
@@ -85,10 +83,6 @@ export const ProvenanceBadge: ComponentType<{
   document: ProvenanceSource | null | undefined;
   className?: string;
 }>;
-/** The provenance label alone, as an envUI Badge. */
-export const ProvenanceLabel: ComponentType<{
-  document: ProvenanceSource | null | undefined;
-}>;
 export const ViewerErrorBoundary: ComponentType<{
   children?: ReactNode;
   resetKey?: string;
@@ -132,11 +126,11 @@ export const UMLNode: ComponentType<Record<string, unknown>>;
 export const UMLRelation: ComponentType<Record<string, unknown>>;
 export const UMLGeneralizationGroup: ComponentType<Record<string, unknown>>;
 /**
- * Understanding a model through its examples (`learning`, from the payload):
- * the scenarios that exemplify it, each assessed. Renders nothing without any.
+ * The scenarios that exemplify a class diagram (`scenarios`, from the
+ * payload), each assessed. Renders nothing without any.
  */
-export const LearningLibrary: ComponentType<{
+export const ScenarioPanel: ComponentType<{
   model: ViewerModel;
-  learning?: ModelLearning | null;
+  scenarios?: DiagramScenarios | null;
   onInspect(id: string): void;
 }>;

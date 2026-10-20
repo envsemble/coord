@@ -6,7 +6,7 @@ import {
   DatabaseIcon,
   FileIcon,
   ProposalIcon,
-} from "../ui/Icons";
+} from "../ui/icons";
 
 function ProvenanceIcon({ provenance, profile }) {
   if (provenance.kind === "proposal") return <ProposalIcon />;

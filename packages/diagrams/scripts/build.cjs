@@ -6,7 +6,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { prepareDiagrams } = require("../lib/plantuml/prepare.cjs");
-const { buildViewer, writeViewer } = require("../lib/build/buildViewer.cjs");
+const { buildViewer, writeViewer } = require("../lib/payload/buildViewer.cjs");
 
 const root = path.resolve(__dirname, "..");
 const EXAMPLES = {

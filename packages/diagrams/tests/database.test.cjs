@@ -21,7 +21,7 @@ const {
   keys,
   sql,
   underscores,
-} = require("./database-fixtures.cjs");
+} = require("./databaseFixtures.cjs");
 
 test("a source configuration that cannot be met writes no capture", async (t) => {
   const root = fixture(t);

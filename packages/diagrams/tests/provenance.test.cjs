@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { createElement } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 const atlas = require("../lib/index.cjs");
-const { loadComponents: components } = require("./load-components.cjs");
+const { loadComponents: components } = require("./loadComponents.cjs");
 const react = components();
 const capture = (kind, identity, capturedAt, status = "complete") => ({
   id: `capture-${identity}`,
@@ -115,13 +115,13 @@ test("provenance distinguishes generated captures, agent proposals and agent-aut
 });
 
 test("embedded panel floats its controls, below the host's sections, and leaves provenance to its host", async () => {
-  const { AtlasPanel } = react;
+  const { DiagramPanel } = react;
   const payload = (await payloads({ "enrollment.puml": ENROLLMENT }))(
     "enrollment.puml",
   );
   assert.equal(payload.views.length, 1);
   const html = renderToStaticMarkup(
-    createElement(AtlasPanel, {
+    createElement(DiagramPanel, {
       payload,
       leading: createElement("span", { id: "host-picker" }, "Model picker"),
     }),
@@ -138,7 +138,7 @@ test("embedded panel floats its controls, below the host's sections, and leaves 
   assert(!html.includes("fullscreen"));
   assert(!ISO.test(html), "raw ISO timestamps stay out of the UI");
   const fullscreen = renderToStaticMarkup(
-    createElement(AtlasPanel, {
+    createElement(DiagramPanel, {
       payload,
       fullscreen: true,
       onFullscreenChange() {},
@@ -148,7 +148,7 @@ test("embedded panel floats its controls, below the host's sections, and leaves 
   // The host's sections come first, at the top left with the tools; the
   // diagram's navigation takes the row below.
   const stacked = renderToStaticMarkup(
-    createElement(AtlasPanel, {
+    createElement(DiagramPanel, {
       payload,
       sections: createElement("span", { id: "host-sections" }, "Sections"),
       leading: createElement("span", { id: "host-picker" }, "Model picker"),
@@ -162,7 +162,7 @@ test("embedded panel floats its controls, below the host's sections, and leaves 
 });
 
 test("proposals open in their change view with a readable list of changes", async () => {
-  const { AtlasPanel } = react;
+  const { DiagramPanel } = react;
   const { diagram } = atlas.parseDiagram(
     `@startuml
 title Enrollment
@@ -191,7 +191,7 @@ Course "1" -- "0..*" Term : runs in
     ],
   });
   const payload = prepared.get("proposal.puml").payload;
-  const html = renderToStaticMarkup(createElement(AtlasPanel, { payload }));
+  const html = renderToStaticMarkup(createElement(DiagramPanel, { payload }));
   // One way to choose what is shown: no Baseline/Changes control, no popover.
   assert(!html.includes(">Baseline<"));
   assert(!html.includes('aria-label="Comparison"'));

@@ -8,7 +8,7 @@ const path = require("node:path");
 const { createElement } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 const atlas = require("../lib/index.cjs");
-const { loadComponents } = require("./load-components.cjs");
+const { loadComponents } = require("./loadComponents.cjs");
 
 const BASE = `' atlas description Someone who learns.
 class Person {
@@ -39,12 +39,11 @@ test("the details and the canvas show an element's and its members' descriptions
   assert.equal(person.description, "Someone who learns.");
   assert.equal(person.methods[0].description, "Greets them.");
   assert.equal(person.attributes[0].description, undefined);
-  const { ConceptDetails } = loadComponents("src/viewer/DetailsContent.jsx");
+  const { ConceptDetails } = loadComponents("src/details/ElementDetails.jsx");
   const details = render(ConceptDetails, {
     concept: person,
     model: payload.model,
     snippets: {},
-    onReference() {},
   });
   assert(details.includes("Someone who learns."));
   assert.match(
@@ -91,12 +90,11 @@ test("a table's columns show their descriptions", async () => {
   assert.equal(payload.model.document.profile, "database");
   assert(payload.model.classes.every((c) => c.description));
   const project = payload.model.classes.find((c) => c.id === "project");
-  const { ConceptDetails } = loadComponents("src/viewer/DetailsContent.jsx");
+  const { ConceptDetails } = loadComponents("src/details/ElementDetails.jsx");
   const details = render(ConceptDetails, {
     concept: project,
     model: payload.model,
     snippets: {},
-    onReference() {},
   });
   assert(details.includes(project.description));
   assert.match(
@@ -146,13 +144,12 @@ test("a changed, added or removed description is a change of its element", async
       ],
     ],
   );
-  const { ConceptDetails } = loadComponents("src/viewer/DetailsContent.jsx");
+  const { ConceptDetails } = loadComponents("src/details/ElementDetails.jsx");
   const details = render(ConceptDetails, {
     concept: view.model.classes.find((c) => c.id === "Person"),
     model: view.model,
     snippets: {},
     review: { rollup },
-    onReference() {},
   });
   assert.match(
     details,

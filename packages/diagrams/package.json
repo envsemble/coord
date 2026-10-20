@@ -71,8 +71,8 @@
       "types": "./src/ui/AtlasMark.d.ts",
       "default": "./dist/mark.mjs"
     },
-    "./viewer.css": "./src/ui/styles.css",
-    "./diagram.css": "./src/visualization/styles.css",
+    "./viewer.css": "./src/viewer/viewer.css",
+    "./diagram.css": "./src/canvas/canvas.css",
     "./embedded.css": "./dist/embedded.css",
     "./database-source-schema": "./schemas/database-source-schema.json",
     "./code-source-schema": "./schemas/code-source-schema.json"

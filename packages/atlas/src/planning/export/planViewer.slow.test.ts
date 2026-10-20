@@ -45,7 +45,7 @@ test('the export opens offline in Chromium, makes no requests and runs no embedd
   await page.navigate(pathToFileURL(file).href);
   const pwned = () => page.evaluate<unknown>('window.__pwned');
 
-  // Plan tab: the title is text, and the plan links its diagram under the heading.
+  // Plan section: the title is text, and the plan links its diagram under the heading.
   await page.waitFor(`document.querySelector('.work-header h1')`);
   assert.equal(await page.evaluate('document.querySelector(".work-header h1").textContent'), hostileTitle);
   await page.waitFor(`document.querySelector('.diagram-card')`);
@@ -53,7 +53,7 @@ test('the export opens offline in Chromium, makes no requests and runs no embedd
   assert.equal(await page.evaluate('document.querySelectorAll("script").length'), 4);
 
   // Hostile Markdown renders no elements, handlers or remote images: envUI's Markdown ignores raw HTML.
-  await page.evaluate(`location.hash = 'tab=files&file=evidence%2Fhostile.md'`);
+  await page.evaluate(`location.hash = 'section=files&file=evidence%2Fhostile.md'`);
   await page.waitFor(`document.querySelector('.reader-name strong')?.textContent === 'hostile.md'`);
   const prose = await page.evaluate<{ text: string; images: string[]; frames: number; links: string[]; handlers: number }>(`(() => {
     const prose = document.querySelector('.prose');
@@ -72,15 +72,15 @@ test('the export opens offline in Chromium, makes no requests and runs no embedd
   assert.equal(await page.evaluate('document.querySelector(".prose a[href*=\\"plan.md\\"]") !== null'), true, 'links between exported files stay inside the viewer');
 
   // Attachments are displayed inertly and downloadable.
-  await page.evaluate(`location.hash = 'tab=files&file=evidence%2Fpage.html'`);
+  await page.evaluate(`location.hash = 'section=files&file=evidence%2Fpage.html'`);
   await page.waitFor(`document.querySelector('.source-text')?.textContent.includes('Attached page')`);
-  await page.evaluate(`location.hash = 'tab=files&file=evidence%2Fphoto.svg'`);
+  await page.evaluate(`location.hash = 'section=files&file=evidence%2Fphoto.svg'`);
   await page.waitFor(`document.querySelector('.attachment img')?.complete`);
-  await page.evaluate(`location.hash = 'tab=files&file=evidence%2Fbinary.bin'`);
+  await page.evaluate(`location.hash = 'section=files&file=evidence%2Fbinary.bin'`);
   await page.waitFor(`document.querySelector('.reader-toolbar a[download="binary.bin"]')?.href.startsWith('blob:')`);
 
   // Diagrams render with the shared viewer and respond to selection.
-  await page.evaluate(`location.hash = 'tab=diagrams'`);
+  await page.evaluate(`location.hash = 'section=diagrams'`);
   await page.waitFor(`document.querySelector('.atlas-panel [data-element-kind="node"][data-element-id="Order"]')`);
   // The camera settles after fitting: the node stays put for three looks in a row.
   await page.evaluate(`window.__still = 0`);
