@@ -15,7 +15,7 @@ import { ContinuedIn, HandoffEntries, type OpenHandoff } from './HandoffLinks';
 import { WorkStatisticsSummary } from '../statistics/WorkStatisticsSummary';
 import { Waited } from './LiveAgentTime';
 import { unreported, type LiveActivity } from './agentTime';
-import { activityKey, NeedsYou, NowSection, SessionsList, useWorkSessions } from './WorkSessions';
+import { activityKey, NeedsYou, NowSection, nowSessions, SessionsList, useWorkSessions } from './WorkSessions';
 import { waitingSession } from './sessions';
 import { TargetLink, useWindow } from '../window/windowContext';
 import { Trail } from '../ui/Trail';
@@ -156,8 +156,9 @@ export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Sna
   // (Now follows what it does).
   const tick = useTick(status.key === 'working' ? nowRefreshMs : null);
   const sessions = useWorkSessions(work.id, activityKey(agents) + ':' + tick);
-  // While it is implemented, Now leads and the plan folds below it (open when a heading was asked for).
-  const implementing = work.implementation === 'in_progress';
+  // While it is implemented and Now has something to show, Now leads and the plan folds below it
+  // (open when a heading was asked for); with nothing to show, the plan is as it always was.
+  const implementing = work.implementation === 'in_progress' && Boolean(sessions && nowSessions(sessions.sessions).length);
   const [planOpen, setPlanOpen] = useState(Boolean(target.anchor));
   // Each plan starts folded, unless a heading of it was asked for.
   useEffect(() => { setPlanOpen(Boolean(target.anchor)); }, [work.id, target.anchor]);
@@ -176,7 +177,7 @@ export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Sna
           {waiting && <NeedsYou work={work.id} session={waiting} />}
           {summary && <p className="work-summary">{summary}</p>}
         </header>
-        {implementing && sessions && <NowSection sessions={sessions.sessions} />}
+        {implementing && <NowSection sessions={sessions!.sessions} />}
         {implementing && reading && <button type="button" className="plan-fold-toggle" aria-expanded={planOpen} aria-controls="plan-reading" onClick={() => setPlanOpen(!planOpen)}><ChevronRightIcon className="plan-fold-icon" />{reading === plan ? 'Plan' : reading.name}</button>}
         {reading ? (!implementing || planOpen) && <div id="plan-reading"><Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} plan={reading === plan} /></div>
           : <EmptyState className="page-empty" title="Nothing to read here" description="This work item has no plan." />}

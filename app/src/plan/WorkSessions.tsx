@@ -115,9 +115,17 @@ function SessionMessage({ message, className }: { message: string; className: st
  * so only its actions show here); with none on it, where the work stopped. Nothing is kept: it is
  * read from the sessions' logs as they change.
  */
+/** Whether a session's Now says anything: a message or an action. */
+const saysSomething = (session: WorkSession) => Boolean(session.now && (session.now.message || session.now.actions.length));
+/** What Now shows: the sessions on the plan that say something, else the latest that does (where the work stopped); none when nothing does. */
+export function nowSessions(sessions: WorkSession[]): WorkSession[] {
+  const on = sessions.filter(session => session.state !== 'ended' && saysSomething(session));
+  return on.length ? on : sessions.filter(saysSomething).slice(0, 1);
+}
+
 export function NowSection({ sessions }: { sessions: WorkSession[] }) {
-  const on = sessions.filter(session => session.state !== 'ended' && session.now);
-  const shownSessions = on.length ? on : sessions.filter(session => session.now).slice(0, 1);
+  const on = sessions.filter(session => session.state !== 'ended' && saysSomething(session));
+  const shownSessions = nowSessions(sessions);
   if (!shownSessions.length) return null;
   return <section className="now" aria-label="Now">
     {!on.length && <p className="now-stopped muted">Nobody is on it now. Where the work stopped:</p>}
