@@ -154,7 +154,7 @@ export interface AboutInfo {
   dataFolder: string;
 }
 
-export interface ExportResult { path: string; bytes: number; warnings: string[] }
+interface ExportResult { path: string; bytes: number; warnings: string[] }
 export interface ImportPreview {
   token: string;
   file: string;
@@ -171,7 +171,7 @@ export interface ImportPreview {
   diagrams: string[];
   warnings: string[];
 }
-export interface ImportResult { workId: string; path: string; files: number; notes: string[] }
+interface ImportResult { workId: string; path: string; files: number; notes: string[] }
 
 /**
  * The bridge the preload script exposes to the renderer as `window.atlas`. Every method maps to

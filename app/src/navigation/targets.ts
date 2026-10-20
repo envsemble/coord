@@ -19,7 +19,7 @@ export const workTarget = (work: string, anchor: string | null = null): Target =
 /** A work item's statistics: its time and tokens by session, model and stage, and its timeline. */
 export const workStatisticsTarget = (work: string): Target => ({ kind: 'work', work, anchor: null, view: 'statistics' });
 /** Whether a target is a work item's statistics rather than its plan. */
-export const isWorkStatistics = (target: Target) => target.kind === 'work' && target.view === 'statistics';
+const isWorkStatistics = (target: Target) => target.kind === 'work' && target.view === 'statistics';
 /** A work item's plan with one of its ledger steps (by its title) pointed out in its progress. */
 export const stepTarget = (work: string, step: string): Target => ({ kind: 'work', work, anchor: null, step });
 /** A work item's diagram by its path in the work folder (null: its first), at an element. */

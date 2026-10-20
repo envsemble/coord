@@ -8,14 +8,14 @@
 import { useId, useState, type CSSProperties } from 'react';
 import { Badge, Button, ClickableCard, Dialog, EmptyState, GroupedRows, IconButton, Input, Menu, MenuItem, MenuSeparator, Notice, Row, Spinner, Text, Tooltip } from '@envsemble/envui';
 import { AddFolderIcon, AddIcon, ChevronRightIcon, CloseIcon, ComputerIcon, FolderIcon, MoreIcon, NewProjectIcon, StatisticsIcon } from '../ui/icons';
-import { StatusIcon } from '../ui/ui';
-import { statuses } from '../ui/status';
+import { StatusIcon } from '../ui/badges';
+import { statuses } from '../plan/status';
 import { absoluteDate, plural, relativeDate } from '../ui/format';
-import { initials, projectFacts, projectHue } from './projectLook';
+import { initials, projectFacts, projectHue } from './projectAvatar';
 import type { Project, ProjectChangeRequest } from '../types';
 import { api, AtlasError } from '../api';
 import { hubPlace, statisticsPlace, type Place } from '../navigation/targets';
-import { Page } from '../ui/Pages';
+import { Page } from '../ui/Page';
 
 /** What the Projects page does with a project. */
 export interface ProjectActions {
@@ -30,7 +30,7 @@ export interface ProjectActions {
 }
 
 /** The last part of a folder's path, for a name. */
-export const folderName = (folder: string) => folder.split(/[\\/]+/).filter(Boolean).at(-1) ?? '';
+const folderName = (folder: string) => folder.split(/[\\/]+/).filter(Boolean).at(-1) ?? '';
 /** Whether this computer's folders are told apart without case, as on Windows and macOS (folders are chosen on this computer only). */
 const caseInsensitive = /^(?:win|mac)/i.test(navigator.platform);
 /**
@@ -115,7 +115,7 @@ export function NewProjectDialog({ computer, local, onClose, onCreated }: { comp
 }
 
 /** Rename a project: the name in its planning.json, which agents see too. */
-export function RenameProjectDialog({ project, onClose, onRename }: { project: Project; onClose(): void; onRename(name: string): Promise<void> }) {
+function RenameProjectDialog({ project, onClose, onRename }: { project: Project; onClose(): void; onRename(name: string): Promise<void> }) {
   const [name, setName] = useState(project.name);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');

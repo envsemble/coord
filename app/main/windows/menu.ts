@@ -1,5 +1,5 @@
 import { Menu, type MenuItemConstructorOptions } from 'electron';
-import type { WindowManager } from './windows.ts';
+import type { WindowManager } from './windowManager.ts';
 
 /**
  * The application menu. On macOS it is the system's menu bar; elsewhere windows draw their own menu

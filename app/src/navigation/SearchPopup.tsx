@@ -8,7 +8,7 @@ import { hubGroups, hubItems } from '../hub/hubPlans';
 import { diagramTarget, fileTarget, workTarget, type Place } from './targets';
 import { workNumber } from '../ui/format';
 import { hostEntries, listEntries, pathKey, workKey, type SearchDestination, type SearchEntry } from './search';
-import { StatusIcon } from '../ui/ui';
+import { StatusIcon } from '../ui/badges';
 
 interface Entry extends QuickItem, Omit<SearchEntry, 'kind'> { icon: ReactNode }
 const localKinds: Record<QuickItem['kind'], SearchKind> = { work: 'plan', diagram: 'diagram', file: 'document' };
@@ -31,16 +31,16 @@ const searchDelay = 150;
  * the query, which the hub's search field types into until the popup takes focus.
  */
 export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose }: {
-  projects: Project[]; open: { project: string; snapshot: Snapshot } | null; query: string; setQuery(query: string): void; onChoose(destination: SearchDestination): void; onClose(): void;
+  projects: Project[]; open: { projectId: string; snapshot: Snapshot } | null; query: string; setQuery(query: string): void; onChoose(destination: SearchDestination): void; onClose(): void;
 }) {
   const [diagrams, setDiagrams] = useState<DiagramIndexEntry[]>([]);
-  const project = open?.project ?? null;
+  const projectId = open?.projectId ?? null;
   useEffect(() => {
-    if (!project) return;
+    if (!projectId) return;
     let current = true;
-    api.diagramIndex(project).then(items => { if (current) setDiagrams(items); }).catch(() => undefined);
+    api.diagramIndex(projectId).then(items => { if (current) setDiagrams(items); }).catch(() => undefined);
     return () => { current = false; };
-  }, [project]);
+  }, [projectId]);
 
   // The host's results, asked for once typing pauses, and shown only for the query they answer: an
   // answer that comes after the query changed is dropped. They go first, unless the user has moved
@@ -63,25 +63,25 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
       id: owner.id + ':work:' + work.id, kind: 'work' as const, label: work.title, detail: owner.name + ' · ' + workNumber(work.id), snippet: null,
       destination: { place: { projectId: owner.id, target: workTarget(work.id) } }, key: workKey(owner.id, work.id), icon: <StatusIcon status={status} decorative />,
     }));
-    if (open && projects.find(item => item.id === open.project)?.state !== 'archived') {
+    if (open && projects.find(item => item.id === open.projectId)?.state !== 'archived') {
       const { snapshot } = open;
-      const place = (target: Target): { place: Place } => ({ place: { projectId: open.project, target } });
+      const place = (target: Target): { place: Place } => ({ place: { projectId: open.projectId, target } });
       const titles = new Map(snapshot.work.map(work => [work.id, work.title]));
-      const name = projects.find(item => item.id === open.project)?.name ?? snapshot.name;
+      const name = projects.find(item => item.id === open.projectId)?.name ?? snapshot.name;
       // A diagram is listed once, by its title; its file is not listed again.
       const paths = new Map(diagrams.map(item => [snapshot.work.find(work => work.id === item.workId)?.path + '/' + item.path, item]));
       all.push(...[...paths].map(([path, item]) => ({
-        id: open.project + ':diagram:' + item.workId + ':' + item.path, kind: 'diagram' as const, label: item.title,
+        id: open.projectId + ':diagram:' + item.workId + ':' + item.path, kind: 'diagram' as const, label: item.title,
         detail: [name, workNumber(item.workId) + ' ' + (titles.get(item.workId) ?? ''), item.provenance.label].filter(Boolean).join(' · '), snippet: null,
-        destination: place(diagramTarget(item.workId, item.path)), key: pathKey(open.project, path), icon: <DiagramIcon />,
+        destination: place(diagramTarget(item.workId, item.path)), key: pathKey(open.projectId, path), icon: <DiagramIcon />,
       })));
       all.push(...snapshot.documents.filter(file => !paths.has(file.path)).map(file => ({
-        id: open.project + ':file:' + file.path, kind: 'file' as const, label: file.name, detail: name + ' · ' + file.path, snippet: null,
-        destination: place(fileTarget(file.path)), key: pathKey(open.project, file.path), icon: <FileIcon />,
+        id: open.projectId + ':file:' + file.path, kind: 'file' as const, label: file.name, detail: name + ' · ' + file.path, snippet: null,
+        destination: place(fileTarget(file.path)), key: pathKey(open.projectId, file.path), icon: <FileIcon />,
       })));
     }
     return all;
-  }, [projects, project, open, diagrams]);
+  }, [projects, projectId, open, diagrams]);
   const icons = useMemo(() => new Map(entries.map(entry => [entry.id, entry.icon])), [entries]);
   const results = useMemo(() => {
     const local = rankItems(entries, query).map(({ icon: _icon, ...entry }) => ({ ...entry, kind: localKinds[entry.kind] }));

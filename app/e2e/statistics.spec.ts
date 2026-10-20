@@ -1,6 +1,6 @@
 // Work statistics from agent reports (fixtures/reports.json, recorded in the home's database as the
-// fixture's project is made) and Git: the Statistics page, opened from the menu
-// for one project at a time, its Work and Models tabs, the sidebar of a work item and its own statistics page. The fixture has an
+// fixture's project is made) and Git: the Statistics page, opened from the menu for one project at
+// a time, the side column of a work item and its own statistics page. The fixture has an
 // unmeasured planning session, a Claude Code implementation session measured with a subagent, and a
 // measured Codex one from before stages were recorded.
 import { expect, test, type Page } from '@playwright/test';
@@ -91,16 +91,16 @@ test("a project's statistics look back on its work: its figures against the peri
   // stands for on hover and focus; its own statistics page has the rest. Recent activity is gone.
   await goHome(window);
   await openPlan(window, 'Saved payment methods');
-  const statistics = window.locator('.about-section', { has: window.locator('h2', { hasText: 'Statistics' }) });
+  const statistics = window.locator('.plan-aside-section', { has: window.locator('h2', { hasText: 'Statistics' }) });
   await expect(statistics.locator('.work-statistics-primary')).toHaveText('Claude Opus 5.5');
   await expect(statistics.locator('.work-statistics-primary .provider-mark')).toHaveAttribute('data-provider', 'anthropic');
   await expect(statistics.locator('.work-statistics-others')).toHaveText('with Claude Sonnet 4.5 and Claude Haiku 5.5');
   const facts = statistics.locator('.work-statistics-facts li');
   // As shown: each value's description is for assistive technology.
   await expect(facts).toHaveText(['4 h 8 min of agent time', (await compact(window, 13815500)) + ' tokens'], { useInnerText: true });
-  await expect(window.locator('.about')).not.toContainText('Recent activity');
-  await expect(window.locator('.about')).not.toContainText('active/0001-saved-payment-methods', { timeout: 1000 });
-  // Where the About sidebar sits below the plan, the plan arriving moves it: hover once it has.
+  await expect(window.locator('.plan-aside')).not.toContainText('Recent activity');
+  await expect(window.locator('.plan-aside')).not.toContainText('active/0001-saved-payment-methods', { timeout: 1000 });
+  // Where the side column sits below the plan, the plan arriving moves it: hover once it has.
   await expect(window.locator('.reader .prose h2').first()).toBeVisible();
   await facts.nth(0).locator('.detailed').hover();
   await expect(window.locator('.env-tooltip')).toContainText('Measured from logs2 h 38 min');

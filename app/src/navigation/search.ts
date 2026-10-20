@@ -6,7 +6,7 @@ import type { Project, SearchKind, SearchResult } from '../types';
 import { workNumber } from '../ui/format';
 import { diagramTarget, hubPlace, stepTarget, workTarget, type Place } from './targets';
 
-export const searchKindLabels: Record<SearchKind, string> = {
+const searchKindLabels: Record<SearchKind, string> = {
   plan: 'Plans', step: 'Steps', document: 'Documents', heading: 'Headings', diagram: 'Diagrams', element: 'Elements', term: 'Glossary terms', project: 'Projects',
 };
 

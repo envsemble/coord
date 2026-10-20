@@ -190,7 +190,7 @@ export async function openPlan(window: Page, title: string) {
   await hubRows(window, title).first().getByRole('link', { name: title, exact: true }).click();
   await expect(window.locator('.work-header h1')).toHaveText(title);
 }
-/** Go to the hub of every project by the Plans tab. */
+/** Go to the hub of every project by the Plans section. */
 export async function goHome(window: Page) {
   await window.getByRole('navigation', { name: 'Sections' }).locator('[data-section="plans"]').click();
   await expectHub(window);

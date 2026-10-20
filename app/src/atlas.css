@@ -12,12 +12,12 @@ body { margin: 0; }
 
 /* Work status and tones: GitHub's issue colours on envUI's tone tokens. */
 .status-icon { inline-size: 1.125rem; block-size: 1.125rem; flex: none; color: var(--color-tone-neutral); }
-.status-icon[data-tone='success'], .status-text[data-tone='open'] { color: var(--color-tone-success); }
-.status-icon[data-tone='done'], .status-text[data-tone='done'] { color: var(--color-tone-done); }
-.status-icon[data-tone='danger'], .status-text[data-tone='danger'] { color: var(--color-tone-danger); }
-.status-icon[data-tone='warning'], .status-text[data-tone='attention'] { color: var(--color-tone-warning); }
-.status-icon[data-tone='neutral'], .status-text[data-tone='muted'] { color: var(--color-tone-neutral); }
-.status-icon[data-tone='accent'], .status-text[data-tone='started'] { color: var(--color-tone-accent); }
+.status-icon[data-tone='success'] { color: var(--color-tone-success); }
+.status-icon[data-tone='done'] { color: var(--color-tone-done); }
+.status-icon[data-tone='danger'] { color: var(--color-tone-danger); }
+.status-icon[data-tone='warning'] { color: var(--color-tone-warning); }
+.status-icon[data-tone='neutral'] { color: var(--color-tone-neutral); }
+.status-icon[data-tone='accent'] { color: var(--color-tone-accent); }
 
 /* A window that is starting, or reading its folder. */
 .page-state { box-sizing: border-box; min-block-size: 100%; display: grid; place-content: center; justify-items: center; gap: var(--space-3); color: var(--color-text-muted); }
@@ -26,8 +26,8 @@ body { margin: 0; }
    File and the computer at the start; search, the file panel, record health and the theme at the end,
    before the window buttons the system draws. Below it the sections, one line under both rows. The
    window frame's content scrolls below them. */
-.workbench { --section-bar-height: 2.75rem; --topbar-height: calc(max(calc(env(titlebar-area-height, 0px) + 0.0625rem), var(--title-bar-height)) + var(--section-bar-height)); --app-sticky-top: 0px; }
-.workbench-top > .workbench-title-bar { border-block-end-color: transparent; }
+.atlas-window { --section-bar-height: 2.75rem; --topbar-height: calc(max(calc(env(titlebar-area-height, 0px) + 0.0625rem), var(--title-bar-height)) + var(--section-bar-height)); --app-sticky-top: 0px; }
+.window-top > .window-title-bar { border-block-end-color: transparent; }
 /* The sections drag the window like the title bar above them. */
 .section-bar { box-sizing: border-box; display: flex; align-items: flex-end; gap: var(--space-1); block-size: var(--section-bar-height); padding: 0 var(--space-3) 0.1875rem; border-block-end: 0.0625rem solid var(--color-border-strong); background: var(--color-canvas); overflow-x: auto; scrollbar-width: none; -webkit-app-region: drag; app-region: drag; user-select: none; }
 .section-bar > * { flex: none; -webkit-app-region: no-drag; app-region: no-drag; }
@@ -35,29 +35,29 @@ body { margin: 0; }
    window would take a click there for a drag, so they are cut out of them. */
 :is([role='menu'], [role='listbox'], [role='dialog'], [role='alertdialog'], [role='tooltip'], [popover], [data-radix-popper-content-wrapper]) { -webkit-app-region: no-drag; app-region: no-drag; }
 /* The section shown: its name in bold, underlined on the row's bottom line. */
-.section-tab { position: relative; }
-.section-tab[aria-current='page'] { font-weight: 500; }
-.section-tab[aria-current='page']::after { content: ''; position: absolute; inset-inline: var(--space-2); inset-block-end: -0.1875rem; block-size: 0.125rem; border-radius: 0.0625rem; background: var(--color-tone-accent); }
+.section-item { position: relative; }
+.section-item[aria-current='page'] { font-weight: 500; }
+.section-item[aria-current='page']::after { content: ''; position: absolute; inset-inline: var(--space-2); inset-block-end: -0.1875rem; block-size: 0.125rem; border-radius: 0.0625rem; background: var(--color-tone-accent); }
 .title-bar-start { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
 /* In a narrow window the arrows and File keep their width; the computer's name gives way. */
 .title-bar-start > :not(.computer-trigger) { flex-shrink: 0; }
 .title-bar-start > .computer-trigger { min-inline-size: 0; }
 .title-bar-brand { display: grid; place-items: center; inline-size: var(--control-height-compact); }
-/* The logo is only a picture: the Plans tab goes to every plan. */
+/* The logo is only a picture: the Plans section goes to every plan. */
 .title-bar-logo { display: inline-flex; align-items: center; justify-content: center; inline-size: var(--control-height, 2.25rem); block-size: var(--control-height, 2.25rem); flex: none; }
 .title-bar-logo svg { inline-size: 1.25rem; block-size: 1.25rem; }
 /* Back and forward, close together after the logo. */
 .history-buttons { display: flex; align-items: center; }
 .computer-trigger { max-inline-size: 16rem; }
 
-/* The workbench: one place at a time, in the window frame's content area. */
-.workbench-body { --atlas-sticky-top: var(--app-sticky-top); position: relative; min-block-size: calc(100dvh - var(--topbar-height)); display: flex; flex-direction: column; }
-.workbench-page > .folder-error { margin-block-end: var(--space-4); }
-.workbench-page { flex: 1; min-inline-size: 0; padding: var(--space-6) var(--space-7) var(--space-9); }
-.workbench-page:is(:has(> .work-page), :has(> .plan-frame > .plan-frame-page > .work-page)) { padding-block-start: 0; }
+/* The window's page: one place at a time, in the window frame's content area. */
+.window-body { --atlas-sticky-top: var(--app-sticky-top); position: relative; min-block-size: calc(100dvh - var(--topbar-height)); display: flex; flex-direction: column; }
+.window-page > .folder-error { margin-block-end: var(--space-4); }
+.window-page { flex: 1; min-inline-size: 0; padding: var(--space-6) var(--space-7) var(--space-9); }
+.window-page:is(:has(> .work-page), :has(> .plan-frame > .plan-frame-page > .work-page)) { padding-block-start: 0; }
 /* A diagram fills the content area below the title bar. */
-.workbench-body.is-filled { block-size: calc(100dvh - var(--topbar-height)); min-block-size: 0; overflow: hidden; }
-.workbench-body.is-filled .workbench-page { display: flex; flex-direction: column; min-block-size: 0; padding: 0; }
+.window-body.is-filled { block-size: calc(100dvh - var(--topbar-height)); min-block-size: 0; overflow: hidden; }
+.window-body.is-filled .window-page { display: flex; flex-direction: column; min-block-size: 0; padding: 0; }
 .search-button { min-inline-size: 13rem; justify-content: flex-start; }
 /* Open in: a split button of the row's height before the search, never part of the drag area. */
 .editor-button { flex: none; -webkit-app-region: no-drag; app-region: no-drag; }
@@ -305,34 +305,35 @@ body { margin: 0; }
 .work-layout { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: var(--space-7); align-items: start; inline-size: 100%; max-inline-size: 84rem; margin-inline: auto; padding-block-start: var(--space-6); }
 .work-main { min-inline-size: 0; }
 
-/* The side column stays where it starts, below the tabs, whatever the page does: it is held at the
-   offset it has at the top of the page, and scrolls on its own when taller than the room below the
-   tabs, with its scrollbar shown while the pointer is over it. It keeps its scrolling to itself only
-   when it has something to scroll, so a wheel over a short column still moves the page. */
-.about { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-6)); display: grid; align-content: start; gap: var(--space-6); max-block-size: calc(100dvh - var(--topbar-height) - var(--atlas-sticky-top) - var(--space-6)); overflow-y: auto; scrollbar-width: thin; scrollbar-gutter: stable; scrollbar-color: transparent transparent; padding-inline-end: var(--space-2); padding-block-end: var(--space-6); }
-.about:is(:hover, :focus-within) { scrollbar-color: var(--color-border-strong) transparent; }
-.about[data-scrolls] { overscroll-behavior: contain; }
-.about-section { display: grid; gap: var(--space-2); }
-.about-heading { display: block; }
-.about-note { color: var(--color-text-muted); font-weight: 400; }
-.about-path { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); overflow-wrap: anywhere; }
+/* The side column stays where it starts, below the title bar and the sections, whatever the page
+   does: it is held at the offset it has at the top of the page, and scrolls on its own when taller
+   than the room below them, with its scrollbar shown while the pointer is over it. It keeps its
+   scrolling to itself only when it has something to scroll, so a wheel over a short column still
+   moves the page. */
+.plan-aside { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-6)); display: grid; align-content: start; gap: var(--space-6); max-block-size: calc(100dvh - var(--topbar-height) - var(--atlas-sticky-top) - var(--space-6)); overflow-y: auto; scrollbar-width: thin; scrollbar-gutter: stable; scrollbar-color: transparent transparent; padding-inline-end: var(--space-2); padding-block-end: var(--space-6); }
+.plan-aside:is(:hover, :focus-within) { scrollbar-color: var(--color-border-strong) transparent; }
+.plan-aside[data-scrolls] { overscroll-behavior: contain; }
+.plan-aside-section { display: grid; gap: var(--space-2); }
+.plan-aside-heading { display: block; }
+.plan-aside-note { color: var(--color-text-muted); font-weight: 400; }
+.plan-aside-path { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); overflow-wrap: anywhere; }
 /* A plan's sessions, each by its title, then its harness, model and effort, state, when and agent time. */
-.about-sessions { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; font-size: var(--font-size-body-small); }
-.about-session { display: flex; align-items: flex-start; gap: var(--space-2); }
-.about-session > .status-icon { flex: none; margin-block-start: 0.125rem; }
-.about-session-title { overflow-wrap: anywhere; }
-.about-more { justify-self: start; }
-.about-statistics-link { justify-self: start; font-size: var(--font-size-body-small); }
+.plan-aside-sessions { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; font-size: var(--font-size-body-small); }
+.plan-aside-session { display: flex; align-items: flex-start; gap: var(--space-2); }
+.plan-aside-session > .status-icon { flex: none; margin-block-start: 0.125rem; }
+.plan-aside-session-title { overflow-wrap: anywhere; }
+.plan-aside-more { justify-self: start; }
+.plan-aside-statistics-link { justify-self: start; font-size: var(--font-size-body-small); }
 .facts { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-4); margin: 0; font-size: var(--font-size-body-small); }
 .facts > div { display: contents; }
 .facts dt { color: var(--color-text-muted); }
 .facts dd { margin: 0; overflow-wrap: anywhere; }
 @media (max-width: 62rem) {
   .work-layout { grid-template-columns: minmax(0, 1fr); }
-  .about { position: static; max-block-size: none; overflow: visible; }
+  .plan-aside { position: static; max-block-size: none; overflow: visible; }
 }
 /* The diagrams section takes the rest of the window. */
-.work-page.section-diagrams { flex: 1; display: flex; flex-direction: column; min-block-size: 0; }
+.work-page.is-diagrams { flex: 1; display: flex; flex-direction: column; min-block-size: 0; }
 
 /* Reader */
 .reader { min-inline-size: 0; }
@@ -357,7 +358,7 @@ body { margin: 0; }
 .element-chip:hover { text-decoration: underline; }
 .element-chip:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; border-radius: 0.25rem; }
 
-/* The diagrams tab: the canvas fills the panel. */
+/* A plan's diagrams: the canvas fills the panel. */
 .diagrams { position: relative; display: flex; flex: 1; flex-direction: column; min-block-size: 22rem; }
 /* Full view covers the window below its title bar, which keeps the window buttons and moves the window. */
 .diagrams.fullscreen { position: fixed; inset: var(--topbar-height) 0 0 0; z-index: 100; min-block-size: 0; border: 0; background: var(--color-canvas); }
@@ -439,9 +440,7 @@ body { margin: 0; }
 .plan-statistics-page { display: grid; gap: var(--space-6); }
 .plan-statistics-header { display: grid; gap: var(--space-1); }
 .plan-statistics-section { display: grid; gap: var(--space-3); }
-.plan-statistics-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: var(--space-4); align-items: start; }
 .plan-statistics-table { font-variant-numeric: tabular-nums; }
-.plan-statistics-subagent { padding-inline-start: var(--space-4); color: var(--color-text-muted); }
 /* The timeline: a lane per session and subagent on one scale of time, working stretches solid,
    waits for the person in amber behind them, now a line at the end. */
 .timeline { position: relative; display: grid; gap: var(--space-1); padding-block-start: 1.5rem; --timeline-names: 14rem; }
@@ -480,14 +479,11 @@ body { margin: 0; }
 .breakdown { display: grid; grid-template-columns: auto auto; row-gap: 0.125rem; margin: 0; font-variant-numeric: tabular-nums; }
 .breakdown > div { display: contents; }
 .breakdown dd { margin: 0; padding-inline-start: var(--space-4); text-align: end; white-space: nowrap; }
-.breakdown-total > * { padding-block-start: 0.25rem; border-block-start: 0.0625rem solid currentColor; font-weight: 500; }
-.breakdown-note { display: grid; gap: var(--space-2); }
-.breakdown-note p { margin: 0; }
 /* Agent time's report: the totals, then what the place knows of them, a section each. */
 .agent-time-report { display: grid; gap: var(--space-2); }
 .agent-time-report p { margin: 0; }
 .agent-time-report-heading { font-weight: 500; }
-/* A work item's statistics in its About sidebar, like a repository's: the model, then a fact a line. */
+/* A work item's statistics in the plan's side column: the model, then a fact a line. */
 .work-statistics { display: grid; gap: var(--space-3); font-size: var(--font-size-body-small); }
 .work-statistics-model { display: grid; justify-items: start; gap: 0.125rem; }
 .work-statistics-primary { font-size: var(--font-size-body); font-weight: 500; }

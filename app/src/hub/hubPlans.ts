@@ -3,22 +3,22 @@
 // agents work on, blocked and paused work, then drafts and ready plans; closed work only when asked
 // for. And what each row says of its plan.
 import type { Project, ProjectWork } from '../types';
-import { statuses, type ActivityState, type WorkStatus, type WorkStatusKey } from '../ui/status';
-import { liveActivity, type LiveActivity } from '../work/agentTime';
+import { statuses, type ActivityState, type StatusLook, type StatusKey } from '../plan/status';
+import { liveActivity, type LiveActivity } from '../plan/agentTime';
 import { aiModel, type Provider } from '../ui/aiModels';
 import { compactNumber, duration, plural } from '../ui/format';
 
 /** Which plans the hub lists: open ones (the default), closed ones, or all. */
 export type HubState = 'open' | 'closed' | 'all';
 /** A plan in the hub: the work item, its project, what agents do on it now, and its status. */
-export interface HubItem { project: Project; work: ProjectWork; activity: LiveActivity | null; status: WorkStatus }
+export interface HubItem { project: Project; work: ProjectWork; activity: LiveActivity | null; status: StatusLook }
 type HubGroupId = 'waiting' | 'working' | 'blocked' | 'paused' | 'draft' | 'ready' | 'closed';
 export interface HubGroup { id: HubGroupId; label: string; items: HubItem[] }
 
 const groupOrder: HubGroupId[] = ['waiting', 'working', 'blocked', 'paused', 'draft', 'ready', 'closed'];
 const groupLabels: Record<HubGroupId, string> = { waiting: 'Needs you', working: 'Working', blocked: 'Blocked', paused: 'Paused', draft: 'Drafts', ready: 'Ready', closed: 'Closed' };
 /** The group of a status as the hub gives it: its own while open, closed work together. */
-const groupOf = (key: WorkStatusKey): HubGroupId => (groupOrder as string[]).includes(key) ? key as HubGroupId : 'closed';
+const groupOf = (key: StatusKey): HubGroupId => (groupOrder as string[]).includes(key) ? key as HubGroupId : 'closed';
 
 /**
  * A plan's status as the hub shows it, in the app's status vocabulary: how closed work ended (closed
@@ -26,7 +26,7 @@ const groupOf = (key: WorkStatusKey): HubGroupId => (groupOrder as string[]).inc
  * where it stands. Other open work (not a draft, not started or partly done) shows as ready: the
  * project list does not tell them apart.
  */
-export function hubStatus(work: ProjectWork, activity: ActivityState = null): WorkStatus {
+export function hubStatus(work: ProjectWork, activity: ActivityState = null): StatusLook {
   if (work.state === 'closed') return work.outcome ? statuses[work.outcome] : statuses.partial;
   if (activity) return statuses[activity];
   return work.state === 'blocked' ? statuses.blocked : work.state === 'implementing' ? statuses.paused : work.state === 'draft' ? statuses.draft : statuses.ready;
@@ -89,7 +89,7 @@ export interface HubRowFacts {
 }
 
 /** The size of a plan's row: by its status. */
-const rowSize = (status: WorkStatus): HubRowSize => groupOf(status.key) === 'closed' ? 'closed' : ['working', 'waiting', 'blocked', 'paused'].includes(status.key) ? 'large' : 'standard';
+const rowSize = (status: StatusLook): HubRowSize => groupOf(status.key) === 'closed' ? 'closed' : ['working', 'waiting', 'blocked', 'paused'].includes(status.key) ? 'large' : 'standard';
 
 /** When a plan last changed: an agent report the day of its plan's date or later says it more precisely. */
 export function lastChange(work: ProjectWork): string | null {

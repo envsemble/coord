@@ -2,7 +2,7 @@
 // projects, the application menu, and the typed message channel the windows use. Projects are read
 // by the Atlas host of the computer they are on: this computer's, which this process starts in a
 // utility process (main/host/localHost.ts), or a paired computer's. The app keeps its own state in the
-// home database (main/state.ts).
+// home database (main/appState.ts).
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { app, dialog, Menu, nativeTheme, powerMonitor, protocol, shell } from 'electron';
@@ -13,10 +13,10 @@ import { dropImports, registerIpc } from './windows/ipc.ts';
 import { LocalHost } from './host/localHost.ts';
 import { RotatingLog } from './log.ts';
 import { buildMenu } from './windows/menu.ts';
-import { refusalMessage, startupRefusal, type Refusal } from './refusal.ts';
+import { refusalMessage, startupRefusal, type Refusal } from './startupRefusal.ts';
 import { scheme } from './windows/protocol.ts';
-import { DesktopState } from './state.ts';
-import { WindowManager } from './windows/windows.ts';
+import { AppState } from './appState.ts';
+import { WindowManager } from './windows/windowManager.ts';
 import type { AboutInfo } from '../shared/contract.ts';
 import { isProjectListing } from '../shared/validate.ts';
 
@@ -90,7 +90,7 @@ function refuse(found: Refusal) {
 
 function start(database: HomeDatabase) {
   const devUrl = !app.isPackaged && process.env.ELECTRON_RENDERER_URL ? process.env.ELECTRON_RENDERER_URL : null;
-  const state = new DesktopState(database);
+  const state = new AppState(database);
   // The chosen theme reaches every window as prefers-color-scheme, and themes Atlas's own menus and dialogs.
   nativeTheme.themeSource = state.theme;
   const devTools = !app.isPackaged;

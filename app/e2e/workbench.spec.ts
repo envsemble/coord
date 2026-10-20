@@ -165,25 +165,25 @@ test("a plan opens from the hub with its summary and its side column, and with i
   await expect(window.locator('.work-header .work-summary')).toHaveText(summary);
   await expect(window.locator('.reader .prose')).toContainText('Current checkout');
   // One list of steps: the planning steps in a colour of their own, and named so.
-  const steps = window.locator('.about .ledger-step');
+  const steps = window.locator('.plan-aside .ledger-step');
   await expect(steps.nth(0).locator('.step-icon')).toHaveAttribute('aria-label', 'Planning step, done');
   await expect(steps.nth(0)).toHaveAttribute('title', /^Planning step: .+, done$/);
   await expect(steps.nth(2).locator('.step-icon')).toHaveAttribute('aria-label', 'In progress');
   const colour = (index: number) => steps.nth(index).locator('.step-icon').evaluate(element => getComputedStyle(element).color);
   expect(await colour(0)).not.toBe(await colour(2));
-  await expect(window.locator('.about .step-bar-planning-done')).toHaveCount(1);
+  await expect(window.locator('.plan-aside .step-bar-planning-done')).toHaveCount(1);
   // The side column keeps progress, dates and statistics.
-  await expect(window.locator('.about .ledger-progress-summary')).toHaveText('2 of 7 steps done · 5 left');
-  await expect(window.locator('.about .ledger-step')).toHaveCount(7);
+  await expect(window.locator('.plan-aside .ledger-progress-summary')).toHaveText('2 of 7 steps done · 5 left');
+  await expect(window.locator('.plan-aside .ledger-step')).toHaveCount(7);
   await expect(trailEnd(window)).toHaveText('#0001');
   // The work it continues opens its ledger, not as a step, and leads to that plan, whose status line and hub row say where it continues.
-  const handoff = window.locator('.about .ledger-steps > .ledger-handoff');
+  const handoff = window.locator('.plan-aside .ledger-steps > .ledger-handoff');
   await expect(handoff).toHaveText('Continues #0004 · Inventory reservations at checkout');
-  await expect(window.locator('.about .ledger-steps > li').first()).toHaveClass(/ledger-handoff/);
+  await expect(window.locator('.plan-aside .ledger-steps > li').first()).toHaveClass(/ledger-handoff/);
   await handoff.getByRole('link').click();
   await expect(window.locator('.work-header h1')).toHaveText('Inventory reservations at checkout');
   await expect(window.locator('.work-status')).toContainText('continued in #0001');
-  await expect(window.locator('.about .ledger-handoff')).toHaveText('Continued in #0001 · Saved payment methods');
+  await expect(window.locator('.plan-aside .ledger-handoff')).toHaveText('Continued in #0001 · Saved payment methods');
   await window.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
   // A diagram opens from its card in the plan; Back returns to the plan.
@@ -275,7 +275,7 @@ test("the Files card is always beside a plan's pages with the plan's own folder,
   await expect(window.locator('.file-surface, .reader-toolbar')).toHaveCount(0);
   // The plan's statistics page has it too; the hub has none.
   await window.getByRole('button', { name: '#0001' }).click();
-  await window.locator('.about').getByRole('link', { name: 'All statistics and the timeline' }).click();
+  await window.locator('.plan-aside').getByRole('link', { name: 'All statistics and the timeline' }).click();
   await expect(card).toBeVisible();
   await goHome(window);
   await expect(card).toHaveCount(0);
@@ -412,20 +412,20 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   await expect(bar.getByRole('button', { name: /^Computer:/ })).toBeVisible();
   const regions = await window.evaluate(() => {
     const region = (element: Element | null) => element ? getComputedStyle(element).getPropertyValue('-webkit-app-region') : null;
-    return { bar: region(document.querySelector('.env-title-bar')), search: region(document.querySelector('.search-button')), sections: region(document.querySelector('.section-bar')), tab: region(document.querySelector('.section-tab')) };
+    return { bar: region(document.querySelector('.env-title-bar')), search: region(document.querySelector('.search-button')), sections: region(document.querySelector('.section-bar')), tab: region(document.querySelector('.section-item')) };
   });
   expect(regions).toEqual({ bar: 'drag', search: 'no-drag', sections: 'drag', tab: 'no-drag' });
   // The plan's Files card is below both rows, never over a part of the window that drags it, at any width.
   for (const width of [1440, 900]) {
     await app.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0].setContentSize(size, 800), width);
-    await window.locator('.workbench-page').evaluate(element => { element.closest('.env-window-frame-content, .workbench-body')?.parentElement?.scrollTo?.(0, 0); });
+    await window.locator('.window-page').evaluate(element => { element.closest('.env-window-frame-content, .window-body')?.parentElement?.scrollTo?.(0, 0); });
     const card = (await filesCard(window).boundingBox())!, sections = (await window.locator('.section-bar').boundingBox())!;
     expect(card.y, String(width)).toBeGreaterThanOrEqual(sections.y + sections.height);
   }
 
   // The second row: Plans with the open plans, Projects with the projects.
   const sections = window.getByRole('navigation', { name: 'Sections' });
-  await expect(sections.locator('.section-tab')).toHaveText([/^Plans\s*6/, /^Projects\s*2/]);
+  await expect(sections.locator('.section-item')).toHaveText([/^Plans\s*6/, /^Projects\s*2/]);
   await expect(sections.getByRole('button', { name: 'Plans 6 open', exact: true })).toBeVisible();
   await expect(sections.getByRole('button', { name: 'Projects 2 active', exact: true })).toBeVisible();
   // A plan belongs to Plans; each section shows its page and is marked.
@@ -444,10 +444,10 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   // The counts follow the projects: an archived project and its plans are not counted.
   await openProjects(window);
   await projectAction(window, 'Coord', 'Archive');
-  await expect(sections.locator('.section-tab')).toHaveText([/^Plans\s*3/, /^Projects\s*1/]);
+  await expect(sections.locator('.section-item')).toHaveText([/^Plans\s*3/, /^Projects\s*1/]);
   await showArchived(window);
   await projectAction(window, 'Coord', 'Restore');
-  await expect(sections.locator('.section-tab').first()).toHaveText(/^Plans\s*6/);
+  await expect(sections.locator('.section-item').first()).toHaveText(/^Plans\s*6/);
 
   // File holds the window's and the plans' commands; other computers are in the computer menu.
   await fileMenu(window).click();
@@ -566,7 +566,7 @@ test("the search shows the host's results grouped by kind with their project, wo
   await expect(window.locator('.inspector.open').getByRole('heading', { level: 1 })).toHaveText('Shipment');
   await choose('Wire placeOrderWithSavedMethod into checkout');
   await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
-  const step = window.locator('.about .ledger-step[data-found]');
+  const step = window.locator('.plan-aside .ledger-step[data-found]');
   await expect(step).toHaveText('Wire placeOrderWithSavedMethod into checkout');
   await expect(step).toBeInViewport();
   await expect(step).toHaveCount(0, { timeout: 5000 });
@@ -603,28 +603,28 @@ test('the side column of a plan stays still while the page scrolls, and scrolls 
   const { window, app } = launched;
   await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setContentSize(1400, 460); });
   await openPlan(window, 'Saved payment methods');
-  const about = window.locator('.about');
-  await expect.poll(() => about.evaluate(element => element.scrollHeight > element.clientHeight + 50)).toBe(true);
-  const top = async () => (await about.boundingBox())!.y;
+  const aside = window.locator('.plan-aside');
+  await expect.poll(() => aside.evaluate(element => element.scrollHeight > element.clientHeight + 50)).toBe(true);
+  const top = async () => (await aside.boundingBox())!.y;
   await window.mouse.move(5, 300);
   const resting = await top();
   // Its scrollbar shows only while the pointer is over it.
-  expect(await about.evaluate(element => getComputedStyle(element).scrollbarColor)).toMatch(/^(transparent|rgba\(0, 0, 0, 0\)) (transparent|rgba\(0, 0, 0, 0\))$/);
-  await about.hover();
-  await expect.poll(() => about.evaluate(element => getComputedStyle(element).scrollbarColor)).not.toMatch(/^(transparent|rgba\(0, 0, 0, 0\)) /);
+  expect(await aside.evaluate(element => getComputedStyle(element).scrollbarColor)).toMatch(/^(transparent|rgba\(0, 0, 0, 0\)) (transparent|rgba\(0, 0, 0, 0\))$/);
+  await aside.hover();
+  await expect.poll(() => aside.evaluate(element => getComputedStyle(element).scrollbarColor)).not.toMatch(/^(transparent|rgba\(0, 0, 0, 0\)) /);
   // A wheel over the plan scrolls the page; the column does not move.
   await window.locator('.work-main').hover();
   await window.mouse.wheel(0, 600);
   await expect.poll(() => pageScroll(window)).toBeGreaterThan(300);
   expect(Math.abs(await top() - resting)).toBeLessThan(1);
-  await expect(about).toBeInViewport();
+  await expect(aside).toBeInViewport();
   const page = await pageScroll(window);
   // A wheel over the column scrolls only the column, and past its end the page stays where it is.
-  await about.hover();
+  await aside.hover();
   await window.mouse.wheel(0, 200);
-  await expect.poll(() => about.evaluate(element => element.scrollTop)).toBeGreaterThan(100);
+  await expect.poll(() => aside.evaluate(element => element.scrollTop)).toBeGreaterThan(100);
   for (let index = 0; index < 8; index++) await window.mouse.wheel(0, 600);
-  await expect.poll(() => about.evaluate(element => Math.abs(element.scrollTop + element.clientHeight - element.scrollHeight) < 2)).toBe(true);
+  await expect.poll(() => aside.evaluate(element => Math.abs(element.scrollTop + element.clientHeight - element.scrollHeight) < 2)).toBe(true);
   await window.waitForTimeout(400);
   expect(await pageScroll(window)).toBe(page);
   expect(Math.abs(await top() - resting)).toBeLessThan(1);

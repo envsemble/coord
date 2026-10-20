@@ -14,15 +14,15 @@ import type { Project } from '../types';
 import { hubGroups, hubItems, hubRowFacts, inState, type HubItem, type HubRowFacts, type HubState } from './hubPlans';
 import { absoluteDate, plural, relativeDate, workNumber } from '../ui/format';
 import { hubPlace, projectsPlace, statisticsPlace, workTarget, type Place } from '../navigation/targets';
-import { StatusIcon } from '../ui/ui';
-import { StepBar } from '../ui/LedgerProgress';
-import { ModelName } from '../ui/AiModel';
-import { continuation } from '../work/handoffs';
-import { ContinuedIn } from '../work/HandoffLinks';
-import { Page } from '../ui/Pages';
-import { modifierKey } from '../menu/AppMenu';
-import { AgentTime, Waited } from '../work/LiveAgentTime';
-import { unreported, type LiveActivity } from '../work/agentTime';
+import { StatusIcon } from '../ui/badges';
+import { StepBar } from '../plan/LedgerProgress';
+import { ModelName } from '../ui/ModelName';
+import { continuation } from '../plan/handoffs';
+import { ContinuedIn } from '../plan/HandoffLinks';
+import { Page } from '../ui/Page';
+import { modifierKey } from '../titleBar/TitleBar';
+import { AgentTime, Waited } from '../plan/LiveAgentTime';
+import { unreported, type LiveActivity } from '../plan/agentTime';
 
 /** The hub's state filter, kept while the window is open. */
 export interface HubFilters { state: HubState }
@@ -92,7 +92,7 @@ const HubRow = memo(function HubRow({ item, go }: { item: HubItem; go(place: Pla
     </TableCell>
     <TableCell><span className="hub-row-project" title={project.name}>{project.name}</span></TableCell>
     <TableCell>{facts.ended ? <span className="hub-row-ended">{facts.ended.label}{facts.ended.date && <span className="muted" title={absoluteDate(facts.ended.date)}> {relativeDate(facts.ended.date)}</span>}
-      {continued.length > 0 && <small className="cell-note"><ContinuedIn items={continued} open={to => go({ projectId: to.project, target: workTarget(to.work) })} /></small>}</span>
+      {continued.length > 0 && <small className="cell-note"><ContinuedIn items={continued} open={to => go({ projectId: to.projectId, target: workTarget(to.work) })} /></small>}</span>
       : facts.progress ? <Progress progress={facts.progress} wide={large} activity={activity} /> : <span className="muted">—</span>}</TableCell>
     <TableCell><Spent item={item} facts={facts} /></TableCell>
     <TableCell numeric nowrap>{facts.changed ? <Changed value={facts.changed} /> : <span className="muted">—</span>}</TableCell>

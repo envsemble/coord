@@ -1,4 +1,5 @@
-// Small presentational pieces matching the app's (app/src/ui: ui.tsx, status.ts, format.ts, LedgerProgress.tsx), on envUI.
+// Small presentational pieces matching the app's (app/src: ui/badges.tsx, ui/format.ts,
+// plan/status.ts, plan/LedgerProgress.tsx), on envUI.
 import type { ReactNode } from 'react';
 import { Badge } from '@envsemble/envui';
 import { ArrowBack } from '@envsemble/envui/icons/ArrowBack';
@@ -53,7 +54,7 @@ export function bytes(value: number) { return value < 1024 ? value + ' B' : valu
 export function workNumber(id: string) { return id.replace('work-', '#'); }
 
 /**
- * The plan's handoffs as the app's ledger shows them (app/src/work/HandoffLinks.tsx): "Continues #0023 ·
+ * The plan's handoffs as the app's ledger shows them (app/src/plan/HandoffLinks.tsx): "Continues #0023 ·
  * Plans hub" before the steps, "Continued in #0026 · Handoffs" after them, with the project's name
  * when it is another project's (`own` is the plan's planning folder's name). Text only: an export
  * opens no other plan; a reference that named no work item at export time is its number alone.
@@ -70,7 +71,7 @@ export function HandoffEntries({ items = [], kind, own }: { items?: HandoffLink[
 }
 
 /**
- * The ledger's agreed steps, as the app shows them (app/src/ui/LedgerProgress.tsx): planning steps
+ * The ledger's agreed steps, as the app shows them (app/src/plan/LedgerProgress.tsx): planning steps
  * (`phase: planning`) and implementation steps in one list, the planning ones in their own colour.
  */
 const stepLabels: Record<LedgerStepStatus, string> = { done: 'Done', doing: 'In progress', todo: 'To do' };

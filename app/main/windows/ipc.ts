@@ -16,8 +16,9 @@ import { argumentsOf, array, boolean, command, diagramPath, editor, folderPath, 
 import { AtlasError, toErrorValue } from '../errors.ts';
 import type { ProjectView } from '../computers/projectView.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
-import { placeRow, savedPlace } from '../state.ts';
-import { externalUrl, type AtlasWindow, type WindowManager } from './windows.ts';
+import { placeRow, savedPlace } from '../appState.ts';
+import { externalUrl, type AtlasWindow } from './window.ts';
+import type { WindowManager } from './windowManager.ts';
 import { appLink, editorLink } from './launch.ts';
 
 type Handler = (window: AtlasWindow, ...args: never[]) => unknown;
@@ -201,7 +202,7 @@ async function saveUi(manager: WindowManager, window: AtlasWindow, ui: UiState) 
   if (window.computer === computer) state.savePlaces(window.rowId, computer === null ? null : computers.idOf(computer), rows, [...window.placesLoaded]);
 }
 
-export function channels(manager: WindowManager, actions: { openLogs(): void; about(): AboutInfo }): Record<InvokeChannel, Channel> {
+function channels(manager: WindowManager, actions: { openLogs(): void; about(): AboutInfo }): Record<InvokeChannel, Channel> {
   const { computers } = manager.context;
   const owner = (): HostClient => computers.local;
   return {

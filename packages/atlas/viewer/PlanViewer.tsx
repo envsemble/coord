@@ -134,13 +134,13 @@ function Reader({ file, data, anchor, toolbar, hideTitle, navigate }: { file: Ex
   </article>;
 }
 
-function AboutSection({ title, note, children }: { title: ReactNode; note?: ReactNode; children: ReactNode }) {
-  return <section className="about-section">
-    <Text as="h2" variant="section-heading" className="about-heading">{title}{note && <span className="about-note"> · {note}</span>}</Text>
+function AsideSection({ title, note, children }: { title: ReactNode; note?: ReactNode; children: ReactNode }) {
+  return <section className="plan-aside-section">
+    <Text as="h2" variant="section-heading" className="plan-aside-heading">{title}{note && <span className="plan-aside-note"> · {note}</span>}</Text>
     {children}
   </section>;
 }
-function About({ data }: { data: PlanData }) {
+function PlanAside({ data }: { data: PlanData }) {
   const { work } = data.view;
   const progress = work.progress;
   const own = data.payload.source.planningFolder;
@@ -148,23 +148,23 @@ function About({ data }: { data: PlanData }) {
   const before = handoffs ? <HandoffEntries items={work.continues} kind="continues" own={own} /> : null;
   const after = handoffs ? <HandoffEntries items={work.continuedIn} kind="continuedIn" own={own} /> : null;
   const dates = ([['Created', work.created], ['Accepted', work.accepted], ['Completed', work.completed], ['Updated', work.updated]] as const).filter(([, value]) => value);
-  return <aside className="about" aria-label="About this work">
-    {progress && <AboutSection title="Progress" note={progress.updated && absoluteDate(progress.updated)}>
-      {progress.blocked && <Notice tone="error" className="about-blocked" title="Blocked">{progress.blocked}</Notice>}
+  return <aside className="plan-aside" aria-label="About this work">
+    {progress && <AsideSection title="Progress" note={progress.updated && absoluteDate(progress.updated)}>
+      {progress.blocked && <Notice tone="error" className="plan-aside-blocked" title="Blocked">{progress.blocked}</Notice>}
       <LedgerSteps steps={progress.steps} before={before} after={after} />
-    </AboutSection>}
-    {handoffs && !progress && <AboutSection title="Handoffs"><ol className="ledger-steps ledger-handoffs">{before}{after}</ol></AboutSection>}
-    <AboutSection title="About">
+    </AsideSection>}
+    {handoffs && !progress && <AsideSection title="Handoffs"><ol className="ledger-steps ledger-handoffs">{before}{after}</ol></AsideSection>}
+    <AsideSection title="About">
       {dates.length > 0 && <dl className="facts">{dates.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{absoluteDate(value)}</dd></div>)}</dl>}
-      <p className="about-path" title={work.path}><bdi>{data.payload.source.planningFolder}/{work.path}</bdi></p>
-    </AboutSection>
-    <AboutSection title="This export">
+      <p className="plan-aside-path" title={work.path}><bdi>{data.payload.source.planningFolder}/{work.path}</bdi></p>
+    </AsideSection>
+    <AsideSection title="This export">
       <dl className="facts">
         <div><dt>Exported</dt><dd>{absoluteDate(data.payload.exportedAt)}</dd></div>
         <div><dt>Files</dt><dd>{data.payload.files.length} · {bytes(data.payload.files.reduce((sum, file) => sum + file.size, 0))}</dd></div>
         <div><dt>Atlas</dt><dd>{data.payload.atlasVersion}</dd></div>
       </dl>
-    </AboutSection>
+    </AsideSection>
   </aside>;
 }
 
@@ -323,7 +323,7 @@ export function PlanViewer({ data }: { data: PlanData }) {
         </div>
         : reading ? <Reader key={reading.path} file={reading} data={data} anchor={route.anchor} hideTitle={view.work.title} navigate={navigate} /> : null}
       </div>
-      <About data={data} />
+      <PlanAside data={data} />
     </div>
     </>;
   // The app's work page without its window: the export's notice, then the same switcher with the work
@@ -332,7 +332,7 @@ export function PlanViewer({ data }: { data: PlanData }) {
     <Notice tone="info" className="export-banner" icon={<AtlasMark size={20} label="Atlas" />} role="note" title="Read-only plan export">
       {payload.source.workId} from <Code>{payload.source.planningFolder}</Code>, exported {absoluteDate(payload.exportedAt)} with Atlas {payload.atlasVersion}. To continue this work, import the file into a planning folder: <Code>atlas plan import &lt;file&gt;</Code>
     </Notice>
-    <div className={'work-page section-' + section}>{body}</div>
+    <div className={'work-page' + (section === 'diagrams' ? ' is-diagrams' : '')}>{body}</div>
   </main>;
 }
 

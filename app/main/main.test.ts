@@ -7,7 +7,7 @@ import path from 'node:path';
 import { RotatingLog } from './log.ts';
 import { containedFile, contentSecurityPolicy, isEntry, originOf } from './windows/protocol.ts';
 import { HomeDatabase } from '@envsemble/atlas/planning';
-import { DesktopState, placeRow, savedPlace } from './state.ts';
+import { AppState, placeRow, savedPlace } from './appState.ts';
 import { appLink, editorLink } from './windows/launch.ts';
 import { target as tabTarget } from '../shared/validate.ts';
 import type { Target } from '../shared/contract.ts';
@@ -25,7 +25,7 @@ test('the renderer and planning protocol never resolve outside their folder', ()
   // A window navigates on its own origin only to its own page.
   assert.equal(isEntry('atlas://app/index.html#top', 'atlas://app/index.html'), true);
   assert.equal(isEntry('http://localhost:5173/', 'http://localhost:5173/'), true);
-  for (const away of ['atlas://app/app/src/work/sessions.ts:12', 'atlas://planning/f-0/README.md', 'https://app/index.html']) assert.equal(isEntry(away, 'atlas://app/index.html'), false, away);
+  for (const away of ['atlas://app/app/src/plan/sessions.ts:12', 'atlas://planning/f-0/README.md', 'https://app/index.html']) assert.equal(isEntry(away, 'atlas://app/index.html'), false, away);
   assert.match(contentSecurityPolicy, /default-src 'none'/);
   assert.doesNotMatch(contentSecurityPolicy, /unsafe-eval|script-src[^;]*unsafe-inline/);
 });
@@ -45,11 +45,11 @@ test('windows, their places per computer and the shared settings are kept in the
   const directory = temporary();
   const database = HomeDatabase.open(directory);
   try {
-    const state = new DesktopState(database);
+    const state = new AppState(database);
     // The theme preference is kept for every window; the system's is the default and is not stored.
     assert.equal(state.theme, 'system');
     state.setTheme('dark');
-    assert.equal(new DesktopState(database).theme, 'dark');
+    assert.equal(new AppState(database).theme, 'dark');
     state.setTheme('system');
     assert.equal(database.setting('theme'), null);
     assert.equal(state.inspectorWidth, null);
@@ -103,7 +103,7 @@ async function waitFor(condition: () => boolean, timeout = 5000) {
 }
 
 test('Atlas refuses to start without its sandbox, and a released build refuses debuggers', async () => {
-  const { startupRefusal } = await import('./refusal.ts');
+  const { startupRefusal } = await import('./startupRefusal.ts');
   const check = (switches: string[], options: { packaged?: boolean; endToEndBuild?: boolean; environment?: NodeJS.ProcessEnv } = {}) =>
     startupRefusal({ hasSwitch: name => switches.includes(name), environment: options.environment ?? {}, packaged: options.packaged ?? true, endToEndBuild: options.endToEndBuild ?? false });
   assert.equal(check([]), null);

@@ -45,7 +45,7 @@ test('an open plan follows its folder: a ledger change appears without a refresh
   await openPlan(window, 'Customer order notifications');
   const ledger = path.join(home.folder, 'active/0003-customer-notifications/ledger.md');
   writeFileSync(ledger, readFileSync(ledger, 'utf8').replace('title: "Bounce and complaint webhook handling"', 'title: "Waiting for the provider review"'));
-  await expect(window.locator('.about')).toContainText('Waiting for the provider review');
+  await expect(window.locator('.plan-aside')).toContainText('Waiting for the provider review');
   // A broken planning.json.
   const registry = path.join(home.folder, 'planning.json');
   const good = readFileSync(registry, 'utf8');

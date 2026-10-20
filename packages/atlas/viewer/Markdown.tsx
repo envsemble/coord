@@ -10,7 +10,7 @@ import { headingAnchors, sectionAnchors } from '../src/planning/reading/headings
 import { blobURL, imageType, type ExportFile, type ViewDiagram } from './data.ts';
 import { ProvenanceBadge } from './ui.tsx';
 
-// Heading identities mirror the app (app/src/workbench/headings.ts), so anchors match between them; ids the
+// Heading identities mirror the app (app/src/reader/headings.ts), so anchors match between them; ids the
 // document already has (footnotes) stay.
 export const headingPrefix = 'planning-heading-';
 interface HastNode { type: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: HastNode[] }

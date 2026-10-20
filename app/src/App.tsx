@@ -5,19 +5,19 @@ import { api } from './api';
 import { EmptyState, Spinner, TitleBar, useToast, WindowFrame } from '@envsemble/envui';
 import { AtlasMark } from '@envsemble/atlas-diagrams/mark';
 import { ErrorIcon } from './ui/icons';
-import { Workbench } from './workbench/Workbench';
-import { ConnectDialog } from './remote/ConnectDialog';
-import { RemoteAccessDialog } from './remote/RemoteAccessDialog';
-import { ComputersDialog } from './remote/Computers';
-import { AppActionsContext, type AppActions } from './remote/appActions';
-import { AboutDialog } from './menu/AboutDialog';
+import { AtlasWindow } from './window/Window';
+import { ConnectDialog } from './computers/ConnectDialog';
+import { RemoteAccessDialog } from './computers/RemoteAccessDialog';
+import { ComputersDialog } from './computers/ComputerMenu';
+import { AppActionsContext, type AppActions } from './appActions';
+import { AboutDialog } from './titleBar/AboutDialog';
 
 type OpenDialog = { kind: 'connect' } | { kind: 'access' } | { kind: 'computers' } | { kind: 'about' } | null;
 
 /**
  * One window shows the projects of one computer, this one or another one. Main reads them; this
- * component waits for the window's facts and its saved layout, then shows the workbench, and draws
- * the dialogs every window has: pairing, remote access, the computers and About.
+ * component waits for the window's facts and its saved layout, then shows the window (AtlasWindow),
+ * and draws the dialogs every window has: pairing, remote access, the computers and About.
  */
 export default function App() {
   const [info, setInfo] = useState<WindowInfo | null>(null);
@@ -50,7 +50,7 @@ export default function App() {
     {dialog?.kind === 'computers' && computer && <ComputersDialog current={computer} onClose={close} />}
     {dialog?.kind === 'about' && <AboutDialog onClose={close} onError={warn} />}
   </>;
-  const content = info && ui ? <Workbench info={info} initialUi={ui} />
+  const content = info && ui ? <AtlasWindow info={info} initialUi={ui} />
     : <WindowFrame titleBar={<TitleBar className="window-title-bar" start={<span className="title-bar-brand"><AtlasMark size={20} label="" /></span>} />}>
       {failure ? <main className="page-state"><EmptyState icon={<ErrorIcon />} headingLevel={1} title="Atlas could not start this window" description={failure} /></main>
         : <main className="page-state"><Spinner size="large" label="Starting Atlas" /></main>}

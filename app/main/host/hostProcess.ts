@@ -4,7 +4,7 @@
 // host through the app's main process, over the same authenticated connection a paired device uses.
 import path from 'node:path';
 import { Host } from '@envsemble/atlas/host';
-import createPlanWorker from './planWorker.ts?nodeWorker';
+import createPlanWorker from './planWorkerEntry.ts?nodeWorker';
 import { RotatingLog } from '../log.ts';
 // The planning templates new projects are made from, as the atlas skill bundles them.
 import agents from '../../../packages/atlas/templates/planning/AGENTS.md?raw';
