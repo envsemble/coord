@@ -97,7 +97,6 @@ body { margin: 0; }
 /* With no plans to list, the state sits in the middle of the page. */
 .hub-empty { min-block-size: 50vh; }
 .hub-note { margin: 0; }
-.hub-archived { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .hub-group { display: grid; gap: var(--space-2); }
 .hub-group-heading { margin: 0; }
 /* A table per group with the same columns. Plans under way get a second line with where they stand,
@@ -123,30 +122,38 @@ body { margin: 0; }
 .search-where, .search-snippet { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .search-snippet { font-style: italic; }
 
-/* The Projects page: a table of the active projects like the hub's, the archived in their own table
-   below, folded away and dimmed. Every row has the same height: the avatar (its initials on a quiet
-   square), its name over one muted line, what agents do, its folder, its actions. */
-.projects-intro { margin: 0; }
-.project-row > td { block-size: 3.75rem; }
+/* The Projects page: one table under one header, like the hub's, with no column left mostly empty:
+   what agents do on a project is on its muted line. Every row has the same height: the avatar (its
+   initials on a quiet square), its name over that line, its folder, then its actions, quiet and at the
+   end. The archived projects follow under a fold of their own in the same table, dimmed. */
+.project-row > td { block-size: 3.5rem; }
 .project-cell { display: flex; align-items: center; gap: var(--space-3); min-inline-size: 0; }
-.project-avatar { flex: none; display: grid; place-content: center; inline-size: 2.25rem; block-size: 2.25rem; border: 0.0625rem solid var(--color-border-strong); border-radius: var(--radius-standard); background: var(--color-surface-muted); color: var(--color-text-primary); font-size: var(--font-size-body-small); font-weight: 600; letter-spacing: 0.02em; }
-.project-name { display: grid; min-inline-size: 0; }
-.project-name .row-title { flex-wrap: nowrap; min-inline-size: 0; }
-.project-name .row-link { min-inline-size: 0; }
-.project-name .row-link-title, .project-name .cell-note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.project-status { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-3); color: var(--color-text-muted); }
-.project-fact { display: inline-flex; align-items: center; gap: 0.25rem; white-space: nowrap; }
+.project-avatar { flex: none; display: grid; place-content: center; inline-size: 2rem; block-size: 2rem; border-radius: var(--radius-standard); background: var(--color-surface-muted); color: var(--color-text-muted); font-size: var(--font-size-body-small); font-weight: 500; letter-spacing: 0.02em; }
+.project-name { display: grid; justify-items: start; gap: 0.125rem; min-inline-size: 0; }
+.project-name .row-link { max-inline-size: 100%; min-inline-size: 0; }
+.project-name .row-link-title, .project-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-meta { display: flex; align-items: center; max-inline-size: 100%; }
+.project-fact { display: inline-flex; align-items: center; gap: 0.25rem; min-inline-size: 0; white-space: nowrap; }
+.project-fact:last-child { overflow: hidden; text-overflow: ellipsis; }
+.project-fact + .project-fact::before { content: '·'; margin-inline: var(--space-2); }
 .project-fact .status-icon { inline-size: 1rem; block-size: 1rem; }
-.project-folder-summary { display: inline-flex; align-items: center; gap: var(--space-1); max-inline-size: 100%; color: var(--color-text-muted); }
-.project-folder-summary > svg { flex: none; inline-size: 0.875rem; block-size: 0.875rem; color: var(--color-icon); }
+.project-fact[data-live='waiting'] { color: var(--color-tone-warning); }
+.project-folder-summary { display: inline-flex; align-items: center; gap: var(--space-2); max-inline-size: 100%; color: var(--color-text-muted); }
+.project-folder-summary > svg { flex: none; inline-size: 1rem; block-size: 1rem; color: var(--color-icon); }
 .project-folder-summary > bdi { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.project-actions { display: inline-flex; align-items: center; gap: var(--space-1); }
-.projects-aside { display: grid; gap: var(--space-2); margin-block-start: var(--space-4); }
-.projects-aside-toggle { display: inline-flex; align-items: center; gap: var(--space-2); justify-self: start; padding: var(--space-1) 0; border: 0; background: none; color: var(--color-text-muted); font: inherit; cursor: pointer; }
+.project-folder-more { flex: none; color: var(--color-text-quiet, var(--color-text-muted)); font-variant-numeric: tabular-nums; }
+.project-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--space-1); --control-height: var(--control-height-compact); --icon-button-size: var(--control-height-compact); }
+/* The fold: a quiet line across the table, its count after it. */
+.projects-aside-row > td { padding-block: var(--space-2); }
+/* After the active projects, the fold takes the line between rows too. */
+.project-list tbody + .projects-aside > .projects-aside-row > td { border-block-start: 0.0625rem solid var(--color-border-strong); }
+.projects-aside-toggle { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) 0; border: 0; background: none; color: var(--color-text-muted); font: inherit; font-weight: 500; cursor: pointer; }
+.projects-aside-toggle:hover { color: var(--color-text-primary); }
 .projects-aside-toggle:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; border-radius: 0.25rem; }
+.projects-aside-count { color: var(--color-text-muted); font-weight: 400; font-variant-numeric: tabular-nums; }
 .projects-aside-icon { inline-size: 1rem; block-size: 1rem; transition: transform var(--motion-duration-fast) var(--motion-ease); }
 .projects-aside-toggle[aria-expanded='true'] .projects-aside-icon { transform: rotate(90deg); }
-.projects-aside .project-list { opacity: 0.7; }
+.project-row[data-group='archived'] > td:not(:last-child) { opacity: 0.6; }
 /* A project's folders, in its dialog. */
 .project-details section { display: grid; gap: var(--space-1); }
 .project-details-heading { margin: 0; color: var(--color-text-muted); }
@@ -159,8 +166,14 @@ body { margin: 0; }
 /* A statistics page's heading: the breadcrumb over the title at the left, the period at the right. */
 .statistics-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3) var(--space-4); inline-size: 100%; }
 .statistics-title { display: flex; align-items: center; gap: var(--space-1); }
-/* A folder's path, typed or chosen, with Browse… beside it. */
-.folder-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); align-items: end; }
+/* A folder chosen in the system's folder dialog: a button until one is, then the folder in a field's
+   frame, its name cut short (the full path on hover) before Change… and remove. */
+.folder-choice { display: grid; justify-items: start; gap: var(--space-2); }
+.folder-choice-label { color: var(--color-text-muted); }
+.folder-choice-chosen { box-sizing: border-box; display: flex; align-items: center; gap: var(--space-2); inline-size: 100%; min-block-size: var(--control-height); padding-inline: var(--space-4) var(--space-1); border: 0.0625rem solid var(--color-field-border); border-radius: calc(var(--control-height) / 2); background: var(--color-field); }
+.folder-choice-chosen > * { --control-height: var(--control-height-compact); --icon-button-size: var(--control-height-compact); }
+.folder-choice-icon { flex: none; inline-size: 1.125rem; block-size: 1.125rem; color: var(--color-icon); }
+.folder-choice-name { flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* The plan's Files card, always beside its pages: a rounded surface with a light shadow, its heading,
    then the plan's folder as a tree, as tall as its rows up to the room the window has, scrolling on

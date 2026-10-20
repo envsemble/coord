@@ -455,12 +455,12 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   const fills = projectPlace?.target.kind === 'diagram' && Boolean(readSnapshot);
 
   let content;
-  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.project} filters={hubFilters} setFilters={setHubFilters} go={go} restore={project => projectActions.change(project, { state: 'active' })} query={search ?? ''} search={openSearch} left={searchFieldLeft} platform={info.platform} />;
+  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.project} filters={hubFilters} setFilters={setHubFilters} go={go} query={search ?? ''} search={openSearch} left={searchFieldLeft} platform={info.platform} />;
   else if (isPage(placed) && placed.page === 'projects') content = <ProjectsPage projects={projects} error={projectsError} computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} />;
   // All plans' statistics: every active project together.
   else if (isPage(placed) && !placed.project) content = <AllStatistics revision={projects} trail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: 'Statistics' }]} />} />;
   else content = <ProjectContent place={placed} folder={readFolder} project={projectOf(reading)} scope={scope} files={filesWork && <FilesContext.Provider value={filesState}><PlanFiles work={filesWork} /></FilesContext.Provider>}
-    statisticsTrail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Projects', onClick: () => go(projectsPlace()) }, { label: projectOf(reading)?.name ?? 'Project', onClick: () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
+    statisticsTrail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Projects', onClick: () => go(projectsPlace()) }, { label: projectOf(reading)?.name ?? 'Project', onClick: projectOf(reading)?.state === 'archived' ? undefined : () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
 
   return <WindowFrame className="workbench" scrollRef={setScroller} titleBar={<div className="workbench-top"><TitleBar className="workbench-title-bar"
     start={<TitleBarStart info={info} workbench={menus} onError={warn} />}

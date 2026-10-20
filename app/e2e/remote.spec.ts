@@ -9,7 +9,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test';
 import type { AtlasBridge } from '../shared/contract.ts';
-import { close, expectHub, expectProjects, goHome, hubRows, launch, launchProject, openPlan, openProjects, projectAction, projectDetails, projectRow, removeDirectory, showArchived, temporaryDirectory, windowTitles, type Launched } from './app';
+import { close, expectProjects, goHome, hubRows, launch, launchProject, openPlan, openProjects, projectAction, projectDetails, projectRow, removeDirectory, showArchived, temporaryDirectory, windowTitles, type Launched } from './app';
 
 // The dialog's access line: the device list's confirm buttons announce through live regions of their own.
 const accessStatus = (dialog: Locator) => dialog.getByRole('status').and(dialog.locator('.access-status'));
@@ -157,17 +157,22 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await viewer.getByRole('dialog', { name: 'Rename project' }).getByLabel('Name').fill('Coord platform');
   await viewer.getByRole('dialog', { name: 'Rename project' }).getByRole('button', { name: 'Rename' }).click();
   await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Coord platform']);
-  // ...while archiving is this app's own.
+  // ...while archiving is this app's own (done from a plan of it, which the window then goes back to).
+  await openPlan(viewer, 'Customer order notifications');
+  await openProjects(viewer);
   await projectAction(viewer, 'Northwind', 'Archive');
   await expectProjects(viewer, ['Coord platform']);
   await showArchived(viewer);
   await expectProjects(viewer, ['Northwind'], 'Archived projects');
   await viewer.waitForTimeout(500);
   await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Coord platform']);
-  // An archived project's plans are reached from its name there.
-  await projectRow(viewer, 'Northwind', 'Archived projects').getByRole('button', { name: 'Northwind', exact: true }).click();
-  await expectHub(viewer, 'Northwind');
-  await openPlan(viewer, 'Customer order notifications');
+  // An archived project is seen only there: its name leads nowhere, and its plans are left out of the hub.
+  await expect(projectRow(viewer, 'Northwind', 'Archived projects').getByRole('button', { name: 'Northwind', exact: true })).toHaveCount(0);
+  await goHome(viewer);
+  await expect(hubRows(viewer, 'Customer order notifications')).toHaveCount(0);
+  await viewer.getByRole('button', { name: 'Back', exact: true }).click();
+  await viewer.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(viewer.locator('.work-header h1')).toHaveText('Customer order notifications');
 
   // With Manage access, this Atlas pairs and revokes devices of that computer, but cannot change how it is reached.
   await viewer.bringToFront();

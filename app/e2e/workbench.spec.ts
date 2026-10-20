@@ -297,18 +297,17 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   const details = await projectDetails(window, 'Northwind');
   await expect(details).toContainText(home.folder);
   await expect(details).toContainText('None: agents find the project only in its planning folder');
-  // Folders, added and removed there: each change goes into its planning.json.
+  // Folders, added (chosen in the system's folder dialog, never typed) and removed there: each change goes into its planning.json.
   const workspaces = () => JSON.parse(readFileSync(path.join(home.folder, 'planning.json'), 'utf8')).folders;
   const [first, second] = [temporaryDirectory('atlas-e2e-workspace-'), temporaryDirectory('atlas-e2e-workspace-')];
   homes.push(first, second);
-  const addFolder = window.getByRole('dialog', { name: 'Add a folder to Northwind' });
+  const choose = (chosen: string | null) => launched!.app.evaluate(({ dialog }, target) => {
+    dialog.showOpenDialog = (async () => ({ canceled: !target, filePaths: target ? [target] : [] })) as unknown as typeof dialog.showOpenDialog;
+  }, chosen);
   const add = async (added: string) => {
+    await choose(added);
     await details.getByRole('button', { name: 'Add folder…' }).click();
-    await expect(addFolder.getByRole('button', { name: 'Browse…' })).toBeVisible();
-    await addFolder.getByLabel('Folder').fill(added);
-    await addFolder.getByRole('button', { name: 'Add' }).click();
-    await expect(addFolder).toHaveCount(0);
-    await expect(details).toBeVisible();
+    await expect(details.locator('.project-folders > .project-folder').last()).toHaveText(added);
   };
   await add(first);
   await add(second);
@@ -325,26 +324,27 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   await details.getByRole('button', { name: 'Remove ' + second }).click();
   await expect(folders).toHaveCount(0);
   expect(workspaces()).toEqual([]);
-  // A folder by a relative path is refused.
+  // Cancelling the folder dialog adds nothing.
+  await choose(null);
   await details.getByRole('button', { name: 'Add folder…' }).click();
-  await addFolder.getByLabel('Folder').fill('relative/folder');
-  await expect(addFolder).toContainText('Type the folder’s full path.');
-  await expect(addFolder.getByRole('button', { name: 'Add' })).toBeDisabled();
-  await window.keyboard.press('Escape');
-  await expect(addFolder).toHaveCount(0);
+  await expect(details.getByRole('button', { name: 'Add folder…' })).toBeEnabled();
+  await expect(folders).toHaveCount(0);
   await window.keyboard.press('Escape');
   await expect(details).toHaveCount(0);
   await window.getByRole('button', { name: 'New project', exact: true }).click();
   const dialog = window.getByRole('dialog', { name: 'New project' });
-  await expect(dialog.getByRole('button', { name: 'Browse…' })).toBeVisible();
+  await expect(dialog.getByRole('textbox', { name: 'Folder' })).toHaveCount(0);
   await expect(dialog.getByRole('button', { name: 'Create' })).toBeDisabled();
-  // Typed with no name yet, the folder names the project, until a name is typed.
-  await dialog.getByLabel('Folder').pressSequentially(workspace, { delay: 5 });
+  // Chosen with no name yet, the folder names the project, until a name is typed; it can be removed and chosen again.
+  await choose(workspace);
+  await dialog.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(dialog.getByLabel('Name')).toHaveValue(path.basename(workspace));
+  await expect(dialog.locator('.folder-choice-name')).toHaveAttribute('title', workspace);
   await dialog.getByLabel('Name').fill('Coord');
-  await dialog.getByLabel('Folder').fill(workspace + path.sep);
+  await dialog.getByRole('button', { name: 'Remove the folder' }).click();
+  await expect(dialog.getByRole('button', { name: 'Create' })).toBeDisabled();
+  await dialog.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(dialog.getByLabel('Name')).toHaveValue('Coord');
-  await dialog.getByLabel('Folder').fill(workspace);
   await dialog.getByRole('button', { name: 'Create' }).click();
   await expect(dialog).toHaveCount(0);
   const folder = path.join(home.dataDirectory, 'planning', 'coord');
@@ -376,17 +376,13 @@ test('the Projects page makes a project from a name and a folder, gives a projec
   // Its plans leave the hub.
   await goHome(window);
   await expect(hubRows(window, 'Saved payment methods')).toHaveCount(0);
-  // The project filter has it under Archived, at the end; filtered to it, the hub says so, with Restore.
+  // Archived projects are seen only on the Projects page: not in the hub's project filter.
   await window.getByRole('combobox', { name: 'Project' }).click();
-  await expect(window.getByRole('option')).toHaveText(['All projects', 'Coord platform', 'Archived', 'Northwind']);
-  await expect(window.getByRole('option', { name: 'Archived', exact: true })).toBeDisabled();
+  await expect(window.getByRole('option')).toHaveText(['All projects', 'Coord platform']);
   await window.keyboard.press('Escape');
-  await filterHub(window, 'Northwind');
-  await expect(window.locator('.hub-archived')).toContainText('This project is archived');
-  await expect(hubRows(window, 'Saved payment methods')).toHaveCount(1);
-  await window.locator('.hub-archived').getByRole('button', { name: 'Restore', exact: true }).click();
-  await expect(window.locator('.hub-archived')).toHaveCount(0);
   await openProjects(window);
+  await showArchived(window);
+  await projectAction(window, 'Northwind', 'Restore');
   await expectProjects(window, ['Northwind', 'Coord platform']);
   // A project's name leads to its plans; the window opens there next time, and on the hub once it
   // has gone back to the hub, a project made since the window opened included.

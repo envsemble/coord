@@ -235,7 +235,7 @@ export async function openProjects(window: Page) {
  * The Projects page's rows: the active projects', or the archived ones (shown by `showArchived`).
  * Found by their markup rather than their role, so they are read past an open dialog too.
  */
-export const projectRows = (window: Page, group: 'Projects' | 'Archived projects' = 'Projects') => window.locator(`.project-list[aria-label="${group}"] .project-row`);
+export const projectRows = (window: Page, group: 'Projects' | 'Archived projects' = 'Projects') => window.locator(`.project-list .project-row[data-group="${group === 'Projects' ? 'active' : 'archived'}"]`);
 /** Unfold the Projects page's archived projects, folded away until asked for. */
 export async function showArchived(window: Page) {
   const toggle = window.locator('.projects-aside-toggle');
