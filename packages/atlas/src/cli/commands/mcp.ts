@@ -48,7 +48,7 @@ const tools: Tool[] = [
   },
   {
     name: 'project_create',
-    description: 'Create a project in the Atlas home: a planning folder, its own Git repository, covering the folders given. Check with where that none covers them yet.',
+    description: 'Ask the user first. Create a project in the Atlas home: a planning folder, its own Git repository, covering the folders given. Check with where that none covers them yet.',
     inputSchema: {
       type: 'object', additionalProperties: false, required: ['name', 'folders'], properties: {
         name: { type: 'string' },
@@ -66,7 +66,7 @@ const tools: Tool[] = [
   },
   {
     name: 'work_create',
-    description: 'Create a work item: active/NNNN-slug/ with a draft plan.md (its header holds the summary) and a ledger with the planning steps (Understand the request, doing; Settle the design; Write the plan; Accepted). Then write the plan body directly, and keep the summary and planning steps true as the design settles.',
+    description: 'Ask the user first; only for work big enough to plan. Create a work item: active/NNNN-slug/ with a draft plan.md (its header holds the summary) and a ledger with the planning steps (Understand the request, doing; Settle the design; Write the plan; Accepted). Then write the plan body directly, and keep the summary and planning steps true as the design settles.',
     inputSchema: object({ title: { type: 'string' }, summary: { type: 'string', description: 'Two or three plain sentences, on one line: what the work is, why, and where it stands.' }, slug: { type: 'string', description: 'Folder name after the number; derived from the title by default.' }, continues }, ['title']),
     run: (root, input) => createWork(root, { title: input.title as string, slug: (input.slug as string | undefined) ?? null, summary: (input.summary as string | undefined) ?? null, continues: (input.continues as string[] | undefined) ?? null }),
   },
@@ -143,7 +143,7 @@ function shaped(name: string, value: unknown) {
   if (name === 'work_status' || !value || typeof value !== 'object' || !('statistics' in value)) return value;
   const { statistics: _, changed, warnings, ...status } = value as WorkResult;
   const notes = warnings.length ? { warnings } : {};
-  if (ledgerTools.has(name)) return { workId: status.workId, steps: status.steps, progress: status.progress, blocked: status.blocked, ...notes };
+  if (ledgerTools.has(name)) return { planningFolder: status.planningFolder, workId: status.workId, steps: status.steps, progress: status.progress, blocked: status.blocked, ...notes };
   return { ...status, changed, ...notes };
 }
 

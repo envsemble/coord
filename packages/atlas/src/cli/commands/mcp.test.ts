@@ -41,7 +41,7 @@ test('the MCP server serves the planning-state tools, resolving the planning fol
       assert.deepEqual((started.structuredContent!.steps as { title: string }[]).map(step => step.title), ['Build', 'Review']);
       assert.ok(!('statistics' in started.structuredContent!) && 'changed' in started.structuredContent!, 'a lifecycle result is the status without statistics');
       // A step change returns the ledger's state only.
-      assert.deepEqual(Object.keys((await inRoot('step_set', { work: 'work-0001', step: 'Build', status: 'done' })).structuredContent!), ['workId', 'steps', 'progress', 'blocked']);
+      assert.deepEqual(Object.keys((await inRoot('step_set', { work: 'work-0001', step: 'Build', status: 'done' })).structuredContent!), ['planningFolder', 'workId', 'steps', 'progress', 'blocked'], 'the planning folder stays: the hook links the session to the work item through it');
       await inRoot('work_block', { work: 'work-0001', reason: 'Waiting' });
       const closing = await inRoot('work_close', { work: 'work-0001' });
       assert.equal(closing.isError, true);
