@@ -1,0 +1,26 @@
+/* Plan export page: the app's work page without its window. Layout only; envUI draws the rest.
+   Without the app's title bar and sections, the section switcher sticks to the top of the page. */
+.plan-export { min-block-size: 100dvh; padding: var(--space-5) var(--space-6) 0; container-type: inline-size; }
+.plan-export .work-page { --topbar-height: 0rem; --app-sticky-top: 0rem; }
+/* The switcher sits as far in from the window's edge as the diagrams' islands, which span the page. */
+.plan-export .section-switcher-bar { margin-inline-start: calc(var(--atlas-gutter) - var(--space-6)); max-inline-size: calc(100% + var(--space-6) - var(--atlas-gutter)); }
+.plan-export .section-switcher-bar::before { inline-size: calc(100cqw + 2 * var(--space-6)); }
+/* The switcher's island also holds the theme, after a divider like the diagrams' islands have. */
+.plan-export .section-switcher { align-items: center; gap: var(--space-1); }
+.section-switcher-divider { flex: none; inline-size: 0.0625rem; block-size: 1.25rem; margin-inline: var(--space-1); background: var(--color-border-strong); }
+.export-banner { max-inline-size: 84rem; margin: 0 auto var(--space-3); }
+/* An export is a scrolling page, not an app window: the diagrams take the window's height below the notice. */
+.plan-export .diagrams { flex: none; min-block-size: 0; block-size: max(32rem, calc(100dvh - var(--diagram-top, 12rem))); margin-inline: calc(-1 * var(--space-6)); }
+.plan-export .diagrams.fullscreen { block-size: auto; margin: 0; }
+.files-section { display: grid; grid-template-columns: 16rem minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+/* The file tree sticks below the section switcher. */
+.file-tree { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-4)); display: flex; flex-direction: column; gap: var(--space-2); block-size: calc(100dvh - var(--atlas-sticky-top) - 2 * var(--space-4)); min-inline-size: 0; }
+.file-tree-view { flex: 1; min-block-size: 0; }
+.tree-empty { margin: 0; padding: var(--space-2); }
+@container (max-width: 62rem) {
+  .files-section { grid-template-columns: 14rem minmax(0, 1fr); }
+}
+@media (max-width: 45rem) {
+  .files-section { grid-template-columns: minmax(0, 1fr); }
+  .file-tree { position: static; block-size: 16rem; }
+}

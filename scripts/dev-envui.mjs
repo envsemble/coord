@@ -24,7 +24,7 @@ import { dirname, resolve } from "node:path";
 const atlas = resolve(import.meta.dirname, "..");
 const envUI = resolve(atlas, process.env.ENVUI_PATH ?? "../envUI");
 const library = resolve(envUI, "packages/ui");
-const consumers = ["app", "packages/planning", "packages/diagrams"].map(
+const consumers = ["app", "packages/atlas", "packages/diagrams"].map(
   (workspace) => resolve(atlas, workspace, "node_modules/@envsemble/envui"),
 );
 const windows = process.platform === "win32";

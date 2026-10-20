@@ -5,10 +5,10 @@ const assert = require("node:assert/strict");
 const { createElement } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 const atlas = require("../lib/index.cjs");
-const { renderSVG } = require("../lib/layout/renderSVG.cjs");
+const { renderSVG } = require("../lib/render/renderSVG.cjs");
 const { validateDiagram } = require("../lib/layout/validateDiagram.cjs");
 const { relationLabel } = require("../lib/layout/layoutDiagram.cjs");
-const { loadComponents } = require("./load-components.cjs");
+const { loadComponents } = require("./loadComponents.cjs");
 
 const CHECKOUT = "Checkout",
   LEGACY = "Legacy",
@@ -76,8 +76,10 @@ async function prepared(includeArtifacts = false) {
   });
   return prepared.get("proposal.puml");
 }
-async function preparedProposal() {
-  return (await prepared()).payload;
+// The tests only read the proposal's payload: it is prepared once.
+let proposal;
+function preparedProposal() {
+  return (proposal ??= prepared().then((viewer) => viewer.payload));
 }
 
 test("the change view keeps removed members in place and marks every change", async () => {
@@ -182,7 +184,7 @@ test("changes roll up per element: types with their members, then relations, wit
 test("details explain a change: its members and where it lives, without capture noise", async () => {
   const payload = await preparedProposal();
   const { rollupChanges } = loadComponents("src/review/changes.js");
-  const { ConceptDetails } = loadComponents("src/viewer/DetailsContent.jsx");
+  const { ConceptDetails } = loadComponents("src/details/ElementDetails.jsx");
   const view = payload.comparison.changeView;
   const review = { rollup: rollupChanges(payload.comparison, view.model) };
   const render = (id) =>
@@ -192,7 +194,6 @@ test("details explain a change: its members and where it lives, without capture 
         model: view.model,
         snippets: view.snippets,
         review,
-        onReference() {},
       }),
     );
   const changed = render(CHECKOUT);
@@ -233,9 +234,9 @@ test("details explain a change: its members and where it lives, without capture 
 test("panels show the Changes overview and step through changes; the report is gone", async () => {
   const payload = await preparedProposal();
   const { payload: standalone } = await prepared(true);
-  const { AtlasPanel, DiagramViewer } = loadComponents();
+  const { DiagramPanel, DiagramViewer } = loadComponents();
   for (const html of [
-    renderToStaticMarkup(createElement(AtlasPanel, { payload })),
+    renderToStaticMarkup(createElement(DiagramPanel, { payload })),
     renderToStaticMarkup(createElement(DiagramViewer, standalone)),
   ]) {
     assert(html.includes('aria-label="Changes, 5"'));
@@ -458,14 +459,13 @@ test("diagram proposals group each change under its class or relation, by name",
 const tokensOf = (row) =>
   row.summary.tokens.map((t) => `${t.status} ${t.text}`);
 function renderDetails({ view, rollup }, id) {
-  const { ConceptDetails } = loadComponents("src/viewer/DetailsContent.jsx");
+  const { ConceptDetails } = loadComponents("src/details/ElementDetails.jsx");
   return renderToStaticMarkup(
     createElement(ConceptDetails, {
       concept: view.model.classes.find((c) => c.id === id),
       model: view.model,
       snippets: {},
       review: { rollup },
-      onReference() {},
     }),
   );
 }
@@ -538,9 +538,7 @@ test("a relation changed in place is laid out once, also on one class, and the b
 });
 
 test("a changed relation's mark avoids its labels", async () => {
-  const { changeMarkPoint } = loadComponents(
-    "src/visualization/UMLRelation.jsx",
-  );
+  const { changeMarkPoint } = loadComponents("src/canvas/UMLRelation.jsx");
   // The middle is under the name label; the mark moves along the segment.
   const point = changeMarkPoint(
     ["M0 0 L200 0"],

@@ -1,9 +1,8 @@
 ---
-schema_version: 1
+schema_version: 2
 kind: plan
 id: work-0003
 title: Customer order notifications
-repositories: [shop]
 created: "2026-09-08"
 updated: "2026-10-02"
 design_status: accepted

@@ -1,6 +1,6 @@
 {
   "name": "atlas",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Atlas planning for agents: the planning folder and active work for your checkout at session start, planning-state tools, checks of planning edits, and work statistics from every session.",
   "author": { "name": "envsemble" },
   "homepage": "https://github.com/envsemble/atlas",
@@ -9,6 +9,7 @@
   "keywords": ["planning", "plans", "ledger"],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
+  "hooks": "./hooks/codex.json",
   "interface": {
     "displayName": "Atlas",
     "shortDescription": "Plans, ledgers and work statistics for agents",

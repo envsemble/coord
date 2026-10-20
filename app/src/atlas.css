@@ -3,50 +3,75 @@
 
 html, body, #root { min-block-size: 100%; }
 body { margin: 0; }
+/* envUI's type is regular or medium: emphasis in the interface is medium, not bold. Bold in a
+   document's Markdown is its author's and stays. */
+:is(strong, b):not(.env-markdown *) { font-weight: 500; }
 .muted { color: var(--color-text-muted); }
 .spacer { flex: 1; }
 .row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 
 /* Work status and tones: GitHub's issue colours on envUI's tone tokens. */
 .status-icon { inline-size: 1.125rem; block-size: 1.125rem; flex: none; color: var(--color-tone-neutral); }
-.status-icon[data-tone='success'], .status-text[data-tone='open'] { color: var(--color-tone-success); }
-.status-icon[data-tone='done'], .status-text[data-tone='done'] { color: var(--color-tone-done); }
-.status-icon[data-tone='danger'], .status-text[data-tone='danger'] { color: var(--color-tone-danger); }
-.status-icon[data-tone='warning'], .status-text[data-tone='attention'] { color: var(--color-tone-warning); }
-.status-icon[data-tone='neutral'], .status-text[data-tone='muted'] { color: var(--color-tone-neutral); }
+.status-icon[data-tone='success'] { color: var(--color-tone-success); }
+.status-icon[data-tone='done'] { color: var(--color-tone-done); }
+.status-icon[data-tone='danger'] { color: var(--color-tone-danger); }
+.status-icon[data-tone='warning'] { color: var(--color-tone-warning); }
+.status-icon[data-tone='neutral'] { color: var(--color-tone-neutral); }
+.status-icon[data-tone='accent'] { color: var(--color-tone-accent); }
 
 /* A window that is starting, or reading its folder. */
 .page-state { box-sizing: border-box; min-block-size: 100%; display: grid; place-content: center; justify-items: center; gap: var(--space-3); color: var(--color-text-muted); }
 
-/* The title bar: the logo, the menus and the computer at the start; search, record health and the
-   theme at the end, before the window buttons the system draws. */
+/* Two rows at the top, GitHub style. The title bar: the logo (leading to the hub), back and forward,
+   File and the computer at the start; search, the file panel, record health and the theme at the end,
+   before the window buttons the system draws. Below it the sections, one line under both rows. The
+   window frame's content scrolls below them. */
+.atlas-window { --section-bar-height: 2.75rem; --topbar-height: calc(max(calc(env(titlebar-area-height, 0px) + 0.0625rem), var(--title-bar-height)) + var(--section-bar-height)); --app-sticky-top: 0px; }
+.window-top > .window-title-bar { border-block-end-color: transparent; }
+/* The sections drag the window like the title bar above them. */
+.section-bar { box-sizing: border-box; display: flex; align-items: flex-end; gap: var(--space-1); block-size: var(--section-bar-height); padding: 0 var(--space-3) 0.1875rem; border-block-end: 0.0625rem solid var(--color-border-strong); background: var(--color-canvas); overflow-x: auto; scrollbar-width: none; -webkit-app-region: drag; app-region: drag; user-select: none; }
+.section-bar > * { flex: none; -webkit-app-region: no-drag; app-region: no-drag; }
+/* Menus, lists, popovers, dialogs and tooltips open over the window's drag areas (the top rows): the
+   window would take a click there for a drag, so they are cut out of them. */
+:is([role='menu'], [role='listbox'], [role='dialog'], [role='alertdialog'], [role='tooltip'], [popover], [data-radix-popper-content-wrapper]) { -webkit-app-region: no-drag; app-region: no-drag; }
+/* The section shown: its name in bold, underlined on the row's bottom line. */
+.section-item { position: relative; }
+.section-item[aria-current='page'] { font-weight: 500; }
+.section-item[aria-current='page']::after { content: ''; position: absolute; inset-inline: var(--space-2); inset-block-end: -0.1875rem; block-size: 0.125rem; border-radius: 0.0625rem; background: var(--color-tone-accent); }
 .title-bar-start { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
-/* In a narrow window the menus and arrows keep their width; the computer's name gives way. */
+/* In a narrow window the arrows and File keep their width; the computer's name gives way. */
 .title-bar-start > :not(.computer-trigger) { flex-shrink: 0; }
 .title-bar-start > .computer-trigger { min-inline-size: 0; }
 .title-bar-brand { display: grid; place-items: center; inline-size: var(--control-height-compact); }
-/* Back and forward, close together after the menus. */
+/* The logo is only a picture: the Plans section goes to every plan. */
+.title-bar-logo { display: inline-flex; align-items: center; justify-content: center; inline-size: var(--control-height, 2.25rem); block-size: var(--control-height, 2.25rem); flex: none; }
+.title-bar-logo svg { inline-size: 1.25rem; block-size: 1.25rem; }
+/* Back and forward, close together after the logo. */
 .history-buttons { display: flex; align-items: center; }
 .computer-trigger { max-inline-size: 16rem; }
 
-/* The workbench: tabs stick at the top of the shell's content area, which scrolls the page below them. */
-.workbench-body { --atlas-tabs-height: 0rem; --atlas-sticky-top: calc(var(--app-sticky-top) + var(--atlas-tabs-height)); position: relative; min-block-size: calc(100dvh - var(--topbar-height)); display: flex; flex-direction: column; }
-.workbench-body.has-tabs { --atlas-tabs-height: 2.5rem; }
-.workbench-tabs { position: sticky; inset-block-start: var(--app-sticky-top); z-index: 10; background: var(--color-canvas); }
-.workbench-page > .folder-error { margin-block-end: var(--space-4); }
-.workbench-page { flex: 1; min-inline-size: 0; padding: var(--space-6) var(--space-7) var(--space-9); }
-.workbench-page:has(> .work-page) { padding-block-start: 0; }
-/* A diagram fills the content area below the tabs. */
-.workbench-body.is-filled { block-size: calc(100dvh - var(--topbar-height)); min-block-size: 0; overflow: hidden; }
-.workbench-body.is-filled .workbench-page { display: flex; flex-direction: column; min-block-size: 0; padding: 0; }
-/* The filled body does not scroll, so its tabs stay where they are instead of sticking. */
-.workbench-body.is-filled .workbench-tabs { position: relative; inset-block-start: auto; }
+/* The window's page: one place at a time, in the window frame's content area. */
+.window-body { --atlas-sticky-top: var(--app-sticky-top); position: relative; min-block-size: calc(100dvh - var(--topbar-height)); display: flex; flex-direction: column; }
+.window-page > .folder-error { margin-block-end: var(--space-4); }
+.window-page { flex: 1; min-inline-size: 0; padding: var(--space-6) var(--space-7) var(--space-9); }
+.window-page:is(:has(> .work-page), :has(> .plan-frame > .plan-frame-page > .work-page)) { padding-block-start: 0; }
+/* A diagram fills the content area below the title bar. */
+.window-body.is-filled { block-size: calc(100dvh - var(--topbar-height)); min-block-size: 0; overflow: hidden; }
+.window-body.is-filled .window-page { display: flex; flex-direction: column; min-block-size: 0; padding: 0; }
 .search-button { min-inline-size: 13rem; justify-content: flex-start; }
+/* Open in: a split button of the row's height before the search, never part of the drag area. */
+.editor-button { flex: none; -webkit-app-region: no-drag; app-region: no-drag; }
+.editor-button-more { inline-size: var(--control-height-compact, 2rem); }
+.editor-mark { flex: none; inline-size: 1rem; block-size: 1rem; color: var(--color-text-primary); }
+.editor-mark[data-editor='vscode'] { color: light-dark(#0065a9, #3c9fe8); }
+.editor-mark[data-editor='vscode-insiders'] { color: light-dark(#13856f, #24bfa5); }
+.editor-mark[data-editor='system'] { color: var(--color-icon); }
+.editor-current { inline-size: 1rem; block-size: 1rem; color: var(--color-text-muted); }
 .search-button-label { flex: 1; text-align: start; }
 /* Narrow windows keep the title bar on one line: the search button drops its keys, then its label. */
 @media (max-width: 72rem) {
   .search-button { min-inline-size: 0; }
-  .search-button-keys { display: none; }
+  .search-button-keys, .editor-button-label { display: none; }
 }
 @media (max-width: 60rem) {
   .search-button-label { display: none; }
@@ -57,113 +82,157 @@ body { margin: 0; }
 .health-icon { flex: none; margin-block-start: 0.125rem; color: var(--color-tone-warning); }
 .health-list li[data-level='error'] .health-icon { color: var(--color-tone-danger); }
 
-/* The sidebar's projects: a strip with the search and New Project at the top, then the projects as
-   cards, which scroll below it, the hidden and archived ones in a group after them. */
-.workbench .env-app-navigation { justify-items: stretch; padding-block-end: var(--space-2); }
-/* A quiet strip: the search, only its icon and placeholder at rest, and New Project beside it. */
-.project-strip { display: flex; align-items: center; gap: var(--space-1); min-inline-size: 0; }
-/* The field (the class is on its input) takes the room, so New Project ends where the cards end. */
-.project-strip > .env-text-field { flex: 1 1 auto; min-inline-size: 0; }
-.project-strip > :last-child { margin-inline-start: auto; }
-.project-icons { display: grid; gap: var(--space-1); }
-.project-cards { display: grid; align-content: start; gap: var(--space-3); padding: var(--space-1) var(--env-sidebar-inset, var(--space-3)) var(--space-4); }
-.project-list { display: grid; gap: var(--space-2); }
-.project-list-state { padding: var(--space-2); }
-/* A card in the sidebar's own text size: repositories and age, the name, then facts, as in T3 Code's
-   thread cards. The name's button covers the card; the corner action sits above it and replaces the
-   age while the pointer or focus is on the card. */
-.project-card.env-card { position: relative; display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); border-radius: var(--radius-large, 1rem); font: var(--type-body-small); transition: background-color var(--motion-duration-fast) var(--motion-ease); }
-.project-card:hover { background: var(--env-surface-hover); }
-.project-card[data-selected] { background: var(--color-navigation-selected); color: var(--color-on-navigation-selected); }
-.project-card:has(.project-card-open:focus-visible) { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; }
-.project-card-open { overflow: hidden; margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; text-align: start; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-.project-card-open:focus-visible { outline: none; }
-.project-card-open::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
-.project-card-line { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; color: var(--color-text-muted); }
-/* Dimmed by colour, not opacity: opacity would put the line under the card's open button, Hide included. */
-.project-card[data-selected] .project-card-line { color: color-mix(in srgb, currentColor 80%, transparent); }
-.project-card-repositories, .project-card-note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.project-card-repositories { flex: 1 1 auto; min-inline-size: 0; }
-.project-card-age { flex: none; margin-inline-start: auto; font-variant-numeric: tabular-nums; }
-/* The corner action is a quiet button of its own, its icon and label with a soft fill under the pointer, above the card's open button. */
-.project-card-action.env-button { position: relative; z-index: 1; display: none; flex: none; gap: var(--space-1); min-block-size: 0; block-size: 1.75rem; margin-block: -0.375rem; margin-inline-start: auto; padding-inline: var(--space-2) var(--space-3); font: inherit; font-weight: 500; }
-.project-card-action.env-button .env-symbol, .project-card-action.env-button svg { inline-size: 1rem; block-size: 1rem; font-size: 1rem; }
-.project-card:is(:hover, :focus-within) .project-card-action.env-button { display: inline-flex; }
-.project-card:is(:hover, :focus-within) .project-card-age { display: none; }
-.project-card-fact { display: inline-flex; align-items: center; gap: 0.125rem; font-variant-numeric: tabular-nums; }
-.project-card-fact .env-symbol, .project-card-fact svg, .project-details-work .env-symbol, .project-details-work svg { inline-size: 1rem; block-size: 1rem; font-size: 1rem; flex: none; }
-.project-card-fact[data-tone='blocked'], .project-details-work [data-tone='blocked'] > svg, .project-details-work [data-tone='blocked'] > .env-symbol { color: var(--color-tone-danger); }
-.project-card-fact[data-tone='implementing'], .project-details-work [data-tone='implementing'] > svg, .project-details-work [data-tone='implementing'] > .env-symbol { color: var(--color-tone-success); }
-.project-card-live { display: inline-flex; margin-inline-start: auto; padding: 0.25rem; }
-/* An agent at work: a green dot that breathes, still when motion is reduced. */
-.project-live-dot { display: inline-block; flex: none; inline-size: 0.5rem; block-size: 0.5rem; border-radius: 50%; background: var(--color-tone-success); box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-tone-success) 50%, transparent); animation: project-live 1.8s var(--motion-ease) infinite; }
-@keyframes project-live { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-tone-success) 50%, transparent); } 70%, 100% { box-shadow: 0 0 0 0.375rem transparent; } }
-@media (prefers-reduced-motion: reduce) { .project-live-dot { animation: none; } }
-.project-card[data-state='archived'], .project-card[data-state='hidden'] { opacity: 0.85; }
-/* A card's details, on hover: the name, the folder and repositories, then the work that needs eyes. */
-.project-details { display: grid; gap: var(--space-2); min-inline-size: 0; font: var(--type-body-small); }
-.project-details-name { margin: 0; font-weight: 600; }
-.project-details-line { display: flex; align-items: center; gap: var(--space-2); margin: 0; overflow-wrap: anywhere; }
-.project-details-line > svg, .project-details-line > .env-symbol { flex: none; inline-size: 1rem; block-size: 1rem; color: var(--color-icon); }
-.project-details-work { display: grid; gap: var(--space-1); margin: 0; padding: var(--space-2) 0 0; border-block-start: 0.0625rem solid var(--color-border); list-style: none; }
-.project-details-work li { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
-.project-details-work [data-tone='live'] .project-live-dot { margin-inline: 0.25rem; }
-.project-details-id { flex: none; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
-.project-details-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.project-details-live { flex: none; margin-inline-start: auto; color: var(--color-tone-success); }
-.project-group { display: grid; gap: var(--space-2); }
-.project-group > summary { padding: var(--space-2); border-radius: var(--radius-standard); color: var(--color-text-muted); font: var(--type-body-small); font-weight: 600; cursor: pointer; }
-.project-group > summary:hover { background: var(--color-surface-hover, transparent); }
-.project-group > summary:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: -0.125rem; }
-/* A new project's repositories: remote, name and ID side by side. */
-.project-repositories { display: grid; gap: var(--space-3); margin: 0; padding: 0; border: 0; }
-.project-repositories > legend { margin-block-end: var(--space-2); padding: 0; font-weight: 600; }
-.project-repository { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--space-2); align-items: end; }
-.project-repositories > .env-button { justify-self: start; }
+/* The hub: the plans in their groups, one full-width row each; work under way (agents on it, blocked or
+   paused) in larger rows. The title link covers the row; its other details stay above it. */
+/* The hub's heading line: its title (and a project's Statistics) at the left, the search and the
+   filters together at the right. The search gives up room first; when even its narrowest does not fit,
+   the controls go under the title, still at the right. */
+.hub-heading { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-4); inline-size: 100%; }
+.hub-lead { display: flex; flex: 0 1 auto; align-items: center; gap: var(--space-3); min-inline-size: 0; max-inline-size: 100%; }
+.hub-title { min-inline-size: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-filters { display: flex; flex: 1 1 auto; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: var(--space-3); margin-inline-start: auto; min-inline-size: 0; white-space: nowrap; }
+.hub-search { flex: 1 1 12rem; min-inline-size: 12rem; max-inline-size: 22rem; }
+/* The controls never squeeze their labels onto two lines. */
+.hub-lead > :not(.hub-title), .hub-filters > :not(.hub-search), .hub-filters :is(button, [role='button'], [role='combobox']) { flex-shrink: 0; white-space: nowrap; }
+/* With no plans to list, the state sits in the middle of the page. */
+.hub-empty { min-block-size: 50vh; }
+.hub-note { margin: 0; }
+.hub-group { display: grid; gap: var(--space-2); }
+.hub-group-heading { margin: 0; }
+/* A table per group with the same columns. Plans under way get a second line with where they stand,
+   muted (amber while an agent waits for the person): the status icon carries the colour. A click
+   anywhere on a row opens the plan. */
+.hub-row { cursor: pointer; }
+.hub-row-title { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
+.hub-row-link { overflow: hidden; color: inherit; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.hub-row:hover .hub-row-link { text-decoration: underline; }
+.hub-row-link:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; border-radius: 0.25rem; }
+.hub-row-large .hub-row-link { font-weight: 500; }
+.hub-row-number, .hub-row-project, .hub-row-updated { color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.hub-row-number { flex: none; font: var(--type-body-small); }
+.hub-row :is(.cell-note, .hub-row-project) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-row-title + .cell-note { margin-inline-start: calc(1.125rem + var(--space-2)); }
+.hub-row-steps { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.hub-row-steps .step-bar-compact { inline-size: 4rem; }
+.hub-row-stats { display: block; min-inline-size: 0; font-variant-numeric: tabular-nums; }
+.hub-row-model { display: flex; align-items: center; gap: var(--space-1); min-inline-size: 0; white-space: nowrap; }
+.hub-row-ended { white-space: nowrap; }
 
-/* A project's page: its heading and folder, then its work, statistics and activity as sections. */
-.project-page { gap: var(--space-8); }
-.project-header { display: grid; gap: var(--space-1); }
-.project-path { overflow-wrap: anywhere; }
-.page-section { display: grid; gap: var(--space-4); align-content: start; min-inline-size: 0; }
+/* The search: where a result is, then the words it was found in. */
+.search-where, .search-snippet { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-snippet { font-style: italic; }
+/* A work item's tags: small read-only labels under its title and on its search results. */
+.tag-list { display: flex; flex-wrap: wrap; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+.tag { padding-inline: var(--space-2); border-radius: var(--radius-standard); background: var(--color-surface-muted); color: var(--color-text-muted); font-size: var(--font-size-label); line-height: 1.6; }
+.search-tags { margin-block-start: var(--space-1); }
 
-/* The file panel slides in over the page from the right, with the project's files. */
-.file-dock { position: fixed; inset: calc(var(--topbar-height) + var(--atlas-tabs-height)) 0 0 0; z-index: 20; }
-.file-dock .explorer { block-size: auto; min-block-size: 0; padding-block-end: var(--space-3); }
+/* The Projects page: one table under one header, like the hub's, with no column left mostly empty:
+   what agents do on a project is on its muted line. Every row has the same height: the avatar (its
+   initials on a quiet square), its name over that line, its folder, then its actions, quiet and at the
+   end. The archived projects follow under a fold of their own in the same table, dimmed. */
+.project-cell { display: flex; align-items: flex-start; gap: var(--space-3); min-inline-size: 0; }
+/* A project's avatar: its initials on a small square in the project's own hue (`--project-hue`), legible in both themes. */
+.project-avatar { flex: none; display: grid; place-content: center; inline-size: 1.5rem; block-size: 1.5rem; margin-block-start: 0.0625rem; border-radius: 0.375rem; background: light-dark(hsl(var(--project-hue) 70% 90%), hsl(var(--project-hue) 45% 26%)); color: light-dark(hsl(var(--project-hue) 60% 32%), hsl(var(--project-hue) 75% 80%)); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.02em; }
+.project-name { display: grid; justify-items: start; gap: 0.125rem; min-inline-size: 0; }
+.project-name .row-link { max-inline-size: 100%; min-inline-size: 0; }
+.project-name .row-link-title, .project-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-meta { display: flex; align-items: center; max-inline-size: 100%; }
+.project-fact { display: inline-flex; align-items: center; gap: 0.25rem; min-inline-size: 0; white-space: nowrap; }
+.project-fact:last-child { overflow: hidden; text-overflow: ellipsis; }
+.project-fact + .project-fact::before { content: '·'; margin-inline: var(--space-2); }
+.project-fact .status-icon { inline-size: 1rem; block-size: 1rem; }
+.project-fact[data-live='waiting'] { color: var(--color-tone-warning); }
+.project-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--space-1); --control-height: var(--control-height-compact); --icon-button-size: var(--control-height-compact); }
+/* The rows: a project's folder and actions at the end of its row, above the link that covers the row; archived ones quieter. */
+.project-list { display: grid; gap: var(--space-5); }
+.project-list .project-row { flex-wrap: nowrap; }
+.project-list .project-row > :first-child { flex: 1; }
+.project-side { position: relative; z-index: 1; display: inline-flex; align-items: flex-start; gap: var(--space-4); min-inline-size: 0; }
+/* The folders' badges take a range of their own at the row's end and wrap there, the row growing taller. */
+.project-folders-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1); inline-size: 24rem; max-inline-size: 40vw; }
+.project-folder-badge { max-inline-size: 12rem; }
+.project-folder-badge bdi { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-row[data-group='archived'] > :first-child { opacity: 0.6; }
+.projects-aside { display: grid; gap: var(--space-2); }
+/* The fold: a quiet line across the table, its count after it. */
+/* After the active projects, the fold takes the line between rows too. */
+.projects-aside-toggle { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) 0; border: 0; background: none; color: var(--color-text-muted); font: inherit; font-weight: 500; cursor: pointer; }
+.projects-aside-toggle:hover { color: var(--color-text-primary); }
+.projects-aside-toggle:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; border-radius: 0.25rem; }
+.projects-aside-count { color: var(--color-text-muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+.projects-aside-icon { inline-size: 1rem; block-size: 1rem; transition: transform var(--motion-duration-fast) var(--motion-ease); }
+.projects-aside-toggle[aria-expanded='true'] .projects-aside-icon { transform: rotate(90deg); }
+/* A project's folders, in its dialog. */
+.project-details section { display: grid; gap: var(--space-1); }
+.project-details-heading { margin: 0; color: var(--color-text-muted); }
+.project-details-path { overflow-wrap: anywhere; }
+.project-folders { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+.project-folder { display: flex; align-items: center; gap: var(--space-2); min-block-size: 2rem; overflow-wrap: anywhere; }
+.project-folder > svg { flex: none; inline-size: 0.875rem; block-size: 0.875rem; color: var(--color-icon); }
+.project-folder > bdi, .project-folder > span { flex: 1; min-inline-size: 0; }
+.page-heading-stack { display: grid; gap: var(--space-2); }
+/* A statistics page's heading: the breadcrumb over the title at the left, the period at the right. */
+.statistics-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3) var(--space-4); inline-size: 100%; }
+.statistics-title { display: flex; align-items: center; gap: var(--space-1); }
+/* A folder chosen in the system's folder dialog: a button until one is, then the folder in a field's
+   frame, its name cut short (the full path on hover) before Change… and remove. */
 
-/* The explorer: the project's name, then its files. */
-.explorer { display: flex; flex-direction: column; block-size: 100%; min-block-size: 0; }
-.explorer-header { display: flex; align-items: center; gap: var(--space-1); min-block-size: var(--control-height-compact); padding: var(--space-2) var(--space-2) var(--space-1) var(--space-4); }
-.explorer-title { flex: 1; min-inline-size: 0; margin: 0; overflow: hidden; color: var(--color-text-muted); font: var(--type-body-small); font-weight: 600; letter-spacing: 0.04em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+/* The plan's Files card, always beside its pages: a rounded surface with a light shadow, its heading,
+   then the plan's folder as a tree, as tall as its rows up to the room the window has, scrolling on
+   its own beyond it. It keeps its place as the page scrolls. */
+.plan-files { --plan-files-row: 1.75rem; display: grid; gap: var(--space-1); box-shadow: 0 0.0625rem 0.1875rem color-mix(in srgb, var(--color-canvas-dark) 10%, transparent), 0 0.5rem 1.5rem -0.75rem color-mix(in srgb, var(--color-canvas-dark) 22%, transparent); }
+.plan-files-heading { margin: 0; padding: var(--space-1) var(--space-2) 0; }
+.plan-files-tree { min-block-size: var(--plan-files-row); --env-tree-indent: 0.5rem; max-block-size: calc(100dvh - var(--topbar-height) - var(--atlas-sticky-top) - 9rem); }
+.plan-files-empty { margin: 0; padding: var(--space-1) var(--space-2) var(--space-2); font-size: var(--font-size-body-small); }
+.plan-frame-files { min-inline-size: 0; max-inline-size: 24rem; }
+/* On a plan and its pages (its statistics, a diagram, a file) the card floats at the top right, out of
+   the page's flow, at every width: the page lays out and centres as if it were not there, and the card
+   keeps its place as the page scrolls. Over a diagram it floats under the viewer's toolbar, and gives
+   way to its details. */
+.plan-frame { position: relative; display: grid; gap: var(--space-6); }
+.plan-frame-page { min-inline-size: 0; }
+.plan-frame:not(.is-filled) > .plan-frame-files { position: absolute; inset-block: 0; inset-inline-end: 0; inline-size: 17rem; max-inline-size: none; pointer-events: none; }
+.plan-frame:not(.is-filled) > .plan-frame-files > .plan-files { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-6)); pointer-events: auto; }
+.plan-frame:has(> .plan-frame-page > .work-page) > .plan-frame-files { padding-block-start: var(--space-6); }
+/* Where the window is too narrow for the card in the margin beside the centred page (the plan's
+   84rem and the card's 17rem on either side), the page leaves it room at the right instead of
+   lying under it. */
+@media (max-width: 121rem) {
+  .plan-frame:not(.is-filled) > .plan-frame-page { padding-inline-end: calc(17rem + var(--space-6)); }
+}
+.plan-frame.is-filled { flex: 1; display: flex; flex-direction: column; min-block-size: 0; gap: 0; }
+.plan-frame.is-filled > .plan-frame-page { flex: 1; display: flex; flex-direction: column; min-inline-size: 0; min-block-size: 0; }
+.plan-frame.is-filled > .plan-frame-files { position: absolute; inset-block-start: 4.5rem; inset-inline-end: var(--space-3); z-index: 3; inline-size: 17rem; }
+/* The diagram's details take that place when they open. */
+.plan-frame.is-filled:has(.inspector.open) > .plan-frame-files { display: none; }
+/* Create project: its folders as rows, then a card to add one. */
+.folder-list-section { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); min-inline-size: 0; }
+.folder-list-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.folder-list-title { margin: 0; font-weight: 600; }
+.folder-list-computer { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--font-size-body-small); }
+.folder-list-computer svg { inline-size: 1.125rem; block-size: 1.125rem; }
+.folder-list-name { display: flex; align-items: center; gap: var(--space-3); min-inline-size: 0; }
+.folder-list-name > bdi { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-list-path { display: block; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-list-icon { flex: none; inline-size: 1.125rem; block-size: 1.125rem; color: var(--color-icon); }
+.folder-list-add-label { display: flex; align-items: center; justify-content: center; gap: var(--space-2); }
+/* A row keeps its remove button beside the folder, whose name and path end in an ellipsis; the path under the name. */
+.folder-list { grid-template-columns: minmax(0, 1fr); }
+.folder-list > .env-row { flex-wrap: nowrap; min-inline-size: 0; }
+.folder-list > .env-row > :first-child { flex: 1; }
+.folder-list .folder-list-path { padding-inline-start: calc(1.125rem + var(--space-3)); }
 .computer-trigger-label { flex: 1; min-inline-size: 0; overflow: hidden; text-align: start; text-overflow: ellipsis; white-space: nowrap; }
-.explorer-tree { flex: 1; min-block-size: 0; }
 .explorer-folder, .explorer-file { color: var(--color-icon); }
 .explorer-diagram { color: var(--color-tone-accent); }
 
-/* Pages in tabs */
+/* Pages */
 .page { display: grid; gap: var(--space-5); align-content: start; max-inline-size: 76rem; margin-inline: auto; }
 .page-header, .page-heading-row { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
+.page-heading-row { flex: 1; flex-wrap: wrap; }
 /* Page and section toolbars use compact controls, like the title bar. */
 .page-toolbar, .section-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); --control-height: var(--control-height-compact); --control-height-small: var(--control-height-compact); --icon-button-size: var(--control-height-compact); }
 .section-toolbar > :first-child { margin-inline-end: auto; }
-.work-search { inline-size: min(22rem, 100%); }
 .page-empty { padding-block: var(--space-8); }
-
-/* Rows that open one thing: the row's main link or button covers the row (envUI's interactive row
-   and its data-row-target), so a press anywhere on it opens that; the row's other controls, and
-   details with a tooltip, stay above it. */
-.work-row .diagram-count { position: relative; }
-.work-row :is(.blocked-reason, .work-row-steps, .work-row-updated) { position: relative; cursor: pointer; }
-
-/* Work list */
-.work-row-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.work-row-meta { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); }
-.blocked-reason { max-inline-size: 36rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* The steps being worked on: at most two lines; the work page lists them all. */
-.work-row-focus { display: -webkit-box; margin: var(--space-1) 0 0; overflow: hidden; color: var(--color-text-muted); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.work-row-side { display: flex; align-items: center; gap: var(--space-4); color: var(--color-text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.work-row-steps, .diagram-count { display: inline-flex; align-items: center; gap: var(--space-2); }
-.diagram-count { color: inherit; }
 
 /* Ledger steps: done in the "completed" tone, in progress in the "open" tone, over the work left. */
 .step-bar { display: flex; inline-size: 100%; block-size: 0.5rem; overflow: hidden; border-radius: var(--radius-standard); background: var(--color-surface-muted); }
@@ -174,59 +243,112 @@ body { margin: 0; }
 .ledger-progress-summary { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); }
 .ledger-steps { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
 .ledger-step { display: flex; align-items: flex-start; gap: var(--space-2); font-size: var(--font-size-body-small); }
+/* A handoff opening or ending the ledger: the work it continues, the work continuing it; muted, with an arrow, not a step. */
+.ledger-handoff { display: flex; align-items: flex-start; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--font-size-body-small); }
+.ledger-handoff-icon { flex: none; inline-size: 1.125rem; block-size: 1.125rem; color: var(--color-icon); }
+.ledger-handoff[data-handoff='continues'] { padding-block-end: var(--space-1); border-block-end: 0.0625rem solid var(--color-border); }
+.ledger-handoff[data-handoff='continuedIn'] { padding-block-start: var(--space-1); border-block-start: 0.0625rem solid var(--color-border); }
+.ledger-handoff[data-handoff='continuedIn'] + .ledger-handoff[data-handoff='continuedIn'] { padding-block-start: 0; border-block-start: 0; }
+.ledger-handoff[data-handoff='continues']:has(+ .ledger-handoff[data-handoff='continues']) { padding-block-end: 0; border-block-end: 0; }
+.handoff-ref { color: var(--color-link); text-decoration: none; overflow-wrap: anywhere; }
+.handoff-ref:hover { text-decoration: underline; }
+.handoff-ref:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; border-radius: 0.25rem; }
+.handoff-ref.muted { color: var(--color-text-muted); }
 .step-icon { flex: none; inline-size: 1.125rem; block-size: 1.125rem; color: var(--color-tone-neutral); }
 .step-icon[data-status='done'] { color: var(--color-tone-done); }
 .step-icon[data-status='doing'] { color: var(--color-tone-success); }
 .ledger-step-done span { color: var(--color-text-muted); }
-.ledger-step-doing span { font-weight: 600; }
+/* A step the search found, marked for a moment. */
+.ledger-step { border-radius: var(--radius-standard); transition: background-color var(--motion-duration-medium) var(--motion-ease); }
+.ledger-step[data-found] { background: color-mix(in srgb, var(--color-tone-accent) 18%, transparent); }
+.ledger-step-doing span { font-weight: 500; }
+/* The steps a plan proposes while it is designed: dimmed under their label, not yet agreed. */
+.ledger-proposed { margin-block-start: var(--space-1); color: var(--color-text-muted); font-size: var(--font-size-label); font-weight: 500; letter-spacing: 0.02em; text-transform: uppercase; }
+.ledger-step[data-phase='proposed'] { opacity: 0.55; }
+/* Planning steps (settling the design) are told apart from implementation steps by a calm accent, in
+   their marks and their part of the bar; their phase is also in their names. */
+.step-icon[data-phase='planning'] { color: color-mix(in srgb, var(--color-tone-accent) 45%, var(--color-tone-neutral)); }
+.step-icon[data-phase='planning']:is([data-status='done'], [data-status='doing']) { color: var(--color-tone-accent); }
+.step-bar-planning-done { background: var(--color-tone-accent); }
+.step-bar-planning-doing { background: color-mix(in srgb, var(--color-tone-accent) 55%, var(--color-surface-muted)); }
+/* While agents work on a plan, its indicators pulse: its status icon and its step in progress (the
+   step's icon in the list and its share of the bar), never their text. While one waits for the
+   person, the step is amber. Still when motion is reduced. */
+@keyframes atlas-working { 50% { opacity: 0.4; } }
+:is(.status-icon[data-status='working'], .ledger-step[data-live='working'] .step-icon, .step-bar[data-live='working'] :is(.step-bar-doing, .step-bar-planning-doing)) { animation: atlas-working 1.6s var(--motion-ease) infinite; }
+:is(.ledger-step[data-live='waiting'] .step-icon, .hub-row-step[data-live='waiting']) { color: var(--color-tone-warning); }
+.step-bar[data-live='waiting'] :is(.step-bar-doing, .step-bar-planning-doing) { background: var(--color-tone-warning); }
+@media (prefers-reduced-motion: reduce) {
+  :is(.status-icon[data-status='working'], .ledger-step[data-live='working'] .step-icon, .step-bar[data-live='working'] > span) { animation: none; }
+}
 
 /* Work page: the plan, with the work's facts beside it. The diagrams' islands keep a gutter from the edge. */
 .work-page { --atlas-gutter: var(--space-3); display: grid; align-content: start; }
 /* An island like the diagram's: a pane pill with their hairline and shadow. */
 .diagrams-island { box-shadow: 0 0 0 0.0625rem color-mix(in srgb, var(--color-text-primary) 9%, transparent), 0 0.0625rem 0.1875rem color-mix(in srgb, var(--color-canvas-dark) 14%, transparent), 0 0.5rem 1.5rem -0.5rem color-mix(in srgb, var(--color-canvas-dark) 28%, transparent); }
-@container (max-width: 40rem) {
+@media (max-width: 40rem) {
   .work-page { --atlas-gutter: var(--space-2); }
 }
 .work-header { display: grid; gap: var(--space-3); padding-block-end: var(--space-5); }
 .work-header-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+/* The breadcrumb names the plan's project and number, with Export Plan… quietly on its right. */
+.work-trail { display: flex; align-items: center; gap: var(--space-3); }
+.work-trail .breadcrumb { flex: 1; min-inline-size: 0; }
+.work-export { flex: none; }
+/* Under the title, the status and one fact about it, muted; a blocker's reason is cut short. */
+.work-status { display: flex; align-items: center; gap: var(--space-2); min-inline-size: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); font-variant-numeric: tabular-nums; }
+.work-status-fact { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.work-status-fact + .work-status-fact { flex: none; }
+.work-status-fact + .work-status-fact::before { content: '·'; margin-inline-end: var(--space-2); }
+/* The plan's summary leads the page, under its status. */
+.work-summary { margin: 0; max-inline-size: 48rem; color: var(--color-text-muted); font-size: var(--font-size-body-large, 1.0625rem); }
+/* The request a plan records shows folded, its heading the toggle. */
+.request-fold-toggle { display: inline-flex; align-items: center; gap: var(--space-1); margin: 0 0 0 -0.25rem; padding: 0 0.25rem; border: 0; border-radius: 0.25rem; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.request-fold-toggle:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; }
+.request-fold-icon { flex: none; inline-size: 1em; block-size: 1em; color: var(--color-icon); transition: transform var(--motion-duration-fast) var(--motion-ease); }
+.request-fold-toggle[aria-expanded='true'] .request-fold-icon { transform: rotate(90deg); }
+.request-fold:not([data-open]) > :not(:first-child) { display: none; }
 .work-number { color: var(--color-text-muted); font: var(--type-body-small); font-variant-numeric: tabular-nums; }
 .work-layout { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: var(--space-7); align-items: start; inline-size: 100%; max-inline-size: 84rem; margin-inline: auto; padding-block-start: var(--space-6); }
 .work-main { min-inline-size: 0; }
-/* The side column stays where it starts, below the tabs, whatever the page does: it is held at the
-   offset it has at the top of the page, and scrolls on its own when taller than the room below the
-   tabs, with its scrollbar shown while the pointer is over it. It keeps its scrolling to itself only
-   when it has something to scroll, so a wheel over a short column still moves the page. */
-.about { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-6)); display: grid; align-content: start; gap: var(--space-6); max-block-size: calc(100dvh - var(--topbar-height) - var(--atlas-sticky-top) - var(--space-6)); overflow-y: auto; scrollbar-width: thin; scrollbar-gutter: stable; scrollbar-color: transparent transparent; padding-inline-end: var(--space-2); padding-block-end: var(--space-6); }
-.about:is(:hover, :focus-within) { scrollbar-color: var(--color-border-strong) transparent; }
-.about[data-scrolls] { overscroll-behavior: contain; }
-.about-section { display: grid; gap: var(--space-2); }
-.about-ledger { margin: 0; }
-.about-ledger a { display: inline-flex; align-items: center; gap: var(--space-2); }
-.about-heading { display: block; }
-.about-note { color: var(--color-text-muted); font-weight: 400; }
-.about-current { margin: 0; }
-.about-next { margin: 0; padding-inline-start: var(--space-5); }
-.about-path { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); overflow-wrap: anywhere; }
-.about-commits { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; font-size: var(--font-size-body-small); }
-.about-commits li { display: flex; gap: var(--space-2); }
-.about-commits li > div { display: grid; min-inline-size: 0; }
-.about-commit-icon { flex: none; margin-block-start: 0.125rem; color: var(--color-icon); }
+
+/* The side column stays where it starts, below the title bar and the sections, whatever the page
+   does: it is held at the offset it has at the top of the page, and scrolls on its own when taller
+   than the room below them, with its scrollbar shown while the pointer is over it. It keeps its
+   scrolling to itself only when it has something to scroll, so a wheel over a short column still
+   moves the page. */
+.plan-aside { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--space-6)); display: grid; align-content: start; gap: var(--space-6); max-block-size: calc(100dvh - var(--topbar-height) - var(--atlas-sticky-top) - var(--space-6)); overflow-y: auto; scrollbar-width: thin; scrollbar-gutter: stable; scrollbar-color: transparent transparent; padding-inline-end: var(--space-2); padding-block-end: var(--space-6); }
+.plan-aside:is(:hover, :focus-within) { scrollbar-color: var(--color-border-strong) transparent; }
+.plan-aside[data-scrolls] { overscroll-behavior: contain; }
+.plan-aside-section { display: grid; gap: var(--space-2); }
+.plan-aside-heading { display: block; }
+.plan-aside-note { color: var(--color-text-muted); font-weight: 400; }
+.plan-aside-path { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); overflow-wrap: anywhere; }
+/* A plan's sessions, each by its title, then its harness, model and effort, state, when and agent time. */
+.plan-aside-sessions { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; font-size: var(--font-size-body-small); }
+.plan-aside-session { display: flex; align-items: flex-start; gap: var(--space-2); }
+.plan-aside-session > .status-icon { flex: none; margin-block-start: 0.125rem; }
+.plan-aside-session-title { overflow-wrap: anywhere; }
+.plan-aside-more { justify-self: start; }
+.plan-aside-statistics-link { justify-self: start; font-size: var(--font-size-body-small); }
 .facts { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-4); margin: 0; font-size: var(--font-size-body-small); }
 .facts > div { display: contents; }
 .facts dt { color: var(--color-text-muted); }
 .facts dd { margin: 0; overflow-wrap: anywhere; }
-@container (max-width: 62rem) {
+@media (max-width: 62rem) {
   .work-layout { grid-template-columns: minmax(0, 1fr); }
-  .about { position: static; max-block-size: none; overflow: visible; }
+  .plan-aside { position: static; max-block-size: none; overflow: visible; }
 }
 /* The diagrams section takes the rest of the window. */
-.work-page.section-diagrams { flex: 1; display: flex; flex-direction: column; min-block-size: 0; }
+.work-page.is-diagrams { flex: 1; display: flex; flex-direction: column; min-block-size: 0; }
 
 /* Reader */
 .reader { min-inline-size: 0; }
-.reader-boxed .prose, .reader-boxed .source-text, .reader-boxed .attachment { padding: var(--space-5) var(--space-6) var(--space-6); }
-.reader-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3) var(--space-2) var(--space-5); border-block-end: 0.0625rem solid var(--color-border-strong); }
-.reader-name { display: inline-flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
+/* A file's metadata header, above its text: field names muted, values as written. */
+.document-header { margin-block-end: var(--space-4); font-size: var(--font-size-body-small); }
+.document-header th { padding-inline-end: var(--space-4); color: var(--color-text-muted); font-weight: 500; text-align: start; vertical-align: top; white-space: nowrap; }
+.document-header td { overflow-wrap: anywhere; }
+.document-header-entries { margin: 0; padding-inline-start: var(--space-4); }
 .reader-loading { display: grid; place-content: center; padding-block: var(--space-8); }
 .prose :is(h1, h2, h3, h4, h5, h6) { scroll-margin-block-start: calc(var(--atlas-sticky-top, var(--app-sticky-top, 0px)) + var(--space-4)); }
 .prose img { max-inline-size: 100%; }
@@ -234,8 +356,12 @@ body { margin: 0; }
 .outside-reference { border-block-end: 0.0625rem dashed var(--color-text-quiet); cursor: help; }
 .source-text { margin: 0; font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: var(--font-size-body-small); white-space: pre-wrap; overflow-wrap: anywhere; }
 .attachment img { max-inline-size: 100%; }
-.file-page { max-inline-size: 64rem; }
+.file-page { max-inline-size: 64rem; padding-block-start: var(--space-6); }
+/* The plan export viewer shows a file in a card, with its name and size above it. */
 .file-surface { overflow: hidden; }
+.reader-boxed .prose, .reader-boxed .source-text, .reader-boxed .attachment { padding: var(--space-5) var(--space-6) var(--space-6); }
+.reader-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3) var(--space-2) var(--space-5); border-block-end: 0.0625rem solid var(--color-border-strong); }
+.reader-name { display: inline-flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
 .diagram-cards { display: grid; gap: var(--space-3); margin-block: var(--space-3) var(--space-5); }
 .diagram-card-title { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .diagram-card-icon { color: var(--color-tone-accent); }
@@ -244,7 +370,7 @@ body { margin: 0; }
 .element-chip:hover { text-decoration: underline; }
 .element-chip:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; border-radius: 0.25rem; }
 
-/* The diagrams tab: the canvas fills the panel. */
+/* A plan's diagrams: the canvas fills the panel. */
 .diagrams { position: relative; display: flex; flex: 1; flex-direction: column; min-block-size: 22rem; }
 /* Full view covers the window below its title bar, which keeps the window buttons and moves the window. */
 .diagrams.fullscreen { position: fixed; inset: var(--topbar-height) 0 0 0; z-index: 100; min-block-size: 0; border: 0; background: var(--color-canvas); }
@@ -254,48 +380,106 @@ body { margin: 0; }
 .diagram-problems { margin: var(--space-3) 0 0; padding-inline-start: 1.25rem; text-align: start; }
 /* While a diagram loads, the switcher and the picker are where the diagram's overlay puts them. */
 .diagrams-islands { position: absolute; inset-block-start: var(--atlas-gutter); inset-inline-start: var(--atlas-gutter); z-index: 5; display: grid; justify-items: start; gap: var(--space-2); }
-@container (max-width: 40rem) {
+@media (max-width: 40rem) {
   .diagrams-islands { gap: var(--space-1); }
 }
 .diagrams-notices { position: absolute; inset-block-end: 3.5rem; inset-inline-start: 50%; z-index: 40; display: grid; gap: var(--space-2); inline-size: min(35rem, calc(100% - 2rem)); transform: translateX(-50%); }
-.model-picker-button { min-inline-size: 0; max-inline-size: min(28rem, 60vw); }
-.model-picker-title { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diagram-picker-button { min-inline-size: 0; max-inline-size: min(28rem, 60vw); }
+.diagram-picker-title { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A long title gives way; the model's origin stays whole beside it. */
-.model-picker-button > .env-badge { flex: none; }
-
-/* Activity */
-.activity-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.activity-work { font-size: var(--font-size-body-small); }
-.changed-files { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); margin-block-start: var(--space-1); }
-.file-chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: 0; border: 0; background: none; color: var(--color-link); font: inherit; font-size: var(--font-size-body-small); cursor: pointer; }
-.file-chip:disabled { color: var(--color-text-quiet); cursor: default; }
-.file-chip:not(:disabled):hover { text-decoration: underline; }
-.file-chip:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; border-radius: 0.25rem; }
-.activity-meta { display: grid; justify-items: end; gap: var(--space-1); color: var(--color-text-muted); font-size: var(--font-size-body-small); white-space: nowrap; }
+.diagram-picker-button > .env-badge { flex: none; }
 
 /* Statistics */
-.statistics-body { display: grid; gap: var(--space-5); padding-block-start: var(--space-5); }
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--space-3); }
 .stat { display: grid; gap: var(--space-1); }
 .stat-label, .stat-note { color: var(--color-text-muted); font-size: var(--font-size-body-small); }
-.stat-value { font-size: 1.75rem; font-weight: 600; font-variant-numeric: tabular-nums; }
-/* The work column keeps room for a title: a narrow window scrolls the table sideways rather than squeezing it to a letter a line. */
-.work-statistics-table :is(td, th):first-child { min-inline-size: 16rem; }
-.work-statistics-table td:first-child a { overflow-wrap: normal; }
-.work-statistics-table :is(td, th):not(:first-child) { white-space: nowrap; }
-.work-cell, .model-cell { display: inline-flex; align-items: center; gap: var(--space-2); min-inline-size: 0; }
+.stat-value { font-size: 1.75rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.model-cell { display: inline-flex; align-items: center; gap: var(--space-2); min-inline-size: 0; max-inline-size: 100%; }
+.work-chart-tip-figure { margin-inline-start: auto; padding-inline-start: var(--space-3); font-variant-numeric: tabular-nums; }
+/* A model at an effort's colour, the same in every chart and table. */
+.model-swatch { display: inline-block; flex: none; inline-size: 0.625rem; block-size: 0.625rem; border-radius: 0.1875rem; }
+/* A project's statistics: the period's figures, its work over time, where the time went, its models. */
+.statistics-page { gap: var(--space-6); }
+.project-statistics-section { display: grid; gap: var(--space-3); }
+.project-statistics-table { font-variant-numeric: tabular-nums; }
+/* Work over time: a column per day or week, its agent time stacked by model and effort; the time at
+   least one agent worked as a line over them; the plans completed marked above a column. */
+.work-chart { position: relative; block-size: 14rem; padding-block: 1.25rem 1.5rem; }
+.work-chart-bars { display: flex; align-items: stretch; gap: 0.125rem; block-size: 100%; border-block-end: 0.0625rem solid var(--color-border-strong); }
+.work-chart-column { position: relative; flex: 1; display: flex; flex-direction: column; justify-content: flex-end; min-inline-size: 0; border-radius: 0.1875rem 0.1875rem 0 0; }
+.work-chart-column[data-shown] { background: color-mix(in srgb, var(--color-text-primary) 6%, transparent); }
+.work-chart-stack { display: flex; flex-direction: column-reverse; min-block-size: 0; overflow: hidden; border-radius: 0.1875rem 0.1875rem 0 0; }
+/* A hairline of the background between stacked models, so neighbours stay apart. */
+.work-chart-stack > span { flex-basis: 0; min-block-size: 0.0625rem; }
+.work-chart-stack > span + span { box-shadow: inset 0 -0.0625rem 0 var(--color-canvas); }
+/* Plans completed: a ring in the text colour, which no model takes, with their number. */
+.work-chart-completed { position: absolute; inset-inline: 0; margin-block-end: 0.25rem; margin-inline: auto; box-sizing: border-box; inline-size: 1.125rem; block-size: 1.125rem; border: 0.09375rem solid var(--color-text-primary); border-radius: 50%; background: var(--color-canvas); color: var(--color-text-primary); font-size: 0.6875rem; font-weight: 600; line-height: 0.9375rem; text-align: center; }
+.work-chart-label { position: absolute; inset-block-start: 100%; inset-inline-start: 50%; margin-block-start: 0.25rem; transform: translateX(-50%); color: var(--color-text-muted); font-size: 0.6875rem; white-space: nowrap; }
+.work-chart-line { position: absolute; inset: 1.25rem 0 1.5rem; inline-size: 100%; block-size: calc(100% - 2.75rem); overflow: visible; pointer-events: none; }
+.work-chart-line polyline { fill: none; stroke: var(--color-text-primary); stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; opacity: 0.7; }
+.work-chart-tip { position: absolute; inset-block-start: 0; z-index: 2; display: grid; gap: 0.125rem; inline-size: max-content; max-inline-size: 22rem; padding: var(--space-2) var(--space-3); border: 0.0625rem solid var(--color-popup-border); border-radius: var(--radius-standard); background: var(--color-popup, var(--color-canvas)); box-shadow: 0 0.5rem 1.5rem -0.75rem color-mix(in srgb, var(--color-canvas-dark) 30%, transparent); font-size: var(--font-size-body-small); pointer-events: none; transform: translateX(0.75rem); }
+.work-chart-tip[data-flip] { transform: translateX(calc(-100% - 0.75rem)); }
+.work-chart-tip-model { display: flex; align-items: center; gap: var(--space-2); color: var(--color-text-muted); }
+.work-chart-legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: 0; font-size: var(--font-size-body-small); }
+.work-chart-legend > span { display: inline-flex; align-items: center; gap: var(--space-2); }
+.work-chart-key-line { display: inline-block; inline-size: 1rem; border-block-start: 0.125rem dashed var(--color-text-primary); opacity: 0.7; }
+.work-chart-key-completed { display: inline-block; box-sizing: border-box; inline-size: 0.75rem; block-size: 0.75rem; border: 0.09375rem solid var(--color-text-primary); border-radius: 50%; }
 .cell-note { display: block; color: var(--color-text-muted); }
-.count-cell { display: inline-flex; align-items: center; gap: var(--space-2); }
-.mini-bar { inline-size: 5rem; block-size: 0.375rem; overflow: hidden; border-radius: var(--radius-standard); background: var(--color-surface-muted); }
-.mini-bar > span { display: block; block-size: 100%; background: var(--color-tone-accent); }
-.table-more { display: flex; justify-content: center; }
 .info-body { display: grid; gap: var(--space-2); }
 .info-body p { margin: 0; }
 
 /* AI models: a provider's mark in its brand colour, or in the text colour beside a chart's colours. */
 .model-name { display: inline-flex; align-items: center; gap: 0.375rem; min-inline-size: 0; max-inline-size: 100%; vertical-align: bottom; }
 .model-name-text { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.provider-mark { flex: none; inline-size: 1.0625em; block-size: 1.0625em; color: var(--color-text-muted); }
+/* A model's reasoning effort beside its name: "Claude Opus 5.5 · high". */
+.model-effort { flex: none; color: var(--color-text-muted); white-space: nowrap; }
+/* A PR's state beside its link: open and draft in the open tone (draft neutral), merged in the done tone, closed in red; its checks after it when they fail or run. */
+.pull-mark { display: inline-flex; align-items: center; gap: 0.125rem; margin-inline-start: 0.25em; vertical-align: -0.125em; }
+.pull-mark svg { inline-size: 1em; block-size: 1em; }
+.pull-mark-state[data-state='open'], .pull-mark-checks[data-checks='passing'] { color: var(--color-tone-success); }
+.pull-mark-state[data-state='draft'], .pull-mark-checks[data-checks='pending'] { color: var(--color-tone-neutral); }
+.pull-mark-state[data-state='merged'] { color: var(--color-tone-done); }
+.pull-mark-state[data-state='closed'], .pull-mark-checks[data-checks='failing'] { color: var(--color-tone-danger); }
+/* Why a plan needs you: the waiting session's message under its status, with a way to open the session. */
+.needs-you { display: grid; gap: var(--space-2); max-inline-size: 48rem; padding: var(--space-3) var(--space-4); border-inline-start: 0.1875rem solid var(--color-tone-warning); border-radius: var(--radius-standard); background: color-mix(in srgb, var(--color-tone-warning) 8%, transparent); }
+.needs-you-message { overflow-wrap: anywhere; }
+.needs-you-message :is(p, ul, ol, pre):first-child { margin-block-start: 0; }
+.needs-you-message :is(p, ul, ol, pre):last-child { margin-block-end: 0; }
+/* The first paragraph of a long message, cut to four lines until shown whole. */
+.needs-you-message[data-clamped] > * > :first-child, .needs-you-message[data-clamped] > :first-child { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+.needs-you-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--font-size-body-small); }
+/* A plan's statistics page: its figures, its timeline and its tables. */
+.plan-statistics-page { display: grid; gap: var(--space-6); }
+.plan-statistics-header { display: grid; gap: var(--space-1); }
+.plan-statistics-section { display: grid; gap: var(--space-3); }
+.plan-statistics-table { font-variant-numeric: tabular-nums; }
+/* The timeline: a lane per session and subagent on one scale of time, working stretches solid,
+   waits for the person in amber behind them, now a line at the end. */
+.timeline { position: relative; display: grid; gap: var(--space-1); padding-block-start: 1.5rem; --timeline-names: 14rem; }
+.timeline-axis { position: absolute; inset: 0 0 auto var(--timeline-names); block-size: 100%; pointer-events: none; }
+.timeline-tick { position: absolute; inset-block-start: 0; block-size: 100%; padding-inline-start: 0.25rem; border-inline-start: 0.0625rem solid color-mix(in srgb, var(--color-text-primary) 12%, transparent); color: var(--color-text-muted); font-size: var(--font-size-body-small); white-space: nowrap; }
+.timeline-lane { display: grid; grid-template-columns: var(--timeline-names) minmax(0, 1fr); align-items: center; min-block-size: 1.5rem; }
+.timeline-lane-name { overflow: hidden; padding-inline-end: var(--space-2); font-size: var(--font-size-body-small); text-overflow: ellipsis; white-space: nowrap; }
+.timeline-lane[data-subagent] .timeline-lane-name { padding-inline-start: var(--space-4); color: var(--color-text-muted); }
+.timeline-track { position: relative; block-size: 0.875rem; border-radius: var(--radius-standard); background: var(--color-surface-muted); }
+.timeline-bar { position: absolute; inset-block: 0; min-inline-size: 0.125rem; border-radius: 0.125rem; }
+.timeline-bar[data-kind='working'], .timeline-key[data-kind='working'] { background: var(--color-tone-success); }
+.timeline-bar[data-kind='waiting'], .timeline-key[data-kind='waiting'] { background: color-mix(in srgb, var(--color-tone-warning) 55%, transparent); }
+.timeline-lane[data-subagent] .timeline-bar[data-kind='working'] { background: color-mix(in srgb, var(--color-tone-success) 60%, var(--color-surface-muted)); }
+.timeline-now { position: absolute; inset-block: 1.25rem 0; inset-inline-end: 0; inline-size: 0.125rem; background: var(--color-tone-accent); }
+.timeline-key { display: inline-block; inline-size: 0.75rem; block-size: 0.75rem; margin-inline: var(--space-2) 0.25rem; border-radius: 0.125rem; vertical-align: -0.0625rem; }
+.timeline-key[data-kind='now'] { inline-size: 0.125rem; background: var(--color-tone-accent); }
+.timeline-legend { margin: 0; font-size: var(--font-size-body-small); }
+/* Exploring the timeline: dragging moves along time, Shift and the wheel zoom; a stretch says on hover what it was. */
+.timeline { cursor: grab; user-select: none; border-radius: var(--radius-standard); }
+.timeline:active { cursor: grabbing; }
+.timeline:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.25rem; }
+.timeline-lane:not([data-subagent]) .timeline-lane-name { font-weight: 500; }
+.timeline-tip { position: absolute; z-index: 2; display: grid; gap: 0.125rem; max-inline-size: 22rem; padding: var(--space-2) var(--space-3); border: 0.0625rem solid var(--color-popup-border); border-radius: var(--radius-standard); background: var(--color-surface, var(--color-canvas)); box-shadow: 0 0.5rem 1.5rem -0.75rem color-mix(in srgb, var(--color-canvas-dark) 30%, transparent); font-size: var(--font-size-body-small); pointer-events: none; transform: translate(0.75rem, 0.75rem); }
+.timeline-tip[data-flip] { transform: translate(calc(-100% - 0.75rem), 0.75rem); }
+/* The same size wherever a model is named, whatever the text around it. */
+.provider-mark { flex: none; inline-size: 1rem; block-size: 1rem; color: var(--color-text-muted); }
+.model-unrecorded { color: var(--color-text-muted); }
 .provider-mark[data-provider='anthropic'] { color: light-dark(#d97757, #e3896a); }
 .provider-mark[data-provider='openai'] { color: var(--color-text-primary); }
 .provider-mark[data-provider='mistral'] { color: light-dark(#f2550f, #ff7a3d); }
@@ -307,47 +491,29 @@ body { margin: 0; }
 .breakdown { display: grid; grid-template-columns: auto auto; row-gap: 0.125rem; margin: 0; font-variant-numeric: tabular-nums; }
 .breakdown > div { display: contents; }
 .breakdown dd { margin: 0; padding-inline-start: var(--space-4); text-align: end; white-space: nowrap; }
-.breakdown-total > * { padding-block-start: 0.25rem; border-block-start: 0.0625rem solid currentColor; font-weight: 600; }
-.breakdown-note { display: grid; gap: var(--space-2); }
-.breakdown-note p { margin: 0; }
-/* A work item's statistics in its About sidebar, like a repository's: the model, then a fact a line. */
+/* Agent time's report: the totals, then what the place knows of them, a section each. */
+.agent-time-report { display: grid; gap: var(--space-2); }
+.agent-time-report p { margin: 0; }
+.agent-time-report-heading { font-weight: 500; }
+/* A work item's statistics in the plan's side column: the model, then a fact a line. */
 .work-statistics { display: grid; gap: var(--space-3); font-size: var(--font-size-body-small); }
-.work-statistics-model { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0.125rem var(--space-2); }
-.work-statistics-model .provider-mark { inline-size: 1.125rem; block-size: 1.125rem; }
-.work-statistics-primary { font-size: var(--font-size-body); font-weight: 600; }
-.work-statistics-others { grid-column: 2; color: var(--color-text-muted); }
+.work-statistics-model { display: grid; justify-items: start; gap: 0.125rem; }
+.work-statistics-primary { font-size: var(--font-size-body); font-weight: 500; }
+.work-statistics-others { padding-inline-start: calc(1rem + 0.375rem); color: var(--color-text-muted); }
 .work-statistics-others .nowrap { white-space: nowrap; }
 .work-statistics-facts { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .work-statistics-facts li { display: flex; align-items: center; gap: var(--space-2); }
-.work-statistics-facts strong { font-weight: 600; }
+.work-statistics-facts strong { font-weight: 500; }
 .work-statistics-icon { flex: none; inline-size: 1rem; block-size: 1rem; color: var(--color-icon); }
 
-/* The scatter chart. Series colours are categorical slots, set per theme. */
-/* light-dark() follows the colour scheme envUI's theme sets. */
-.env-theme { --atlas-chart-1: light-dark(#2a6ccc, #3987e5); --atlas-chart-2: light-dark(#c4501d, #d95926); --atlas-chart-3: light-dark(#127a57, #199e70); --atlas-chart-other: light-dark(#6e7781, #8b949e); }
-.chart-box { display: grid; gap: var(--space-2); }
-.chart-legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: 0 0 var(--space-2); padding: 0; list-style: none; font-size: var(--font-size-body-small); }
-.chart-legend li { display: inline-flex; align-items: center; gap: var(--space-2); }
-.chart-swatch { display: inline-block; flex: none; inline-size: 0.625rem; block-size: 0.625rem; border-radius: 50%; }
-.chart-frame { position: relative; border-radius: var(--radius-standard); }
-.chart-frame:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.25rem; }
-.chart-frame svg { display: block; overflow: visible; }
-.chart-grid { stroke: var(--color-border-strong); stroke-opacity: 0.5; stroke-width: 1; shape-rendering: crispEdges; }
-.chart-axis { stroke: var(--color-border-strong); stroke-width: 1; shape-rendering: crispEdges; }
-.chart-tick { font-size: 0.6875rem; fill: var(--color-text-muted); font-variant-numeric: tabular-nums; }
-.chart-dot { stroke: var(--color-pane); stroke-width: 2; }
-.chart-dot.active { stroke: var(--color-text-primary); }
-.chart-tooltip { position: absolute; z-index: 10; display: grid; gap: 0.125rem; inline-size: 13rem; padding: var(--space-2) var(--space-3); font-size: var(--font-size-body-small); color: var(--color-text-primary); background: var(--color-popup); border: 0.0625rem solid var(--color-popup-border); border-radius: var(--radius-standard); pointer-events: none; }
-.chart-tooltip strong { font-size: var(--font-size-body); }
-.chart-tooltip-series { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text-muted); }
-.chart-key { display: inline-block; inline-size: 0.75rem; block-size: 0.125rem; border-radius: 0.0625rem; }
+/* Chart colours: categorical slots, set per theme (light-dark() follows the colour scheme envUI's theme sets). */
 
 /* Lists of folders and computers */
 .row-link { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
 .row-link:disabled { cursor: default; color: var(--color-text-muted); }
 .row-link:not(:disabled):hover .row-link-title { text-decoration: underline; }
 .row-link:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.25rem; border-radius: 0.25rem; }
-.row-link-title { font-weight: 600; }
+.row-link-title { font-weight: 500; }
 .row-title { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 
 /* Dialogs */
@@ -371,7 +537,7 @@ body { margin: 0; }
 .pairing-link { overflow-wrap: anywhere; }
 .pairing-form { display: grid; gap: var(--space-3); }
 .pairing-permissions { display: grid; gap: var(--space-2); margin: 0; padding: 0; border: 0; }
-.field-legend { margin-block-end: var(--space-1); padding: 0; font-weight: 600; }
+.field-legend { margin-block-end: var(--space-1); padding: 0; font-weight: 500; }
 .pairing-permission { display: flex; gap: var(--space-2); margin: 0; }
 .pairing-permission > span { display: grid; }
 .pairing-permission-icon { flex: none; color: var(--color-tone-success); }

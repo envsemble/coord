@@ -5,9 +5,10 @@ import { mkdtempSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { RotatingLog } from './log.ts';
-import { containedFile, contentSecurityPolicy, originOf } from './protocol.ts';
-import { HomeDatabase } from '@envsemble/atlas-planning';
-import { DesktopState } from './state.ts';
+import { containedFile, contentSecurityPolicy, isEntry, originOf } from './windows/protocol.ts';
+import { HomeDatabase } from '@envsemble/atlas/planning';
+import { AppState, placeRow, savedPlace } from './appState.ts';
+import { appLink, editorLink } from './windows/launch.ts';
 import { target as tabTarget } from '../shared/validate.ts';
 import type { Target } from '../shared/contract.ts';
 
@@ -21,6 +22,10 @@ test('the renderer and planning protocol never resolve outside their folder', ()
   assert.equal(originOf('atlas://app/index.html'), 'atlas://app');
   assert.equal(originOf('http://localhost:5173/x'), 'http://localhost:5173');
   assert.equal(originOf('not a url'), null);
+  // A window navigates on its own origin only to its own page.
+  assert.equal(isEntry('atlas://app/index.html#top', 'atlas://app/index.html'), true);
+  assert.equal(isEntry('http://localhost:5173/', 'http://localhost:5173/'), true);
+  for (const away of ['atlas://app/app/src/plan/sessions.ts:12', 'atlas://planning/f-0/README.md', 'https://app/index.html']) assert.equal(isEntry(away, 'atlas://app/index.html'), false, away);
   assert.match(contentSecurityPolicy, /default-src 'none'/);
   assert.doesNotMatch(contentSecurityPolicy, /unsafe-eval|script-src[^;]*unsafe-inline/);
 });
@@ -36,59 +41,56 @@ test('the log rotates and keeps a bounded number of files', () => {
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('windows, their tabs per computer and the shared settings are kept in the home database', () => {
+test('windows, their places per computer and the shared settings are kept in the home database', () => {
   const directory = temporary();
   const database = HomeDatabase.open(directory);
   try {
-    const state = new DesktopState(database);
+    const state = new AppState(database);
     // The theme preference is kept for every window; the system's is the default and is not stored.
     assert.equal(state.theme, 'system');
     state.setTheme('dark');
-    assert.equal(new DesktopState(database).theme, 'dark');
+    assert.equal(new AppState(database).theme, 'dark');
     state.setTheme('system');
     assert.equal(database.setting('theme'), null);
-    assert.equal(state.sidebarVisible, true);
-    state.setSidebarVisible(false);
-    assert.equal(state.sidebarVisible, false);
     assert.equal(state.inspectorWidth, null);
     state.setInspectorWidth(480);
     assert.equal(state.inspectorWidth, 480);
-    // A window on this computer with tabs of a local project, and tabs of a paired computer's project it showed before.
+    // A window on this computer with places of a local project, and places of a paired computer's project it showed before.
     const local = database.addProject(path.join(directory, 'planning', 'shop'), 'Shop');
-    database.db.prepare('INSERT INTO connection (id, host_id, name, origin, device_id, token, paired_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('c1', 'host-0001', 'Laptop', 'http://100.64.0.2:7346', 'd-' + 'a'.repeat(32), Buffer.from('plain:x'), '2026-10-15T00:00:00.000Z');
+    database.db.prepare('INSERT INTO paired_computer (id, host_id, name, origin, device_id, token, paired_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('c1', 'host-0001', 'Laptop', 'http://100.64.0.2:7346', 'd-' + 'a'.repeat(32), Buffer.from('plain:x'), '2026-10-15T00:00:00.000Z');
     const remote = database.addProject('/home/me/.atlas/planning/coord', 'Coord', 'c1');
     const window = state.addWindow(null, { x: 10, y: 20, width: 900, height: 700 });
-    state.updateWindow(window, { maximized: true, sidebarWidth: 5000 });
-    assert.deepEqual(state.windows(), [{ id: window, connectionId: null, bounds: { x: 10, y: 20, width: 900, height: 700 }, maximized: true, sidebarWidth: 640 }], 'the sidebar keeps within its limits');
-    state.saveTabs(window, null, [{ projectId: local.id, kind: 'project', target: null, active: false }, { projectId: local.id, kind: 'work', target: '{"work":"work-0001"}', active: true }], []);
-    state.saveTabs(window, 'c1', [{ projectId: remote.id, kind: 'project', target: null, active: true }], []);
-    state.saveTabs(window, null, [{ projectId: local.id, kind: 'file', target: '{"path":"README.md"}', active: true }], [local.id]);
-    assert.deepEqual(state.tabs(window, null).map(tab => [tab.kind, tab.target, tab.active]), [['file', '{"path":"README.md"}', true]], 'saving replaces the computer\'s tabs');
-    assert.deepEqual(state.tabs(window, 'c1').map(tab => tab.projectId), [remote.id], 'and keeps the other computer\'s');
+    state.updateWindow(window, { maximized: true });
+    assert.deepEqual(state.windows(), [{ id: window, computerId: null, bounds: { x: 10, y: 20, width: 900, height: 700 }, maximized: true }]);
+    state.savePlaces(window, null, [{ projectRowId: local.id, kind: 'project', target: null, active: false }, { projectRowId: local.id, kind: 'work', target: '{"work":"work-0001"}', active: true }], []);
+    state.savePlaces(window, 'c1', [{ projectRowId: remote.id, kind: 'project', target: null, active: true }], []);
+    state.savePlaces(window, null, [{ projectRowId: local.id, kind: 'file', target: '{"path":"README.md"}', active: true }], [local.id]);
+    assert.deepEqual(state.places(window, null).map(place => [place.kind, place.target, place.active]), [['file', '{"path":"README.md"}', true]], 'saving replaces the computer\'s places');
+    assert.deepEqual(state.places(window, 'c1').map(place => place.projectRowId), [remote.id], 'and keeps the other computer\'s');
     // A computer that did not answer at the start (nothing loaded), or a project whose folder was not
-    // a planning folder then: saving keeps the tabs it could not show, after the others.
+    // a planning folder then: saving keeps the places it could not show, after the others.
     const missing = database.addProject(path.join(directory, 'planning', 'gone'), 'Gone');
-    state.saveTabs(window, null, [{ projectId: local.id, kind: 'project', target: null, active: false }, { projectId: missing.id, kind: 'file', target: '{"path":"a.md"}', active: true }], [local.id, missing.id]);
-    state.saveTabs(window, 'c1', [], []);
-    assert.deepEqual(state.tabs(window, 'c1').map(tab => tab.projectId), [remote.id], 'the offline computer keeps its tabs');
-    state.saveTabs(window, null, [{ projectId: local.id, kind: 'work', target: '{"work":"work-0002"}', active: true }], [local.id]);
-    assert.deepEqual(state.tabs(window, null).map(tab => [tab.projectId, tab.kind, tab.active]), [[local.id, 'work', true], [missing.id, 'file', false]], 'the missing folder keeps its tab, no longer active');
-    state.saveTabs(window, null, [], [local.id, missing.id]);
-    assert.deepEqual(state.tabs(window, null), [], 'once loaded, closing them removes them');
-    // A work item's tab showing its ledger loads back showing it, saved and read as the window does.
-    const { kind, ...rest } = { kind: 'work', work: 'work-0001', anchor: null, view: 'ledger' } satisfies Target;
-    state.saveTabs(window, null, [{ projectId: local.id, kind, target: JSON.stringify(rest), active: true }], [local.id]);
-    assert.deepEqual(state.tabs(window, null).map(saved => tabTarget({ kind: saved.kind, ...saved.target && JSON.parse(saved.target) })), [{ kind: 'work', work: 'work-0001', anchor: null, view: 'ledger' }]);
-    // Twenty tabs kept for a folder not listed, then forty of another project: a window holds forty,
+    state.savePlaces(window, null, [{ projectRowId: local.id, kind: 'project', target: null, active: false }, { projectRowId: missing.id, kind: 'file', target: '{"path":"a.md"}', active: true }], [local.id, missing.id]);
+    state.savePlaces(window, 'c1', [], []);
+    assert.deepEqual(state.places(window, 'c1').map(place => place.projectRowId), [remote.id], 'the offline computer keeps its places');
+    state.savePlaces(window, null, [{ projectRowId: local.id, kind: 'work', target: '{"work":"work-0002"}', active: true }], [local.id]);
+    assert.deepEqual(state.places(window, null).map(place => [place.projectRowId, place.kind, place.active]), [[local.id, 'work', true], [missing.id, 'file', false]], 'the missing folder keeps its place, no longer active');
+    state.savePlaces(window, null, [], [local.id, missing.id]);
+    assert.deepEqual(state.places(window, null), [], 'once loaded, closing them removes them');
+    // A work item's place at a step the search found loads back at it, saved and read as the window does.
+    const { kind, ...rest } = { kind: 'work', work: 'work-0001', anchor: null, step: 'Build' } satisfies Target;
+    state.savePlaces(window, null, [{ projectRowId: local.id, kind, target: JSON.stringify(rest), active: true }], [local.id]);
+    assert.deepEqual(state.places(window, null).map(saved => tabTarget({ kind: saved.kind, ...saved.target && JSON.parse(saved.target) })), [{ kind: 'work', work: 'work-0001', anchor: null, step: 'Build' }]);
+    // Twenty places kept for a folder not listed, then forty of another project: a window holds forty,
     // its own first, so its saves keep passing once the folder is listed again.
-    const tab = (projectId: number, index: number) => ({ projectId, kind: 'file' as const, target: `{"path":"${index}.md"}`, active: false });
-    state.saveTabs(window, null, Array.from({ length: 20 }, (_, index) => tab(missing.id, index)), [missing.id]);
-    state.saveTabs(window, null, Array.from({ length: 40 }, (_, index) => tab(local.id, index)), [local.id]);
-    assert.deepEqual(state.tabs(window, null).map(tab => tab.projectId), Array(40).fill(local.id));
-    database.db.prepare('INSERT INTO tab (window_id, project_id, position, kind, target, active) VALUES (?, ?, 99, \'project\', NULL, 0)').run(window, missing.id);
-    assert.equal(state.tabs(window, null).length, 40, 'a window never loads more than it can save');
+    const place = (projectRowId: number, index: number) => ({ projectRowId, kind: 'file' as const, target: `{"path":"${index}.md"}`, active: false });
+    state.savePlaces(window, null, Array.from({ length: 20 }, (_, index) => place(missing.id, index)), [missing.id]);
+    state.savePlaces(window, null, Array.from({ length: 40 }, (_, index) => place(local.id, index)), [local.id]);
+    assert.deepEqual(state.places(window, null).map(place => place.projectRowId), Array(40).fill(local.id));
+    database.db.prepare('INSERT INTO place (window_id, project_id, position, kind, target, active) VALUES (?, ?, 99, \'project\', NULL, 0)').run(window, missing.id);
+    assert.equal(state.places(window, null).length, 40, 'a window never loads more than it can save');
     state.removeWindow(window);
-    assert.deepEqual([state.windows(), state.tabs(window, null)], [[], []], 'a closed window goes with its tabs');
+    assert.deepEqual([state.windows(), state.places(window, null)], [[], []], 'a closed window goes with its places');
   } finally { database.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 
@@ -101,7 +103,7 @@ async function waitFor(condition: () => boolean, timeout = 5000) {
 }
 
 test('Atlas refuses to start without its sandbox, and a released build refuses debuggers', async () => {
-  const { startupRefusal } = await import('./refusal.ts');
+  const { startupRefusal } = await import('./startupRefusal.ts');
   const check = (switches: string[], options: { packaged?: boolean; endToEndBuild?: boolean; environment?: NodeJS.ProcessEnv } = {}) =>
     startupRefusal({ hasSwitch: name => switches.includes(name), environment: options.environment ?? {}, packaged: options.packaged ?? true, endToEndBuild: options.endToEndBuild ?? false });
   assert.equal(check([]), null);
@@ -111,4 +113,33 @@ test('Atlas refuses to start without its sandbox, and a released build refuses d
   for (const name of ['remote-debugging-port', 'remote-debugging-pipe', 'inspect', 'inspect-brk']) assert.deepEqual(check([name]), { reason: 'debugging', switches: [name] }, name);
   assert.equal(check(['remote-debugging-port', 'inspect'], { endToEndBuild: true }), null, 'the end-to-end build lets Playwright attach');
   assert.equal(check(['remote-debugging-port'], { packaged: false }), null, 'development runs are not packaged');
+});
+
+test('a window saves the place it shows as a row of its project, and loads it back', () => {
+  const projectId = 'f-' + 'a'.repeat(32);
+  const plan = { projectId, target: { kind: 'work' as const, work: 'work-0001', anchor: null } };
+  assert.deepEqual(placeRow(plan), { projectId, kind: 'work', target: '{"work":"work-0001","anchor":null}' });
+  assert.deepEqual(savedPlace(projectId, placeRow(plan)!), plan);
+  // A ledger step the search found is pointed out once, not again at the next start.
+  assert.deepEqual(placeRow({ projectId, target: { kind: 'work', work: 'work-0001', anchor: null, step: 'Build the hub' } }), { projectId, kind: 'work', target: '{"work":"work-0001","anchor":null}' });
+  // The hub filtered to a project, and a project's statistics, are rows of that project.
+  for (const page of [{ page: 'hub' as const, projectId }, { page: 'statistics' as const, projectId }]) assert.deepEqual(savedPlace(projectId, placeRow(page)!), page);
+  // The hub of every project and the Projects page are no row: a window without one opens on the hub.
+  assert.equal(placeRow({ page: 'hub', projectId: null }), null);
+  assert.equal(placeRow({ page: 'projects' }), null);
+  // A row that cannot be read loads as nothing.
+  assert.deepEqual(savedPlace(projectId, { kind: 'file', target: '{"path":"README.md"}' }), { projectId, target: { kind: 'file', path: 'README.md' } });
+  assert.equal(savedPlace(projectId, { kind: 'file', target: '{"path":"../x"}' }), null);
+  assert.equal(savedPlace(projectId, { kind: 'work', target: 'not json' }), null);
+  // A plan's statistics are a place of their own.
+  const statistics = { projectId, target: { kind: 'work' as const, work: 'work-0001', anchor: null, view: 'statistics' as const } };
+  assert.deepEqual(savedPlace(projectId, placeRow(statistics)!), statistics);
+});
+
+test('outside Atlas, only applications on the allowlist and editors through their links open', () => {
+  assert.equal(appLink('t3-thread://thread/abc'), 't3-thread://thread/abc');
+  for (const refused of ['file:///C:/Windows/System32/calc.exe', 'javascript:alert(1)', 'ms-settings:', 'unknown-app://x', 'vscode://file/C:/x.bat', 'slack://open', 'not a link', 't3-thread://x\u0000y']) assert.equal(appLink(refused), null, refused);
+  assert.equal(editorLink('vscode', 'C:\\Dev\\atlas\\app\\src\\a b#.ts', 68), 'vscode://file/C:/Dev/atlas/app/src/a%20b%23.ts:68');
+  assert.equal(editorLink('cursor', '/home/me/atlas/README.md', null), 'cursor://file/home/me/atlas/README.md');
+  assert.equal(editorLink('system', '/home/me/x', 3), null);
 });

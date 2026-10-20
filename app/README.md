@@ -1,19 +1,15 @@
 # Atlas desktop app
 
-![The Atlas window: the computer's projects as cards in the sidebar, one with a live dot and its details open beside it, and the project's page with its work and statistics in a tab](assets/atlas-desktop.jpg)
+![The Atlas hub on the computer Workstation: seven open plans of the projects Northwind, Platform and Field app, grouped as Working (one plan an agent is on now, with its model, agent time and tokens), Blocked with their reasons, Paused and Drafts, each with its project, steps done and when it changed](../assets/hub.png)
 
-Atlas is a desktop app for a planning repository: active and archived work, plans, ledgers, glossaries, ADRs, evidence, shared knowledge, Git activity, work and usage statistics and each plan's diagrams. Every window lists the computer's projects (each a planning folder in the Atlas home) in its sidebar and shows their plans, documents and diagrams in tabs side by side. Discuss changes with your agent in chat; the agent edits the records, and Atlas shows them as they change.
+Atlas is a desktop app for your Atlas projects and their plans. Every window opens on the hub, one list of every plan of the computer's projects, and shows one place at a time: the hub, a plan, its statistics, a diagram, a file, the Projects page or statistics. Discuss changes with your agent in chat; the agent edits the records, and Atlas shows them as they change.
 
 ## Install
 
-Atlas is built for Windows and Linux. Builds are unsigned, by decision for a single user; a newer version installs over an older one, and there is no auto-update.
+Atlas is built for Windows and Linux. Builds are unsigned, by decision for a single user; a newer version installs over an older one, and there is no auto-update. Each [GitHub Release](../docs/releases.md#github-releases) carries both; `npm run package` in a checkout builds the one for its system into `app/release/`.
 
 - **Windows:** run `Atlas-Setup-<version>.exe`. SmartScreen warns about an unsigned app the first time: choose **More info › Run anyway**. It installs for the current user only, without administrator rights (you can pick the folder), and adds Atlas to the Start menu. Uninstall it from **Settings › Apps**; your Atlas home is kept.
 - **Linux:** make `Atlas-<version>-x86_64.AppImage` executable (`chmod +x`) and run it.
-
-Both come from `npm run package` in a checkout (they land in `app/release/`): the installer on Windows, the AppImage on Linux. Each [GitHub Release](../docs/releases.md#github-releases) carries both.
-
-To open a folder from a terminal or a file manager's "Open with", pass it on the command line: `Atlas.exe C:\work\planning` or `./Atlas-<version>-x86_64.AppImage ~/work/planning`. If Atlas is already running, the folder opens in that instance; a folder that is already open just gets focus.
 
 ### Linux sandbox
 
@@ -33,195 +29,139 @@ Atlas keeps Chromium's sandbox on and never disables it. An AppImage cannot use 
 
 Atlas also refuses `--no-sandbox` and `ELECTRON_DISABLE_SANDBOX` given any other way, and its desktop entry never adds them.
 
-## Develop
+## The window
 
-Requires Node.js 24 or newer, npm, and Git for planning history. From the repository root:
+A window has two rows at the top, GitHub style.
 
-    npm ci
-    npm run dev                          # the desktop app, with hot reload
-    npm run dev -- C:/path/to/planning   # …opening a planning folder
+**The title bar**, from the left:
 
-`npm run dev` runs electron-vite: the window reloads React changes in place, and the app restarts when main-process or preload code changes. There is no browser mode. Set `ATLAS_HOME` to a folder of its own for development runs (`ATLAS_HOME=~/.atlas-dev npm run dev`): the run then keeps all its files there, Electron's included, and runs beside your installed Atlas. Without it, a development run uses your Atlas home, shares the installed app's single-instance lock, and does not start while the old data folder's files wait to be moved into the home: run `atlas setup` first.
+- the Atlas mark, then the **back** and **forward** arrows;
+- **File**: **New Window** (Ctrl+Shift+N), **New Project…**, **Import Plan…**, **Export Plan…** (while a plan is open), **Open in Editor** (Ctrl+O, while the window shows a file of this computer) and **Exit**;
+- **View**: **Zoom In** (Ctrl++), **Zoom Out** (Ctrl+-), **Actual Size** (Ctrl+0) and **Full Screen** (F11), with **Reload** and **Developer Tools** in development builds;
+- **Help**: **Open Logs** and **About Atlas**;
+- the **computer menu**, the name of the computer the window works on: this computer and the paired ones (choosing one shows its plans in this window), **Connect to Another Atlas…**, **Manage Computers…** and **Remote Access…** (see [Remote computers](#remote-computers));
+- at the right: **Open in** (a split button that opens the file the window shows, such as a plan's `plan.md` or a diagram's source, in the editor you choose: VS Code, VS Code Insiders, Cursor, Windsurf, Zed, or the system's file manager), **Search** (Ctrl+P; on the hub its own search field takes its place), record-health notes when the shown project has any, the theme menu (**Match the system**, **Light** or **Dark**, for every window) and the system's window buttons.
 
-    npm run package    # app/release: NSIS installer on Windows, AppImage on Linux
-    npm run test:e2e   # Playwright drives the packaged app (run npm run package first)
+Alt opens the menus from the keyboard (Alt+F, Alt+V, Alt+H). Empty space in the title bar moves the window, and a double click maximizes it.
 
-`npm run package` builds twice from the same output: the release (the installer or AppImage, and the unpacked app in `release/win-unpacked` or `release/linux-unpacked`), with the inspector fuse off, and an otherwise identical unpacked copy in `release/e2e` with it on, because Playwright drives Electron through the inspector. The suite drives `release/e2e`, and `e2e/release.spec.ts` starts the release build itself to check that it opens a project, has the inspector fuse off, and refuses debugging switches and `--no-sandbox`. Packaging also drops the diagram package's dependencies that only its command-line features use (the MCP server, PostgreSQL and TypeScript capture; `scripts/after-pack.cjs`).
+**The sections**, below the title bar: **Plans**, with the number of open plans (the hub, every plan and its pages, and all plans' statistics), and **Projects**, with the number of active projects (the Projects page and each project's statistics).
 
-`npm test --workspace @envsemble/atlas-app` runs the unit tests, and `npm run check:types` type-checks the renderer and the main process. The end-to-end suite copies `e2e/fixtures/planning` (a copy of the demo workspace's planning folder) into a temporary Git repository and uses a temporary Atlas home (`ATLAS_HOME`), so it never touches your own data. `ATLAS_E2E_UNPACKAGED=1` runs it against `out/` without packaging, and `ATLAS_E2E_INSTALLER=1` also installs and uninstalls the Windows installer.
+**Back and forward** step through what the window showed: the hub with its project filter, plans at their headings, their statistics, diagrams and files, the Projects page and statistics. Use the arrows, Alt+← and Alt+→, or the mouse's back and forward buttons. A place shown again is where it was left. With a menu or dialog open, the mouse's buttons only close it, and fields keep Alt+← and Alt+→.
 
-## Code layout
+**New Window** opens another window on the same computer; Ctrl+Shift+W closes one. Windows open at quit come back at the next start, each with its size, position and place; so does the last window closed. A window whose paired computer does not answer at the start shows the hub at once and its place when the computer answers.
 
-| Path | What it is |
-| --- | --- |
-| `main/` | The main process: windows, the menu, the `atlas:` protocol, the message handlers, the log, saved state and the connections to Atlas hosts. It starts this computer's host (`packages/host`, in `main/hostProcess.ts`) in a utility process; the host reads and watches planning folders through `packages/planning` and prepares diagrams with `packages/diagrams`. |
-| `preload/` | The bridge: `window.atlas`, one method per message. |
-| `shared/` | The message contract and the validator every message argument goes through. |
-| `src/` | The React window, built on [envUI](https://github.com/envsemble/envUI) (`@envsemble/envui`): its application shell, tree, document tabs, command palette, menus, dialogs, notices, tables and Material Symbols. `src/atlas.css` lays out Atlas's own regions with envUI tokens only. |
-| `e2e/` | The Playwright suite and its fixture planning folder. |
+**The search** (Ctrl+P, **Search**, or the hub's search field) searches every active project of the computer: plans, ledger steps, documents with their headings and text, diagrams and their elements, glossary terms and projects. A plan's tags match as words, and `tag:0.8.0` keeps only the plans tagged `0.8.0` (with words, those that also match them); plans show their tags. Results come grouped by kind, each with its project and plan, and open where they are: a plan, a document at its heading, a diagram at its element, a project's plans in the hub.
 
-## Projects and windows
+| Shortcut                 | Action                                   |
+| ------------------------ | ---------------------------------------- |
+| Alt+← / Alt+→            | Back / forward                           |
+| Ctrl+P                   | Search                                   |
+| Ctrl+O                   | Open the shown file in the chosen editor |
+| Ctrl+Shift+E             | Bring the keyboard to the plan's Files   |
+| Ctrl+Shift+N             | New window                               |
+| Ctrl+Shift+W             | Close the window                         |
+| Ctrl++ / Ctrl+- / Ctrl+0 | Zoom in / out / actual size              |
+| F11                      | Full screen                              |
 
-Atlas shows **projects**: each is a planning folder in the [Atlas home](../docs/command.md#the-atlas-home), named by the `name` in its `planning.json` (else by the folder's name), on this computer or on a computer this one is paired with ([remote access](../docs/remote-access.md)). Every window lists all of its computer's projects in the sidebar and can have any of them open in its tabs.
+## The hub
 
-- **The projects sidebar** shows the projects as cards in their order (each with its repositories and last change, its name, its active work with how much is blocked, being implemented or a draft plan, and a green dot while an agent works on it; resting on a card lists that work and the project's folder, and its corner offers **Hide**, or **Show** and **Restore** for set-aside projects), below a quiet strip: a search over them by name or folder (only its icon and placeholder until the pointer or focus reaches it; Escape clears it) and **New Project** (its edit-square button); choosing a card opens the project's page. Its context menu opens, renames (the name is written into the project's `planning.json`), moves up or down, hides or archives a project. Hidden and archived projects collapse into a group of their own below the cards (open while searching), where **Show** and **Restore** bring them back. Atlas never deletes a project; to drop one, remove its folder from the home. A project from before the home whose folder is still elsewhere is marked **Outside home**: agents do not find it until **Move into the Atlas home** in its context menu moves its folder into the home (as `atlas home adopt` does, importing its statistics files); it keeps its place, state and tabs.
-- **File › New Project…** (also the edit-square button at the top of the sidebar) asks for a name and the repositories it plans for (an ID, a name and the Git remote, which is how each checkout finds the project), and creates the planning folder in the home from the bundled templates, as a Git repository with a first commit. Agents can create projects too, with the atlas skill.
-- **A project's page** opens as a tab: its work list with filters, then its statistics and its Git activity, under one repository filter.
-- **The computer menu** (the computer's name in the title bar, after the menus) lists this computer and the paired ones. Choosing a computer shows its projects in this window, with the tabs this window last had there. **Manage Computers…** opens a computer in a new window or forgets a paired one.
-- **New Window** (Ctrl+Shift+N) opens another window on the same computer. **Close Window** (Ctrl+Shift+W) closes one; closing windows one by one keeps the last one.
-- Windows open at quit come back on the next start, each with its size, position, sidebar width and visibility and, per computer, its open tabs and the page it showed. A window whose paired computer does not answer at the start shows at once and gets its tabs back when the computer answers; tabs of a project whose folder cannot be listed for a while are kept for when it can.
+The hub lists every plan of the computer's active projects, grouped by status, in this order: **Needs you** (an agent asked for you: a question, a decision or work to review), **Working** (an agent is on it: in a turn, or waiting on something else, such as CI), **Blocked**, **Paused** (implementation started, nobody on it), **Drafts**, **Ready** (accepted, not started) and, when asked for, **Closed**. Each group lists the latest change first; only groups with plans show.
 
-Atlas keeps its own data in the **Atlas home**, `~/.atlas` (or `ATLAS_HOME`), shared with the `atlas` command: the planning folders in `planning/`, and everything else in the home database, `atlas.db`: the projects and their order and state, windows and their tabs, the theme, this computer's identity, remote access settings and paired devices, the computers this one paired with, and statistics. The [command reference](../docs/command.md#the-atlas-home) describes the whole home.
+Its heading line holds the title (**Plans**, or the project's name when filtered), **Statistics** (all plans', or the project's), the search field, which opens the search with what you type and never filters the list, the project filter (**All projects**, or one active project) and the state filter (**Open**, **Closed** or **All**, each with its count). The project filter is part of the place, so back and forward and a plan's breadcrumb set it.
 
-Electron's own files and Chromium's caches stay in the per-user folder Atlas used before (`%APPDATA%\Atlas` on Windows, `${XDG_CONFIG_HOME:-~/.config}/Atlas` on Linux); the first start of the installed app with the default home moves Atlas's own files from there into the home (a development run refuses to start until `atlas setup` has moved them). Earlier homes kept their settings in files (`desktop-state.json`, `connections.json`, `planning-roots.json`, `host/`, `sessions/`, `usage/`); Atlas moves them into the database as it starts (as does `atlas setup`) and sets the files aside in `legacy/`. Atlas does not start on a database it cannot open, such as one a newer Atlas wrote, and says why. Nothing is written into a planning folder except by an explicit import, renaming the project, or creating one.
+Every plan is a row; a click anywhere on it opens the plan. A row shows:
 
-## Layout
+- **Plan:** its status icon, title and number; its summary on hover. Work under way (Needs you, Working, Blocked, Paused) has a taller row with the step being worked on (**Now:**) or next (**Next:**), in its phase's colour, how long an agent has waited for you, or, for blocked work, why it is blocked.
+- **Project:** the project's name.
+- **Steps:** a bar with the steps done, the planning steps in their own colour and the step in progress pulsing while agents work, and "N of M"; a draft shows its planning steps. Closed work shows how it ended (**Complete**, **Partially done**, **Superseded** or **Abandoned**), when, and where it was continued.
+- **Agents:** the main model and its reasoning effort (and how many others), agent time (counting up while agents work, by stage on hover), tokens and, on taller rows, subagents.
+- **Changed:** when it last changed, the date on hover.
 
-The window is envUI's application shell, and it draws its own title bar:
+## A plan
 
-- **Title bar:** the Atlas mark (which also collapses the sidebar), back and forward arrows, the **File**, **Edit**, **View** and **Help** menus, and the computer menu; then **Search** (quick open), record-health notes when there are any, the theme menu (match the system, light or dark; it applies to every window and to Atlas's own menus and dialogs) and the system's minimize, maximize and close buttons. Empty space in the title bar moves the window, and a double click maximizes it. Alt opens the menus from the keyboard (Alt+F for File). On macOS the menus are in the system's menu bar and the title bar starts after the window buttons. Pages for a project that cannot be read have the same title bar.
-- **Sidebar:** a quiet search and **New Project** (the edit-square button), then the computer's [projects](#projects-and-windows) as cards, and the hidden and archived ones collapsed below. Ctrl+B collapses the sidebar to its icons (a project's icon each, then New Project) and back; drag its edge, or use the arrow keys on it, to resize it.
-- **Files** (the folder button in the title bar, **View › Files** or Ctrl+Shift+E) opens the active project's planning folder as it is on disk in a panel that docks beside the tabs, floats or fills the window. Dot folders and build output are hidden. A work folder shows its status icon and, faintly, its plan title. Only the rows in view are drawn, so large folders stay fast. Arrow keys, Home/End, type-ahead, Enter (open and keep) and Space (preview) work in the tree. A context menu offers **Open Plan**, **Open Diagrams**, **Export Plan…** and **Reveal in File Explorer**, and, anywhere in the panel, **Collapse All Folders**.
-- **Tabs** hold the open pages of every project: project pages, work items, diagrams and files. A single click opens a preview tab (in italics) that the next single click replaces; a double click, or working in the tab, keeps it. Ctrl+W closes a tab; middle-click closes it too; **File › Close All Tabs**, or the tabs' own menu, closes every one. The tabs stay under the title bar while the page scrolls.
-- **A work item** shows its plan, with its status, number (**#0001**) and an About column, which scrolls on its own: the ledger's progress and steps, then **Ledger**, which shows the ledger in the plan's place (and **Plan** back), any blocker, dates, statistics and recent commits.
-- **Opening things:** a project in the sidebar opens its page; a work item's row opens its plan from anywhere on the row, and its diagram count opens its diagrams. A diagram opens from its card in the plan, from a link, from Files or from quick open, in a tab of its own for the work item. Links between records open their target in a tab (Ctrl+click keeps it).
-- **Back and forward** step through what the window showed: project pages, each work item at its heading, diagrams and files. Use the arrows in the title bar, Alt+← and Alt+→ (⌘[ and ⌘] on macOS), a keyboard's or mouse's back and forward buttons, or **View › Back** and **Forward**. A tab that was closed opens again as a preview, where it was, and a document left for one of its headings is where it was before the jump. The mouse's buttons also work over the title bar; with a menu or dialog open they only close it. Fields keep Alt+← and Alt+→. The history lasts while the window shows its computer.
-- **Quick open** (Ctrl+P, or **Search**) finds a work item, diagram or document by name in the computer's active projects (and in the project of the tab you are in, when it is hidden or archived); Enter previews, Ctrl+Enter keeps the tab. Projects themselves open from the sidebar.
+![A plan in Atlas: Saved payment methods, #0001 of Northwind, Working with 2 of 7 steps and Export Plan… beside its breadcrumb; its Outcome and Scope, and a diagram card, Checkout · captured TypeScript, Generated from code, with its elements, under the heading Current checkout. Beside it the side column: Progress (2 of 7 steps done, 5 left, planning steps done in their own colour, the step in progress), Continues #0004 Inventory reservations at checkout, the session working on it, and Statistics (Claude Opus 5.5 with Claude Sonnet 4.5 and Claude Haiku 5.5, 4 h 33 min 3 s of agent time, 13.8M tokens). At the right the Files card with the work folder, plan.md marked; Open in VS Code in the title bar](../assets/plan.png)
 
-| Shortcut | Action |
-| --- | --- |
-| Alt+← / Alt+→ (⌘[ / ⌘] on macOS) | Back / forward |
-| Ctrl+P | Quick open |
-| Ctrl+B | Collapse or expand the sidebar |
-| Ctrl+Shift+E | Show or hide Files |
-| Ctrl+W | Close the tab |
-| Ctrl+Shift+N | New window |
-| Ctrl+Shift+W | Close the window |
-| Alt, Alt+F/E/V/H | Open the menus |
+A plan's page shows:
 
-## Staying current and recovering
+- **The breadcrumb**, the project (leading to its plans in the hub) and the plan's number, with **Export Plan…** beside it.
+- **The title and one status line**, with the plan's tags under it: its status (Working, Needs you, Blocked, Paused, Draft, Ready, Complete, Partially done, Superseded or Abandoned) and one fact, such as the steps done, why it is blocked, the planning step of a draft, or when closed work ended; "archived" when it is.
+- **Why it needs you**, when an agent waits: the waiting session's last message, with its harness, model and how long it has waited.
+- **The summary**, a few sentences on what the work is and where it stands, then **the plan** itself. A section headed **Request** (or **Request (…)**), where the plan keeps the user's words, shows folded; its heading opens it. A heading whose text links to a diagram has the diagram's card under it (see [Diagrams](#diagrams)). What the plan references opens from it: other plans and documents in the window, PRs with their state (open, draft, merged or closed, and failing or running checks), commits and files.
+- **The side column**, which scrolls on its own: **Progress** (a bar with the steps done and left, then the steps themselves, planning steps in their own colour before the implementation steps, the one in progress pulsing while agents work), any blocker, **handoffs** (the work it continues above the steps, the work that continues it below them), **Sessions** (the agent sessions that worked on it by their titles, the latest first, marked while one works) and **Statistics** (the main model and effort with the others, agent time counting up while agents work, tokens, and **All statistics and the timeline**).
+- **Files**, a card at the top right of a plan and its pages, with the plan's own work folder as a tree, the file shown marked. It keeps its place as the page scrolls, or goes below the page in a narrow window. A click opens a file in the window, a diagram file as its diagram; its context menu offers **Open** (**Open Diagram**), **Open as Text**, **Show in Folder** and **Collapse All Folders**. Arrow keys, Home and End, type-ahead and Enter work in the tree; Ctrl+Shift+E brings the keyboard to it.
 
-Atlas watches each open project's planning folder, and the home's planning folder for new and removed projects, instead of polling. Changes are collected for a moment and applied together, so an editor's atomic save, a Git checkout or a commit (which updates Activity) each cause one refresh. The open document, the diagrams and their inline cards follow.
+**A plan's statistics**, from **All statistics and the timeline**, show its figures (agent time, the time at least one agent worked, tokens and sessions), its **Timeline** (a lane per session and subagent with its working stretches and its waits for you; **All**, **Last week** or **Last day**, zoom with Shift and the wheel or the arrow keys, drag to move along; also as a table, folded) and its agent time and tokens **By model and effort**.
 
-- A **`planning.json` that breaks** while open keeps the last good view, with the error above it; the view recovers as soon as the file is readable again.
-- A **project whose folder is moved or deleted** shows a clear state in its tabs. If the folder comes back, they show it again.
-- A project that **cannot be read at all** shows why.
-- If the folder **cannot be watched** (for example, Linux's inotify watch limit is reached), Atlas says so above the editor and checks for changes every 10 seconds instead. Git objects, dependencies and Atlas's own output folders are never watched. On Linux, Atlas watches each folder itself rather than through Node's recursive watcher, which ignores such failures and leaves part of the tree unwatched.
-- A **window that crashes** reloads with its tabs. If it crashes three times within a minute, Atlas asks whether to reload again or close it.
+**Export Plan…** saves the plan as one self-contained HTML file that opens offline in any browser. **Import Plan…**, in **File**, imports such a file into the project shown (a plan of it, its statistics, or the hub filtered to it; with a single project, that one): it previews the file (its title, origin, the new number and folder, files and diagrams) and only then adds it as new work, without committing. A file that is not a valid export is refused before anything is written. See [plan export](../docs/plan-export.md).
 
-## Import and export
+## Projects
 
-**File › Export Plan…** (also on a work folder's context menu in Files) saves a work item as one self-contained HTML file that opens offline in any browser; with no work item open, it first asks which one. **File › Import Plan…** previews such a file (title, original number and origin, the new number and folder, file count and size, diagrams) and only then adds it as new work, without committing. A file that is not a valid export is refused in an error dialog before anything is written. If an import has to be rolled back and some files could not be removed, an error dialog lists them as reported. Both run the [plan export](../docs/plan-export.md) code from `packages/planning` in a worker thread, so large files do not block the window. The export viewer (`packages/planning/viewer`) is built from the same envUI components and shares `src/atlas.css`, the layout of Atlas's own regions, with the app.
+![The Projects page on the computer Workstation: three projects, Northwind (one plan working, 3 open plans, changed just now, folders shop and shop-admin), Platform (2 open plans, folders platform-api, platform-web and billing) and Field app (2 open plans, folder field-app), each with its initials avatar, its folders as badges, a statistics button and a ⋯ menu, and New project at the top right](../assets/projects.png)
 
-## Security and privacy
+A **project** is a planning folder in the [Atlas home](../docs/command.md#the-atlas-home), named by the `name` in its `planning.json`, with the **folders** it covers on its computer, such as your repositories. An agent working in one of them, or in a folder inside one, plans in that project.
 
-The app follows Electron's security checklist (the desktop-only decision is work-0011's ADR 0001 in the planning repository):
+The **Projects** page lists every project of the computer, one row each: its avatar (its initials in a colour of its own), its name (which shows its plans in the hub), what agents do on it (how many need you or are working), its open plans and when it changed; at the right its folders as badges by their names (the path on hover), a **Statistics** button and the **⋯** menu:
 
-- The window runs with context isolation and Chromium's sandbox, without Node.js integration, `remote` or `<webview>`.
-- The window talks to the main process only through `window.atlas`: a fixed list of messages, each argument checked by `shared/validate.ts`, errors returned as structured values. Messages from any other page or frame are refused.
-- A strict content security policy: no inline or remote scripts, no `eval`, and no network connections.
-- Each window has its own session whose `atlas:` protocol serves the app and only the planning folders of that window's projects, through the same containment as the reader (no paths outside it, no hidden or excluded folders). Every other request is blocked.
-- Navigation away from the app and new windows are blocked; web and mail links open in the system browser.
-- Commands a page could misuse wait for the person. The main process sees their clicks, key presses and taps in the window, which a page cannot fake:
-  - Each press allows one such command.
-  - **Edit › Paste** reads the clipboard, so it runs only within two seconds of one (Ctrl+V always works).
-  - These also run at once after one:
-    - exiting, and closing the last window;
-    - opening a window or the logs;
-    - turning remote access on or moving it to another address, and pairing with another computer;
-    - opening a web address in the browser.
+- **Folders…** shows its planning folder and the folders it covers, and adds (chosen in the file manager) or removes them;
+- **Show in Folder** and **Copy Path**, for its planning folder;
+- **Rename…** writes the new name into its `planning.json`, where agents read it too;
+- **Archive** takes it and its plans out of the hub and the search; **Restore** brings it back.
 
-    Otherwise Atlas first asks in a system dialog the page cannot answer, so a screen reader's click, which makes no input event, still works.
-  - **Creating a pairing link**, which hands the computer to whoever uses it, always asks in a system dialog first.
-  - Dialogs a page opens (choosing a file) come one at a time.
-- Electron fuses turn off running as Node.js and `NODE_OPTIONS`. The installer and AppImage also turn off `--inspect` and its relatives, and refuse to start with `--remote-debugging-port`, `--remote-debugging-pipe` or `--inspect` (they would let other programs control the window); only the separate end-to-end build in `release/e2e` accepts them, for Playwright. The app is not packed into an asar archive (diagram preparation runs esbuild, a native program, over the diagram package's sources), so the archive-integrity fuses are off; they add protection only to signed builds.
-- Planning folders are read by the Atlas host in a separate utility process. The main process reaches it over loopback with a token created at each start and kept in memory; windows never reach the host directly.
-- No data leaves the machine unless you turn on remote access. Then devices you paired can work on this computer's planning folders as the app does here, and anyone who can reach the chosen address can learn this computer's name and Atlas version. [Remote access](../docs/remote-access.md) describes pairing, tokens, the network and what each computer keeps. There is no telemetry, update check or crash upload.
+Archived projects are shown only here, folded under **Archived**. Atlas never deletes a project; to drop one, remove its folder from the home.
 
-## Remote access
-
-**File › Remote Access…** lets your other devices work on this computer.
-- **On this computer:** choose the address (Tailscale, a local network or this machine) and the port. Then create a five-minute one-time pairing link with a QR code. Its pairing step names the device and may grant **Manage access** (pairing and revoking devices). Revoke devices here too.
-- **In a window on another computer:** the dialog manages that computer's pairings, when this device has Manage access there.
-
-**File › Connect to Another Atlas…** (also in the computer menu) pairs with another computer from its link and shows its projects. Then work on it from the computer menu at the top left of the window:
-- its projects, which you can rename, hide, archive and reorder (the order and state are this device's) and create;
-- export, and import (the file is sent there);
-- document use, counted there.
-
-Only Reveal in File Explorer stays on that computer. See [remote access](../docs/remote-access.md).
-
-## Diagnostics
-
-**Help › Open Logs** opens `logs/` in the Atlas home: `atlas.log` (the app: start-up, window and connection events) and `host.log` (the Atlas host: folders, the watcher, remote access, pairings and device connections), each 1 MB with up to three older files, including any failures. **Help › About Atlas**, in any window, shows the version, what stays on this computer, the Electron, Chromium and Node.js versions, the system and the Atlas home. **Copy Details** copies what a bug report needs: the versions and the system, not the home's path.
-
-## Records and progress
-
-The reader uses planning.json schema version 1 and the planning workflow's [metadata contract](../plugin/skills/atlas/assets/planning/PLANS.md). It follows each registered current_plan pointer. Work without a selected plan retains its original files and an explicit notice; filename order never selects a plan.
-
-Registry locations use POSIX-relative paths. Safe aliases such as ./ prefixes and trailing slashes normalize in memory without rewriting records. Parent segments, absolute paths, backslashes, and duplicate retained work locations produce a clear registry error.
-
-Path comparisons follow the connected folder's case and Unicode-normalization behavior, detected from existing entries without writing probe files. Filesystem aliases retain indexed document spelling and shared collector identities; distinct names remain separate.
-
-Work IDs follow the shared work-0001 format. Explicit selected-plan pointers establish plan ownership; other documents belong to their most-specific registered location in both the viewer and consultation logger. Git activity uses the registry before deletions and after additions, preserving ownership when nested work is archived. Previously unregistered files can use their current registration without overriding established historical owners.
-
-Design acceptance, implementation status, archive location, and known dates are displayed separately. A ledger's steps report its progress; its prose tells what actually happened. Unknown dates stay unknown; invalid dates and chronology generate health errors. Recorded calendar durations are not engineering time. Git activity shows recent checkpoints, associating work through retained registry identities so archiving or renaming its folder preserves earlier activity. Filesystem and Git reads do not update plans or lifecycle state.
-
-Contained Markdown links open their original records. External web references open in the system browser; references outside the planning root are marked. Raw HTML is not executed. Text and common images render in the reader; for other attachments, **Show in folder** reveals the file. The text reader has a 4 MiB limit.
+**New project** (or **File › New Project…**) asks for a name and the project's folders, each chosen in the file manager (the first one names the project until you type a name); a project may have none yet. Atlas creates the planning folder in the home from the bundled templates, as a Git repository with a first commit. Agents can create projects too.
 
 ## Statistics
 
-A project's page has its statistics in three parts, chosen with a segmented control like the work list's filter. [Progress and statistics](../docs/progress-and-statistics.md) explains what agents report and how Atlas counts it.
+Statistics open from a project's row on the Projects page and from the hub (all plans', or the project's when the hub is filtered to it). The period is the **Last 4 weeks** (by day), the **Last 3 months** or **All time** (by week). [Progress and statistics](../docs/progress-and-statistics.md) explains what agents report and how Atlas counts it.
 
-- **Work** lists every work item with:
-  - its implementing model, by name with its provider's mark;
-  - its agent time and tokens, in a column per stage: planning and implementation;
-  - how many subagents worked on it, and their working time;
-  - its plan revisions;
-  - its ledger steps done.
+- **The figures** of the period, each with its change against the period before: agent time (every agent's added up), plans completed, the median time to complete (from acceptance to completion) and the time work waited on you.
+- **Work over time:** agent time per day or week, stacked by model and effort (each in a colour of its own, the same wherever Atlas shows it), with the time at least one agent worked as a line and the plans completed marked; a bar says on hover what it holds, and the same figures are in a table, folded.
+- **Models and effort:** agent time and tokens by model and reasoning effort, with each one's share.
 
-  Totals and the median plan revisions of completed work sit above the list.
-- **Models over time** compares completed work by implementing model, the model that did most of the work. A chart plots agent time, tokens, plan revisions or steps for each completed work item at its completion date, coloured for the three models whose completed work is most recent, with the rest as "Other"; a model keeps its colour while others come and go. A table gives each model's medians. Hover a dot or move through the dots with the arrow keys; click it or press Enter to open the work.
-- **Document use** is described below.
+The Atlas plugin's hooks record what agent sessions do on a work item: the model and its effort, agent time (subagents included), tokens, and whether the work was being planned or implemented. The reports go into the home database under the project, so they follow the work item when it is archived.
 
-A work item's About sidebar sums up the same statistics for that work: the model, with any other models below it, the agent time and tokens of each stage, the subagents and the plan revisions. Hover over or focus the agent time to see how much of it was measured and since when, and the tokens to see them by kind.
+## Diagrams
 
-The Atlas plugin's hooks record a report whenever an agent session that worked on a work item stops, with the model, the agent time and tokens, and the subagents read from the session's own log on that computer, and the work's stage: planning until its plan is accepted, and while a session amends an accepted plan; implementation after. Where the hooks are not installed, agents report with `atlas work report <planning-root> --work <work-id> --step <title>`. The report goes into the home database under the project, so it follows the work item through archive moves. Reports without a measurement are estimated from report times, and plan revisions need the planning folder's Git history. [Progress and statistics](../docs/progress-and-statistics.md#work-statistics) gives the counting rules: what counts as agent time, sessions, breaks, starting points and revisions.
+Diagrams belong to their plan: PlantUML (`.puml`) files in its work folder, usually under `diagrams/`, which the agent writes like any file and Atlas only reads. [Diagrams](../docs/diagrams.md) describes the subset Atlas reads.
 
-### Document use
+A plan shows a diagram card under each heading whose text links to a diagram with an ordinary Markdown link (`[Order model](diagrams/orders.puml)`); a fragment (`diagrams/orders.puml#Order`) names an element. A card shows the diagram's title, its provenance (**Generated from code**, **Generated from database**, **Agent proposal** or **Agent-authored**) and its elements, and opens the diagram, at an element when you choose one. Diagrams also open from links, from Files and from the search.
 
-Two sources remain distinct: documents opened in Atlas and agent-reported consultation. Statistics show most/least recorded use, known task identities, recent consultation, and collection coverage. They do not measure whether the workflow improved an outcome. Zero recorded use does not mean a record was never read or should be removed.
+A diagram fills the window below the title bar, with its controls over the canvas: a link back to the plan, the tools, the diagram picker, the views and a proposal's changes. The picker lists the plan's diagrams: each capture with the proposals over it and the later captures compared with it, then the other diagrams, then **With problems**. A proposal, or a capture compared with an earlier one, opens in its change view, with its list of changes beside it. **Understand the model** opens a class diagram's scenarios beside it. Diagrams built on one capture are laid out together, so switching between them moves nothing. When a file changes, the view updates and keeps its camera and selection; a diagram with problems lists them by line and column instead.
 
-Agent consultation is recorded with `atlas usage log <planning-root> --files …` (see [the atlas command](../docs/command.md)). It needs only Node. No model calls, API keys, or paid API account are needed.
+## Remote computers
 
-Usage is local, in the home database, outside the planning and product repositories, under the project. The app and the `atlas` command share it; the shared reader lives in `packages/planning`. Stable work IDs preserve per-document use through active/archive moves within the same root.
+**Remote Access…**, in the computer menu, lets your other devices work on this computer: choose the address (Tailscale, a local network or only this machine) and the port, then create a five-minute, one-time pairing link with a QR code. A link may grant **Manage access** (pairing and revoking devices). Revoke devices there too. In a window on another computer, the dialog manages that computer's pairings, when this device has Manage access there.
 
-Events retain document identity, source, timestamp, known task/session IDs, available Git revision, and content hash. Bodies and transcripts are not stored. Views of the same document within 30 seconds in one window session are deduplicated. Agent reports deduplicate paths within each batch; they remain self-reported. Missing identities and incomplete collection are shown honestly. Failed writes are recorded as gaps in collection when the database can take them. Logging failure does not block reading or authorized implementation work.
+**Connect to Another Atlas…** pairs with another computer from its link. Then choose it in the computer menu to work on its projects in this window, or open it in a new window from **Manage Computers…**, which also forgets a paired computer. On another computer you can create projects (a name only: their folders are chosen in Atlas on that computer), rename them, archive and restore them (the archive state is this device's), and export and import plans. Show in Folder and Open in Editor work only on this computer's files. See [remote access](../docs/remote-access.md).
 
-## Viewer conventions
+## Staying current
 
-The interface is envUI's, in its light and dark themes, with Inter and Material Symbols, and envUI's Markdown presentation; inline code in documents uses envUI's subtle style, since planning records are dense with identifiers, paths and hashes. Repository filters sit in each list's toolbar.
+Atlas watches the planning folders it shows instead of polling. Changes are collected for a moment and applied together, so an editor's save, a Git checkout or a commit each cause one refresh.
 
-Each work row shows one status, styled like a GitHub issue: Not started, In progress, Partially done, Complete, Blocked (with the reason), Draft plan, Superseded or Abandoned. The design status appears only when it adds information. Rows also show the step being worked on, a small progress bar with done and total steps for a version-2 ledger, the repositories, a diagram count and a relative date.
+- A **`planning.json` that breaks** keeps the last good view, with the error above it, until the file is readable again.
+- A **project whose folder is moved or deleted**, or that cannot be read, says so in place of its page, and shows again when it can.
+- A folder that **cannot be watched** (Linux's inotify watch limit, say) is checked every 10 seconds instead, and Atlas says so above the page.
+- A **window that crashes** reloads, showing what it showed. If it crashes three times within a minute, Atlas asks whether to reload it again or close it.
 
-A work item's page has a GitHub-repository layout: the plan, with an About column, scrolling on its own, holding the ledger progress (a bar, done and remaining steps, and the agreed steps with their status) or a legacy status (current, next), the link that shows the ledger in the plan's place (a link to the ledger from any record does the same), any blocker, known dates, recent commits and any record-health notes for that work. Other files in the work folder open from Files.
+## Security and privacy
 
-The root ledger's optional status header follows the shared [contract](../plugin/skills/atlas/assets/planning/PLANS.md#ledger-status-version-2). Version 2 lists the agreed steps, each todo, doing or done, plus any blocker; the app shows the work left as the steps not yet done, an estimate by count, not by time. Version-1 headers (current, next, blocked) stay readable without progress. The viewer never infers current activity from historical narrative. Agents update the header through the Atlas tools at meaningful transitions; it is reported status, not continuous live telemetry. Missing or invalid status remains unknown and the original body stays readable.
+The app follows Electron's security checklist:
 
-## Atlas diagrams
+- The window runs with context isolation and Chromium's sandbox, without Node.js integration, `remote` or `<webview>`, under a strict content security policy: no inline or remote scripts, no `eval`, no network connections.
+- It talks to the main process only through `window.atlas`, a fixed list of messages whose every argument is checked (`shared/validate.ts`). Each window has its own session, whose `atlas:` protocol serves the app and only the planning folders of that window's projects.
+- Navigation away from the app and new windows are blocked; web links open in the system browser.
+- Commands a page could misuse wait for you. Right after your click, key press or tap in the window, which a page cannot fake, Atlas runs one: exiting, opening a window or the logs, turning remote access on or moving it, pairing with another computer, opening a web address in the browser, a link in its application, or a file in your editor. Otherwise it first asks in a system dialog the page cannot answer. Creating a pairing link always asks first.
+- Electron fuses turn off running as Node.js and `NODE_OPTIONS`. The installer and AppImage also turn off `--inspect`, and refuse to start with `--remote-debugging-port`, `--remote-debugging-pipe` or `--inspect`, which would let other programs control the window.
+- Planning folders are read by the Atlas host in a separate process, which the main process reaches over loopback with a token made at each start; windows never reach it directly.
+- No data leaves the computer unless you turn on remote access; then the devices you paired can work on its projects. There is no telemetry, update check or crash upload.
 
-Diagrams belong to their plan. A diagram is a PlantUML (`.puml`) file anywhere in a work folder, usually under `diagrams/`, so archiving or moving the folder carries its diagrams along. The agent writes and edits them like any file; the app only reads them. Their history is the planning folder's Git history. [Diagrams](../docs/diagrams.md) describes the subset Atlas reads.
+## Diagnostics
 
-A plan shows a diagram card under each heading whose text links to a diagram, with an ordinary Markdown link (`[Order model](diagrams/orders.puml)`); a fragment (`diagrams/orders.puml#Order`) names an element, shown as a chip on the card. Any document in the work folder can link diagrams this way; links before the first heading appear at the top. A card shows the diagram's title and provenance and opens the work item's diagram tab, focused on the element when one is named. Clicking a diagram link in the text opens it too, and a `.puml` file opened from Files opens as a diagram (**Open as Text** shows its source).
+**Help › Open Logs** opens `logs/` in the Atlas home: `atlas.log` (the app: start-up, windows and connections) and `host.log` (the Atlas host: folders, the watcher, remote access and pairings), each up to 1 MB with up to three older files. **Help › About Atlas** shows the version, the Electron, Chromium and Node.js versions, the system and the Atlas home; **Copy Details** copies what a bug report needs, without the home's path.
 
-In a diagram tab, the Atlas canvas takes the full width and remaining height of the tab, with its controls floating over the grid: a link back to the plan and the tools on the first row, and the diagram picker, the views and a proposal's changes on the second. The canvas's full view covers the window below its title bar (Esc exits). The picker is a compact menu of the work item's diagrams: each family (a capture, the proposals over it and the later captures compared with it) under the first capture's title, then the other diagrams with each class diagram's scenarios right after it, then **With problems**. Each entry has one short line: the source and capture date of a capture, how many changes a proposal makes, or what kind of diagram it is. The chosen diagram's label uses the same wording and colours as Atlas (`describeProvenance`; a test keeps the app's copy in step): **Generated from code** and **Generated from database** mark captures, **Agent proposal** marks proposed changes to a capture, and **Agent-authored** marks the diagrams an agent wrote. A proposal, or a capture compared with an earlier one, opens in its change view, with its list of changes beside the diagram.
+Atlas keeps its own data in the Atlas home, `~/.atlas` (or `ATLAS_HOME`), shared with the `atlas` command: the planning folders in `planning/`, and the projects' order and state, the windows and their places, the theme, the editor, remote access and pairings, and statistics in the home database, `atlas.db`. Electron's own files stay in its per-user folder (`%APPDATA%\Atlas` on Windows, `~/.config/Atlas` on Linux). Atlas writes into a planning folder only when you import a plan, create or rename a project, or change its folders.
 
-A capture and the diagrams built on it, such as alternative designs an agent offers, arrive together, laid out once over all of them. Choosing another of them in the picker shows it at once: nothing moves, and the zoom, the view and an element's details stay. Drag the inner edge of the details, or use the arrow keys on it (Home and End for the narrowest and widest), to resize them; the width is kept with the window's layout.
+## Develop
 
-When a diagram file changes on disk, the view updates, preserving camera and selection where element names remain. A diagram with problems is not drawn: its problems are listed by line and column until the file is fixed. The app never recaptures sources; a capture's source, date and coverage stay visible in its details, and code evidence uses Atlas's syntax-highlighted snippets.
-
-The app depends on the diagram package (`@envsemble/atlas-diagrams`, in `packages/diagrams`) through the repository's npm workspace, so diagram changes and app changes land in one commit with no packaged tarball or pinned hash. See the atlas skill's [diagram reference](../plugin/skills/atlas/references/diagrams.md).
-
-**Understand the model** opens a class diagram's scenarios beside it: the object diagrams that exemplify it, each assessed against it as expected valid or invalid. Closing it returns to the diagram without discarding its camera or selection; the assessment does not establish domain accuracy.
-
-From the repository root, `npm run release:assemble` builds one versioned Atlas ZIP from the committed Git tree, including this app's source; the installers are built separately with `npm run package` (see [releases](../docs/releases.md)). See the repository [contribution guide](../CONTRIBUTING.md) and [changelog](../CHANGELOG.md).
+From the repository root, `npm ci`, then `npm run dev` starts the app with hot reload (give it a home of its own: `ATLAS_HOME=~/.atlas-dev npm run dev`, or `npm run dev:home`). `npm run package` builds the installer or AppImage, and `npm run test:e2e` drives it. [Contributing](../CONTRIBUTING.md) covers set-up, the repository layout, the tests and the checks.

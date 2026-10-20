@@ -1,7 +1,7 @@
-import { sameTarget } from "../visualization/interaction";
+import { sameTarget } from "../canvas/interaction";
 
-// Highlight immediately. Only opening a hover-only sidebar waits briefly, so
-// it cannot cover a target before a click. An already open sidebar has no delay.
+// Highlight immediately. Only opening hover-only details waits briefly, so
+// they cannot cover a target before a click. Details already open have no delay.
 export function createInspectionController({
   onHover,
   onPreview,
@@ -51,7 +51,7 @@ export function createInspectionController({
             if (sameTarget(hovered, target)) setPreview(target);
           }, 100);
       } else if (preview) {
-        // Bridge the small pointer gap between the SVG and its source sidebar.
+        // Bridge the small pointer gap between the SVG and the details.
         timer = schedule(() => {
           timer = null;
           setPreview(null);

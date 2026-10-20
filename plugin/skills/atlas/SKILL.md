@@ -1,87 +1,72 @@
 ---
 name: atlas
-description: "Atlas planning: projects with their plans, ledgers, decisions, glossaries and diagrams in the Atlas home. Use whenever the user mentions Atlas, a project, a work item, a plan or a ledger; when they design something or ask for work big enough to plan; when they want something recorded, reviewed or brought up to date, in one project or across all of them. Small, direct coding tasks need none of it."
+description: "Records projects and their work items in Atlas: plans, steps, glossaries and diagrams in planning folders in the Atlas home. Use whenever the user mentions Atlas, a project, a work item, a plan or a ledger; when they design something or ask for work big enough to plan; when they want something recorded, reviewed or brought up to date. Small, direct coding tasks need none of it."
 ---
 
 # Atlas
 
-Atlas keeps plans in projects: each a planning folder, a Git repository in the Atlas home (`~/.atlas/planning/<name>`), named by the `name` in its `planning.json` and covering one repository or several. A repository may belong to several projects. This skill plans, records and organizes work there, in one project or across all of them. Two workflows build on it, each run when the user asks for it by name: [atlas-grill](../atlas-grill/SKILL.md), the questioning in rounds until a design is settled, and [atlas-implement](../atlas-implement/SKILL.md), implementing an accepted plan; accepting a plan does not start it.
+Atlas keeps plans in projects. A project is a planning folder, its own Git repository in the Atlas home (`~/.atlas/planning/<name>`), and the folders on this computer where its work happens. Atlas records projects and their work items, nothing else. This skill finds the project, decides when to plan, records the work and keeps it current. Two workflows build on it, each run only when the user asks for it by name: [atlas-grill](../atlas-grill/SKILL.md) questions the user in rounds until a design is settled, and [atlas-implement](../atlas-implement/SKILL.md) implements an accepted plan.
 
-## Find the planning folder
+Every planning folder has its own `AGENTS.md` (what is true, what to keep), which governs it: read it before changing anything there. Its `PLANS.md` defines the plan, registry and ledger formats; the tools write headers and ledgers and Atlas checks every edit, so consult it only when you edit a header or ledger by hand. This skill says what to do and when.
 
-At session start Atlas names the projects that register this checkout's Git remote, with their planning folders (absolute paths) and active work. When none does, it says so and lists the projects in the home (name, planning folder, how much active work) for the user to choose from or for [work across projects](#work-across-projects). Without that context, call the Atlas tool `where` (or run `atlas where`), which works in any folder, Git checkout or not: its `projects` are every active project in the home, each with its planning folder, name, repositories, active work (statuses, progress, `blocked`) and `match`, true when its `planning.json` registers this checkout's remote; `matches` are those projects with the active work for this checkout's repositories and its steps (`work_status` gives any work item's steps). A location the user gives wins. When several projects match and the work does not already name one, **ask the user which project to plan in**, and pass its planning folder to the Atlas tools (`planningFolder`). Read that folder's own `AGENTS.md`, `PLANS.md` and `planning.json` before changing anything; they govern, and the bundled [governance](assets/planning/AGENTS.md) and [plan contract](assets/planning/PLANS.md) are the defaults they start from.
+## Find the project
 
-No match: when the work belongs to a listed project, offer to register this repository's remote there; otherwise offer to [set up a project](#set-up-a-project). A request about Atlas itself or about several projects is [work across projects](#work-across-projects). Ordinary coding never waits for planning.
+- At session start Atlas names the session's project, its planning folder and its active work. Without that context, call `where`: it lists every active project in the home and marks the ones the session belongs to.
+- A session belongs to the project whose folder it is in (the deepest folder wins when they nest), or whose planning folder it is in. A location the user gives wins.
+- **Several match:** ask the user which project to plan in, and pass its planning folder to the tools (`planningFolder`).
+- **None matches:** ask which project the work belongs to. For a listed project, offer to add this folder to it (in the app's Projects page, or in its `planning.json`); otherwise offer to [set up a project](#set-up-a-project). A request about Atlas itself or several projects is [work across projects](#work-across-projects).
+- Stay in that project. Ordinary coding never waits for planning.
 
 ## When to plan
 
-Plan when the user is designing something, or asks for work whose requirements, boundaries or tradeoffs need settling or that must survive across sessions. Small, clear tasks stay plain coding: no work item, no interview. When work qualifies, **ask the user before opening a work item**; then `work_create` allocates the next number, writes `active/NNNN-slug/plan.md` with a draft header and registers it. Continue existing work only as the user selects it or the registry's `current_plan` points; never by the newest file or the highest number.
+Plan when the user is designing something, or asks for work whose requirements, boundaries or tradeoffs need settling, or that must survive across sessions. Small, clear tasks stay plain coding: no work item, no interview.
 
-## Interview and record
+When work qualifies, **ask before opening a work item**, then call `work_create` with a `summary`: two or three plain sentences on what the work is, why, and where it stands. Continue existing work only as the user selects it or the registry's `current_plan` points, never by the newest file or the highest number.
 
-Find facts yourself; put only genuine decisions to the user, with your recommendation, and wait. Settled answers stay settled. [Domain modeling](references/DOMAIN-MODELING.md) keeps the language sharp and links the [glossary](references/CONTEXT-FORMAT.md) and [ADR](references/ADR-FORMAT.md) formats. When the user asks to be grilled, the questioning runs as [atlas-grill](../atlas-grill/SKILL.md): rounds over a design tree until nothing is left open.
+Find facts yourself; put only genuine decisions to the user, each with your recommendation, and wait for the answer. When the design has many open decisions, or the user asks to be grilled, run [atlas-grill](../atlas-grill/SKILL.md).
+
+## Record
 
 Record as understanding settles, not only at the end:
 
-- **`plan.md`:** the intended outcome, scope, decisions, dependencies, edge cases and completion checks, in whatever shape the work needs. Label proposals and open questions; never present a recommendation as the user's decision.
-- **`CONTEXT.md`:** the work's glossary, updated the moment a term resolves; terms only.
-- **`docs/adr/`:** only for a decision that is hard to reverse, surprising without context and the result of a real tradeoff.
-- **`knowledge/<repository-id>/`:** decisions, lessons and observations useful beyond one work item, each with its scope, source and confidence. A small task with something worth keeping gets one concise record here, without a work item.
-- **The ledger body:** progress, evidence, PRs, departures and next actions, once implementation runs.
+- **The plan's `summary`:** keep it saying what the work is and where it stands, when the design settles, at acceptance and as the work moves. The body does not repeat the header.
+- **`plan.md`:** the outcome, scope, decisions with their reasons, dependencies, edge cases and completion checks, in whatever shape the work needs. Label proposals and open questions; never present your recommendation as the user's decision.
+- **The ledger's steps:** the planning steps exist from creation; keep them true with the `step` tool. Once the plan names its implementation steps, propose them (action `propose`), so they show before the work starts. The ledger holds nothing else but, during implementation, its final-review list.
+- **Tags** (`work_create`, `work_tag`): what the work will be searched for later. Give the areas it touches (`search`, `hub`, `performance`, not activities like `fix`), at most about five, reusing the project's tags before inventing one; keep them true as the work changes. Add the release it ships in: where the project versions its releases, the version its manifest names (`package.json`); when that version is already tagged as released (`v<version>` in Git), ask the user which release the work goes in.
+- **`CONTEXT.md`:** the work's glossary, updated the moment a term resolves ([format](../atlas-grill/references/CONTEXT-FORMAT.md)).
 
-Keep one record per thing and consolidate rather than add summaries; skip transcripts, command logs and lessons manufactured from routine edits. Current code, tests and canonical product documentation establish what is true now; plans and archived work are intent and history, and old permissions authorize nothing new. Link canonical documentation in its own repository instead of copying it.
+Write PRs, issues and commits in full, naming the repository from the checkout you work in: `owner/repo#12`, `owner/repo@4ab195a`, or their URLs. Atlas links these; `#12` and a bare hash stay plain text.
 
-When the user agrees to the plan, record it with `work_accept`. Before handing off, reconcile the files with the final agreement and link the work folder with a short status.
+Keep one record per thing, and update it rather than adding summaries. Skip transcripts and command logs. Lessons that outlive the work belong in the repository's own `AGENTS.md` or documentation, not in Atlas.
 
-## State through the Atlas tools, prose as files
+When the user agrees to the plan, record it with `work_accept` and update the summary. Accepting a plan does not start it.
 
-The Atlas tools are the reliable way to change planning state; each validates, refuses with the reason, and never commits. The `atlas work …` commands are the same operations.
+## State and files
 
-| Tool                                                 | Use it to                                                                            |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `where`, `work_status`                               | find the projects and active work; read a work item's state and statistics           |
-| `work_create`                                        | open a work item, once the user agreed                                               |
-| `work_accept`                                        | record that the user accepted the design                                             |
-| `work_start`                                         | start implementation with the agreed steps                                           |
-| `step_add`, `step_set`, `step_rename`, `step_remove` | keep the ledger's steps current; a step is removed only with a reason                |
-| `work_block`                                         | set or clear what blocks the work                                                    |
-| `work_close`                                         | close verified work; refused while items are open                                    |
-| `work_archive`, `work_reopen`                        | archive superseded (by which work) or abandoned (why) work; bring archived work back |
+Planning state (work items, steps, `blocked`, closing, archiving) changes only through the Atlas tools; their descriptions say what each does. Everything else is an ordinary file: plan bodies, the final-review list, glossaries, diagrams and whatever else a work folder holds. Edit them directly at their absolute paths, from any folder; after each edit, Atlas checks the file and hands back what to fix. Do not hand-edit what the tools own: the registry's work items, the header statuses and dates, the ledger header, and moves between `active/` and `archive/`.
 
-Do not hand-edit what the tools own: work-item registrations, the statuses and dates they set, the `superseded`/`abandoned` disposition `work_archive` sets, the ledger header and moves between `active/` and `archive/`.
+Commit planning changes yourself, in the planning folder's Git with explicit pathspecs (`git -C <planning-folder> add -- <paths>`), at coherent points. Keep planning and product commits apart.
 
-Everything else is an ordinary file: plan bodies, ledger notes, glossaries, ADRs, knowledge and diagrams. Edit them directly at their absolute paths in the planning folder, from any checkout. After each edit there, Atlas checks the file and hands back any problems to fix.
-
-Commit planning changes yourself, in the planning folder's own Git and with explicit pathspecs (`git -C <planning-folder> add -- <paths>`, then commit), at coherent milestones. Never stage unrelated changes, and keep planning and product histories separate.
-
-## Checks and statistics
-
-Hooks run them: after each edit in the home, Atlas checks the planning files you changed; when a session or subagent stops, it measures the session's time, tokens, models and subagents for the work items the session touched, as planning or implementation by the work's stage. Nothing needs reporting by hand. Only when the hooks are not installed (no Atlas context at session start) run `atlas check <files>` after editing, and `atlas work report <planning-folder> --work <work-id> --step <title>` when work starts and at each ledger transition.
+Atlas measures time, tokens and models for the work items a session touches; nothing is reported by hand.
 
 ## Set up a project
 
-The user can create a project in the Atlas app (File › New Project…). Otherwise, with their agreement, create `<home>/planning/<name>` (`atlas home` prints the home and its projects), run `git init` there and copy in the bundled templates (Atlas checks edits there once `planning.json` is in place): [AGENTS.md](assets/planning/AGENTS.md), [PLANS.md](assets/planning/PLANS.md), [README.md](assets/planning/README.md), [planning.json](assets/planning/planning.json), [plan-frontmatter.md](assets/planning/plan-frontmatter.md) and, when no attributes policy exists, [.gitattributes](assets/planning/.gitattributes). Set the project's `name` in `planning.json`, and register each participating repository with a stable `id`, a `name` and its `remote`, which is how checkouts find the project. Run `atlas check <folder>` and commit the baseline. A planning folder elsewhere moves into the home with `atlas home adopt <folder>` (or **Move into the Atlas home** in the app); until it does, agents do not find it, even when the app lists it. Hidden and archived projects are not found either.
+A project is a name and its folders, such as `~/work/shop`. Check with `where` that no project covers the work already; then, with the user's agreement, call `project_create` with the name and the folders. It makes the planning folder with its first commit, and sessions in those folders belong to it from then on. The user can also create one, and add folders later, on the app's Projects page.
 
 ## Work across projects
 
-When no project registers the folder the session is in, or the user asks to review, organize or bring Atlas up to date:
+When the user asks to review projects or bring Atlas up to date:
 
-1. **List the projects** with `where`. The user's request says which to go through; otherwise go through every active one.
-2. **Go through each project's active work:** its `planning.json`, and for every active work item its plan, `work_status` and ledger.
-3. **Reconcile them with what actually happened.** The evidence is the Git history of the project's repositories (branches, merges, tags), their PRs where the hosting service is reachable, the planning folder's own history and, when the harness offers one, its thread or session history (the conversations that planned or implemented the work). Look for steps done but still open, merged PRs and outcomes the ledger lacks, decisions settled in a conversation but missing from the plan, work finished or replaced but still active, and a stale `blocked`. Rely on Git and the PRs when no conversation history is available, and say so.
-4. **Update what the evidence settles:** ledger notes citing their evidence (commit, PR, date), steps the evidence shows done, links. **Ask before consequential changes** (closing, archiving, reopening, removing steps, rewriting a plan's decisions, opening work), each with its evidence and your recommendation, one project at a time.
-5. **Commit** each planning folder's changes in its own Git, and end with a short account per project: what changed, and what awaits the user.
-
-## Organize legacy material
-
-To adopt an existing planning repository, legacy plans or records scattered around a workspace, follow [the organization workflow](references/organization.md): a recoverable baseline before any move, originals preserved, classification by evidence, links repaired and preservation verified.
+1. **List the projects** with `where`. Go through the ones the user names, otherwise every active one.
+2. **Read each project's active work:** for every active work item, its plan and `work_status`.
+3. **Reconcile it with what happened.** The evidence is the Git history of the repositories in the project's folders, their PRs where the host is reachable, the planning folder's history and, when the harness offers it, the sessions that planned or implemented the work. Look for steps done but still open, merged PRs the summary lacks, decisions settled in a conversation but missing from the plan, finished or replaced work still active, and a stale `blocked`.
+4. **Update what the evidence settles** (steps, summaries, links), citing the commit, PR or date. **Ask before consequential changes** (closing, archiving, reopening, removing steps, rewriting decisions, opening work), each with its evidence and your recommendation, one project at a time.
+5. **Commit** each planning folder, and end with a short account per project: what changed, and what awaits the user.
 
 ## Diagrams
 
-When the work settles domain concepts, boundaries or data structure, offer a diagram, and make it if the user agrees; plain UI or tooling work gets none. A diagram is a file in the work folder, edited like any other and linked from the plan under the heading it explains. [Diagrams](references/diagrams.md) says how to write one.
+When the work settles domain concepts, boundaries or data structure and a diagram would help you and the user understand it the same way, make one, without waiting to be asked; plain UI or tooling work gets none. Build it on a capture of the existing code or database where there is one, rather than from memory. [Diagrams](references/diagrams.md) says how to write each kind.
 
 ## Close
 
-Close with `work_close` once the agreed completion criteria are verified and the outcome is recorded; for PR delivery that means the required PRs merged, unless the work agreed otherwise. Acceptance, implementation, PR readiness, merge and release are separate facts: record pending ones accurately. Unfinished scope stays active, or is explicitly transferred or dropped (`step_remove` with the reason). Closing never grants merge or deployment.
-
-The interview and domain-modeling methods are adapted from Matt Pocock's MIT-licensed skills: see [provenance](references/ATTRIBUTION.md) and [the license](references/LICENSE).
+When the agreed completion checks pass and the outcome is in the plan (for PR delivery, the PR merged unless agreed otherwise), ask the user whether the work is finished, and close it with `work_close` only on their yes. Don't wait for them to remember: when work looks finished, say so and ask. Acceptance, implementation, PR readiness, merge and release are separate facts: state pending ones accurately. Unfinished scope stays active, or is transferred or dropped with `step` (action `remove`), telling the user why. Closing never grants merge or deployment.

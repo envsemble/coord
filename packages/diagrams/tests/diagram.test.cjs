@@ -4,14 +4,11 @@ const path = require("node:path");
 const vm = require("node:vm");
 const { test } = require("node:test");
 const { transformSync } = require("esbuild");
-const { renderSVG } = require("../lib/layout/renderSVG.cjs");
+const { renderSVG } = require("../lib/render/renderSVG.cjs");
 const { validateDiagram } = require("../lib/layout/validateDiagram.cjs");
 
 const code = transformSync(
-  fs.readFileSync(
-    path.join(__dirname, "../src/visualization/interaction.js"),
-    "utf8",
-  ),
+  fs.readFileSync(path.join(__dirname, "../src/canvas/interaction.js"), "utf8"),
   { format: "cjs" },
 ).code;
 const context = vm.createContext({ module: { exports: {} } });

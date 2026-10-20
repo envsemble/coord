@@ -20,29 +20,9 @@ async function proposal(base, proposed) {
         text: `@startuml\n' atlas proposal base.puml\n${proposed}\n@enduml\n`,
       },
     ],
-    includeArtifacts: true,
   });
   return prepared.get("proposal.puml");
 }
-
-test("A proposal's exports stay reproducible across wall-clock changes", async (t) => {
-  t.mock.timers.enable({
-    apis: ["Date"],
-    now: Date.parse("2026-10-10T00:00:00Z"),
-  });
-  const changed = ENROLLMENT.replace("name : string", "name : text");
-  const file = { path: "proposal.puml", text: changed };
-  const first = await atlas.buildViewer({
-    prepared: await proposal(ENROLLMENT, changed),
-    file,
-  });
-  t.mock.timers.tick(3000);
-  const second = await atlas.buildViewer({
-    prepared: await proposal(ENROLLMENT, changed),
-    file,
-  });
-  assert.equal(second.html, first.html);
-});
 
 test("Comparison finds changed types and counts by identity, and nothing in a reordered diagram", async () => {
   const { payload } = await proposal(

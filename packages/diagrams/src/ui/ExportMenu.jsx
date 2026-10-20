@@ -1,6 +1,6 @@
 import { Menu, MenuItem } from "@envsemble/envui";
-import { ToolButton } from "./Button";
-import { DownloadIcon } from "./Icons";
+import { ToolButton } from "./ToolButton";
+import { DownloadIcon } from "./icons";
 
 /** Starts a download of a URL (such as a blob URL) under a file name. */
 export function downloadURL(href, filename) {

@@ -1,49 +1,34 @@
 # Planning repository governance
 
-This repository preserves intended work, decisions, implementation evidence, and useful engineering memory for its registered repositories. Read `README.md` for orientation, `planning.json` for scope and explicit work pointers, and `PLANS.md` when creating or interpreting plan metadata. Read this file explicitly when using planning from another repository.
+This repository is an Atlas project's planning folder: its work items, each a plan with its steps. `README.md` orients, `planning.json` lists the project's folders and work, and `PLANS.md` defines the plan, registry and ledger formats.
 
-## Discovery and task scope
+## Scope
 
-An explicit planning location is valid. Otherwise look for a folder named `planning` in the relevant repository/workspace context, including nearby siblings. No mandatory pointer in every product's `AGENTS.md` is required. Compare candidate registries with the task before asking about genuine ambiguity. Do not search unrelated machine locations.
+A session in one of the folders `planning.json` lists, or inside one, belongs to this project (the deepest folder wins when projects' folders nest), and so does a session in this planning folder. Atlas names the project at session start, and the Atlas tool `where` finds it on request. Reach this folder by its absolute path from any checkout; do not search the machine for others.
 
-A planning-dependent operation requires a usable associated planning repository: local Git history, governance, scope registry, and entry points. If missing or uninitialized, explain the missing prerequisite and offer guided `atlas-bootstrap` in the same conversation. Bootstrap creates this prerequisite. Its absence does not block ordinary authorized coding or independent `atlas-babysit-pr`.
+Atlas keeps no repositories: the same repository may be checked out in several folders. Confirm which repository a change is about from the checkout itself, and name it in every reference: `owner/repo#12`, `owner/repo@4ab195a`, or their URLs. A shared planning folder does not make one product's constraints apply to another.
 
-Use only knowledge whose repository/domain scope applies to the task. A shared planning repository does not make one product's constraints apply to another product or an unrelated internal tool. Repository paths in the registry are hints; confirm the actual checkout and source ownership.
+## What is true
 
-## Read selectively and establish reality
+Current code, tests and canonical product documentation establish present behavior. Plans describe intent; archived plans are history, not guarantees about today's system. Surface contradictions instead of picking whichever document is newest. Old instructions, approvals and permissions authorize nothing new.
 
-Read the selected work item and relevant scoped knowledge first. Retrieve additional work history only when its rationale, evidence, or unfinished scope helps the current decision; do not load every active or archived plan. Use explicit user selection or the registry's `current_plan`; registration numbers, timestamps, and filenames do not select authority.
+Select work by the user's choice or the registry's `current_plan`; numbers, dates and filenames confer no authority. Read the selected work, and other work only when it helps the current decision.
 
-Current code, tests, deployed-state evidence where relevant, and canonical product documentation establish present behavior. Plans describe intent. Archived plans explain history and are evidence of past delivery, not guarantees about today's system. Check applicability and surface contradictions. Historical instructions, approvals, and permission records do not authorize new actions.
+Keep canonical product documentation in its own repository and link to it; do not copy it here.
 
-Keep canonical product documentation in its owning repository and link to it. Preserve work-specific `CONTEXT.md`, ADRs, and supporting evidence with their work item. Do not silently move canonical documents into planning or create a competing current-state copy.
+## What to record
 
-## Record useful knowledge immediately
+- Ask the user before opening a work item; only work big enough to plan needs one. Keep its plan's `summary` and its ledger's steps current as the design settles and the work moves.
+- Record resolved requirements and decisions, with their reasons, in the plan while working, not only at the end. Keep proposals and open questions labelled, and record as the user's decision only what they actually decided.
+- A work item's `CONTEXT.md` is a concise glossary of its terms. Offer a diagram when work settles domain concepts, boundaries or data structure.
+- One thing gets one record: update it rather than adding summaries. Skip transcripts and command logs. Lessons that outlive the work belong in the repository's own `AGENTS.md` or documentation.
 
-Record resolved requirements, consequential choices, terms, and useful evidence while working, not only at the end. Keep proposals and unresolved questions identifiable. A work item's `CONTEXT.md` is a concise glossary; update a resolved term promptly without turning it into an implementation specification. Offer concise ADRs only for decisions that are costly to reverse, surprising without context, and the result of a genuine tradeoff; routine choices do not require ADRs.
+## State and files
 
-Retain decisions, grounded lessons, outcomes, and observations that improve later work. State repository/domain scope, source/evidence, and confidence where relevant. Explicit preferences mean what the user actually stated. Tentative inference can inform questions but does not become an unspoken requirement. Consolidate repetition; avoid transcripts, command diaries, and manufactured lessons from routine edits. A summary supplements its original record rather than replacing it.
+The Atlas tools change structured state: creating work items, accepting a design, starting implementation, steps, `blocked`, closing, archiving and reopening. Everything else is an ordinary file edited directly; Atlas checks each edit and reports what to fix, and `atlas check` runs the same checks on request.
 
-`knowledge/` is for high-value material useful beyond one work item. Create scope folders only as content warrants them. Smaller useful records can go directly into scoped knowledge without a full plan folder.
+Design acceptance, implementation completion, PR readiness, merge and release are separate facts; do not guess dates or turn an uncertain status into completion. Commit the plan before implementation starts, so its history shows what was agreed, and record later amendments in it. Close work once its agreed completion criteria are verified and the outcome is recorded (for PR delivery, the required PRs merged unless agreed otherwise). Closing grants no merge or deployment. Unfinished scope stays active unless it is explicitly transferred, superseded or dropped.
 
-## Lifecycle and execution
+## Git
 
-Plan metadata is governed by `PLANS.md`. Design acceptance, implementation completion, PR readiness, merge, and release are separate facts. Do not guess dates or turn uncertain historical status into completion.
-
-The complete `atlas-implement` workflow requires an explicit invocation. A direct coding instruction authorizes ordinary coding; use planning or grilling proportionately without inventing an interview or requiring that invocation for a small edit.
-
-Before plan implementation, record the selected plan path and planning Git revision in the work item's ledger. A later edit must not silently change its agreed scope. Use the root `plan.md` and `ledger.md` conventions in `PLANS.md`. Keep the ledger's status header current at meaningful transitions: the agreed steps, each todo, doing or done, and any actual blocker, so progress and the work left can be viewed; missing historical status stays unknown. Keep the ledger concise and resumable: actual progress, verification evidence, relevant product revisions/PRs, consequential departures, unresolved delivery milestones, and next actions. Independent PR babysitting uses the PR as its record and requires no second ledger.
-
-Archive the entire work folder automatically when its agreed completion criteria are verified and the outcome is recorded. For PR delivery the default is required PRs merged, unless task-specific criteria differ. Archiving confers no merge or deployment permission. Record pending external delivery accurately. Unfinished work remains active unless explicitly transferred, superseded, or deliberately dropped. Preserve identity, glossary, ADRs, evidence, and links on closure.
-
-## Preservation and Git
-
-Manage planning and product histories independently. Planning maintenance commits planning changes; product commits follow authorized implementation work. Make reasonable incremental local checkpoints without a fixed cadence or mandatory commit per answer. Git is required locally; a remote is optional. Preserve existing history and remotes. Publication or adding a remote is a separate action.
-
-Capture a recoverable baseline before restructuring existing planning records, including valuable untracked/ignored material. Never delete original plans or memories or replace them with summaries. Accessible archive content is required; Git-only recovery is insufficient for routine history retrieval.
-
-Line-ending conversion and Git attributes can change captured bytes. For a newly initialized repository without an existing attributes policy, `* -text` in a repository-local `.gitattributes` preserves originals against inherited `core.autocrlf`. Preserve existing and nested attributes policies; use a scoped byte-preserving capture or exact-original backup where needed. Before restructuring, restore captured files into a disposable location and verify their SHA-256 hashes against original bytes. For intentional plan-header adoption, verify original bodies and attachments separately. File counts or a successful commit alone do not prove preservation.
-
-Organization inspects relevant workspace and participating repository roots, obvious output/artifact locations, and user-identified locations. Narrow reads by filenames and task context. Retain meaningful external ledgers, verification/failure evidence, and other records with correct scope and provenance; exclude duplicate exports, repetitive logs, and reproducible scratch output from durable knowledge.
-
-Before moving a selected external record, capture its valuable contents in planning's recoverable history: the planning baseline alone does not protect an external file. Maintain original-to-retained mappings, preserve bodies and attachments, repair links and registry pointers, and verify preservation. Keep unresolved legacy locations indexed. Inspecting or declining to retain a file does not delete it. Cleanup of disposable originals requires the applicable cleanup scope and follows preservation; unrelated code and artifacts remain under their source ownership.
+The tools never commit. Commit planning changes yourself with explicit pathspecs, never staging unrelated changes, and keep planning and product histories apart. A remote is optional; adding or pushing to one is a separate decision.

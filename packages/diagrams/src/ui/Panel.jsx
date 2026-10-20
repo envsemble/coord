@@ -1,6 +1,6 @@
 import { Surface, Text } from "@envsemble/envui";
-import { ToolButton } from "./Button";
-import { CloseIcon } from "./Icons";
+import { ToolButton } from "./ToolButton";
+import { CloseIcon } from "./icons";
 
 /**
  * A floating pane beside the canvas, such as the inspector. Its header holds

@@ -1,6 +1,6 @@
 # Acquirer sandbox: step-up on saved-card reuse
 
-Run on 2026-10-08 against the acquirer sandbox with shop branch `feature/saved-payment-methods` at `2d8522d`. Test cards from the acquirer's EU SCA set.
+Run on 2026-10-08 against the acquirer sandbox with shop branch `feature/saved-payment-methods` at `example/shop@2d8522d`. Test cards from the acquirer's EU SCA set.
 
 | Card saved with | First reuse | Second reuse |
 |---|---|---|

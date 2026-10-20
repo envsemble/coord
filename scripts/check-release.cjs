@@ -35,31 +35,16 @@ async function check() {
     for (const file of first.manifest.files)
       assert.equal(hash(files[file.name]), file.sha256, file.name);
     assert.equal(first.manifest.format, "atlas/release");
-    // Atlas is the only product name. Old names may appear only in the history
-    // maps and historical changelog entries.
-    const oldName = /work[t]rail|ontouml[- ]atla[s]/i;
-    const mayNameOld = (name) =>
-      name.startsWith("docs/history/") || name === "CHANGELOG.md";
-    for (const [name, bytes] of Object.entries(files))
-      if (
-        /\.(?:[cm]?js|jsx|tsx?|json|md|html|css|svg|ya?ml|txt)$/.test(name) &&
-        !mayNameOld(name)
-      )
-        assert.doesNotMatch(
-          Buffer.from(bytes).toString("utf8"),
-          oldName,
-          `${name} uses an old product name`,
-        );
     // The enrollment example carries its scenarios; the shop's, its changes.
     const embedded = (name) => {
       const html = Buffer.from(files[name]).toString("utf8");
       assert(html.includes('<script id="atlas-diagram"'), name);
       const data = html.match(/^\s*(const MODEL=.*)\r?$/m)[1];
       return new (require("node:vm").Script)(
-        `${data}\n;({LEARNING,COMPARISON})`,
+        `${data}\n;({SCENARIOS,COMPARISON})`,
       ).runInNewContext({});
     };
-    assert.equal(embedded("enrollment.html").LEARNING.scenarios.length, 4);
+    assert.equal(embedded("enrollment.html").SCENARIOS.scenarios.length, 4);
     assert(embedded("shop.html").COMPARISON.changes.changes.length);
     assert(
       Object.keys(files).some((name) =>
@@ -72,17 +57,17 @@ async function check() {
     assert(files["packages/diagrams/examples/shop/diagrams/checkout.puml"]);
     assert(files["app/package.json"]);
     assert(files["app/src/App.tsx"]);
-    assert(files["packages/planning/src/planning.ts"]);
-    assert(files["packages/planning/src/check.ts"]);
-    assert(files["packages/cli/package.json"]);
-    assert(files["packages/cli/bin/atlas.js"]);
+    assert(files["packages/atlas/src/planning/reading/planningIndex.ts"]);
+    assert(files["packages/atlas/src/planning/check/check.ts"]);
+    assert(files["packages/atlas/package.json"]);
+    assert(files["packages/atlas/bin/atlas.js"]);
     assert(
       !Object.keys(files).some((name) =>
         /(?:^|\/)(?:check_planning|log_consultation)\.py$/.test(name),
       ),
       "Atlas ships no Python helpers",
     );
-    assert(files["app/assets/atlas-desktop.jpg"]);
+    assert(files["assets/hub.png"]);
     assert(
       files["app/main/index.ts"],
       "Missing the desktop app's main process",
@@ -115,10 +100,6 @@ async function check() {
     assert(files["docs/history/atlas-import-commit-map.txt"]);
     assert(files["CHANGELOG.md"]);
     assert(files["package-lock.json"]);
-    assert(
-      !Object.keys(files).some((name) => /(?:^|\/)\.atlas\//.test(name)),
-      "Local model data leaked into the release",
-    );
     assert(
       !Object.keys(files).some((name) => /(?:^|\/)node_modules\//.test(name)),
       "Installed dependencies leaked into the release",

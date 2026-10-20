@@ -11,11 +11,13 @@ import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, realpathSyn
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test';
+import { canonicalProjectFolderSync, HomeDatabase, insertReport, type WorkReport } from '@envsemble/atlas/planning';
+import type { AtlasBridge } from '../shared/contract.ts';
 
 const appDirectory = path.resolve(import.meta.dirname, '..');
 const fixture = path.join(import.meta.dirname, 'fixtures', 'planning');
-/** This checkout's atlas command, which adopts the fixture into a home as a user would. */
-const command = path.resolve(appDirectory, '..', 'packages', 'cli', 'bin', 'atlas.js');
+/** The agents' reports on the fixture's work, by work item, as the hooks record them in the home's database. */
+const fixtureReports = path.join(import.meta.dirname, 'fixtures', 'reports.json');
 
 /** The AppImage or Windows installer built by `npm run package`, when present. */
 export function packagedInstaller(): string | null {
@@ -46,9 +48,11 @@ export function temporaryDirectory(prefix: string) {
   return realpathSync.native(mkdtempSync(path.join(tmpdir(), prefix)));
 }
 
-/** A fresh copy of the committed fixture planning folder, as its own Git repository; `name` names its project. */
-export function planningFixture(name?: string): string {
-  const root = path.join(temporaryDirectory('atlas-e2e-'), 'planning');
+/**
+ * A fresh copy of the committed fixture planning folder, as its own Git repository, at `root` (by
+ * default a new temporary folder); `name` names its project.
+ */
+export function planningFixture(name?: string, root = path.join(temporaryDirectory('atlas-e2e-'), 'planning')): string {
   cpSync(fixture, root, { recursive: true });
   if (name) writeFileSync(path.join(root, 'planning.json'), readFileSync(path.join(root, 'planning.json'), 'utf8').replace('"name": "Northwind"', JSON.stringify('name') + ': ' + JSON.stringify(name)));
   const git = (...args: string[]) => execFileSync('git', ['-C', root, ...args], { stdio: 'ignore', windowsHide: true });
@@ -61,20 +65,21 @@ export function planningFixture(name?: string): string {
 }
 
 /**
- * An Atlas home with the fixture as a project in its planning folder (`<home>/planning/<slug>`),
- * moved there with `atlas home adopt`, which also imports its work statistics into the home's
- * database. `name` renames the project in its planning.json first. More projects join with
- * addProject. The home is removed with the launched app, or with removeDirectory.
+ * An Atlas home with the fixture as a project in its planning folder (`<home>/planning/<slug>`), with
+ * the agents' reports on its work in the home's database, as the hooks record them. `name` renames
+ * the project in its planning.json. More projects join with addProject. The home is removed with the
+ * launched app, or with removeDirectory.
  */
 export function projectHome(options: { slug?: string; name?: string; dataDirectory?: string } = {}) {
   const dataDirectory = options.dataDirectory ?? temporaryDirectory('atlas-e2e-data-');
   const slug = options.slug ?? 'northwind';
-  const source = planningFixture(options.name);
-  execFileSync(process.execPath, [command, 'home', 'adopt', source, '--name', slug], { env: environment(dataDirectory), stdio: 'ignore', windowsHide: true });
-  removeDirectory(path.dirname(source));
-  // Adopting deleted the statistics files it imported; the user commits that.
-  const folder = path.join(dataDirectory, 'planning', slug);
-  try { execFileSync('git', ['-C', folder, '-c', 'user.name=Atlas fixture', '-c', 'user.email=fixture@example.test', '-c', 'commit.gpgsign=false', 'commit', '-q', '-a', '-m', 'Statistics moved into the Atlas home'], { stdio: 'ignore', windowsHide: true }); } catch { /* Nothing to commit. */ }
+  const folder = planningFixture(options.name, path.join(dataDirectory, 'planning', slug));
+  const reports = JSON.parse(readFileSync(fixtureReports, 'utf8')) as Record<string, WorkReport[]>;
+  const database = HomeDatabase.open(dataDirectory);
+  try {
+    const project = database.addProject(canonicalProjectFolderSync(folder), options.name ?? 'Northwind');
+    for (const [work, items] of Object.entries(reports)) for (const report of items) insertReport(database, project.id, work, report);
+  } finally { database.close(); }
   return { dataDirectory, folder };
 }
 export const addProject = (dataDirectory: string, slug: string, name: string) => projectHome({ dataDirectory, slug, name }).folder;
@@ -174,53 +179,138 @@ export async function close(launched: Launched | undefined) {
   if (!stopped) throw new Error('The app did not quit within 15 seconds of being asked to.');
 }
 
-/**
- * The sidebar's project cards: the active projects', or those in the hidden and archived group. Found
- * by their markup rather than their role, so they are read past an open dialog too.
- */
-export const projectCards = (window: Page, group: 'Projects' | 'Hidden and archived projects' = 'Projects') => window.locator(`[role="group"][aria-label="${group}"] .project-card`);
-/** The sidebar's card of the project of that name (a card also says what is going on in the project). */
-export const sidebarProject = (window: Page, name = 'Northwind', group?: 'Projects' | 'Hidden and archived projects') => projectCards(window, group).filter({ has: window.getByText(name, { exact: true }) });
-/** The sidebar's cards are those of these projects, in this order. */
-export async function expectProjects(window: Page, names: string[], group?: 'Projects' | 'Hidden and archived projects') {
-  await expect(projectCards(window, group)).toHaveCount(names.length);
-  for (const [index, name] of names.entries()) await expect(projectCards(window, group).nth(index).getByText(name, { exact: true }).first()).toBeVisible();
+/** The hub's plan rows, or the row of the plan of that title. */
+export const hubRows = (window: Page, title?: string) => title ? window.locator('.hub-row').filter({ has: window.getByRole('link', { name: title, exact: true }) }) : window.locator('.hub-row');
+/** The window shows the hub, with every plan or (`heading`) one project's. */
+export async function expectHub(window: Page, heading = 'Plans') {
+  await expect(window.locator('.hub h1')).toHaveText(heading);
 }
-/** The sidebar, where it says it has no projects. */
-export const sidebar = (window: Page) => window.locator('.workbench .env-app-sidebar');
-/** The sidebar's project search, a quiet field at the top of the sidebar. */
-export async function projectSearch(window: Page) {
-  const field = sidebar(window).getByRole('searchbox', { name: 'Search projects' });
-  await field.click();
-  return field;
+/** Open a plan from the hub with one click (the first, when projects share it) and wait for it. */
+export async function openPlan(window: Page, title: string) {
+  await hubRows(window, title).first().getByRole('link', { name: title, exact: true }).click();
+  await expect(window.locator('.work-header h1')).toHaveText(title);
 }
-/** The button in the strip above the projects that makes a new one. */
-export const newProjectButton = (window: Page) => sidebar(window).getByRole('button', { name: 'New project', exact: true });
-
-/** Open a project's page from the sidebar and wait for its work list. */
-export async function openProject(window: Page, name = 'Northwind') {
-  await sidebarProject(window, name).click();
-  await expect(window.locator('.project-page h1')).toHaveText(name);
-  await expect(window.locator('.work-row').first()).toBeVisible();
+/** Go to the hub of every project by the Plans section. */
+export async function goHome(window: Page) {
+  await window.getByRole('navigation', { name: 'Sections' }).locator('[data-section="plans"]').click();
+  await expectHub(window);
 }
 
+/** One of the title bar's menus (File by default), by its trigger. */
+export const fileMenu = (window: Page, menu = 'File') => window.locator('.env-title-bar').getByRole('menubar', { name: 'Application menu' }).getByRole('menuitem', { name: menu, exact: true });
+/** Choose an item of one of the title bar's menus (File by default). */
+export async function chooseMenu(window: Page, item: string, menu = 'File') {
+  await fileMenu(window, menu).click();
+  await window.getByRole('menu', { name: menu }).getByRole('menuitem', { name: item, exact: true }).click();
+}
+/** The projects as the window's computer lists them, asked through the window's bridge. */
+export const listedProjects = (window: Page) => window.evaluate(async () => {
+  const result = await (globalThis as unknown as { atlas: AtlasBridge }).atlas.projects();
+  return result.ok ? result.value : [];
+});
+/** The second row's sections, by name: Plans, Projects or Statistics. */
+export const section = (window: Page, name: 'Plans' | 'Projects') => window.getByRole('navigation', { name: 'Sections' }).locator(`[data-section="${name.toLowerCase()}"]`);
+/** The search popup: the hub's search field, the title bar's search and Ctrl+P open it. */
+export const searchPopup = (window: Page) => window.getByRole('dialog', { name: 'Search' });
+/** Show one project's plans in the hub, by its project filter. */
+export async function filterHub(window: Page, project: string) {
+  await window.getByRole('combobox', { name: 'Project' }).click();
+  await window.getByRole('option', { name: project, exact: true }).click();
+  await expectHub(window, project);
+}
+/** Run an item of main's application menu (the system's menu bar on macOS, hidden elsewhere, holding the shortcuts). */
+export async function applicationMenu(app: ElectronApplication, menu: string, item: string) {
+  await app.evaluate(({ BrowserWindow, Menu }, [menuLabel, itemLabel]) => {
+    const entry = Menu.getApplicationMenu()!.items.find(candidate => candidate.label === menuLabel)!.submenu!.items.find(candidate => candidate.label === itemLabel)!;
+    entry.click(undefined, BrowserWindow.getAllWindows()[0], undefined as never);
+  }, [menu, item] as const);
+}
+
+/** Open the Projects page from its section. */
+export async function openProjects(window: Page) {
+  await section(window, 'Projects').click();
+  await expect(window.locator('.projects-page h1')).toHaveText('Projects');
+}
 /**
- * Launch the app on a home with the fixture project (or the home given), and open the project's page.
- * The home is the launch's own unless given, and goes with it.
+ * The Projects page's rows: the active projects', or the archived ones (shown by `showArchived`).
+ * Found by their markup rather than their role, so they are read past an open dialog too.
  */
-export async function launchProject(options: { dataDirectory?: string; folder?: string; open?: boolean } = {}) {
+export const projectRows = (window: Page, group: 'Projects' | 'Archived projects' = 'Projects') => window.locator(`.project-list .project-row[data-group="${group === 'Projects' ? 'active' : 'archived'}"]`);
+/** Unfold the Projects page's archived projects, folded away until asked for. */
+export async function showArchived(window: Page) {
+  const toggle = window.locator('.projects-aside-toggle');
+  if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+}
+/** A project's folders, opened from its menu on the Projects page. */
+export async function projectDetails(window: Page, name: string) {
+  await projectAction(window, name, 'Folders…');
+  const dialog = window.getByRole('dialog', { name: name + ': folders' });
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+/** The Projects page's row of the project of that name. */
+export const projectRow = (window: Page, name = 'Northwind', group?: 'Projects' | 'Archived projects') => projectRows(window, group).filter({ has: window.locator('.row-link-title').getByText(name, { exact: true }) });
+/** The Projects page lists these projects, in this order. */
+export async function expectProjects(window: Page, names: string[], group?: 'Projects' | 'Archived projects') {
+  await expect(projectRows(window, group).locator('.row-link-title')).toHaveText(names);
+}
+/** A project's statistics, from its row on the Projects page. */
+export async function openProjectStatistics(window: Page, name = 'Northwind') {
+  await openProjects(window);
+  await projectRow(window, name).getByRole('button', { name: 'Statistics of ' + name, exact: true }).click();
+  await expect(window.locator('.statistics-page h1')).toHaveText('Statistics');
+  await expect(window.locator('.statistics-page .breadcrumb')).toHaveText(new RegExp('Projects.*' + name + '.*Statistics'));
+}
+/** Run one of a project's actions on the Projects page. */
+export async function projectAction(window: Page, name: string, action: string) {
+  await window.getByRole('button', { name: 'Actions for ' + name, exact: true }).click();
+  await window.getByRole('menuitem', { name: action, exact: true }).click();
+}
+
+/** The element the window's content scrolls in, below the title bar. */
+export const pageScroll = (window: Page) => window.evaluate(() => document.querySelector('.env-window-frame-content')!.scrollTop);
+/** The content's scroll position once it has settled. */
+export async function settledScroll(window: Page) {
+  let position = -1;
+  await expect.poll(async () => {
+    const top = await pageScroll(window);
+    const steady = Math.abs(top - position) < 0.5;
+    position = top;
+    return steady;
+  }, { intervals: [200] }).toBe(true);
+  return position;
+}
+
+/**
+ * Launch the app on a home with the fixture project (or the home given), and wait for the hub to list
+ * its plans. The home is the launch's own unless given, and goes with it.
+ */
+export async function launchProject(options: { dataDirectory?: string; folder?: string } = {}) {
   const home = options.dataDirectory ? { dataDirectory: options.dataDirectory, folder: options.folder ?? path.join(options.dataDirectory, 'planning', 'northwind') } : projectHome();
   const launched = await launch({ dataDirectory: home.dataDirectory, ownsData: !options.dataDirectory });
-  if (options.open !== false) await openProject(launched.window);
+  await expect(hubRows(launched.window).first()).toBeVisible();
   return { ...launched, folder: home.folder };
 }
 
-/** Show the file panel, with the files of the active tab's project. */
+/** The plan's Files card, always beside its pages, with the files of the plan's own folder. */
+export const filesCard = (window: Page) => window.getByRole('region', { name: /^Files of / });
 export async function showFiles(window: Page) {
-  const panel = window.getByRole('region', { name: 'Files' });
-  if (!await panel.isVisible()) await window.getByRole('button', { name: 'Files', exact: true }).click();
-  await expect(panel.getByRole('tree')).toBeVisible();
-  return panel;
+  const card = filesCard(window);
+  await expect(card.getByRole('tree')).toBeVisible();
+  return card;
+}
+
+/** The name of the file the window shows: the last part of its breadcrumb. */
+export const shownFile = (window: Page) => window.locator('.file-page .work-trail [aria-current="page"]');
+
+/** Open a document of the open plan's project by its name, through the search. */
+export async function openDocument(window: Page, name: string) {
+  await window.locator('.env-title-bar').getByRole('button', { name: 'Search', exact: true }).click();
+  const popup = searchPopup(window);
+  await popup.getByRole('combobox').fill(name.replace(/\.md$/, ''));
+  await popup.getByRole('option').filter({ hasText: name }).first().click();
+  await expect(shownFile(window)).toContainText(name);
 }
 
 /** Every window currently open, with the computer it shows. */

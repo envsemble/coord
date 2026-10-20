@@ -1,4 +1,4 @@
-import { viewForNode } from "./domainModel";
+import { viewForNode } from "./viewerModelIndex";
 /**
  * Where an element can be inspected: its view and canvas target. Members
  * resolve to their owner. A relation also names its two ends, so the camera

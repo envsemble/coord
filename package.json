@@ -1,6 +1,6 @@
 {
   "name": "atlas",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "private": true,
   "description": "Plans, models and shared understanding for agents and the people they work with",
   "repository": {
@@ -29,6 +29,7 @@
     "build": "npm run build --workspaces --if-present",
     "package": "npm run package --workspace @envsemble/atlas-app",
     "test": "npm test --workspaces --if-present",
+    "test:quick": "npm run test:quick --workspaces --if-present",
     "test:skills": "node --test --test-timeout=120000 --test-force-exit \"plugin/tests/*.test.mjs\"",
     "test:e2e": "npm run test:e2e --workspace @envsemble/atlas-app",
     "format": "npm run format --workspace @envsemble/atlas-diagrams && prettier --write \"docs/*.md\" scripts README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json",

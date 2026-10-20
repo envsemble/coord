@@ -1,6 +1,6 @@
 # Reservation concurrency test
 
-Staging, 2026-09-22, shop `main` at `ed76f73` plus the sweeper branch of shop#44. SKU `NW-MUG-014`, 10 units on hand in Berlin, 50 concurrent checkouts of one unit each, repeated five times.
+Staging, 2026-09-22, shop `main` at `example/shop@ed76f73` plus the sweeper branch of example/shop#44. SKU `NW-MUG-014`, 10 units on hand in Berlin, 50 concurrent checkouts of one unit each, repeated five times.
 
 | Run | Orders placed | Insufficient stock | Other errors | Final `on_hand - reserved` |
 |---|---|---|---|---|

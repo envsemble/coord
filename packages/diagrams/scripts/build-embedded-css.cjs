@@ -36,7 +36,7 @@ function embeddedCSS(css) {
 // Only the viewer's own styles: hosts load envUI's stylesheet themselves.
 function buildEmbeddedCSS(root) {
   const css =
-    ["src/ui/styles.css", "src/visualization/styles.css"]
+    ["src/viewer/viewer.css", "src/canvas/canvas.css"]
       .map((file) =>
         embeddedCSS(fs.readFileSync(path.join(root, file), "utf8")),
       )
