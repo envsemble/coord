@@ -96,7 +96,7 @@ export function LedgerSteps({ steps, before = null, after = null }: { steps: Led
         title={phaseNames[phase] + ' step: ' + step.title + ', ' + stepLabels[step.status].toLowerCase()}>
         {step.status === 'done' ? <CheckCircle filled {...props} /> : step.status === 'doing' ? <Pending {...props} /> : <RadioButtonUnchecked {...props} />}<span>{step.title}</span>
       </li>;
-      return phase === 'proposed' && steps[index - 1]?.phase !== 'proposed' ? [<li key=" proposed" className="ledger-proposed">Proposed</li>, item] : item;
+      return phase === 'proposed' && steps[index - 1]?.phase !== 'proposed' ? [<li key=" proposed" className="ledger-proposed" aria-hidden>Proposed</li>, item] : item;
     })}{after}</ol>}
   </div>;
 }

@@ -71,7 +71,7 @@ export function LedgerSteps({ steps, found = null, live = null, before = null, a
         title={phaseNames[phase] + ' step: ' + step.title + ', ' + statusLabels[step.status].toLowerCase()}>
         <StepIcon status={step.status} phase={phase} /><span>{step.title}</span>
       </li>;
-      return phase === 'proposed' && (index === 0 || stepPhase(steps[index - 1]) !== 'proposed') ? [<li key=" proposed" className="ledger-proposed">Proposed</li>, item] : item;
+      return phase === 'proposed' && (index === 0 || stepPhase(steps[index - 1]) !== 'proposed') ? [<li key=" proposed" className="ledger-proposed" aria-hidden>Proposed</li>, item] : item;
     })}{after}</ol>}
   </div>;
 }
