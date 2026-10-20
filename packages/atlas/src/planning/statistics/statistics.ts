@@ -8,6 +8,7 @@ import { realpath } from 'node:fs/promises';
 import path from 'node:path';
 import type { AgentUsage, ModelUsage, StageUsage, TokenKinds, Work, WorkStage, WorkStatistics } from '../types.ts';
 import { runProgram as execute } from '../system/run.ts';
+import { headCommit, topLevel } from '../system/git.ts';
 import { withDatabase, type HomeDatabase } from '../home/database.ts';
 
 /**
@@ -428,36 +429,67 @@ const failedHistory = new Map<string, string>();
 /** Compare paths as the filesystem does: case-insensitively on Windows and macOS. */
 const sameKey = (value: string) => process.platform === 'win32' || process.platform === 'darwin' ? value.normalize('NFC').toLowerCase() : value;
 
+/** Commits as `git log -z --name-status` gives them, with `fields` format fields before the changes (the hash, the date and, when asked, the parents). */
+function parseLog(stdout: string, fields: number): (Commit & { id: string; parents: string[] })[] {
+  return stdout.split('\x1e').slice(1).map(record => {
+    const values = record.split('\0');
+    const changes: Change[] = [];
+    for (let index = fields; index < values.length;) {
+      const status = values[index].replace(/^\n/, '');
+      if (!status) { index++; continue; }
+      if (/^[RC]/.test(status)) { changes.push({ status, from: values[index + 1], path: values[index + 2] }); index += 3; }
+      else { changes.push({ status, from: null, path: values[index + 1] }); index += 2; }
+    }
+    return { id: values[0], date: values[1], parents: fields > 2 ? values[2].trim().split(' ').filter(Boolean) : [], changes };
+  });
+}
+
+/**
+ * The commits from `from` to `to`, newest first, as the full history would list them; null unless
+ * they are a line of single-parent commits on top of `from` in a repository whose top level is the
+ * planning folder, where the full history lists them, in this order, before `from`'s.
+ */
+async function commitsSince(root: string, key: string, from: string, to: string): Promise<Commit[] | null> {
+  const top = await topLevel(root);
+  if (!top || sameKey(await realpath(top)) !== key) return null;
+  const { stdout } = await execute('git', ['-C', root, '-c', 'core.quotePath=false', 'log', '-M30%', '-l0', '-z', '--name-status', '--format=%x1e%H%x00%aI%x00%P', from + '..' + to], { windowsHide: true, maxBuffer: 256 * 1024 * 1024, timeout: 120000 });
+  const commits = parseLog(stdout, 3);
+  if (!commits.length || commits[0].id !== to) return null;
+  for (const [index, commit] of commits.entries()) {
+    if (commit.parents.length !== 1 || commit.parents[0] !== (commits[index + 1]?.id ?? from)) return null;
+  }
+  // The full history names only the commits that change the folder.
+  return commits.filter(commit => commit.changes.length).map(({ date, changes }) => ({ date, changes }));
+}
+
 /**
  * The planning folder's history, newest first, with paths relative to the planning folder (also
- * when it sits inside a larger repository) and renames detected however many files moved.
+ * when it sits inside a larger repository) and renames detected however many files moved. Read in
+ * full once; after new commits on top of the one read, only those are read.
  */
 async function planHistory(root: string): Promise<{ head: string; commits: Commit[]; results: Map<string, number | null> } | null> {
+  let key: string;
+  try { key = sameKey(await realpath(root)); } catch { return null; }
+  const head = await headCommit(root);
+  if (!head) return null;
   try {
-    const { stdout: head } = await execute('git', ['-C', root, 'rev-parse', 'HEAD'], { windowsHide: true, timeout: 20000 });
-    const cached = historyCache.get(root);
-    if (cached && cached.head === head.trim()) return cached;
-    if (failedHistory.get(root) === head.trim()) return null;
-    const { stdout } = await execute('git', ['-C', root, '-c', 'core.quotePath=false', 'log', '-M30%', '-l0', '-z', '--no-merges', '--relative', '--name-status', '--format=%x1e%H%x00%aI', '-n', String(historyLimit), '--', '.'], { windowsHide: true, maxBuffer: 256 * 1024 * 1024, timeout: 120000 });
-    const commits: Commit[] = [];
-    for (const record of stdout.split('\x1e').slice(1)) {
-      const fields = record.split('\0');
-      const changes: Change[] = [];
-      for (let index = 2; index < fields.length;) {
-        const status = fields[index].replace(/^\n/, '');
-        if (!status) { index++; continue; }
-        if (/^[RC]/.test(status)) { changes.push({ status, from: fields[index + 1], path: fields[index + 2] }); index += 3; }
-        else { changes.push({ status, from: null, path: fields[index + 1] }); index += 2; }
-      }
-      commits.push({ date: fields[1], changes });
+    const cached = historyCache.get(key);
+    if (cached && cached.head === head) return cached;
+    if (failedHistory.get(key) === head) return null;
+    const newer = cached ? await commitsSince(root, key, cached.head, head).catch(() => null) : null;
+    let commits: Commit[];
+    if (newer && cached) commits = [...newer, ...cached.commits].slice(0, historyLimit);
+    else {
+      const { stdout } = await execute('git', ['-C', root, '-c', 'core.quotePath=false', 'log', '-M30%', '-l0', '-z', '--no-merges', '--relative', '--name-status', '--format=%x1e%H%x00%aI', '-n', String(historyLimit), '--', '.'], { windowsHide: true, maxBuffer: 256 * 1024 * 1024, timeout: 120000 });
+      commits = parseLog(stdout, 2).map(({ date, changes }) => ({ date, changes }));
     }
-    const entry = { head: head.trim(), commits, results: new Map<string, number | null>() };
-    historyCache.set(root, entry);
+    const entry = { head, commits, results: new Map<string, number | null>() };
+    if (historyCache.size >= 100) historyCache.delete(historyCache.keys().next().value!);
+    historyCache.set(key, entry);
     return entry;
   } catch {
     // Remember a failed log for this revision, so a slow or broken history is not read on every load.
-    const head = await execute('git', ['-C', root, 'rev-parse', 'HEAD'], { windowsHide: true, timeout: 20000 }).then(result => result.stdout.trim(), () => null);
-    if (head) failedHistory.set(root, head);
+    failedHistory.set(key, head);
     return null;
   }
 }

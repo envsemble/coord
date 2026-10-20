@@ -42,6 +42,8 @@ test('plan revisions follow the archive move and stop at completion', async t =>
   renameSync(path.join(root, 'active/0001-example'), path.join(root, 'archive/0001-example'));
   register('archive/0001-example');
   git(root, '2026-10-05', 'add', '-A'); git(root, '2026-10-05', 'commit', '-q', '-m', 'Archive');
+  assert.deepEqual(await planRevisions(root, [{ id: 'work-0001', currentPlan: 'archive/0001-example/plan.md', completed: null }]), { 'work-0001': 2 });
+  // A commit on top of the history read is read alone.
   writeFileSync(planFile('archive/0001-example'), planText('work-0001', 'A later correction.', '2026-10-04'));
   git(root, '2026-10-06', 'commit', '-q', '-am', 'Edit after completion');
 

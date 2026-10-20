@@ -13,14 +13,15 @@ import { ProgramError, runProgram } from './run.ts';
 const node = process.execPath;
 const module = pathToFileURL(path.join(import.meta.dirname, 'run.ts')).href;
 
-test('output beyond the limit stops the program, and no files are left behind', async t => {
+test('output beyond the limit stops the program, a program reads the input given, and no files are left behind', async t => {
   const outputDirectory = mkdtempSync(path.join(tmpdir(), 'atlas-run-test-'));
   t.after(() => rmSync(outputDirectory, { recursive: true, force: true }));
   const started = Date.now();
   await assert.rejects(runProgram(node, ['-e', 'setInterval(() => process.stdout.write("x".repeat(65536)), 1)'], { maxBuffer: 256 * 1024, timeout: 20000, outputDirectory }), /more than/);
   assert.ok(Date.now() - started < 10000, 'stopped well before its timeout');
   await runProgram(node, ['-e', '1'], { outputDirectory });
-  assert.deepEqual(readdirSync(outputDirectory), [], 'output files are removed');
+  assert.equal((await runProgram(node, ['-e', 'process.stdin.pipe(process.stdout)'], { outputDirectory, input: 'given input' })).stdout, 'given input');
+  assert.deepEqual(readdirSync(outputDirectory), [], 'output and input files are removed');
 });
 
 test('a process that exits during a run leaves no output files', async t => {

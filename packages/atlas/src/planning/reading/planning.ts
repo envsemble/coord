@@ -8,7 +8,8 @@ import { ledgerStatus } from '../work/ledger.ts';
 import { workStatistics } from '../statistics/statistics.ts';
 import { planningName, type HomeDatabase } from '../home/database.ts';
 import type { Document, DocumentContent, HistoryEntry, Issue, PlanningIndex, Work } from '../types.ts';
-import { runProgram as execute } from '../system/run.ts';
+import { runProgram as execute, runProgramBytes } from '../system/run.ts';
+import { headCommit, topLevel } from '../system/git.ts';
 
 const textExtensions = new Set(['.md', '.txt', '.json', '.yaml', '.yml', '.csv', '.puml', '.mmd', '.mermaid', '.dot', '.html', '.css', '.js', '.ts', '.tsx', '.py', '.ps1', '.sh', '.sql', '.log']);
 const excludedDirectories = new Set(['node_modules', '__pycache__', 'dist', 'build']);
@@ -19,6 +20,18 @@ const planFields = ['schema_version', 'kind', 'id', 'title', 'created', 'updated
 const readableLimit = 4 * 1024 * 1024;
 type HistoricalWork = Pick<Work, 'id' | 'path' | 'currentPlan'>;
 const historyCache = new Map<string, { head: string; entries: HistoryEntry[]; unattributedFiles: Map<string, string[]> }>();
+/** A commit's changed files and the registered work they belong to, by commit and path rules: commits never change. */
+const commitCache = new Map<string, { files: string[]; workIds: string[]; unowned: string[] }>();
+/** The work a commit's registry registers, by commit and path rules. */
+const registrationCache = new Map<string, HistoricalWork[]>();
+/** Markdown documents as last read, by file: their title and metadata (or why they could not be read) while their size and times stay the same. */
+const markdownCache = new Map<string, { size: number; mtimeMs: number; ctimeMs: number; read: { title: string; metadata: Record<string, unknown> | null } | Error }>();
+const cacheLimit = 50000;
+function remember<T>(cache: Map<string, T>, key: string, value: T) {
+  cache.delete(key);
+  if (cache.size >= cacheLimit) cache.delete(cache.keys().next().value!);
+  cache.set(key, value);
+}
 
 export class PlanningError extends Error {
   status: number;
@@ -50,11 +63,18 @@ function documentOwner<T extends HistoricalWork>(work: T[], relative: string, ca
   const matches = work.filter(item => identity === locationIdentity(item.path) || identity.startsWith(locationIdentity(item.path) + '/'));
   return matches.find(item => item.currentPlan !== null && locationIdentity(item.currentPlan) === identity) ?? matches.sort((a, b) => b.path.split('/').length - a.path.split('/').length)[0];
 }
-export async function resolveDocument(root: string, relative: string) {
+function requireReadable(relative: string) {
   if (!relative || relative.includes('\0') || path.isAbsolute(relative) || /^[a-z]:/i.test(relative) || hidden(relative)) {
     throw new PlanningError('Choose a document inside the connected planning folder.', 403);
   }
-  const resolvedRoot = await realpath(root);
+}
+export async function resolveDocument(root: string, relative: string) {
+  requireReadable(relative);
+  return resolveInside(await realpath(root), relative);
+}
+/** resolveDocument in a root already resolved to its real path. */
+async function resolveInside(resolvedRoot: string, relative: string) {
+  requireReadable(relative);
   const candidate = path.resolve(resolvedRoot, relative);
   if (!within(resolvedRoot, candidate)) throw new PlanningError('Document is outside the planning folder.', 403);
   let actual: string;
@@ -106,6 +126,32 @@ export async function readDocument(root: string, relative: string): Promise<Docu
   const content = documentFormat === 'markdown' ? unpack(source) : { body: source, metadata: null };
   return { path: relative, title: typeof content.metadata?.title === 'string' ? content.metadata.title : heading(content.body, path.basename(filename)), format: documentFormat, contentHash: createHash('sha256').update(bytes).digest('hex'), ...content };
 }
+/**
+ * A Markdown document's title and metadata as readDocument gives them, in a root already resolved to
+ * its real path. A document whose size and times are unchanged is not read again.
+ */
+async function markdownSummary(resolvedRoot: string, relative: string): Promise<{ title: string; metadata: Record<string, unknown> | null }> {
+  const filename = await resolveInside(resolvedRoot, relative);
+  if (format(filename) !== 'markdown') return readDocument(resolvedRoot, relative);
+  const information = await stat(filename);
+  if (information.size > readableLimit) throw new PlanningError('This file is too large for the reader. Use Download instead.', 413);
+  return markdownRead(filename, information);
+}
+/** A Markdown file's title and metadata, from the last reading while its size and times are unchanged. */
+async function markdownRead(filename: string, information: { size: number; mtimeMs: number; ctimeMs: number }) {
+  const known = markdownCache.get(filename);
+  let read = known && known.size === information.size && known.mtimeMs === information.mtimeMs && known.ctimeMs === information.ctimeMs ? known.read : null;
+  if (!read) {
+    const source = await readFile(filename, 'utf8');
+    try {
+      const content = unpack(source);
+      read = { title: typeof content.metadata?.title === 'string' ? content.metadata.title : heading(content.body, path.basename(filename)), metadata: content.metadata };
+    } catch (error) { read = error instanceof Error ? error : new Error(String(error)); }
+    remember(markdownCache, filename, { size: information.size, mtimeMs: information.mtimeMs, ctimeMs: information.ctimeMs, read });
+  }
+  if (read instanceof Error) throw read;
+  return read;
+}
 async function files(root: string, directory = root): Promise<string[]> {
   const result: string[] = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -116,81 +162,112 @@ async function files(root: string, directory = root): Promise<string[]> {
   }
   return result;
 }
+/** The work a registry (planning.json's text) registers; none for one that is missing, invalid or not schema version 2. */
+function registrationsIn(source: string | null, locationIdentity: (value: string) => string): HistoricalWork[] {
+  if (source === null) return [];
+  try {
+    const registry = JSON.parse(source.replace(/^﻿/, ''));
+    if (registry?.schema_version !== 2 || !Array.isArray(registry.work_items)) return [];
+    const locations = new Set<string>();
+    const identities = new Set<string>();
+    const selectedPlans = new Set<string>();
+    const registrations: HistoricalWork[] = [];
+    for (const item of registry.work_items) {
+      if (!item || typeof item.id !== 'string' || !workIdentity.test(item.id) || identities.has(item.id)) return [];
+      const location = normalizedLocation(item.path);
+      if (locations.has(locationIdentity(location))) return [];
+      const currentPlan = item.current_plan == null ? null : normalizedLocation(item.current_plan);
+      if (currentPlan && selectedPlans.has(locationIdentity(currentPlan))) return [];
+      if (currentPlan) selectedPlans.add(locationIdentity(currentPlan));
+      locations.add(locationIdentity(location)); identities.add(item.id);
+      registrations.push({ id: item.id, path: location, currentPlan });
+    }
+    return registrations;
+  } catch { return []; /* Unregistered or invalid history has no established work identity. */ }
+}
+/** planning.json at each commit, in one run of Git; null where a commit has none (or one over 1 MiB, which is not read). */
+async function registriesAt(root: string, commits: string[]): Promise<Map<string, string | null>> {
+  const result = new Map<string, string | null>(commits.map(commit => [commit, null]));
+  if (!commits.length) return result;
+  const { stdout } = await runProgramBytes('git', ['-C', root, 'cat-file', '--batch'], { input: commits.map(commit => commit + ':planning.json\n').join(''), maxBuffer: 256 * 1024 * 1024 });
+  let offset = 0;
+  for (const commit of commits) {
+    const end = stdout.indexOf(0x0a, offset);
+    if (end < 0) throw new Error('Git ended its answer early.');
+    // `<object> <type> <size>` and the contents, or `<name> missing`.
+    const header = stdout.toString('utf8', offset, end).split(' ');
+    offset = end + 1;
+    if (header.length !== 3) continue;
+    const size = Number(header[2]);
+    if (header[1] === 'blob' && size <= 1024 * 1024) result.set(commit, stdout.toString('utf8', offset, offset + size));
+    offset += size + 1;
+  }
+  return result;
+}
 export async function gitHistory(root: string, currentWork: HistoricalWork[] = [], sensitivity?: boolean, normalization?: boolean): Promise<{ history: HistoryEntry[]; available: boolean }> {
   try {
     const caseSensitive = sensitivity ?? await filesystemCaseSensitive(root);
     const normalizesUnicode = normalization ?? await filesystemNormalizesUnicode(root, await files(root));
     const locationIdentity = (value: string) => pathIdentity(value, caseSensitive, normalizesUnicode);
-    const cacheKey = root + '\0' + caseSensitive + '\0' + normalizesUnicode;
-    const { stdout: top } = await execute('git', ['-C', root, 'rev-parse', '--show-toplevel']);
-    if (locationIdentity(await realpath(top.trim())) !== locationIdentity(await realpath(root))) return { history: [], available: false };
-    const { stdout: revision } = await execute('git', ['-C', root, 'rev-parse', 'HEAD']);
-    const head = revision.trim();
+    const rules = '\0' + caseSensitive + '\0' + normalizesUnicode;
+    const top = await topLevel(root);
+    if (!top) return { history: [], available: false };
+    const canonical = locationIdentity(await realpath(root));
+    if (locationIdentity(await realpath(top)) !== canonical) return { history: [], available: false };
+    const head = await headCommit(root);
+    if (!head) return { history: [], available: false };
+    const cacheKey = canonical + rules;
     let retained = historyCache.get(cacheKey);
     if (!retained || retained.head !== head) {
-      const { stdout } = await execute('git', ['-C', root, 'log', '-30', '--format=%x1e%H%x00%aI%x00%s%x00%P'], { maxBuffer: 1024 * 1024 });
-      const firstParents = new Map<string, string | undefined>();
-      const unattributedFiles = new Map<string, string[]>();
-      const entries: HistoryEntry[] = stdout.split('\x1e').slice(1).map(record => {
-        const [id, date, title, parents] = record.trim().split('\0');
-        firstParents.set(id, parents?.split(' ')[0] || undefined);
-        return { id, date, title, files: [], workIds: [] };
+      // Each commit's changes against its first parent, read in the direction they were made: rename
+      // detection must not alter historical ownership.
+      const { stdout } = await execute('git', ['-C', root, '-c', 'log.showSignature=false', 'log', '-30', '--root', '--diff-merges=first-parent', '--no-renames', '--no-color', '--name-status', '-z', '--format=%x1e%H%x00%aI%x00%s%x00%P'], { maxBuffer: 64 * 1024 * 1024 });
+      const commits = stdout.split('\x1e').slice(1).map(record => {
+        const fields = record.split('\0');
+        const changes: [string, string][] = [];
+        for (let index = 4; index + 1 < fields.length;) {
+          const status = fields[index].replace(/^\n/, '');
+          if (!status) { index++; continue; }
+          changes.push([status, fields[index + 1]]);
+          index += 2;
+        }
+        return { id: fields[0], date: fields[1], title: fields[2], parent: fields[3]?.trim().split(' ')[0] || undefined, changes };
       });
-      /** The work a commit's registry registers; none for a registry that is not schema version 2. */
-      async function registrationsAt(commit: string): Promise<HistoricalWork[]> {
-        try {
-          const { stdout: source } = await execute('git', ['-C', root, 'show', commit + ':planning.json'], { maxBuffer: 1024 * 1024 });
-          const registry = JSON.parse(source.replace(/^\uFEFF/, ''));
-          if (registry?.schema_version !== 2 || !Array.isArray(registry.work_items)) return [];
-          const locations = new Set<string>();
-          const identities = new Set<string>();
-          const selectedPlans = new Set<string>();
-          const registrations: HistoricalWork[] = [];
-          for (const item of registry.work_items) {
-            if (!item || typeof item.id !== 'string' || !workIdentity.test(item.id) || identities.has(item.id)) return [];
-            const location = normalizedLocation(item.path);
-            if (locations.has(locationIdentity(location))) return [];
-            const currentPlan = item.current_plan == null ? null : normalizedLocation(item.current_plan);
-            if (currentPlan && selectedPlans.has(locationIdentity(currentPlan))) return [];
-            if (currentPlan) selectedPlans.add(locationIdentity(currentPlan));
-            locations.add(locationIdentity(location)); identities.add(item.id);
-            registrations.push({ id: item.id, path: location, currentPlan });
+      // Only commits not read before need their registries: the commit's and its first parent's.
+      const unread = commits.filter(commit => !commitCache.has(commit.id + rules));
+      const registryCommits = [...new Set(unread.flatMap(commit => commit.parent ? [commit.id, commit.parent] : [commit.id]))];
+      const registrations = new Map<string, HistoricalWork[]>();
+      for (const commit of registryCommits) { const known = registrationCache.get(commit + rules); if (known) registrations.set(commit, known); }
+      const sources = await registriesAt(root, registryCommits.filter(commit => !registrations.has(commit)));
+      for (const [commit, source] of sources) { const found = registrationsIn(source, locationIdentity); registrations.set(commit, found); remember(registrationCache, commit + rules, found); }
+      for (const commit of unread) {
+        const current = registrations.get(commit.id) ?? [], previous = commit.parent ? registrations.get(commit.parent) ?? [] : [];
+        const matches: HistoricalWork[] = [];
+        const unowned: string[] = [];
+        for (const [status, file] of commit.changes) {
+          const snapshots = status === 'D' ? [previous] : status === 'A' ? [current] : [previous, current];
+          let attributed = false;
+          for (const snapshot of snapshots) {
+            const owner = documentOwner(snapshot, file, caseSensitive, normalizesUnicode);
+            if (owner) { matches.push(owner); attributed = true; }
           }
-          return registrations;
-        } catch { return []; /* Unregistered or invalid history has no established work identity. */ }
+          if (!attributed) unowned.push(file);
+        }
+        remember(commitCache, commit.id + rules, { files: commit.changes.map(([, file]) => file), workIds: [...new Set(matches.map(item => item.id))], unowned });
       }
-      // Read change direction explicitly; rename detection must not alter historical ownership.
-      for (let offset = 0; offset < entries.length; offset += 4) {
-        await Promise.all(entries.slice(offset, offset + 4).map(async entry => {
-          const parent = firstParents.get(entry.id);
-          const [current, previous, changes] = await Promise.all([
-            registrationsAt(entry.id), parent ? registrationsAt(parent) : Promise.resolve([] as HistoricalWork[]),
-            execute('git', ['-C', root, 'diff-tree', '-r', '--no-commit-id', '--name-status', '--no-renames', '-z', ...(parent ? [parent, entry.id] : ['--root', entry.id])], { maxBuffer: 1024 * 1024 }),
-          ]);
-          const parts = changes.stdout.split('\0');
-          const matches: HistoricalWork[] = [];
-          const unowned: string[] = [];
-          for (let index = 0; index + 1 < parts.length; index += 2) {
-            const status = parts[index]; const file = parts[index + 1];
-            entry.files.push(file);
-            const snapshots = status === 'D' ? [previous] : status === 'A' ? [current] : [previous, current];
-            let attributed = false;
-            for (const snapshot of snapshots) {
-              const owner = documentOwner(snapshot, file, caseSensitive, normalizesUnicode);
-              if (owner) { matches.push(owner); attributed = true; }
-            }
-            if (!attributed) unowned.push(file);
-          }
-          unattributedFiles.set(entry.id, unowned);
-          entry.workIds = [...new Set(matches.map(item => item.id))];
-        }));
-      }
+      const unattributedFiles = new Map<string, string[]>();
+      const entries: HistoryEntry[] = commits.map(commit => {
+        const read = commitCache.get(commit.id + rules)!;
+        unattributedFiles.set(commit.id, read.unowned);
+        return { id: commit.id, date: commit.date, title: commit.title, files: [...read.files], workIds: read.workIds };
+      });
       retained = { head, entries, unattributedFiles };
       historyCache.set(cacheKey, retained);
     }
-    return { available: true, history: retained.entries.map(entry => {
+    const kept = retained;
+    return { available: true, history: kept.entries.map(entry => {
       // A newly adopted, uncommitted registration can identify previously unregistered records.
-      const unowned = retained.unattributedFiles.get(entry.id) ?? [];
+      const unowned = kept.unattributedFiles.get(entry.id) ?? [];
       const matches = unowned.map(file => documentOwner(currentWork, file, caseSensitive, normalizesUnicode)).filter((item): item is HistoricalWork => Boolean(item));
       return { ...entry, workIds: [...new Set([...entry.workIds, ...matches.map(item => item.id)])] };
     }) };
@@ -217,7 +294,16 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
   const registeredIds = new Set(registry.work_items.map(item => item?.id));
   const locations = new Set<string>();
   const selectedPlans = new Set<string>();
-  for (const item of registry.work_items) {
+  // Each work folder and plan is looked up at once; the checks below take the answers in order.
+  const settled = <T>(promise: Promise<T>) => promise.then(value => () => value, (error: unknown) => () => { throw error; });
+  const lookups = registry.work_items.map(item => {
+    try {
+      const relative = normalizedLocation(item?.path);
+      const plan = item.current_plan === null ? null : normalizedLocation(item.current_plan);
+      return { folder: settled(realpath(path.resolve(root, relative))), plan: plan !== null && locationIdentity(plan) === locationIdentity(relative + '/plan.md') ? settled(markdownSummary(root, plan)) : null };
+    } catch { return null; /* The checks below report it. */ }
+  });
+  for (const [index, item] of registry.work_items.entries()) {
     if (!item || typeof item.id !== 'string' || !workIdentity.test(item.id) || identities.has(item.id) || typeof item.path !== 'string') {
       throw new PlanningError('A work item has an invalid or duplicate identity or location.');
     }
@@ -231,7 +317,7 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
     identities.add(item.id);
     const folder = path.resolve(root, relative);
     if (!within(root, folder) || hidden(relative)) throw new PlanningError('A registered work item points outside the planning folder.');
-    try { if (!within(root, await realpath(folder))) throw new Error('Outside folder'); }
+    try { if (!within(root, (await lookups[index]!.folder)())) throw new Error('Outside folder'); }
     catch { issues.push({ level: 'error', workId: item.id, message: 'The work folder is missing or outside the planning repository.' }); }
     const entry: Work = {
       id: item.id, path: relative, currentPlan,
@@ -244,7 +330,7 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
       issues.push({ level: 'error', workId: item.id, message: "The work item's main plan must be plan.md in its folder." });
     } else {
       try {
-        const content = await readDocument(root, currentPlan);
+        const content = (await lookups[index]!.plan!)();
         const metadata = content.metadata;
         if (!metadata) throw new PlanningError('The plan has no metadata header.');
         if (metadata.kind !== 'plan' || metadata.schema_version !== 2 || metadata.id !== item.id) throw new PlanningError('The selected document does not have matching plan metadata (schema version 2).');
@@ -278,15 +364,22 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
     work.push(entry);
   }
   const documents: Document[] = [];
-  for (const relative of retainedFiles) {
-    const filename = await resolveDocument(root, relative);
-    const information = await stat(filename);
-    const owner = documentOwner(work, relative, caseSensitivePaths, normalizationInsensitivePaths);
-    const identity = locationIdentity(relative);
+  // The listing has only files inside the root, not through links nor hidden: each is where it is
+  // listed. A Markdown document unchanged since the last reading is not read again.
+  const listed = await Promise.all(retainedFiles.map(async relative => {
+    const filename = path.join(root, ...relative.split('/'));
+    let information;
+    try { information = await stat(filename); } catch { throw new PlanningError('This document could not be found.', 404); }
+    if (!information.isFile()) throw new PlanningError('Choose a file to read.', 400);
     let title = path.basename(filename);
     if (format(filename) === 'markdown' && information.size <= readableLimit) {
-      try { title = (await readDocument(root, relative)).title; } catch { /* A malformed supporting file remains downloadable. */ }
+      try { title = (await markdownRead(filename, information)).title; } catch { /* A malformed supporting file remains downloadable. */ }
     }
+    return { relative, filename, information, title };
+  }));
+  for (const { relative, filename, information, title } of listed) {
+    const owner = documentOwner(work, relative, caseSensitivePaths, normalizationInsensitivePaths);
+    const identity = locationIdentity(relative);
     const document: Document = {
       path: relative, name: path.basename(filename), title, size: information.size, modified: information.mtime.toISOString(),
       key: owner ? owner.id + ':' + (locationIdentity(relative) === locationIdentity(owner.path) ? path.basename(relative) : relative.split('/').slice(owner.path.split('/').length).join('/')) : 'root:' + relative,
@@ -296,16 +389,20 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
     owner?.documents.push(document);
   }
   documents.sort((a, b) => a.path.localeCompare(b.path));
-  for (const item of work) {
+  const ledgers = work.map(item => {
+    const ledger = item.documents.find(document => locationIdentity(document.path) === locationIdentity(item.path + '/ledger.md'));
+    return ledger ? { path: ledger.path, read: settled(markdownSummary(root, ledger.path)) } : null;
+  });
+  for (const [index, item] of work.entries()) {
     // Return the indexed spelling for browser selection without modifying the registry.
     const selected = item.documents.find(document => document.category === 'plan');
     if (selected) item.currentPlan = selected.path;
-    const ledger = item.documents.find(document => locationIdentity(document.path) === locationIdentity(item.path + '/ledger.md'));
+    const ledger = ledgers[index];
     item.ledger = ledger?.path ?? null;
     item.progress = null;
     if (ledger) {
       try {
-        const { metadata } = await readDocument(root, ledger.path);
+        const { metadata } = (await ledger.read)();
         if (!metadata) throw new PlanningError('The ledger has no status header; current and upcoming work remain unknown.');
         try { item.progress = ledgerStatus(metadata, item.id); }
         catch (error) { throw new PlanningError('Ledger status metadata is invalid; current and upcoming work remain unknown. ' + (error as Error).message); }
@@ -313,9 +410,8 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
     }
     item.documents.sort((a, b) => Number(b.category === 'plan') - Number(a.category === 'plan') || a.path.localeCompare(b.path));
   }
-  const history = await gitHistory(root, work, caseSensitivePaths, normalizationInsensitivePaths);
-  const statistics = await workStatistics(root, work, options);
+  const [history, statistics, name] = await Promise.all([gitHistory(root, work, caseSensitivePaths, normalizationInsensitivePaths), workStatistics(root, work, options), planningName(root)]);
   for (const item of work) item.statistics = statistics[item.id];
   if (!history.available) issues.push({ level: 'warning', message: 'Local planning Git history is unavailable.' });
-  return { root, name: await planningName(root), loadedAt: new Date().toISOString(), caseSensitivePaths, normalizationInsensitivePaths, work, documents, issues, history: history.history, gitAvailable: history.available };
+  return { root, name, loadedAt: new Date().toISOString(), caseSensitivePaths, normalizationInsensitivePaths, work, documents, issues, history: history.history, gitAvailable: history.available };
 }

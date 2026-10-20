@@ -8,12 +8,16 @@
 // folders, which only the owner sets, so it learns nothing of the others the owner can see. `gh`
 // runs a few at a time, with timeouts, and a device's questions are limited (`deviceBudget`). A
 // call waits for it only briefly: what it has not said yet is left out, and its answer is kept for
-// the next call. Commit subjects are kept, since commits never change.
+// the next call. A commit's subject comes from a checkout of its repository in the project's
+// folders when one has the commit, else from `gh`; subjects are kept, since commits never change,
+// and a commit neither can tell of is asked about again after an hour. When GitHub limits the
+// questions asked (HTTP 429, or a rate limit), `gh` is not asked for a while, longer each time.
 import { spawn } from 'node:child_process';
-import { readdir, realpath, stat } from 'node:fs/promises';
+import { lstat, readdir, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { folderKey } from '../home/database.ts';
-import { runProgram } from '../system/run.ts';
+import { ProgramError, runProgram } from '../system/run.ts';
+import { remoteUrls } from '../system/git.ts';
 import { insideFolder, readRegistry } from './resolve.ts';
 import { remoteRepository } from './remotes.ts';
 
@@ -30,6 +34,8 @@ export interface ResolvedItem {
 
 /** How long the folders to look for files in and PR states are kept. */
 const cacheMs = 60_000;
+/** How long a commit neither a checkout nor `gh` could tell of is kept unknown. */
+const missMs = 60 * 60_000;
 /** How long one call waits for `gh`. */
 const ghWaitMs = 3000;
 /** At most this many `gh` processes at once. */
@@ -55,6 +61,20 @@ async function slot<T>(task: () => Promise<T>): Promise<T> {
 }
 const program = (file: string, args: string[], timeout: number) => slot(() => runProgram(file, args, { windowsHide: true, timeout }).then(result => result.stdout, () => null));
 
+/** Until when `gh` is not asked, after GitHub limited the questions asked; and how long the last pause was. */
+let ghPausedUntil = 0, ghPauseMs = 0;
+/** Run `gh`: its output, or null when it fails. A rate limit pauses `gh` for a minute, doubling while it lasts, up to half an hour. */
+function gh(args: string[]): Promise<string | null> {
+  if (Date.now() < ghPausedUntil) return Promise.resolve(null);
+  return slot(() => runProgram('gh', args, { windowsHide: true, timeout: 15_000 })).then(result => { ghPauseMs = 0; return result.stdout; }, (error: unknown) => {
+    if (error instanceof ProgramError && /rate limit|HTTP 429/i.test(error.stderr)) {
+      ghPauseMs = Math.min(Math.max(ghPauseMs * 2, 60_000), 30 * 60_000);
+      ghPausedUntil = Date.now() + ghPauseMs;
+    }
+    return null;
+  });
+}
+
 const bases = new Map<string, { at: number; value: Promise<string[]> }>();
 /** The folders a path may be in: each of the project's folders, then the folders directly inside it; kept for a minute. */
 function projectBases(root: string): Promise<string[]> {
@@ -73,30 +93,48 @@ function projectBases(root: string): Promise<string[]> {
   return value;
 }
 
-const checkouts = new Map<string, { at: number; value: Promise<Set<string>> }>();
+const checkouts = new Map<string, { at: number; value: Promise<Map<string, string[]>> }>();
 /**
  * The GitHub repositories checked out in a project's folders (each folder, and the folders directly
- * inside it), by their remotes, lowercased; kept for a minute. Git spells each remote's URL itself
- * (`git remote get-url`), applying `url.<base>.insteadOf`; an SSH host alias (`Host` in ~/.ssh/config)
- * is not followed, so a remote through one does not count. Only the owner sets a project's folders,
- * so a paired device cannot add to them, as it could to the planning files by importing a plan.
+ * inside it), by their remotes, lowercased, with the folders that have each; kept for a minute. Git
+ * spells each remote's URL itself (`git remote -v`; or its configuration file says it, when nothing
+ * could rewrite it), applying `url.<base>.insteadOf`; an SSH host
+ * alias (`Host` in ~/.ssh/config) is not followed, so a remote through one does not count. A folder
+ * inside one of the project's folders that is no repository of its own (no `.git`, nor a bare
+ * repository's `HEAD`) has the remotes of the folder it is in, so Git is not asked about it.
  */
-export function checkedOutRepositories(root: string): Promise<Set<string>> {
+function checkoutFolders(root: string): Promise<Map<string, string[]>> {
   const cached = checkouts.get(folderKey(root));
   if (cached && Date.now() - cached.at < cacheMs) return cached.value;
   const value = (async () => {
-    const found = new Set<string>();
+    const found = new Map<string, string[]>();
+    const projectFolders = new Set(((await readRegistry(root).catch(() => null))?.folders ?? []).map(folder => folderKey(folder)));
+    const own = async (folder: string) => projectFolders.has(folderKey(folder)) || Boolean(await lstat(path.join(folder, '.git')).catch(() => null)) || Boolean((await stat(path.join(folder, 'HEAD')).catch(() => null))?.isFile());
     await Promise.all((await projectBases(root)).map(async base => {
-      const names = (await program('git', ['-C', base, 'remote'], 5000))?.split(/\r?\n/).filter(Boolean) ?? [];
-      await Promise.all(names.map(async name => {
-        const repository = remoteRepository((await program('git', ['-C', base, 'remote', 'get-url', name], 5000))?.trim() ?? null);
-        if (repository?.web) found.add(repository.repository.toLowerCase());
-      }));
+      if (!await own(base)) return;
+      const urls = await remoteUrls(base).catch(() => null)
+        ?? ((await program('git', ['-C', base, 'remote', '-v'], 5000))?.split(/\r?\n/) ?? []).map(line => /^\S+\t(.*) \(fetch\)$/.exec(line)?.[1] ?? null);
+      for (const url of urls) {
+        const repository = remoteRepository(url);
+        if (!repository?.web) continue;
+        const key = repository.repository.toLowerCase();
+        const folders = found.get(key) ?? [];
+        if (!folders.includes(base)) folders.push(base);
+        found.set(key, folders);
+      }
     }));
     return found;
   })();
   checkouts.set(folderKey(root), { at: Date.now(), value });
   return value;
+}
+/**
+ * The GitHub repositories checked out in a project's folders, lowercased; kept for a minute. Only
+ * the owner sets a project's folders, so a paired device cannot add to them, as it could to the
+ * planning files by importing a plan.
+ */
+export async function checkedOutRepositories(root: string): Promise<Set<string>> {
+  return new Set((await checkoutFolders(root)).keys());
 }
 
 let signedIn: { at: number; value: Promise<boolean> } | null = null;
@@ -123,7 +161,7 @@ function pullState(repository: string, number: string): Promise<PullState | null
   if (cached && Date.now() - cached.at < cacheMs) return cached.value;
   const value = (async (): Promise<PullState | null> => {
     if (!await ghReady()) return null;
-    const pull = await program('gh', ['pr', 'view', number, '--repo', repository, '--json', 'title,state,isDraft,statusCheckRollup'], 15_000);
+    const pull = await gh(['pr', 'view', number, '--repo', repository, '--json', 'title,state,isDraft,statusCheckRollup']);
     if (pull) {
       const data = JSON.parse(pull) as { title?: unknown; state?: unknown; isDraft?: unknown; statusCheckRollup?: { conclusion?: unknown; state?: unknown; status?: unknown }[] };
       const state = data.state === 'MERGED' ? 'merged' : data.state === 'CLOSED' ? 'closed' : data.isDraft ? 'draft' : 'open';
@@ -132,7 +170,7 @@ function pullState(repository: string, number: string): Promise<PullState | null
         : results.every(result => ['SUCCESS', 'NEUTRAL', 'SKIPPED'].includes(result)) ? 'passing' : 'pending';
       return { title: String(data.title ?? ''), state, checks };
     }
-    const issue = await program('gh', ['issue', 'view', number, '--repo', repository, '--json', 'title,state'], 15_000);
+    const issue = await gh(['issue', 'view', number, '--repo', repository, '--json', 'title,state']);
     if (!issue) return null;
     const data = JSON.parse(issue) as { title?: unknown; state?: unknown };
     return { title: String(data.title ?? ''), state: data.state === 'CLOSED' ? 'closed' : 'open', checks: null };
@@ -141,25 +179,37 @@ function pullState(repository: string, number: string): Promise<PullState | null
   pulls.set(key, { at: Date.now(), value });
   return value;
 }
-/** The commit subjects found, by repository and hash (and the commits `gh` could not tell of, for a minute). */
-const subjects = new Map<string, { at: number; value: Promise<string | null> }>();
+/**
+ * The commit subjects found, by repository and hash, kept until `until`: for good once found; a
+ * commit nothing could tell of for an hour, or while `gh` is paused.
+ */
+const subjects = new Map<string, { until: number; value: Promise<string | null> }>();
 const subjectLimit = 5000;
-/** A commit's subject, from `gh`. */
-function commitSubject(repository: string, hash: string): Promise<string | null> {
+/** Whether a commit's subject is kept, found or not: asking for it costs no new question. */
+const subjectKept = (key: string) => { const kept = subjects.get(key); return Boolean(kept && Date.now() < kept.until); };
+/** A commit's subject: from a checkout of its repository in the project's folders, else from `gh`. */
+function commitSubject(root: string, repository: string, hash: string): Promise<string | null> {
   const key = `${repository}@${hash}`.toLowerCase();
-  const cached = subjects.get(key);
-  if (cached) return cached.value.then(found => found !== null || Date.now() - cached.at < cacheMs ? found : commitSubjectAgain(key, repository, hash));
-  return commitSubjectAgain(key, repository, hash);
-}
-function commitSubjectAgain(key: string, repository: string, hash: string): Promise<string | null> {
-  const value = (async () => {
-    if (!await ghReady()) return null;
-    const message = await program('gh', ['api', `repos/${repository}/commits/${hash}`, '--jq', '.commit.message'], 15_000);
+  if (subjectKept(key)) return subjects.get(key)!.value;
+  const entry = { until: Infinity, value: Promise.resolve<string | null>(null) };
+  // Without `gh` signed in, a commit is asked about again sooner, as `gh` may be by then.
+  let missKept = missMs;
+  entry.value = (async () => {
+    for (const folder of (await checkoutFolders(root)).get(repository.toLowerCase()) ?? []) {
+      const message = await program('git', ['-C', folder, 'log', '-1', '--format=%B', hash, '--'], 5000);
+      const subject = message?.trim().split(/\r?\n/)[0];
+      if (subject) return subject;
+    }
+    if (!await ghReady()) { missKept = cacheMs; return null; }
+    const message = await gh(['api', `repos/${repository}/commits/${hash}`, '--jq', '.commit.message']);
     return message?.trim().split(/\r?\n/)[0] || null;
-  })().catch(() => null);
+  })().catch(() => null).then(found => {
+    if (found === null) entry.until = Math.max(Date.now() + missKept, ghPausedUntil);
+    return found;
+  });
   if (subjects.size >= subjectLimit) subjects.delete(subjects.keys().next().value!);
-  subjects.set(key, { at: Date.now(), value });
-  return value;
+  subjects.set(key, entry);
+  return entry.value;
 }
 
 /**
@@ -211,8 +261,7 @@ export async function resolveReferences(root: string, items: ReferenceItem[], op
       const hash = item.value.toLowerCase();
       if (!/^[0-9a-f]{7,40}$/.test(hash)) return null;
       const resolved: ResolvedItem = { ...none, url: web + '/commit/' + hash, repository };
-      const kept = subjects.get(`${repository}@${hash}`.toLowerCase());
-      ask(repository, Boolean(kept && Date.now() - kept.at < cacheMs), () => commitSubject(repository, hash), title => { resolved.title = title; });
+      ask(repository, subjectKept(`${repository}@${hash}`.toLowerCase()), () => commitSubject(root, repository, hash), title => { resolved.title = title; });
       return resolved;
     }
     // A path inside one of the project's folders: never one that leaves it, nor through a link.
