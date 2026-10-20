@@ -4,11 +4,11 @@
 // later too.
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { folderKey, HomeDatabase, projectOf, type ProjectRow } from '../home/database.ts';
+import { folderKey, HomeDatabase, projectOf, type ProjectRow } from '../../home/database.ts';
 import { absoluteFolder } from '../check/check.ts';
-import { setRegistryMember } from '../work/registryText.ts';
-import { runProgram } from '../system/run.ts';
-import { homePlanningDirectory } from '../home/storage.ts';
+import { setRegistryMember } from '../registry/registryText.ts';
+import { runProgram } from '../../platform/run.ts';
+import { homePlanningDirectory } from '../../home/home.ts';
 import { slugOf, WorkError, writeText } from '../work/work.ts';
 
 /** The template files by their path in a new planning folder. */

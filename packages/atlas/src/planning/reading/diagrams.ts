@@ -5,9 +5,9 @@
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import atlas, { type DiagramFile, type DiagramProblem, type DiagramSummary, type ViewerPayload } from '@envsemble/atlas-diagrams';
-import { PlanningError, readDocument, resolveDocument } from './planning.ts';
+import { PlanningError, readDocument, resolveDocument } from './planningIndex.ts';
 import { describeProvenance, type CaptureSource, type Provenance } from './provenance.ts';
-import { samePath, workRelative } from '../system/paths.ts';
+import { samePath, workRelative } from '../../platform/paths.ts';
 import type { Document, PlanningIndex as LoadedIndex } from '../types.ts';
 
 type IndexedWork = { id: string; path?: string };

@@ -8,7 +8,7 @@
 import { readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { ledgerStatus } from '../work/ledger.ts';
-import { HandoffGraph, handoffsOf, handoffText } from '../work/handoffs.ts';
+import { HandoffGraph, handoffsOf, handoffText } from '../handoffs/handoffs.ts';
 
 const planFields = ['schema_version', 'kind', 'id', 'title', 'created', 'updated', 'design_status', 'implementation_status', 'accepted_at', 'completed_at', 'supersedes', 'superseded_by'];
 /** The registry's fields, and a work item's. */
@@ -18,7 +18,7 @@ const workIdentity = /^work-[0-9]{4,}$/;
 const designStates = new Set(['draft', 'accepted', 'superseded', 'abandoned']);
 const implementationStates = new Set(['unknown', 'not_started', 'in_progress', 'partial', 'complete']);
 const dateFields = new Set(['created', 'updated', 'accepted_at', 'completed_at']);
-const hiddenNames = new Set(['node_modules', '__pycache__', 'dist', 'build']);
+const ignoredFolderNames = new Set(['node_modules', '__pycache__', 'dist', 'build']);
 // Conservatively cover implicit numeric spellings across YAML 1.1 and 1.2,
 // rather than treating resolver differences as evidence of a string value.
 const implicitNumber = /^[+-]?(?:0[bBoOxX][0-9a-fA-F_]+|[0-9][0-9_]*(?::[0-9][0-9_]*)+(?:\.[0-9_]*)?|(?:[0-9][0-9_]*(?:\.[0-9_]*)?|\.[0-9_]+)(?:[eE][+-]?[0-9_]+)?|\.(?:inf|nan))$/i;
@@ -307,8 +307,8 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
       errors.push(label + ' must stay inside planning');
       return null;
     }
-    if (parts.some(part => part.startsWith('.') || hiddenNames.has(part))) {
-      errors.push(label + ' is hidden from the dashboard');
+    if (parts.some(part => part.startsWith('.') || ignoredFolderNames.has(part))) {
+      errors.push(label + ' is hidden from Atlas');
       return null;
     }
     const target = resolveLenient(path.join(root, value));
@@ -316,8 +316,8 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
       errors.push(label + ' resolves outside planning');
       return null;
     }
-    if (path.relative(root, target).split(path.sep).some(part => part.startsWith('.') || hiddenNames.has(part))) {
-      errors.push(label + ' resolves to a path hidden from the dashboard');
+    if (path.relative(root, target).split(path.sep).some(part => part.startsWith('.') || ignoredFolderNames.has(part))) {
+      errors.push(label + ' resolves to a path hidden from Atlas');
       return null;
     }
     if (!exists(target)) errors.push(label + ' does not exist: ' + value);

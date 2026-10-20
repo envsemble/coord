@@ -9,14 +9,14 @@ import { mkdir, readFile, readdir, realpath, rename, rm, rmdir, stat, writeFile 
 import path from 'node:path';
 import { parse } from 'parse5';
 import { parseFrontmatter, validatePlanning } from '../check/check.ts';
-import { PlanningError, loadPlanning } from '../reading/planning.ts';
-import { samePath, workRelative } from '../system/paths.ts';
+import { PlanningError, loadPlanning } from '../reading/planningIndex.ts';
+import { samePath, workRelative } from '../../platform/paths.ts';
 import type { Provenance } from '../reading/provenance.ts';
 import { describeFiles, isDiagram } from '../reading/diagrams.ts';
-import { appendRegistryEntries, RegistryFormatError } from '../work/registryText.ts';
-import { acquireImportLock, ImportLockBusyError } from '../home/importLock.ts';
+import { appendRegistryEntries, RegistryFormatError } from '../registry/registryText.ts';
+import { acquireImportLock, ImportLockBusyError } from '../../home/fileLock.ts';
 import type { HandoffLink, Work } from '../types.ts';
-import { handoffLinksAt } from '../work/handoffs.ts';
+import { handoffLinksAt } from '../handoffs/handoffs.ts';
 import { packageJson, planViewerFile } from '../../packageFiles.ts';
 
 const { version: atlasVersion } = JSON.parse(readFileSync(packageJson, 'utf8')) as { version: string };
@@ -98,7 +98,7 @@ export type PlanExportErrorCode =
   | 'LIMIT' // larger than a plan export can be
   | 'SOURCE' // the folder to export from is not a readable planning folder
   | 'WORK' // the work item to export was not found or cannot be exported
-  | 'TARGET' // the folder to import into is not a valid planning repository, or the import would make it invalid
+  | 'TARGET' // the folder to import into is not a valid planning folder, or the import would make it invalid
   | 'CONFLICT' // another import is running, or the target changed during the import
   | 'ROLLBACK'; // an import failed and could not undo everything it wrote; the message says what is left
 
@@ -400,6 +400,12 @@ async function diagramsFor(files: { path: string; data: string }[], warnings: st
   });
 }
 
+/** The name an export is saved under, by the command and the app: `<slug>-<work-id>.atlas-plan.html`. */
+export function exportFileName(workPath: string, workId: string) {
+  const folder = workPath.split('/').at(-1) ?? '';
+  return (folder.replace(/^[0-9]+-/, '') || 'plan') + '-' + workId + '.atlas-plan.html';
+}
+
 /**
  * Export a work item, by work ID or planning-relative folder, as one self-contained
  * HTML file. Nothing is written; the caller saves `html`. An export that no import
@@ -488,7 +494,7 @@ async function planningRoot(input: string) {
 async function targetState(root: string): Promise<TargetState> {
   const { errors } = validatePlanning(root);
   if (errors.length) {
-    throw new PlanExportError('TARGET', `${root} is not a valid planning repository, so nothing was imported. Create one with the atlas skill, or fix what atlas check reports:\n` + errors.slice(0, 10).map(error => '  ' + error).join('\n'));
+    throw new PlanExportError('TARGET', `${root} is not a valid planning folder, so nothing was imported. Create one with the atlas skill, or fix what atlas check reports:\n` + errors.slice(0, 10).map(error => '  ' + error).join('\n'));
   }
   const registryText = await readFile(path.join(root, 'planning.json'), 'utf8');
   return { root, registryText, registry: JSON.parse(registryText.startsWith(BOM) ? registryText.slice(1) : registryText), errors };

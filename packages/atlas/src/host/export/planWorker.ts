@@ -1,4 +1,4 @@
-// Runs plan export and import (@envsemble/atlas-planning) off the host's main thread: parsing a large
+// Runs plan export and import (src/planning/export) off the host's main thread: parsing a large
 // export takes seconds, and the windows must stay responsive meanwhile. A prepared export and
 // an import preview stay here, under a token, until they are written, imported or dropped.
 import { readFile } from 'node:fs/promises';

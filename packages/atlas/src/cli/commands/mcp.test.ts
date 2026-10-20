@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { withDatabase } from '../../planning/index.ts';
+import { withDatabase } from '../../home/database.ts';
 import { createMcpServer } from './mcp.ts';
 import { homeWithPlanning, run, within } from '../testing.ts';
 

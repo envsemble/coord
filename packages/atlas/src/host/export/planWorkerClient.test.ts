@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { exportFileName } from './planExportName.ts';
 import { EventEmitter } from 'node:events';
 import { PlanWorkerClient, type WorkerLike } from './planWorkerClient.ts';
 
@@ -59,9 +58,4 @@ test('worker errors arrive as structured errors with their export code', async (
   }
   const client = new PlanWorkerClient(() => new Failing(), 10);
   await assert.rejects(client.read('/planning', '/x.html'), (error: { code: string; reason: string; message: string }) => error.code === 'invalid-argument' && error.reason === 'INTEGRITY' && /hash/.test(error.message));
-});
-
-test('the export file name matches the command line', () => {
-  assert.equal(exportFileName('active/0002-order-fulfilment-model', 'work-0002'), 'order-fulfilment-model-work-0002.atlas-plan.html');
-  assert.equal(exportFileName('archive/0004-', 'work-0004'), 'plan-work-0004.atlas-plan.html');
 });

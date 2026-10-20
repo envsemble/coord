@@ -7,7 +7,8 @@ import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } f
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { storedReports, withDatabase } from '../planning/index.ts';
+import { withDatabase } from '../home/database.ts';
+import { storedReports } from '../planning/reports/reports.ts';
 import { planningLedger } from '../planning/work/work.ts';
 import { main } from './main.ts';
 

@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validatePlanning } from '../check/check.ts';
-import { HomeDatabase } from '../home/database.ts';
+import { HomeDatabase } from '../../home/database.ts';
 import { createProject, readTemplates, setProjectFolders } from './project.ts';
 
 const templates = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../templates/planning');

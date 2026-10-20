@@ -1,6 +1,6 @@
 // Build the plan viewer into one committed HTML template, dist/plan-viewer.html.
 // Plan exports fill its title and payload markers; the viewer script's hash is fixed in
-// its content security policy. Run with `npm run build --workspace @envsemble/atlas-planning`.
+// its content security policy. Run with `npm run build --workspace @envsemble/atlas`.
 import { build } from "esbuild";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -151,7 +151,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const current = fs.existsSync(output) ? fs.readFileSync(output, "utf8") : null;
   if (current === html) console.log("Plan viewer is up to date.");
   else if (process.argv.includes("--check")) {
-    console.error("dist/plan-viewer.html is stale; run npm run build --workspace @envsemble/atlas-planning and commit it.");
+    console.error("dist/plan-viewer.html is stale; run npm run build --workspace @envsemble/atlas and commit it.");
     process.exitCode = 1;
   } else {
     fs.mkdirSync(path.dirname(output), { recursive: true });

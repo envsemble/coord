@@ -19,12 +19,12 @@
 import { statSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { HomeDatabase, liveWindowMs, projectOf } from '../../planning/home/database.ts';
-import { homePlanningDirectory } from '../../planning/home/storage.ts';
-import { atlasHome } from '../../planning/home/homePath.ts';
-import type { Whereabouts } from '../../planning/projects/resolve.ts';
-import type { insertReport } from '../../planning/statistics/statistics.ts';
-import type { PreparedReport } from '../../planning/statistics/workReport.ts';
+import { HomeDatabase, liveWindowMs, projectOf } from '../../home/database.ts';
+import { homePlanningDirectory } from '../../home/home.ts';
+import { atlasHome } from '../../home/homePath.ts';
+import type { Whereabouts } from '../../planning/projects/findProject.ts';
+import type { insertReport } from '../../planning/reports/reports.ts';
+import type { PreparedReport } from '../../planning/reports/recordReport.ts';
 import type { Output } from '../args.ts';
 import { logFailure, pruneStamps, recordActivity, recordAgent, recordSession, sessionPattern, stateEvents, stateHook, stopAgent, type Activity, type ActivityDetails } from './sessionState.ts';
 
@@ -79,7 +79,7 @@ const recordState = (database: HomeDatabase, home: string, links: SessionLinks, 
  * it with Stop; else the end of a Claude Code log) and the session's latest title, from the log's end.
  */
 async function turnEnd(input: HookInput, transcriptPath: string | null): Promise<{ message: string | null; title: string | null }> {
-  const tail = transcriptPath ? await (await import('../../planning/statistics/sessionLog.ts')).logTail(transcriptPath) : { message: null, title: null };
+  const tail = transcriptPath ? await (await import('../../planning/reports/sessionLog.ts')).logTail(transcriptPath) : { message: null, title: null };
   const given = typeof input.last_assistant_message === 'string' && input.last_assistant_message.trim() ? input.last_assistant_message : null;
   return { message: given ?? tail.message, title: tail.title };
 }
@@ -100,7 +100,7 @@ function link(database: HomeDatabase, session: string, projectId: number, workId
  */
 async function prepareReport(home: string, links: SessionLinks, item: Link, at: string, event: string): Promise<PreparedReport | null> {
   try {
-    const { prepareWorkReport } = await import('../../planning/statistics/workReport.ts');
+    const { prepareWorkReport } = await import('../../planning/reports/recordReport.ts');
     const prepared = await prepareWorkReport(item.planningFolder, item.workId, { session: links.session, at: new Date(at) }, { amending: item.amending, since: latest(item.linked, item.came), atlasHome: home, ...links.transcriptPath && { transcriptPath: links.transcriptPath } });
     if (prepared.warnings.length) logFailure(home, event, new Error(item.workId + ': ' + prepared.warnings.join(' ')));
     return prepared;
@@ -165,7 +165,7 @@ function recordLeft(database: HomeDatabase, insert: typeof insertReport, session
 export async function reportLeft(database: HomeDatabase, home: string, session: string, transcriptPath: string | null, event: string, at: string) {
   const left = leftWork(database, session);
   if (!left.length) return;
-  const [{ insertReport }, reports] = await Promise.all([import('../../planning/statistics/statistics.ts'), measureLeft(home, readLinks(database, session, transcriptPath), left, event)]);
+  const [{ insertReport }, reports] = await Promise.all([import('../../planning/reports/reports.ts'), measureLeft(home, readLinks(database, session, transcriptPath), left, event)]);
   database.transaction(() => recordLeft(database, insertReport, session, left, reports, at));
 }
 
@@ -262,7 +262,7 @@ async function postToolUse(input: HookInput, home: string, links: SessionLinks):
   if (/^mcp__.*atlas.*__(?:work|step)_(?!status$)/.test(input.tool_name ?? '')) {
     const about = toolWork(input);
     if (about) {
-      const { resolvePlanningFolder } = await import('../../planning/projects/resolve.ts');
+      const { resolvePlanningFolder } = await import('../../planning/projects/findProject.ts');
       const root = about.planningFolder ?? await resolvePlanningFolder({ cwd: input.cwd ?? process.cwd(), home, work: about.workId }).catch(() => null);
       if (root) requests.push({ planningFolder: root, workId: about.workId, amending: false });
     }
@@ -320,7 +320,7 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
     const agent = typeof input.agent_id === 'string' && sessionPattern.test(input.agent_id) ? input.agent_id : null;
     if (event === 'SessionStart') {
       pruneStamps(home);
-      const { findPlanning } = await import('../../planning/projects/resolve.ts');
+      const { findPlanning } = await import('../../planning/projects/findProject.ts');
       const context = sessionContext(await findPlanning(input.cwd ?? process.cwd(), { home }));
       return JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: context } });
     }
@@ -365,7 +365,7 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
     // The work items the session left since are reported first, each up to when it left it.
     const left = leftWork(database, session);
     if (!links.on && !left.length) return '';
-    const { insertReport } = await import('../../planning/statistics/statistics.ts');
+    const { insertReport } = await import('../../planning/reports/reports.ts');
     const reports = await measureLeft(home, links, left, event);
     const report = links.on && await prepareReport(home, links, links.on, at, event);
     database.transaction(() => {

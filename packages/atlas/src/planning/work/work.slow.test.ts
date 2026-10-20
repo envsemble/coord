@@ -5,10 +5,10 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { withDatabase } from '../home/database.ts';
-import { findPlanning, resolvePlanningFolder } from '../projects/resolve.ts';
+import { withDatabase } from '../../home/database.ts';
+import { findPlanning, resolvePlanningFolder } from '../projects/findProject.ts';
 import { acceptWork, startWork } from './work.ts';
-import { plan, planningFolder, temporary, today } from '../testing/testing.ts';
+import { plan, planningFolder, temporary, today } from '../testing.ts';
 
 /** Set the folders a planning folder's project covers. */
 function setFolders(root: string, folders: string[]) {

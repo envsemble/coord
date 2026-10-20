@@ -34,7 +34,7 @@ function settled(text) {
     const stamp = path.join(atlasHome(), "session-state", agent ? session + "~" + agent : session);
     const state = readFileSync(stamp, "utf8");
     if (state === "none" && !agent) return true;
-    // A tool call that may have made a commit or a PR is looked at (sessionState.ts's mayMakeProduct).
+    // A tool call that may have made a commit or a PR is looked at (sessionState.ts's mayCommit).
     if (event === "ToolUse" && ((/\bgit\b.{0,300}?\bcommit\b/.test(text) && /\[[^\]"]{1,100} [0-9a-f]{7,40}\] /.test(text)) || (/\bgh(?:\.exe)?\s+pr\s+create\b/.test(text) && /github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.test(text)))) return false;
     // A subagent's stamp says it was seen, or that its session links no work, within the minute.
     return event === "ToolUse" && (state === "working" || (agent !== null && state === "none")) && started - statSync(stamp).mtimeMs < 60_000;

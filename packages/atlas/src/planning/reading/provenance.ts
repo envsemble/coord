@@ -16,7 +16,7 @@ const sourceKinds: Record<string, string> = {
 const authored: Record<string, string> = { class: 'Class diagram', object: 'Object diagram', database: 'Entity diagram', code: 'Class diagram' };
 
 /** "Mon D, YYYY" in UTC, so the server and browser render the same capture date. */
-export function captureDate(value: string | undefined): string {
+function captureDate(value: string | undefined): string {
   const time = value ? Date.parse(value) : NaN;
   if (!Number.isFinite(time)) return '';
   const date = new Date(time);

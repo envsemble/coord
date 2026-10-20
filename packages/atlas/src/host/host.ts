@@ -20,7 +20,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { readFile, stat } from 'node:fs/promises';
 import {
   canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, handoffsByWork, linkHandoffs, projectStatistics, projectSummary, resolveReferences, storedReports, workDates, workSessions, workTimeline,
-  readRegistry, resolveDocument, setProjectFolders, setRegistryName, WorkError, type LogOptions, type ProjectRow, type ProjectTemplates, type StatisticsReport,
+  exportFileName, readRegistry, resolveDocument, setProjectFolders, setRegistryName, WorkError, type LogOptions, type ProjectRow, type ProjectTemplates, type WorkReport,
 } from '../planning/index.ts';
 import { compareHits, PlanningSearch, searchQuery } from '../planning/reading/search.ts';
 import { AccessStore, newToken } from './access/access.ts';
@@ -31,10 +31,9 @@ import {
   type NetworkStatus, type PairResponse, type Project, type ProjectSummary, type Scope, type SearchResult, type SnapshotValue, type HandoffLink,
 } from './contract.ts';
 import { HostError, toErrorValue, type Logger } from './errors.ts';
-import type { FolderSession } from './folders/folder.ts';
-import { FolderRegistry, pathKey } from './folders/folders.ts';
-import { ProjectListWatch } from './folders/projectWatch.ts';
-import { exportFileName } from './export/planExportName.ts';
+import type { OpenProject } from './projects/openProject.ts';
+import { OpenProjects } from './projects/openProjects.ts';
+import { ProjectListWatch } from './projects/projectListWatch.ts';
 import { PlanWorkerClient, type WorkerLike } from './export/planWorkerClient.ts';
 import { methodParams, pairRequest, ValidationError } from './validate.ts';
 
@@ -138,7 +137,7 @@ export class Host {
   readonly ownerToken = newToken();
   readonly database: HomeDatabase;
   readonly access: AccessStore;
-  readonly folders: FolderRegistry;
+  readonly folders: OpenProjects;
   private readonly options: HostOptions;
   private readonly exports: PlanWorkerClient;
   private readonly connections = new Set<Connection>();
@@ -175,7 +174,7 @@ export class Host {
     this.database = HomeDatabase.open(options.home);
     this.access = new AccessStore(this.database, options.log, options.owner);
     this.exports = new PlanWorkerClient(options.createPlanWorker);
-    this.folders = new FolderRegistry({ key: () => this.access.folderKey, database: this.database, log: options.log, watchDelay: options.watchDelay, idleClose: options.idleClose, onChange: state => this.folderChanged(state) });
+    this.folders = new OpenProjects({ key: () => this.access.folderKey, database: this.database, log: options.log, watchDelay: options.watchDelay, idleClose: options.idleClose, onChange: state => this.folderChanged(state) });
   }
 
   get descriptor(): HostDescriptor { return { protocol: protocolVersion, hostId: this.access.hostId, name: this.access.name, version: this.options.version }; }
@@ -469,7 +468,7 @@ export class Host {
     }
   }
   /** Read a plan export for import into a folder; the preview is held for its reader until confirmed. */
-  private async readImport(folder: FolderSession, file: string, owner: string): Promise<ImportPreviewValue> {
+  private async readImport(folder: OpenProject, file: string, owner: string): Promise<ImportPreviewValue> {
     const read = await this.exports.read(folder.root, file);
     const token = randomBytes(16).toString('hex');
     this.held.set(token, { owner, folderId: folder.state().folderId, workerToken: read.token, expires: Date.now() + 30 * 60000 });
@@ -612,7 +611,7 @@ export class Host {
     this.projectsLookAgain = setTimeout(() => { this.projectsLookAgain = null; this.projectsChanged(); }, 250 * 2 ** fewest);
     this.projectsLookAgain.unref?.();
   }
-  /** Watch the home's planning folder for what the project list shows (see projectWatch.ts), whether or not a window has a project open. */
+  /** Watch the home's planning folder for what the project list shows (see projectListWatch.ts), whether or not a window has a project open. */
   private watchProjects() {
     this.projectsWatcher = new ProjectListWatch(homePlanningDirectory(this.options.home), { log: this.options.log, changed: () => this.projectsChanged(), touched: folder => this.searchTouched(folder) });
     void mkdir(homePlanningDirectory(this.options.home), { recursive: true }).then(() => this.lookForUnfinishedProjects(true), () => undefined);
@@ -677,14 +676,14 @@ export class Host {
    * A folder's snapshot as clients get it (each document once), with its work's handoffs across the
    * home's projects (listed first, when nothing was listed yet).
    */
-  private snapshotOf(folder: FolderSession): SnapshotValue {
+  private snapshotOf(folder: OpenProject): SnapshotValue {
     const snapshot = snapshotValue(folder.snapshot());
     if (!this.handoffsListed) { this.handoffsListed = true; void this.projects(true).catch(() => undefined); }
     const handoffs = this.handoffs.get(folderKey(folder.root));
     return handoffs ? { ...snapshot, work: snapshot.work.map(item => ({ ...item, ...handoffs.get(item.id) })) } : snapshot;
   }
   /** What the hub shows of a project's plans: from its planning folder and its reports, with what agents do on its work now. */
-  private async summaryOf(row: ProjectRow, activity: ProjectSummary['activity'], reports: Map<string, StatisticsReport[]> | undefined, now: string): Promise<ProjectSummary | null> {
+  private async summaryOf(row: ProjectRow, activity: ProjectSummary['activity'], reports: Map<string, WorkReport[]> | undefined, now: string): Promise<ProjectSummary | null> {
     try { return { ...await projectSummary(row.folder, { reports: reports ?? new Map() }), activity, now }; } catch { return null; }
   }
   /**
@@ -698,7 +697,7 @@ export class Host {
     try {
       db.exec('BEGIN');
       return { activity: this.database.workActivity(Date.parse(now)), reports: new Map(rows.map(row => [row.id, storedReports(this.database, row.id)])), now };
-    } catch { return { activity: new Map<number, ProjectSummary['activity']>(), reports: new Map<number, Map<string, StatisticsReport[]>>(), now }; }
+    } catch { return { activity: new Map<number, ProjectSummary['activity']>(), reports: new Map<number, Map<string, WorkReport[]>>(), now }; }
     finally { if (db.isTransaction) db.exec('COMMIT'); }
   }
   /** What agents do on each project's work now, by project row, as the hooks record it; nothing when it cannot be read. */
@@ -809,8 +808,8 @@ export class Host {
    * Open a folder by its ID: one that is open, one this process opened before, or a project's. A
    * device reaches planning folders only, so their files are all a device can read.
    */
-  private async accessibleFolder(credential: Credential, folderId: string): Promise<FolderSession> {
-    let folder: FolderSession;
+  private async accessibleFolder(credential: Credential, folderId: string): Promise<OpenProject> {
+    let folder: OpenProject;
     if (this.folders.has(folderId)) folder = this.folders.get(folderId);
     else {
       const root = await this.pathOf(folderId);
@@ -821,7 +820,7 @@ export class Host {
     return folder;
   }
   /** A folder the connection subscribed to. */
-  private subscribed(connection: Connection, folderId: string): FolderSession {
+  private subscribed(connection: Connection, folderId: string): OpenProject {
     if (!connection.subscriptions.has(folderId)) throw new HostError('forbidden', 'Open this planning folder first.');
     return this.folders.get(folderId);
   }
@@ -997,9 +996,6 @@ export class Host {
   }
 }
 
-/** Compare two folder paths as this platform does. */
-export const sameFolder = (a: string, b: string) => pathKey(a) === pathKey(b);
-/** Whether a folder has a planning.json (it may still be unreadable; the folder then explains why). */
 /** How long a request body may stall. */
 const bodyStall = 60000;
 /** A promise that fails when it takes longer than `limit`. */

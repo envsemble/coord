@@ -11,9 +11,9 @@ import { fileURLToPath } from 'node:url';
 import atlas, { type ViewerPayload } from '@envsemble/atlas-diagrams';
 import { parse } from 'parse5';
 import { validatePlanning, parseFrontmatter } from '../check/check.ts';
-import { loadPlanning } from '../reading/planning.ts';
+import { loadPlanning } from '../reading/planningIndex.ts';
 import { DiagramCatalog } from '../reading/diagrams.ts';
-import { PlanExportError, exportPlan, importPlan, planExportPathProblem, planExportTesting, planImportTarget, readPlanExport, type PlanExportErrorCode, type PlanExportResult } from './planExport.ts';
+import { PlanExportError, exportFileName, exportPlan, importPlan, planExportPathProblem, planExportTesting, planImportTarget, readPlanExport, type PlanExportErrorCode, type PlanExportResult } from './planExport.ts';
 
 const BOM = String.fromCharCode(0xfeff);
 const ESC = String.fromCharCode(0x1b);
@@ -235,7 +235,7 @@ test('rejects tampered, unsafe, duplicated and unknown exports before writing an
   rejected(bare(payload).replace('"format":"atlas/plan-export"', '"format":'), 'FORMAT');
 });
 
-test('refuses a target that is not a valid planning repository', async t => {
+test('refuses a target that is not a valid planning folder', async t => {
   const { source, checkout: { html } } = await shared();
   const empty = temporary(t, 'plan-import-empty-');
   await assert.rejects(importPlan(empty, html), (error: unknown) => error instanceof PlanExportError && error.code === 'TARGET' && /the atlas skill/.test(error.message));
@@ -283,10 +283,10 @@ test('the exported HTML is self-contained, inert and safe to open', async t => {
   assert.match(html, /<title>Checkout &lt;\/script&gt;&lt;script&gt;alert\(1\)&lt;\/script&gt; \| Atlas plan<\/title>/);
 });
 
-// Local-only: the demo workspace next to this checkout (absent in CI). Its work items carry
+// Local-only: the demo planning folder next to this checkout (absent in CI). Its work items carry
 // diagrams with history; binary evidence is added to the copy.
 const demo = path.resolve(here, '../../../../../../demo/planning');
-test('round-trips every work item of the demo workspace', { skip: !existsSync(path.join(demo, 'planning.json')) && 'demo workspace absent' }, async t => {
+test('round-trips every work item of the demo planning folder', { skip: !existsSync(path.join(demo, 'planning.json')) && 'demo planning folder absent' }, async t => {
   const directory = temporary(t);
   const source = path.join(directory, 'planning'), target = path.join(directory, 'target');
   const copy = (destination: string) => cpSync(demo, destination, { recursive: true, filter: name => path.basename(name) !== '.git' });
@@ -457,4 +457,9 @@ test('a family that cannot be laid out leaves the other diagrams drawn', async t
   const drawn = Object.fromEntries(view.diagrams.map(item => [item.path, item.payload !== null]));
   assert.deepEqual(drawn, { 'diagrams/captured.puml': false, 'diagrams/orders.puml': true, 'diagrams/proposed.puml': false });
   assert.deepEqual(warnings.filter(warning => /cannot be drawn/.test(warning)).length, 2);
+});
+
+test('an export is named after its work folder and work ID', () => {
+  assert.equal(exportFileName('active/0002-order-fulfilment-model', 'work-0002'), 'order-fulfilment-model-work-0002.atlas-plan.html');
+  assert.equal(exportFileName('archive/0004-', 'work-0004'), 'plan-work-0004.atlas-plan.html');
 });

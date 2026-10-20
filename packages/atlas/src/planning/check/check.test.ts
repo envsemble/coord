@@ -198,7 +198,7 @@ test('pointers and paths stay contained', t => {
   }
 });
 
-test('work locations and selected plans reject dashboard-hidden components', t => {
+test('work locations and selected plans reject components hidden from Atlas', t => {
   const setup = fixture(t);
   const original = clone(setup.registry);
   for (const component of ['.private', 'node_modules', '__pycache__', 'dist', 'build']) {
@@ -216,7 +216,7 @@ test('work locations and selected plans reject dashboard-hidden components', t =
       setup.write();
       const before = [readFileSync(target), readFileSync(path.join(setup.root, 'planning.json'))];
       const { errors } = setup.validate();
-      assert.ok(errors.some(error => error.includes('hidden from the dashboard')), component + ' ' + field + ': ' + errors.join('; '));
+      assert.ok(errors.some(error => error.includes('hidden from Atlas')), component + ' ' + field + ': ' + errors.join('; '));
       assert.deepEqual([readFileSync(target), readFileSync(path.join(setup.root, 'planning.json'))], before);
     }
   }
@@ -258,7 +258,7 @@ test('continues lists work items: malformed or itself is an error, unknown work 
   assert.ok(warnings.some(item => item.includes('the handoffs form a loop')));
 });
 
-test('lifecycle chronology matches the dashboard and preserves unknown dates', t => {
+test('lifecycle chronology matches the app and preserves unknown dates', t => {
   const setup = fixture(t);
   const valid_ = { ...setup.header, created: '2026-10-01', accepted_at: '2026-10-03', completed_at: '2026-10-05', updated: '2026-10-05', implementation_status: 'complete' };
   for (const changes of [{ updated: '2026-09-30' }, { updated: '2026-10-02' }, { updated: '2026-10-04' }, { accepted_at: '2026-09-30' }, { completed_at: '2026-09-30' }, { completed_at: '2026-10-02' }]) {

@@ -9,10 +9,10 @@ import { mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from 
 import path from 'node:path';
 import { parseFrontmatter, type Metadata } from '../check/check.ts';
 import { appendToSection, setFields, setSteps, yamlValue } from './headerText.ts';
-import { HandoffGraph, parseHandoff, type HandoffReference } from './handoffs.ts';
+import { HandoffGraph, parseHandoff, type HandoffReference } from '../handoffs/handoffs.ts';
 import { ledgerStatus, ledgerStepStatuses, stepCounts, stepSummary } from './ledger.ts';
-import { appendRegistryEntries, RegistryFormatError, updateRegistryEntry } from './registryText.ts';
-import { stepLimit, workStatistics } from '../statistics/statistics.ts';
+import { appendRegistryEntries, RegistryFormatError, updateRegistryEntry } from '../registry/registryText.ts';
+import { stepLimit, workStatistics } from '../reports/reports.ts';
 import type { LedgerStep, LedgerStepStatus } from '../types.ts';
 
 export class WorkError extends Error {
@@ -238,7 +238,7 @@ function checkedHandoffs(root: string, values: unknown, workId: string | null): 
 export const summaryLimit = 1000;
 
 /** The steps every work item starts with, designing it until the user accepts the plan; agents rename them to fit the work. */
-export const planningSteps = ['Understand the request', 'Settle the design', 'Write the plan', 'Accepted'];
+const planningSteps = ['Understand the request', 'Settle the design', 'Write the plan', 'Accepted'];
 
 /** A new work item's ledger: only its header, with its planning steps (by default the usual ones, the first under way). */
 export function planningLedger(workId: string, today: string, steps = planningSteps.map((step, index) => ({ title: step, status: index ? 'todo' : 'doing' }))) {

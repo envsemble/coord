@@ -1,7 +1,7 @@
 // The ledger status header (PLANS.md, "Ledger status"), schema version 2: the agreed steps of the
 // work, each todo, doing or done, so progress and the work left can be shown: the planning steps
 // (`phase: planning`) from the work's creation, then the implementation steps (no phase). Both the
-// YAML reader (planning.ts) and the restricted checker (check.ts) validate headers here, so they
+// YAML reader (planningIndex.ts) and the restricted checker (check.ts) validate headers here, so they
 // cannot disagree. No imports: the app window and the plan export viewer use this module too.
 import type { LedgerStep, LedgerStepStatus, StepCounts, WorkProgress } from '../types.ts';
 

@@ -31,11 +31,11 @@ export interface HandoffLink {
   title: string | null; state: 'blocked' | 'implementing' | 'draft' | 'other' | 'closed' | null; outcome: 'complete' | 'superseded' | 'abandoned' | null;
 }
 /** One agent's working time on a work item: a session's own (subagent null) or one of its subagents'. */
-export interface AgentUsage { session: string | null; subagent: string | null; model: string | null; effort: string | null; agentMs: number }
+export interface AgentShare { session: string | null; subagent: string | null; model: string | null; effort: string | null; agentMs: number }
 /** Tokens by kind: new input, input read from the prompt cache, input written to it, and output. */
 export interface TokenKinds { input: number; cacheRead: number; cacheWrite: number; output: number }
 /** One model's share of a work item: the reports naming it and the agent time and tokens it spent. */
-export interface ModelUsage {
+export interface ModelShare {
   model: string; reports: number; sessions: number;
   /** Measured busy time, plus the time between its unmeasured reports; overlaps other models' time while they work at once. */
   agentMs: number;
@@ -51,7 +51,7 @@ export interface ModelUsage {
  */
 export type WorkStage = 'planning' | 'implementation';
 /** The agent time and tokens of the reports of one stage, measured and estimated as for the work item. */
-export interface StageUsage {
+export interface StageStatistics {
   reports: number; agentMs: number;
   tokens: number | null;
   /** Its measured tokens by kind; null when no report of the stage was measured. */
@@ -65,7 +65,7 @@ export interface StageUsage {
 export interface WorkStatistics {
   reports: number;
   /** Most agent time first. */
-  models: ModelUsage[];
+  models: ModelShare[];
   /** The model that did most of the work: the most agent time (then tokens, then reports). */
   primaryModel: string | null;
   /** The reasoning effort the primary model worked at most; null when no log recorded one. */
@@ -87,7 +87,7 @@ export interface WorkStatistics {
   /** Of `activeMs`, the time of reports without intervals, added up rather than merged. */
   unmergedMs: number;
   /** Each agent's working time: sessions (`subagent` null) and their subagents, most time first. */
-  agents: AgentUsage[];
+  agents: AgentShare[];
   /** Agent time measured from session logs. */
   measuredMs: number;
   /** Agent time estimated from the time between reports, for intervals no session log measured. */
@@ -95,7 +95,7 @@ export interface WorkStatistics {
   /** Reports whose interval was measured from the session log. */
   measuredReports: number;
   /** Agent time and tokens by stage. */
-  stages: Record<WorkStage, StageUsage>;
+  stages: Record<WorkStage, StageStatistics>;
   /** Subagents measured at work: how many (each once), and their busy time added up, each its own. */
   subagents: { count: number; agentMs: number };
   firstReport: string | null;

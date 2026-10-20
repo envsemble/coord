@@ -3,7 +3,7 @@
 // diagram or a file).
 // A work item's diagrams share one place, which switches between them in place.
 import type { Document, PagePlace, Place, ProjectPlace, Target, Work } from '../types';
-import { workRelative } from '@envsemble/atlas/planning/paths';
+import { workRelative } from '@envsemble/atlas/platform/paths';
 
 export type { PagePlace, Place, ProjectPlace };
 

@@ -29,7 +29,7 @@ function inside(parent: string, child: string) {
  * A diagram's problems, as `file:line:column: message`. The files its header names (a proposal's
  * baseline, a scenario's class diagram) are read relative to it, and only inside the planning folder.
  */
-export const checkDiagramFile: FileChecker = (planningFolder, file) => {
+const checkDiagramFile: FileChecker = (planningFolder, file) => {
   const root = realpathSync(planningFolder);
   const filename = path.join(root, ...file.split('/'));
   const read = (reference: string) => {

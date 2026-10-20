@@ -7,9 +7,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { validatePlanning } from '../check/check.ts';
 import { checkPaths, fileCheckers } from '../check/checkPaths.ts';
-import { remoteRepository } from '../projects/remotes.ts';
+import { remoteRepository } from '../references/remotes.ts';
 import { acceptWork, addSteps, archiveWork, closeWork, createWork, setContinues, planningLedger, removeStep, renameStep, reopenWork, setBlocked, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
-import { git, plan, planningFolder, read, temporary, today, write } from '../testing/testing.ts';
+import { git, plan, planningFolder, read, temporary, today, write } from '../testing.ts';
 
 const errorsOf = (root: string) => validatePlanning(root).errors;
 

@@ -7,7 +7,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { findChromium, launchChromium } from '../testing/headlessChromium.ts';
+import { findChromium, launchChromium } from './headlessChromium.ts';
 import { exportPlan } from './planExport.ts';
 
 const hostileTitle = 'Checkout </script><script>window.__pwned = "title"</script>';

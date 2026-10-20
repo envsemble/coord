@@ -6,8 +6,8 @@
 // answered from the stamp alone.
 import { appendFileSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { atlasHome } from '../../planning/home/homePath.ts';
-import type { HomeDatabase } from '../../planning/home/database.ts';
+import { atlasHome } from '../../home/homePath.ts';
+import type { HomeDatabase } from '../../home/database.ts';
 
 /**
  * What a session's agent just did: started a turn (`prompt`); used a tool, so it is in a turn, the
@@ -32,7 +32,7 @@ export const sessionPattern = /^[A-Za-z0-9._:-]{1,128}$/;
  * before anything else is read.
  * bin/atlas.js asks the same before it loads any TypeScript.
  */
-export const mayMakeProduct = (text: string) => (/\bgit\b.{0,300}?\bcommit\b/.test(text) && /\[[^\]"]{1,100} [0-9a-f]{7,40}\] /.test(text)) || (/\bgh(?:\.exe)?\s+pr\s+create\b/.test(text) && /github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.test(text));
+export const mayCommit = (text: string) => (/\bgit\b.{0,300}?\bcommit\b/.test(text) && /\[[^\]"]{1,100} [0-9a-f]{7,40}\] /.test(text)) || (/\bgh(?:\.exe)?\s+pr\s+create\b/.test(text) && /github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.test(text));
 /** A tool use while the session works says it is still at work this often at most. */
 const heartbeatMs = 60_000;
 
@@ -75,7 +75,7 @@ function writeStamp(home: string, session: string, state: Stamp) {
 }
 /**
  * Remove the stamps of sessions not seen for a week, and the cursors of session logs not measured
- * further for a week (workReport.ts keeps them in <home>/cache/session-logs).
+ * further for a week (recordReport.ts keeps them in <home>/cache/session-logs).
  */
 export function pruneStamps(home: string, now = Date.now()) {
   for (const folder of [stampFolder(home), path.join(home, 'cache', 'session-logs')]) {
@@ -222,11 +222,11 @@ export async function stateHook(event: string, text: string | null, at: number, 
     const activity = event === 'SubagentStart' ? null : activityOf(event, input);
     if (!session || (!activity && !agent)) return;
     // A commit or a PR the tool call made is recorded however recently the session was seen.
-    const made = event === 'ToolUse' && mayMakeProduct(text);
+    const made = event === 'ToolUse' && mayCommit(text);
     const stamp = readStamp(home, agent ? agentStamp(session, agent) : session);
     const fresh = stamp !== null && at - stamp.at < heartbeatMs;
     if (agent ? event === 'ToolUse' && !made && fresh && (stamp.state === 'working' || stamp.state === 'none') : stamp?.state === 'none' || (activity === 'tool' && !made && stamp?.state === 'working' && fresh)) return;
-    const { HomeDatabase, liveWindowMs } = await import('../../planning/home/database.ts');
+    const { HomeDatabase, liveWindowMs } = await import('../../home/database.ts');
     const database = HomeDatabase.open(home);
     try {
       const when = new Date(at).toISOString();
@@ -235,7 +235,7 @@ export async function stateHook(event: string, text: string | null, at: number, 
         const details: ActivityDetails = { cwd: typeof input.cwd === 'string' ? input.cwd : null, message: activity === 'ask' && typeof input.message === 'string' ? input.message : null };
         recordActivity(database, home, session, typeof input.transcript_path === 'string' ? input.transcript_path : null, activity, when, liveWindowMs, details);
       }
-      if (made) await (await import('./products.ts')).recordProducts(database, session, input, when);
+      if (made) await (await import('./sessionCommits.ts')).recordCommits(database, session, input, when);
       // The session's end (after an interruption no turn's end comes) and its next prompt (which runs in
       // the background) report the work items it left whose reports are not measured yet (hook.ts).
       if ((event === 'SessionEnd' || event === 'UserPromptSubmit') && !agent && database.db.prepare('SELECT 1 FROM session_leave JOIN session_work ON session_work.id = session_leave.link WHERE session_work.session_id = ? LIMIT 1').get(session)) {

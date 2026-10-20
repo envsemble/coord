@@ -11,7 +11,7 @@ import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, realpathSyn
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test';
-import { canonicalProjectFolderSync, HomeDatabase, insertReport, type StatisticsReport } from '@envsemble/atlas/planning';
+import { canonicalProjectFolderSync, HomeDatabase, insertReport, type WorkReport } from '@envsemble/atlas/planning';
 import type { AtlasBridge } from '../shared/contract.ts';
 
 const appDirectory = path.resolve(import.meta.dirname, '..');
@@ -74,7 +74,7 @@ export function projectHome(options: { slug?: string; name?: string; dataDirecto
   const dataDirectory = options.dataDirectory ?? temporaryDirectory('atlas-e2e-data-');
   const slug = options.slug ?? 'northwind';
   const folder = planningFixture(options.name, path.join(dataDirectory, 'planning', slug));
-  const reports = JSON.parse(readFileSync(fixtureReports, 'utf8')) as Record<string, StatisticsReport[]>;
+  const reports = JSON.parse(readFileSync(fixtureReports, 'utf8')) as Record<string, WorkReport[]>;
   const database = HomeDatabase.open(dataDirectory);
   try {
     const project = database.addProject(canonicalProjectFolderSync(folder), options.name ?? 'Northwind');

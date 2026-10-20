@@ -57,7 +57,7 @@ async function check() {
     assert(files["packages/diagrams/examples/shop/diagrams/checkout.puml"]);
     assert(files["app/package.json"]);
     assert(files["app/src/App.tsx"]);
-    assert(files["packages/atlas/src/planning/reading/planning.ts"]);
+    assert(files["packages/atlas/src/planning/reading/planningIndex.ts"]);
     assert(files["packages/atlas/src/planning/check/check.ts"]);
     assert(files["packages/atlas/package.json"]);
     assert(files["packages/atlas/bin/atlas.js"]);

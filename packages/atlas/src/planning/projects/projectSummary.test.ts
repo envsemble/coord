@@ -4,12 +4,12 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { HomeDatabase } from '../home/database.ts';
-import { createReport, insertReport, type ReportInput } from '../statistics/statistics.ts';
+import { HomeDatabase } from '../../home/database.ts';
+import { createReport, insertReport, type ReportInput } from '../reports/reports.ts';
 import { projectSummary } from './projectSummary.ts';
-import { handoffsByWork, linkHandoffs } from './handoffLinks.ts';
-import { workTimeline } from '../statistics/sessions.ts';
-import { projectStatistics } from '../statistics/projectStatistics.ts';
+import { handoffsByWork, linkHandoffs } from '../handoffs/crossProject.ts';
+import { workTimeline } from '../reports/workSessions.ts';
+import { projectStatistics } from '../reports/projectStatistics.ts';
 
 function temporary(t: TestContext) {
   const directory = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'atlas-summary-')));

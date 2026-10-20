@@ -26,7 +26,7 @@ async function tailscaleReported(): Promise<Set<string>> {
 }
 
 export interface InterfaceAddress { name: string; address: string; family: string; internal: boolean }
-export function interfaceAddresses(): InterfaceAddress[] {
+function interfaceAddresses(): InterfaceAddress[] {
   return Object.entries(networkInterfaces()).flatMap(([name, entries]) => (entries ?? []).map(entry => ({ name, address: entry.address, family: String(entry.family), internal: entry.internal })));
 }
 

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { withDatabase } from '../../planning/index.ts';
+import { withDatabase } from '../../home/database.ts';
 import { atlas, command, environment, homeWithPlanning, temporary, write } from '../testing.ts';
 
 const session = '0b6c3c9e-5a1f-4d2b-9a7e-1f2e3d4c5b6a';

@@ -2,10 +2,10 @@
 // folders) and its clients (the desktop app's windows, another computer's Atlas, later a phone).
 // Only types and constants live here, so every client can import it. Every method declares the
 // scope it requires; the host checks it before any handler runs.
-import type { DocumentContent, HandoffLink, PlanImportResult, PlanningIndex, Work } from '../planning/index.ts';
+import type { DocumentContent, HandoffLink, PlanImportResult, PlanningIndex, ProjectState, ProjectSummary as PlanningProjectSummary, ProjectWork, ProjectWorkState, ProjectWorkStatistics, Work } from '../planning/index.ts';
 import type { DiagramEntry, DiagramIndexEntry, DiagramReference } from '../planning/reading/diagrams.ts';
 
-export type { DiagramEntry, DiagramIndexEntry, DiagramReference, HandoffLink };
+export type { DiagramEntry, DiagramIndexEntry, DiagramReference, HandoffLink, ProjectState, ProjectWork, ProjectWorkState, ProjectWorkStatistics };
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
 export const protocolVersion = 13;
@@ -35,7 +35,6 @@ export type FolderStatus = 'loading' | 'ready' | 'missing' | 'invalid';
  * statistics or handoffs (folder.work has them, without the documents).
  */
 export interface FolderState { folderId: string; name: string; status: FolderStatus; error: string | null; notice: string | null; revision: number; files: number }
-export type ProjectState = 'active' | 'archived';
 /**
  * A project of this computer: a planning folder in its Atlas home, with its name (from its
  * planning.json, else the folder's), its place in the computer's order and its state. `folderId`
@@ -50,55 +49,6 @@ export interface Project {
   folders: string[];
   /** What the hub shows of the project's plans (the project list has it; null when its folder could not be read). */
   summary?: ProjectSummary | null;
-}
-/**
- * Where a work item stands, as the hub groups it: blocked first, then being implemented, then a draft
- * plan, then other open work; `closed` is work in `archive/` (complete, superseded or abandoned).
- */
-export type ProjectWorkState = 'blocked' | 'implementing' | 'draft' | 'other' | 'closed';
-/** A work item as the hub lists it. */
-export interface ProjectWork {
-  id: string; title: string; state: ProjectWorkState;
-  /** The ledger's blocker, when it is blocked. */
-  blocked: string | null;
-  /** The plan's `summary` header: a few plain sentences on what the work is and where it stands. */
-  summary: string | null;
-  /** The ledger's steps, done and in all, and among them the planning steps (`phase: planning`); null without a ledger. */
-  steps: { done: number; total: number; planning: { done: number; total: number } } | null;
-  /** When the plan last changed: its `updated` header, else its `completed_at` (a date, YYYY-MM-DD). */
-  updated: string | null;
-  /** How closed work ended: its `implementation_status` complete, or the plan's `design_status` superseded or abandoned. */
-  outcome: 'complete' | 'superseded' | 'abandoned' | null;
-  /** The step being worked on (the first `doing`), else the next to do (the first `todo`); null without one. */
-  step: { title: string; status: 'doing' | 'todo'; phase: 'planning' | 'implementation' } | null;
-  /** The plan's `completed_at` (a date, YYYY-MM-DD); null while open. */
-  completed: string | null;
-  /** What agents spent on it, from the home database's reports; null when none were recorded. */
-  statistics: ProjectWorkStatistics | null;
-  /**
-   * The work items this one continues (its plan's `continues`), and those that continue it (their
-   * plans' `continues` naming it, in any project of the home): handoffs, oldest work first.
-   */
-  continues?: HandoffLink[]; continuedIn?: HandoffLink[];
-}
-/**
- * A work item's statistics for the hub: agent time (measured and estimated, as the plan page counts
- * it), tokens, the model that did most of it and how many others took part, time and tokens by stage,
- * subagents, and the last report. Plan revisions are left to the Statistics page (they need Git).
- */
-export interface ProjectWorkStatistics {
-  /** Every agent's working time added up: each session and each subagent in full, also while they work at once. */
-  agentMs: number;
-  /** The time at least one agent was working: the union of the reports' working intervals (`WorkStatistics.activeMs`). */
-  activeMs: number;
-  /** Of `activeMs`, the time of reports without intervals, added up rather than merged. */
-  unmergedMs: number;
-  tokens: number | null; primaryModel: string | null;
-  /** The reasoning effort the primary model worked at most (`high`, `medium`…); null when no log recorded one. */
-  primaryEffort: string | null;
-  otherModels: number;
-  planning: { agentMs: number; tokens: number | null }; implementation: { agentMs: number; tokens: number | null };
-  subagents: number; lastReport: string | null;
 }
 /** What the search finds: plans, steps, documents and their headings, diagrams and their elements, glossary terms and projects. */
 export type SearchKind = 'plan' | 'step' | 'document' | 'heading' | 'diagram' | 'element' | 'term' | 'project';
@@ -144,7 +94,7 @@ export interface WorkActivity {
  * last change, what agents are doing on its work now, and the host's clock when it was listed
  * (`now`), against which clients count live agent time.
  */
-export interface ProjectSummary { active: ProjectWork[]; closed: ProjectWork[]; updated: string | null; activity: WorkActivity[]; now: string }
+export interface ProjectSummary extends PlanningProjectSummary { activity: WorkActivity[]; now: string }
 /**
  * A reference a planning file makes, as the reader finds it: a PR or issue (`owner/repo#22`, a GitHub
  * URL; `value` its number), a commit (`owner/repo@4ab195a`; `value` the hash) or a file in one of the
@@ -377,7 +327,6 @@ export interface Events {
 }
 export type EventName = keyof Events;
 
-export interface RequestMessage<M extends MethodName = MethodName> { id: number; method: M; params: Methods[M]['params'] }
 export type ResponseMessage = { id: number; ok: true; value: unknown } | { id: number; ok: false; error: HostErrorValue };
 export interface EventMessage<E extends EventName = EventName> { event: E; data: Events[E] }
 

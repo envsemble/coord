@@ -5,7 +5,7 @@
 import { Fragment } from 'react';
 import { Schedule } from '@envsemble/envui/icons/Schedule';
 import { Token } from '@envsemble/envui/icons/Token';
-import type { ModelUsage } from '@envsemble/atlas/planning/types';
+import type { ModelShare } from '@envsemble/atlas/planning/types';
 import type { WorkStatistics } from '../types';
 import { aiModel, providerNames } from '../ui/aiModels';
 import { ModelName } from '../ui/AiModel';
@@ -15,7 +15,7 @@ import { unreported, type LiveActivity } from './agentTime';
 import { AgentTime, measuredSection, type AgentTotals } from './LiveAgentTime';
 
 /** A model's title: its identifier, provider and what it did. */
-export const modelTitle = (model: ModelUsage) => {
+export const modelTitle = (model: ModelShare) => {
   const provider = aiModel(model.model).provider;
   return [model.model, provider && providerNames[provider], modelShare(model)].filter(Boolean).join(' · ');
 };

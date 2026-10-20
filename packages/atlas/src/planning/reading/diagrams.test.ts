@@ -6,7 +6,7 @@ import os from 'node:os';
 import atlas from '@envsemble/atlas-diagrams';
 import { DiagramCatalog } from './diagrams.ts';
 import { diagramLinks } from './diagramLinks.ts';
-import { createScopeCache } from './atlasScope.ts';
+import { createScopeCache } from './scopeCache.ts';
 import type { PlanningIndex as Snapshot } from '../types.ts';
 
 const CAPTURE = {

@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { DatabaseVersionError, PlanExportError, PlanningNotFoundError, WorkError, exportPlan, harnessSessions, importPlan, planImportTarget, planningRelative, readPlanExport, recordWorkReport, validatePlanning } from '../planning/index.ts';
+import { DatabaseVersionError, PlanExportError, PlanningNotFoundError, WorkError, exportFileName, exportPlan, harnessSessions, importPlan, planImportTarget, planningRelative, readPlanExport, recordWorkReport, validatePlanning } from '../planning/index.ts';
 import { parseOptions, UsageError, type Output } from './args.ts';
 import { check, home, planningUsage, project, where, work } from './commands/planning.ts';
 import { capture, CaptureError } from './commands/capture.ts';
@@ -152,7 +152,7 @@ async function planExport(args: string[], out: Output) {
   if (chosen && existsSync(chosen) && statSync(chosen).isDirectory()) throw new PlanExportError('CONFLICT', `${chosen} is a folder; give --out a file name.`);
   const result = await exportPlan(planningDir, work);
   const { source } = result.manifest;
-  const file = chosen ?? path.resolve(`${path.posix.basename(source.path).replace(/^[0-9]+-/, '') || 'plan'}-${source.workId}.atlas-plan.html`);
+  const file = chosen ?? path.resolve(exportFileName(source.path, source.workId));
   if (!existsSync(path.dirname(file))) throw new PlanExportError('CONFLICT', `The folder ${path.dirname(file)} does not exist.`);
   // Every export records its own time, so an existing file always differs.
   if (existsSync(file) && !flags.has('force')) throw new PlanExportError('CONFLICT', `${file} already exists. Choose another --out file, or pass --force to replace it.`);

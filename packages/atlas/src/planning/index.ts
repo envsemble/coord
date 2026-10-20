@@ -1,33 +1,28 @@
-// The planning-folder reader shared by the atlas command and the app. The diagram catalog
-// (`@envsemble/atlas-planning/diagrams`) and app sessions (`@envsemble/atlas-planning/session`) lay
-// diagrams out and are imported separately; checking a diagram loads only the diagram parser.
-export { PlanningError, loadPlanning, readDocument, resolveDocument, gitHistory, normalizedLocation } from './reading/planning.ts';
-export { filesystemCaseSensitive, filesystemNormalizesUnicode } from './system/filesystem.ts';
-export { atlasHome, electronDataDirectory, homePlanningDirectory, homePlanningFolders, prepareHome } from './home/storage.ts';
-export { DatabaseVersionError, HomeDatabase, NotPlanningFolderError, canonicalProjectFolder, canonicalProjectFolderSync, databaseName, folderKey, isPlanningFolder, liveWindowMs, planningName, projectOf, schemaVersion, waitingWindowMs, withDatabase, withDatabaseAsync, type ProjectRow, type ProjectState, type SessionActivityRow, type WorkActivityRow } from './home/database.ts';
-export { parseFrontmatter, validatePlanning, FrontmatterError } from './check/check.ts';
-export { LedgerStatusError, ledgerStatus, ledgerStepStatuses, stepCounts } from './work/ledger.ts';
-export { StatisticsReportError, createReport, insertReport, planRevisions, sessionGap, storedReports, summarizeReports, workStages, workStatistics, type Measured, type MeasuredInterval, type MeasuredModel, type MeasuredSubagent, type MeasuredSubagents, type ReportInput, type StatisticsReport } from './statistics/statistics.ts';
-export { codexThreadName, harnessSessions, logTail, measureSession, sessionLogs, transcriptLogs, type Harness, type LogOptions, type SessionMeasure } from './statistics/sessionLog.ts';
-export { prepareWorkReport, recordWorkReport, type PreparedReport, type RecordedReport, type WorkReportInput, type WorkReportOptions } from './statistics/workReport.ts';
-export { handoffsByWork, linkHandoffs, type ListedProject } from './projects/handoffLinks.ts';
-export { HandoffGraph, handoffExists, handoffLoop, handoffsOf, handoffText, parseHandoff, type HandoffReference } from './work/handoffs.ts';
-export { projectStatistics, type ProjectStatisticsEntry } from './statistics/projectStatistics.ts';
-export { workDates, workSessions, workTimeline, type ProductEntry, type SessionEntry, type TimelineEntry } from './statistics/sessions.ts';
-export { resolveReferences, type ReferenceItem, type ResolvedItem } from './projects/references.ts';
+// What the atlas command, the host and the app import of the planning-folder reader, the work tools
+// and the Atlas home (src/home), which the app reaches through `@envsemble/atlas/planning`. Tests
+// import the modules themselves. The diagram catalog and search lay diagrams out and read every
+// file, so only the host imports them, directly; checking a diagram loads only the diagram parser.
+export { PlanningError, loadPlanning, readDocument, resolveDocument } from './reading/planningIndex.ts';
+export { atlasHome, electronDataDirectory, homePlanningDirectory, homePlanningFolders, prepareHome } from '../home/home.ts';
+export { DatabaseVersionError, HomeDatabase, canonicalProjectFolderSync, folderKey, isPlanningFolder, planningName, projectOf, withDatabaseAsync, type ProjectRow, type ProjectState } from '../home/database.ts';
+export { validatePlanning } from './check/check.ts';
+export { checkPaths, planningFolderOf } from './check/checkPaths.ts';
+export { insertReport, storedReports, workStatistics, type WorkReport } from './reports/reports.ts';
+export { harnessSessions, type LogOptions } from './reports/sessionLog.ts';
+export { recordWorkReport } from './reports/recordReport.ts';
+export { projectStatistics } from './reports/projectStatistics.ts';
+export { workDates, workSessions, workTimeline } from './reports/workSessions.ts';
+export { handoffsByWork, linkHandoffs } from './handoffs/crossProject.ts';
+export { resolveReferences } from './references/references.ts';
 export type * from './types.ts';
 export {
-  exportPlan, readPlanExport, importPlan, planImportTarget, planningRelative, planExportPathProblem,
-  PlanExportError, planExportFormat, planExportVersion, planExportWarningBytes,
-  type PlanExportManifest, type PlanExportSource, type PlanExportFile, type PlanExportDiagram,
-  type PlanExportPreview, type PlanExportResult, type PlanImportResult, type PlanImportTarget, type PlanExportErrorCode,
+  exportFileName, exportPlan, readPlanExport, importPlan, planImportTarget, planningRelative, PlanExportError,
+  type PlanExportPreview, type PlanImportResult, type PlanImportTarget,
 } from './export/planExport.ts';
-export { runProgram, ProgramError, type RunOptions } from './system/run.ts';
-export { acquireFileLock } from './home/importLock.ts';
-export { WorkError, summaryLimit, workStatus, createWork, acceptWork, startWork, addSteps, setStepStatus, renameStep, removeStep, setBlocked, setContinues, closeWork, archiveWork, reopenWork, repairLinks, localDate, type ArchiveRequest, type WorkResult, type WorkStatus, type OperationOptions } from './work/work.ts';
-export { remoteRepository } from './projects/remotes.ts';
-export { findPlanning, insideFolder, readRegistry, resolvePlanningFolder, PlanningNotFoundError, type ActiveWork, type PlanningMatch, type ProjectBrief, type Whereabouts, type WorkBrief } from './projects/resolve.ts';
-export { checkPaths, fileCheckers, planningFolderOf, type CheckResult, type FileChecker } from './check/checkPaths.ts';
-export { projectSummary, workStatisticsBrief, type ProjectSummary, type ProjectWork, type ProjectWorkState, type ProjectWorkStatistics } from './projects/projectSummary.ts';
-export { checkedFolders, createProject, folderLimit, readTemplates, setProjectFolders, type ProjectTemplates } from './projects/project.ts';
-export { setRegistryMember, setRegistryName } from './work/registryText.ts';
+export { runProgram } from '../platform/run.ts';
+export { WorkError, workStatus, createWork, acceptWork, startWork, addSteps, setStepStatus, renameStep, removeStep, setBlocked, setContinues, closeWork, archiveWork, reopenWork, localDate } from './work/work.ts';
+export { readRegistry } from './registry/registry.ts';
+export { setRegistryName } from './registry/registryText.ts';
+export { findPlanning, resolvePlanningFolder, PlanningNotFoundError } from './projects/findProject.ts';
+export { projectSummary, type ProjectSummary, type ProjectWork, type ProjectWorkState, type ProjectWorkStatistics } from './projects/projectSummary.ts';
+export { createProject, readTemplates, setProjectFolders, type ProjectTemplates } from './projects/project.ts';

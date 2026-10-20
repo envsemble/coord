@@ -1,7 +1,7 @@
 // What a plan's statistics say of its agent time and models: how agent time was counted (measured,
 // estimated or both), the other models beside the primary one and what each did, and time and tokens
 // by model and reasoning effort. Pure, so it is unit-tested.
-import type { ModelUsage, WorkStatistics } from '../types';
+import type { ModelShare, WorkStatistics } from '../types';
 import { absoluteDate, compactNumber, duration } from '../ui/format';
 
 type Timed = Pick<WorkStatistics, 'reports' | 'agentMs' | 'measuredMs' | 'estimatedMs' | 'measuredReports' | 'firstReport'>;
@@ -22,11 +22,11 @@ export function agentTimeNote(statistics: Timed): string {
 }
 
 /** The models besides the primary one that did something, most agent time first. */
-export function otherModels(statistics: Pick<WorkStatistics, 'models' | 'primaryModel'>): ModelUsage[] {
+export function otherModels(statistics: Pick<WorkStatistics, 'models' | 'primaryModel'>): ModelShare[] {
   return statistics.models.filter(model => model.model !== statistics.primaryModel && (model.agentMs > 0 || (model.tokens ?? 0) > 0 || model.reports > 0));
 }
 /** What one model did: "20 min, 1.3K tokens". */
-export function modelShare(model: ModelUsage) {
+export function modelShare(model: ModelShare) {
   return [model.agentMs ? duration(model.agentMs) : null, model.tokens !== null ? compactNumber(model.tokens) + ' tokens' : null].filter(Boolean).join(', ');
 }
 
@@ -36,7 +36,7 @@ export interface EffortRow { model: string; effort: string | null; agentMs: numb
  * Time and tokens by model and reasoning effort: each effort a model's logs recorded, then the rest
  * of its time and tokens without one, so a model's rows add up to its totals.
  */
-export function effortRows(models: ModelUsage[]): EffortRow[] {
+export function effortRows(models: ModelShare[]): EffortRow[] {
   return models.flatMap(model => {
     const efforts = model.efforts.map(effort => ({ model: model.model, effort: effort.effort, agentMs: effort.agentMs, tokens: effort.tokens }));
     const agentMs = Math.max(0, model.agentMs - efforts.reduce((sum, row) => sum + row.agentMs, 0));
