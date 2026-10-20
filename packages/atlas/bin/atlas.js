@@ -66,6 +66,8 @@ function idle(text) {
     const input = JSON.parse(text || "{}");
     if (typeof input.session_id !== "string" || !name.test(input.session_id)) return true;
     if (/^mcp__.*atlas.*__(?:step$|work_(?!(?:status|search)$))/.test(input.tool_name ?? "")) return false;
+    // The atlas command run in a shell to change a work item (hook.ts's shellWorkPattern).
+    if (strings(input.tool_input).some(value => /\batlas(?:\.js|\.cmd)?["']?\s+work\s+(?!(?:status|search|report)\b)(\w+)\b/.test(value))) return false;
     let base;
     try { base = realpathSync.native(path.join(atlasHome(), "planning")); } catch { return true; }
     const files = [], toolInput = input.tool_input;

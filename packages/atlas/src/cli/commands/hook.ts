@@ -231,6 +231,30 @@ export function editedFiles(input: HookInput): string[] {
   return [...new Set(files.map(file => path.resolve(base, file)))];
 }
 
+/**
+ * `atlas work <operation> …` in a shell command that changes a work item (not `status`, `search`
+ * or `report`): the agent used the command instead of the tools. bin/atlas.js asks the same.
+ */
+export const shellWorkPattern = /\batlas(?:\.js|\.cmd)?["']?\s+work\s+(?!(?:status|search|report)\b)(\w+)\b/;
+/**
+ * The work items a shell command changed through the atlas command: each `atlas work <operation>
+ * <work-id>` in its input, and for `atlas work create` the work item its output names; with the
+ * planning folder its `--planning-dir` names, when that is a full path.
+ */
+export function shellWork(input: HookInput): { workId: string; planningFolder: string | null }[] {
+  const command = strings(input.tool_input).join('\n');
+  if (!shellWorkPattern.test(command)) return [];
+  const found: { workId: string; planningFolder: string | null }[] = [];
+  const folder = /--planning-dir\s+(?:"([^"]+)"|'([^']+)'|(\S+))/.exec(command);
+  const given = folder ? folder[1] ?? folder[2] ?? folder[3] : null;
+  const planningFolder = given && path.isAbsolute(given) ? given : null;
+  for (const match of command.matchAll(/\batlas(?:\.js|\.cmd)?["']?\s+work\s+(?!(?:status|search|report)\b)(?:step\s+\w+\s+|\w+\s+)(work-[0-9]{4,})\b/g)) found.push({ workId: match[1], planningFolder });
+  if (/\batlas(?:\.js|\.cmd)?["']?\s+work\s+create\b/.test(command)) {
+    for (const text of strings(input.tool_response)) for (const match of text.matchAll(/"workId"\s*:\s*"(work-[0-9]{4,})"/g)) found.push({ workId: match[1], planningFolder });
+  }
+  return found;
+}
+
 /** The work item an Atlas tool call was about: from its input, else from its result. */
 function toolWork(input: HookInput): { workId: string; planningFolder: string | null } | null {
   const toolInput = (input.tool_input ?? {}) as Record<string, unknown>;
@@ -261,10 +285,11 @@ interface LinkRequest { planningFolder: string; workId: string; amending: boolea
 async function postToolUse(input: HookInput, home: string, links: SessionLinks): Promise<{ output: object | null; requests: LinkRequest[] }> {
   const requests: LinkRequest[] = [];
   // Tools that change a work item link it; reading (work_status, work_search) leaves the session where it is.
-  if (/^mcp__.*atlas.*__(?:step$|work_(?!(?:status|search)$))/.test(input.tool_name ?? '')) {
-    const about = toolWork(input);
-    if (about) {
-      const { resolvePlanningFolder } = await import('../../planning/projects/findProject.ts');
+  // So does the atlas command run in a shell (shellWork), the last work item it names last.
+  const changed = /^mcp__.*atlas.*__(?:step$|work_(?!(?:status|search)$))/.test(input.tool_name ?? '') ? [toolWork(input)].filter(about => about !== null) : shellWork(input);
+  if (changed.length) {
+    const { resolvePlanningFolder } = await import('../../planning/projects/findProject.ts');
+    for (const about of changed) {
       const root = about.planningFolder ?? await resolvePlanningFolder({ cwd: input.cwd ?? process.cwd(), home, work: about.workId }).catch(() => null);
       if (root) requests.push({ planningFolder: root, workId: about.workId, amending: false });
     }
