@@ -5,13 +5,13 @@
 // menu what can be done with it: its folders, rename, archive, restore. Projects are made here too: a
 // name and its folders. Folders are paths on the project's own computer, so they are only chosen in
 // Atlas there.
-import { useId, useState } from 'react';
+import { useId, useState, type CSSProperties } from 'react';
 import { Button, ClickableCard, Dialog, EmptyState, GroupedRows, IconButton, Input, Menu, MenuItem, MenuSeparator, Notice, Row, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text, Tooltip } from '@envsemble/envui';
 import { AddFolderIcon, AddIcon, ChevronRightIcon, CloseIcon, ComputerIcon, FolderIcon, MoreIcon, NewProjectIcon, StatisticsIcon } from '../ui/icons';
 import { StatusIcon } from '../ui/ui';
 import { statuses } from '../ui/status';
 import { absoluteDate, plural, relativeDate } from '../ui/format';
-import { initials, projectFacts } from './projectLook';
+import { initials, projectFacts, projectHue } from './projectLook';
 import type { Project, ProjectChangeRequest } from '../types';
 import { api, AtlasError } from '../api';
 import { hubPlace, statisticsPlace, type Place } from '../navigation/targets';
@@ -193,7 +193,7 @@ function ProjectRow({ project, local, actions, rename, details }: { project: Pro
   return <TableRow className="project-row" data-project={project.folderId} data-state={project.state} data-group={project.state === 'active' ? 'active' : 'archived'} aria-busy={busy || undefined}>
     <TableCell>
       <span className="project-cell">
-        <span className="project-avatar" aria-hidden="true">{initials(project.name)}</span>
+        <span className="project-avatar" aria-hidden="true" style={{ '--project-hue': projectHue(project.folderId) } as CSSProperties}>{initials(project.name)}</span>
         <span className="project-name">
           {/* An archived project's plans are seen nowhere, so its name leads nowhere. */}
           {project.state === 'active' ? <button type="button" className="row-link" title={'Plans of ' + project.name} onClick={() => actions.go(hubPlace(project.folderId))}><span className="row-link-title">{project.name}</span></button>

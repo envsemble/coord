@@ -127,8 +127,9 @@ body { margin: 0; }
    initials on a quiet square), its name over that line, its folder, then its actions, quiet and at the
    end. The archived projects follow under a fold of their own in the same table, dimmed. */
 .project-row > td { block-size: 3.5rem; }
-.project-cell { display: flex; align-items: center; gap: var(--space-3); min-inline-size: 0; }
-.project-avatar { flex: none; display: grid; place-content: center; inline-size: 2rem; block-size: 2rem; border-radius: var(--radius-standard); background: var(--color-surface-muted); color: var(--color-text-muted); font-size: var(--font-size-body-small); font-weight: 500; letter-spacing: 0.02em; }
+.project-cell { display: flex; align-items: flex-start; gap: var(--space-3); min-inline-size: 0; }
+/* A project's avatar: its initials on a small square in the project's own hue (`--project-hue`), legible in both themes. */
+.project-avatar { flex: none; display: grid; place-content: center; inline-size: 1.5rem; block-size: 1.5rem; margin-block-start: 0.0625rem; border-radius: 0.375rem; background: light-dark(hsl(var(--project-hue) 70% 90%), hsl(var(--project-hue) 45% 26%)); color: light-dark(hsl(var(--project-hue) 60% 32%), hsl(var(--project-hue) 75% 80%)); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.02em; }
 .project-name { display: grid; justify-items: start; gap: 0.125rem; min-inline-size: 0; }
 .project-name .row-link { max-inline-size: 100%; min-inline-size: 0; }
 .project-name .row-link-title, .project-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

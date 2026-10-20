@@ -1,5 +1,5 @@
 // What a project's row on the Projects page shows at a glance: its avatar (the initials of its name on
-// a quiet square) and its facts from the listing (its open plans, how many agents work on them or wait
+// a square in its own colour) and its facts from the listing (its open plans, how many agents work on them or wait
 // for the person, when it last changed). Pure, so it is unit-tested.
 import type { Project } from '../types';
 
@@ -8,6 +8,15 @@ export function initials(name: string): string {
   const words = name.trim().split(/[\s_-]+/).filter(Boolean);
   const letters = words.length > 1 ? [words[0], words[1]].map(word => [...word][0]) : [...(words[0] ?? '?')].slice(0, 1);
   return letters.join('').toUpperCase();
+}
+
+/** Hues far enough apart to tell projects apart. */
+const hues = [8, 32, 50, 95, 150, 180, 205, 230, 262, 290, 320, 345];
+/** The hue of a project's avatar, from its folder's ID: the same project keeps its colour, whatever it is named. */
+export function projectHue(folderId: string): number {
+  let hash = 0;
+  for (const character of folderId) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  return hues[hash % hues.length];
 }
 
 /** What the listing says of a project: its open plans, those agents work on and those waiting for the person, and when it changed. */
