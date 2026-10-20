@@ -139,11 +139,11 @@ body { margin: 0; }
 .project-fact .status-icon { inline-size: 1rem; block-size: 1rem; }
 .project-fact[data-live='waiting'] { color: var(--color-tone-warning); }
 .project-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--space-1); --control-height: var(--control-height-compact); --icon-button-size: var(--control-height-compact); }
-/* The rows: a project's folder and actions at the end of its row; archived ones quieter. */
+/* The rows: a project's folder and actions at the end of its row, above the link that covers the row; archived ones quieter. */
 .project-list { display: grid; gap: var(--space-5); }
 .project-list .project-row { flex-wrap: nowrap; }
 .project-list .project-row > :first-child { flex: 1; }
-.project-side { display: inline-flex; align-items: flex-start; gap: var(--space-4); min-inline-size: 0; }
+.project-side { position: relative; z-index: 1; display: inline-flex; align-items: flex-start; gap: var(--space-4); min-inline-size: 0; }
 /* The folders' badges take a range of their own at the row's end and wrap there, the row growing taller. */
 .project-folders-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1); inline-size: 24rem; max-inline-size: 40vw; }
 .project-folder-badge { max-inline-size: 12rem; }
