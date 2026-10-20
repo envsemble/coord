@@ -65,7 +65,7 @@ function FolderList({ value, onChange, disabled, computer }: { value: string[]; 
       action={<Tooltip content="Remove"><IconButton variant="quiet" icon={<CloseIcon />} aria-label={'Remove ' + (folderName(folder) || folder)} disabled={disabled} onClick={() => onChange(value.filter(item => item !== folder))} /></Tooltip>} />)}
     </GroupedRows>}
     <ClickableCard className="folder-list-add" disabled={disabled} onClick={add}>
-      <AddFolderIcon className="folder-list-icon" />{value.length ? 'Add folder' : 'Add a folder on ' + computer}
+      <AddFolderIcon className="folder-list-icon" />Add folder
     </ClickableCard>
     {error && <Notice tone="error" announce>{error}</Notice>}
   </section>;
@@ -93,7 +93,7 @@ export function NewProjectDialog({ computer, local, onClose, onCreated }: { comp
   };
   const chooseFolders = (next: string[]) => { setFolders(next); if (!named) setName(next.length ? folderName(next[0]) : ''); };
   return <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }} pending={busy} className="new-project-dialog" title="Create project"
-    description={local ? 'Agents working in its folders, or in a folder inside one, plan in this project.' : <>Its folders are chosen in Atlas on {computer}, on the Projects page.</>}
+    description={local ? 'Add the folders where you work on it, such as its repositories. An agent working in one of them keeps its plans in this project.' : <>Its folders are chosen in Atlas on {computer}, on the Projects page.</>}
     closeLabel="Cancel" actions={<Button variant="primary" type="submit" form="new-project" pending={busy} disabled={!ready}>Create project</Button>}>
     <form id="new-project" className="dialog-form" onSubmit={event => { event.preventDefault(); if (ready) void create(); }}>
       <Input label="Project name" placeholder="Project name" compact startIcon={<FolderIcon />} value={name} onChange={event => { setName(event.target.value); setNamed(Boolean(event.target.value)); }} autoFocus maxLength={100} disabled={busy} />

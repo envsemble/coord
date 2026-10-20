@@ -206,7 +206,7 @@ body { margin: 0; }
 .folder-list-name { display: flex; align-items: center; gap: var(--space-3); min-inline-size: 0; }
 .folder-list-name > bdi { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .folder-list-icon { flex: none; inline-size: 1.125rem; block-size: 1.125rem; color: var(--color-icon); }
-.folder-list-add { justify-items: center; }
+.env-clickable-card.folder-list-add { display: flex; align-items: center; justify-content: center; gap: var(--space-2); text-align: center; }
 .computer-trigger-label { flex: 1; min-inline-size: 0; overflow: hidden; text-align: start; text-overflow: ellipsis; white-space: nowrap; }
 .explorer-folder, .explorer-file { color: var(--color-icon); }
 .explorer-diagram { color: var(--color-tone-accent); }
