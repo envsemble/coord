@@ -73,14 +73,19 @@ function writeStamp(home: string, session: string, state: Stamp) {
     writeFileSync(path.join(stampFolder(home), session), state);
   } catch (error) { logFailure(home, 'stamp', error); }
 }
-/** Remove the stamps of sessions not seen for a week. */
+/**
+ * Remove the stamps of sessions not seen for a week, and the cursors of session logs not measured
+ * further for a week (workReport.ts keeps them in <home>/cache/session-logs).
+ */
 export function pruneStamps(home: string, now = Date.now()) {
-  try {
-    for (const name of readdirSync(stampFolder(home))) {
-      const file = path.join(stampFolder(home), name);
-      if (now - statSync(file).mtimeMs > 7 * 24 * 60 * 60_000) rmSync(file, { force: true });
-    }
-  } catch { /* None yet. */ }
+  for (const folder of [stampFolder(home), path.join(home, 'cache', 'session-logs')]) {
+    try {
+      for (const name of readdirSync(folder)) {
+        const file = path.join(folder, name);
+        if (now - statSync(file).mtimeMs > 7 * 24 * 60 * 60_000) rmSync(file, { force: true });
+      }
+    } catch { /* None yet. */ }
+  }
 }
 
 // ---- The session's row ----------------------------------------------------------------------------

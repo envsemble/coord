@@ -12,7 +12,8 @@
 // is kept too, so the time at least one of them worked can be told. Logs are only read, line by
 // line; nothing but numbers, times and model and agent identifiers leaves them, and a line that is
 // not understood is skipped, never fatal.
-import { createReadStream, type Dirent } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { createReadStream, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync, type Dirent } from 'node:fs';
 import { pipeline } from 'node:stream';
 import { createZstdDecompress } from 'node:zlib';
 import { open, readdir, stat } from 'node:fs/promises';
@@ -336,6 +337,105 @@ async function* lines(file: string, limit = Number.POSITIVE_INFINITY): AsyncGene
   if (pending.length) yield Buffer.concat(pending).toString('utf8');
 }
 
+/**
+ * An uncompressed log's lines from a byte offset, each with the offset after its line feed; a last
+ * line without one (still being written) comes with -1.
+ */
+async function* linesFrom(file: string, start: number): AsyncGenerator<{ text: string; end: number }> {
+  let pending: Buffer[] = [], position = start;
+  const read = createReadStream(file, { start, highWaterMark: 1 << 20 });
+  try {
+    for await (const chunk of read as AsyncIterable<Buffer>) {
+      let from = 0;
+      for (let end = chunk.indexOf(10); end !== -1; end = chunk.indexOf(10, from)) {
+        pending.push(chunk.subarray(from, end));
+        yield { text: (pending.length === 1 ? pending[0] : Buffer.concat(pending)).toString('utf8'), end: position + end + 1 };
+        pending = [];
+        from = end + 1;
+      }
+      if (from < chunk.length) pending.push(chunk.subarray(from));
+      position += chunk.length;
+    }
+  } finally { read.destroy(); }
+  if (pending.length) yield { text: Buffer.concat(pending).toString('utf8'), end: -1 };
+}
+
+// ---- Cursors: what reading a log found so far, kept so the next measurement reads only what it gained
+
+/**
+ * How one harness's log is read: line by line into a state, which a cursor keeps (`save` makes it
+ * plain JSON, `load` restores it). The state never depends on the interval measured or on which
+ * agent's log it is, so any later measurement can go on from it.
+ */
+interface LogReader<S> { kind: string; fresh: () => S; step: (state: S, text: string) => void; save: (state: S) => unknown; load: (value: never) => S }
+interface Cursor { version: number; kind: string; file: string; offset: number; size: number; modified: number; check: string; state: unknown }
+/** Changes whenever a reader's state or the way it reads does, so older cursors are read afresh. */
+const cursorVersion = 1;
+/** The bytes before a cursor's offset that must still be there for the log to be read on from it. */
+const checkBytes = 256;
+
+const cursorFile = (cache: string, kind: string, file: string) => path.join(cache, createHash('sha256').update(kind + '\0' + file).digest('hex').slice(0, 32) + '.json');
+function readCursor(file: string): Cursor | null {
+  try { return JSON.parse(readFileSync(file, 'utf8')) as Cursor; } catch { return null; }
+}
+/** Write a cursor whole (hooks of one session may read the same log at once: the last one written stays); never throws. */
+function writeCursor(file: string, cursor: Cursor) {
+  const temporary = file + '.' + process.pid + '-' + Math.random().toString(36).slice(2);
+  try {
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(temporary, JSON.stringify(cursor));
+    renameSync(temporary, file);
+  } catch { rmSync(temporary, { force: true }); }
+}
+/** The bytes just before an offset, as a cursor checks them. */
+async function bytesBefore(file: string, offset: number): Promise<string> {
+  const length = Math.min(offset, checkBytes);
+  if (!length) return '';
+  const handle = await open(file, 'r');
+  try {
+    const buffer = Buffer.alloc(length);
+    const { bytesRead } = await handle.read(buffer, 0, length, offset - length);
+    return buffer.subarray(0, bytesRead).toString('base64');
+  } finally { await handle.close(); }
+}
+
+/**
+ * Read a log into its reader's state, going on from its cursor in `cache` (a folder) when there is
+ * one: harnesses only append to a log, so only what it gained since is read. A log whose bytes before
+ * the cursor changed (rewritten or shortened) is read from its start, and a compressed one (never
+ * appended to) whenever it changed. A last line still being written is read, but not kept.
+ */
+async function readLog<S>(log: LogFile, reader: LogReader<S>, cache?: string): Promise<S> {
+  const file = path.resolve(log.file);
+  const target = cache ? cursorFile(cache, reader.kind, file) : null;
+  const saved = target ? readCursor(target) : null;
+  const usable = saved?.version === cursorVersion && saved.kind === reader.kind && saved.file === file;
+  if (compressed(file)) {
+    const info = await stat(file).catch(() => null);
+    if (usable && info && saved.size === info.size && saved.modified === info.mtimeMs) return reader.load(saved.state as never);
+    const state = reader.fresh();
+    for await (const text of lines(file)) reader.step(state, text);
+    if (target && info) writeCursor(target, { version: cursorVersion, kind: reader.kind, file, offset: info.size, size: info.size, modified: info.mtimeMs, check: '', state: reader.save(state) });
+    return state;
+  }
+  let state = reader.fresh(), offset = 0;
+  if (usable && await bytesBefore(file, saved.offset).catch(() => null) === saved.check) {
+    state = reader.load(saved.state as never);
+    offset = saved.offset;
+  }
+  const start = offset;
+  let tail: string | null = null;
+  for await (const line of linesFrom(file, offset)) {
+    if (line.end === -1) tail = line.text;
+    else { reader.step(state, line.text); offset = line.end; }
+  }
+  if (target && offset !== start) writeCursor(target, { version: cursorVersion, kind: reader.kind, file, offset, size: offset, modified: 0, check: await bytesBefore(file, offset), state: reader.save(state) });
+  if (tail === null) return state;
+  const read = reader.load(structuredClone(reader.save(state)) as never);
+  reader.step(read, tail);
+  return read;
+}
+
 /** A busy stretch, credited to the model at work (null when unknown) and its agent (null for the session's own). */
 interface Segment { start: number; end: number; model: string | null; effort: string | null; agent: string | null }
 /** Tokens spent at a moment: one response (Claude Code) or one increase of the running count (Codex). */
@@ -402,28 +502,63 @@ function claudeEvent(line: ClaudeLine, asked: Set<unknown>): ClaudeEvent | null 
  * nothing joins it across the wait that follows. A compaction is busy for its duration. Live, a turn
  * still under way (not waiting for the person, and recently written) runs until now.
  */
-async function claudeTimeline(files: LogFile[], at: number, live: boolean): Promise<Timeline> {
+/**
+ * What a Claude Code log says, in its order: its events, the questions to the person it asked (by
+ * tool call), and its responses' tokens by message (`lines` counts its lines, which name a response
+ * without an identifier).
+ */
+interface ClaudeRead { lines: number; events: ClaudeEvent[]; asked: Set<unknown>; responses: Map<string, Spend> }
+type SavedEvent = [number, 0] | [number, 1, string | null, string | null, number] | [number, 2, number];
+type SavedSpend = [number, string | null, string | null, number, number, number, number];
+const saveSpend = (spend: Spend): SavedSpend => [spend.at, spend.model, spend.effort, spend.tokens.input, spend.tokens.cacheRead, spend.tokens.cacheWrite, spend.tokens.output];
+const loadSpend = ([at, model, effort, input, cacheRead, cacheWrite, output]: SavedSpend, agent: string | null): Spend => ({ at, model, effort, agent, tokens: { input, cacheRead, cacheWrite, output } });
+
+function claudeReader(log: LogFile): LogReader<ClaudeRead> {
+  return {
+    kind: 'claude',
+    fresh: () => ({ lines: 0, events: [], asked: new Set(), responses: new Map() }),
+    step: (state, text) => {
+      const number = ++state.lines;
+      // Titles, modes and other bookkeeping carry no time.
+      if (!text.includes('"timestamp"')) return;
+      const line = objectOf(text) as ClaudeLine | null;
+      const event = line && claudeEvent(line, state.asked);
+      if (!event) return;
+      state.events.push(event);
+      const usage = line.message?.usage, model = modelOf(line.message?.model);
+      if (line.type !== 'assistant' || !model || !usage || typeof usage !== 'object') return;
+      const id = line.message?.id, key = typeof id === 'string' ? id : log.file + '#' + number;
+      state.responses.set(key, { at: Math.min(state.responses.get(key)?.at ?? event.at, event.at), model, effort: event.kind === 'activity' ? event.effort ?? null : null, agent: log.agent, tokens: { input: count(usage.input_tokens), cacheRead: count(usage.cache_read_input_tokens), cacheWrite: count(usage.cache_creation_input_tokens), output: count(usage.output_tokens) } });
+    },
+    save: state => ({
+      lines: state.lines,
+      events: state.events.map((event): SavedEvent => event.kind === 'prompt' ? [event.at, 0] : event.kind === 'compaction' ? [event.at, 2, event.durationMs]
+        : [event.at, 1, event.model, event.effort ?? null, (event.person ? 1 : 0) | (event.closes ? 2 : 0) | (event.asks ? 4 : 0)]),
+      // A question's tool call may lack its identifier: a result without one answers it.
+      asked: [...state.asked].filter(id => id === undefined || id === null || typeof id === 'string' || typeof id === 'number').map(id => id === undefined ? { undefined: true } : id),
+      responses: [...state.responses].map(([key, spend]) => [key, saveSpend(spend)]),
+    }),
+    load: (saved: { lines: number; events: SavedEvent[]; asked: unknown[]; responses: [string, SavedSpend][] }) => ({
+      lines: saved.lines,
+      events: saved.events.map((event): ClaudeEvent => event[1] === 0 ? { at: event[0], kind: 'prompt' } : event[1] === 2 ? { at: event[0], kind: 'compaction', durationMs: event[2] }
+        : { at: event[0], kind: 'activity', model: event[2], effort: event[3], person: (event[4] & 1) !== 0, closes: (event[4] & 2) !== 0, asks: (event[4] & 4) !== 0 }),
+      asked: new Set(saved.asked.map(id => id && typeof id === 'object' ? undefined : id)),
+      responses: new Map(saved.responses.map(([key, spend]) => [key, loadSpend(spend, log.agent)])),
+    }),
+  };
+}
+
+async function claudeTimeline(files: LogFile[], at: number, live: boolean, cache?: string): Promise<Timeline> {
   const timeline: Timeline = { segments: [], spends: [], latest: null, events: 0 };
   // One response is written as several lines (one per content block): it belongs to the moment of
   // its first line, so a report between its lines counts it once, and its latest line has its usage.
   const responses = new Map<string, Spend>();
-  for (const log of files) {
-    const events: ClaudeEvent[] = [];
-    const asked = new Set<unknown>();
-    let number = 0;
-    for await (const text of lines(log.file)) {
-      number++;
-      // Titles, modes and other bookkeeping carry no time.
-      if (!text.includes('"timestamp"')) continue;
-      const line = objectOf(text) as ClaudeLine | null;
-      const event = line && claudeEvent(line, asked);
-      if (!event) continue;
-      events.push(event);
-      const usage = line.message?.usage, model = modelOf(line.message?.model);
-      if (line.type !== 'assistant' || !model || !usage || typeof usage !== 'object') continue;
-      const id = line.message?.id, key = typeof id === 'string' ? id : log.file + '#' + number;
-      responses.set(key, { at: Math.min(responses.get(key)?.at ?? event.at, event.at), model, effort: event.kind === 'activity' ? event.effort ?? null : null, agent: log.agent, tokens: { input: count(usage.input_tokens), cacheRead: count(usage.cache_read_input_tokens), cacheWrite: count(usage.cache_creation_input_tokens), output: count(usage.output_tokens) } });
-    }
+  const reads = await Promise.all(files.map(log => readLog(log, claudeReader(log), cache)));
+  for (const [index, log] of files.entries()) {
+    const read = reads[index];
+    for (const [key, spend] of read.responses) responses.set(key, { ...spend, at: Math.min(responses.get(key)?.at ?? spend.at, spend.at) });
+    // Sorted stably, so events at one moment stay in the log's order.
+    const events = [...read.events];
     timeline.events += events.length;
     events.sort((a, b) => a.at - b.at);
     let turn: { last: number; model: string | null; effort: string | null } | null = null;
@@ -474,74 +609,107 @@ const codexKinds = (step: CodexCount): TokenKinds => ({ input: Math.max(0, step.
  * a copy of its parent's history: copied turns started long before their lines, and the running
  * count they carry is only the fork's starting point.
  */
-async function codexTimeline(files: LogFile[], at: number, live: boolean): Promise<Timeline> {
-  const timeline: Timeline = { segments: [], spends: [], latest: null, events: 0 };
-  const newest = files.filter(file => file.agent === null).sort((a, b) => b.modified - a.modified)[0];
-  for (const log of files) {
-    const models = new Map<string, string>(), efforts = new Map<string, string>();
-    const asked = new Map<string, number>();
-    let open: { turn: string; start: number } | null = null;
-    let current: string | null = null, effort: string | null = null, last = Number.NaN, total: CodexCount | null = null, start = Number.NaN;
-    let own = true;
+/**
+ * What a Codex rollout says so far, in its order: each turn's model and effort, the questions to
+ * the person (by call), the turn under way, the running token count, the finished turns' stretches,
+ * the tokens spent and each turn context's model (for the latest one before a moment).
+ */
+interface CodexRead {
+  models: Map<string, string>; efforts: Map<string, string>; asked: Map<string, number>; open: { turn: string; start: number } | null;
+  current: string | null; effort: string | null; last: number; total: CodexCount | null; start: number; own: boolean;
+  segments: Segment[]; spends: Spend[]; contexts: [number, string][]; events: number;
+}
+interface SavedCodex extends Omit<CodexRead, 'models' | 'efforts' | 'asked' | 'last' | 'start' | 'segments' | 'spends'> {
+  models: [string, string][]; efforts: [string, string][]; asked: [string, number][]; last: number | null; start: number | null;
+  segments: [number, number, string | null, string | null][]; spends: SavedSpend[];
+}
+/** A rollout's state names no agent: the same thread is the main agent of its own session and a helper of its parent's. */
+const codexReader: LogReader<CodexRead> = {
+  kind: 'codex',
+  fresh: () => ({ models: new Map(), efforts: new Map(), asked: new Map(), open: null, current: null, effort: null, last: Number.NaN, total: null, start: Number.NaN, own: true, segments: [], spends: [], contexts: [], events: 0 }),
+  step: (state, text) => {
     const finish = (turn: { turn: string; start: number }, end: number) => {
-      if (end > turn.start) timeline.segments.push({ start: turn.start, end, model: models.get(turn.turn) ?? current, effort: efforts.get(turn.turn) ?? effort, agent: log.agent });
+      if (end > turn.start) state.segments.push({ start: turn.start, end, model: state.models.get(turn.turn) ?? state.current, effort: state.efforts.get(turn.turn) ?? state.effort, agent: null });
       return null;
     };
-    for await (const text of lines(log.file)) {
-      const head = text.slice(0, 320);
-      if (Number.isNaN(start)) {
-        // The first line: when the rollout began, and whether it forked another thread.
-        start = Date.parse(/^\{"timestamp":"([^"]+)"/.exec(head)?.[1] ?? '');
-        own = !text.includes('"forked_from_id":"');
-      }
-      const answer = codexOutput.exec(head);
-      if (answer) {
-        // The person answered: the turn worked until it asked and resumes now.
-        const asking = asked.get(answer[2]), moment = Date.parse(answer[1]);
-        if (Number.isNaN(moment)) continue;
-        if (open && asking !== undefined && moment >= asking) { finish(open, asking); open.start = moment; }
-        last = moment;
-        continue;
-      }
-      if (!codexWanted.test(head)) continue;
-      const line = objectOf(text) as CodexLine | null;
-      const moment = timeOf(line?.timestamp), payload = line?.payload;
-      if (!line || Number.isNaN(moment) || !payload || typeof payload !== 'object') continue;
-      timeline.events++;
-      if (line.type === 'response_item') { if (typeof payload.call_id === 'string') asked.set(payload.call_id, moment); }
-      else if (line.type === 'turn_context') {
-        const model = modelOf(payload.model);
-        if (!model) continue;
-        // The turn's reasoning effort, where the turn context names it.
-        const level = effortOf(payload.effort) ?? effortOf(payload.collaboration_mode?.settings?.reasoning_effort);
-        if (typeof payload.turn_id === 'string') { models.set(payload.turn_id, model); if (level) efforts.set(payload.turn_id, level); }
-        current = model;
-        effort = level ?? effort;
-        if (log.agent === null && moment <= at && (!timeline.latest || moment >= timeline.latest.at)) timeline.latest = { at: moment, model };
-      } else if (payload.type === 'task_started' && typeof payload.turn_id === 'string') {
-        if (typeof payload.started_at === 'number' && payload.started_at * 1000 < moment - replayed) continue;
-        if (open) open = finish(open, last);
-        open = { turn: payload.turn_id, start: moment };
-        own = true;
-      } else if (payload.type === 'task_complete' || payload.type === 'turn_aborted') {
-        if (open && open.turn === payload.turn_id) open = finish(open, moment);
-        // A turn whose start is not in this file counts only if it began in this file's time.
-        else if (!open && typeof payload.turn_id === 'string' && typeof payload.started_at === 'number' && payload.started_at * 1000 >= start - replayed) finish({ turn: payload.turn_id, start: Math.min(moment, payload.started_at * 1000) }, moment);
-      } else if (payload.type === 'token_count') {
-        const running = codexCount(payload.info?.total_token_usage);
-        if (!running) continue;
-        if (!own) { total = running; continue; }
-        // A file's first count, or one lower than before, is taken from its last response alone:
-        // a later part of a thread continues the running count.
-        const step = total === null || running.input < total.input || running.output < total.output ? codexCount(payload.info?.last_token_usage)
-          : { input: running.input - total.input, cached: Math.max(0, running.cached - total.cached), written: Math.max(0, running.written - total.written), output: running.output - total.output };
-        total = running;
-        if (step && step.input + step.output > 0) timeline.spends.push({ at: moment, model: (open && models.get(open.turn)) ?? current, effort: (open && efforts.get(open.turn)) ?? effort, agent: log.agent, tokens: codexKinds(step) });
-      }
-      last = moment;
+    const head = text.slice(0, 320);
+    if (Number.isNaN(state.start)) {
+      // The first line: when the rollout began, and whether it forked another thread.
+      state.start = Date.parse(/^\{"timestamp":"([^"]+)"/.exec(head)?.[1] ?? '');
+      state.own = !text.includes('"forked_from_id":"');
     }
+    const answer = codexOutput.exec(head);
+    if (answer) {
+      // The person answered: the turn worked until it asked and resumes now.
+      const asking = state.asked.get(answer[2]), moment = Date.parse(answer[1]);
+      if (Number.isNaN(moment)) return;
+      if (state.open && asking !== undefined && moment >= asking) { finish(state.open, asking); state.open.start = moment; }
+      state.last = moment;
+      return;
+    }
+    if (!codexWanted.test(head)) return;
+    const line = objectOf(text) as CodexLine | null;
+    const moment = timeOf(line?.timestamp), payload = line?.payload;
+    if (!line || Number.isNaN(moment) || !payload || typeof payload !== 'object') return;
+    state.events++;
+    if (line.type === 'response_item') { if (typeof payload.call_id === 'string') state.asked.set(payload.call_id, moment); }
+    else if (line.type === 'turn_context') {
+      const model = modelOf(payload.model);
+      if (!model) return;
+      // The turn's reasoning effort, where the turn context names it.
+      const level = effortOf(payload.effort) ?? effortOf(payload.collaboration_mode?.settings?.reasoning_effort);
+      if (typeof payload.turn_id === 'string') { state.models.set(payload.turn_id, model); if (level) state.efforts.set(payload.turn_id, level); }
+      state.current = model;
+      state.effort = level ?? state.effort;
+      state.contexts.push([moment, model]);
+    } else if (payload.type === 'task_started' && typeof payload.turn_id === 'string') {
+      if (typeof payload.started_at === 'number' && payload.started_at * 1000 < moment - replayed) return;
+      if (state.open) state.open = finish(state.open, state.last);
+      state.open = { turn: payload.turn_id, start: moment };
+      state.own = true;
+    } else if (payload.type === 'task_complete' || payload.type === 'turn_aborted') {
+      if (state.open && state.open.turn === payload.turn_id) state.open = finish(state.open, moment);
+      // A turn whose start is not in this file counts only if it began in this file's time.
+      else if (!state.open && typeof payload.turn_id === 'string' && typeof payload.started_at === 'number' && payload.started_at * 1000 >= state.start - replayed) finish({ turn: payload.turn_id, start: Math.min(moment, payload.started_at * 1000) }, moment);
+    } else if (payload.type === 'token_count') {
+      const running = codexCount(payload.info?.total_token_usage);
+      if (!running) return;
+      if (!state.own) { state.total = running; return; }
+      // A file's first count, or one lower than before, is taken from its last response alone:
+      // a later part of a thread continues the running count.
+      const total = state.total;
+      const step = total === null || running.input < total.input || running.output < total.output ? codexCount(payload.info?.last_token_usage)
+        : { input: running.input - total.input, cached: Math.max(0, running.cached - total.cached), written: Math.max(0, running.written - total.written), output: running.output - total.output };
+      state.total = running;
+      const open = state.open;
+      if (step && step.input + step.output > 0) state.spends.push({ at: moment, model: (open && state.models.get(open.turn)) ?? state.current, effort: (open && state.efforts.get(open.turn)) ?? state.effort, agent: null, tokens: codexKinds(step) });
+    }
+    state.last = moment;
+  },
+  save: (state): SavedCodex => ({
+    ...state, models: [...state.models], efforts: [...state.efforts], asked: [...state.asked], open: state.open && { ...state.open },
+    last: Number.isNaN(state.last) ? null : state.last, start: Number.isNaN(state.start) ? null : state.start,
+    segments: state.segments.map((segment): [number, number, string | null, string | null] => [segment.start, segment.end, segment.model, segment.effort]), spends: state.spends.map(saveSpend), contexts: [...state.contexts],
+  }),
+  load: (saved: SavedCodex) => ({
+    ...saved, models: new Map(saved.models), efforts: new Map(saved.efforts), asked: new Map(saved.asked), last: saved.last ?? Number.NaN, start: saved.start ?? Number.NaN,
+    segments: saved.segments.map(([start, end, model, effort]) => ({ start, end, model, effort, agent: null })), spends: saved.spends.map(spend => loadSpend(spend, null)),
+  }),
+};
+
+async function codexTimeline(files: LogFile[], at: number, live: boolean, cache?: string): Promise<Timeline> {
+  const timeline: Timeline = { segments: [], spends: [], latest: null, events: 0 };
+  const newest = files.filter(file => file.agent === null).sort((a, b) => b.modified - a.modified)[0];
+  const reads = await Promise.all(files.map(log => readLog(log, codexReader, cache)));
+  for (const [index, log] of files.entries()) {
+    const read = reads[index];
+    timeline.events += read.events;
+    for (const segment of read.segments) timeline.segments.push({ ...segment, agent: log.agent });
+    for (const spend of read.spends) timeline.spends.push({ ...spend, agent: log.agent });
+    if (log.agent === null) for (const [moment, model] of read.contexts) if (moment <= at && (!timeline.latest || moment >= timeline.latest.at)) timeline.latest = { at: moment, model };
     // A thread's earlier parts were left behind; a subagent's thread has one.
-    if (open) finish(open, live && (log === newest || log.agent !== null) && at - last <= runOnLimit ? Math.max(at, last) : last);
+    const open = read.open, end = live && (log === newest || log.agent !== null) && at - read.last <= runOnLimit ? Math.max(at, read.last) : read.last;
+    if (open && end > open.start) timeline.segments.push({ start: open.start, end, model: read.models.get(open.turn) ?? read.current, effort: read.efforts.get(open.turn) ?? read.effort, agent: log.agent });
   }
   return timeline;
 }
@@ -555,10 +723,10 @@ const covered = (segments: Segment[], from: number, to: number) => stretches(seg
  * Read a session's logs as far as an interval starting at `since` needs them: logs last written
  * before it add nothing to it, but the main log still names the model.
  */
-async function sessionTimeline(logs: SessionLogs, since: number | null, at: number, live: boolean): Promise<Timeline> {
+async function sessionTimeline(logs: SessionLogs, since: number | null, at: number, live: boolean, cache?: string): Promise<Timeline> {
   const files = logs.files.filter(file => file.agent === null || (since !== null && file.modified >= since));
   if (logs.harness === 'codex' && since !== null) files.push(...await codexHelpers(logs, since));
-  const timeline = logs.harness === 'claude-code' ? await claudeTimeline(files, at, live) : await codexTimeline(files, at, live);
+  const timeline = logs.harness === 'claude-code' ? await claudeTimeline(files, at, live, cache) : await codexTimeline(files, at, live, cache);
   if (!timeline.events) throw new Error('its log has nothing Atlas can read');
   return timeline;
 }
@@ -616,9 +784,10 @@ function measureTimeline(logs: SessionLogs, timeline: Timeline, from: number, at
 /**
  * Measure a session's working time and tokens in (since, at]. Without `since` (the session's first
  * report on a work item, its starting point) only the main model is read. `live` means the report
- * comes from inside the session, so a turn still under way runs until now.
+ * comes from inside the session, so a turn still under way runs until now. With `cache` (a folder),
+ * each log is read on from where the last measurement left it, and that is kept there.
  */
-export async function measureSession(logs: SessionLogs, interval: { since: number | null; at: number; live?: boolean }): Promise<SessionMeasure> {
-  const timeline = await sessionTimeline(logs, interval.since, interval.at, interval.live ?? false);
+export async function measureSession(logs: SessionLogs, interval: { since: number | null; at: number; live?: boolean; cache?: string }): Promise<SessionMeasure> {
+  const timeline = await sessionTimeline(logs, interval.since, interval.at, interval.live ?? false, interval.cache);
   return measureTimeline(logs, timeline, interval.since ?? interval.at, interval.at);
 }

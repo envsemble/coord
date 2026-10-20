@@ -31,8 +31,9 @@ const FRONTMATTER_KEYS = new Set([
   "disable-model-invocation",
 ]);
 // Each harness event the plugin hooks, with the Atlas hooks it runs: after every tool use, the
-// session's state besides the checks of planning edits. Each harness ignores the events it lacks
-// (Codex: Notification, PostToolUseFailure, StopFailure; Claude Code: Interrupt).
+// session's state besides the checks of planning edits. Each harness has its own hooks file without
+// the events it lacks (Claude Code warns about unknown ones): Claude Code's hooks/hooks.json, which
+// it loads by default, and Codex's hooks/codex.json, which its manifest names instead.
 const HOOK_EVENTS = {
   SessionStart: ["SessionStart"],
   UserPromptSubmit: ["UserPromptSubmit"],
@@ -46,6 +47,10 @@ const HOOK_EVENTS = {
   SubagentStart: ["SubagentStart"],
   SubagentStop: ["SubagentStop"],
   SessionEnd: ["SessionEnd"],
+};
+const HOOK_FILES = {
+  "hooks.json": ["Interrupt"],
+  "codex.json": ["Notification", "PostToolUseFailure", "StopFailure"],
 };
 
 const PROVIDER_NAME =
@@ -340,7 +345,7 @@ test("the plugin manifests agree with each other and the repository", () => {
     const manifest = json(path.join(PLUGIN, harness, "plugin.json"));
     assert.equal(manifest.name, "atlas", `${harness}: name`);
     assert.equal(manifest.version, version, `${harness}: version`);
-    for (const field of ["skills", "mcpServers"])
+    for (const field of ["skills", "mcpServers", "hooks"])
       if (manifest[field])
         assert.ok(
           existsSync(path.join(PLUGIN, manifest[field])),
@@ -375,17 +380,26 @@ test("the plugin manifests agree with each other and the repository", () => {
 });
 
 test("the plugin's hooks are the ones Atlas handles", () => {
-  const { hooks } = json(path.join(PLUGIN, "hooks", "hooks.json"));
-  assert.deepEqual(Object.keys(hooks).sort(), Object.keys(HOOK_EVENTS).sort());
-  for (const [event, names] of Object.entries(HOOK_EVENTS)) {
-    const commands = hooks[event].flatMap((group) =>
-      group.hooks.map((hook) => hook.command),
+  assert.equal(
+    json(path.join(PLUGIN, ".codex-plugin", "plugin.json")).hooks,
+    "./hooks/codex.json",
+  );
+  for (const [file, lacks] of Object.entries(HOOK_FILES)) {
+    const { hooks } = json(path.join(PLUGIN, "hooks", file));
+    const events = Object.keys(HOOK_EVENTS).filter(
+      (event) => !lacks.includes(event),
     );
-    assert.deepEqual(
-      commands,
-      names.map((name) => `atlas hook ${name}`),
-      `${event}: runs ${names.join(" and ")}`,
-    );
+    assert.deepEqual(Object.keys(hooks).sort(), events.sort(), file);
+    for (const event of events) {
+      const commands = hooks[event].flatMap((group) =>
+        group.hooks.map((hook) => hook.command),
+      );
+      assert.deepEqual(
+        commands,
+        HOOK_EVENTS[event].map((name) => `atlas hook ${name}`),
+        `${file}: ${event}: runs ${HOOK_EVENTS[event].join(" and ")}`,
+      );
+    }
   }
   assert.match(
     read(path.join(REPO, "packages", "atlas", "src", "cli", "main.ts")),

@@ -12,6 +12,7 @@ import { normalizedLocation, readDocument } from '../reading/planning.ts';
 import { harnessSessions, measureSession, sessionLogs, transcriptLogs, type Harness, type LogOptions, type SessionCandidate, type SessionMeasure } from './sessionLog.ts';
 import { createReport, fitStep, insertReport, storedReports, StatisticsReportError, type Measured, type ReportInput, type StatisticsReport } from './statistics.ts';
 import { projectOf, withDatabaseAsync } from '../home/database.ts';
+import { atlasHome } from '../home/homePath.ts';
 import type { WorkStage } from '../types.ts';
 
 /** `project`: the name of the project the report was recorded under. */
@@ -103,7 +104,8 @@ export async function prepareWorkReport(inputRoot: string, workId: string, input
       const started = startedAt <= at.getTime() ? new Date(startedAt).toISOString() : null;
       since = [previous?.at ?? null, started].filter((value): value is string => value !== null).sort().at(-1) ?? null;
       // A hook runs inside the session; so does a report naming the session the environment names.
-      measure = await measureSession(logs, { since: since === null ? null : Date.parse(since), at: at.getTime(), live: transcript !== null || own.some(entry => entry.session === logs.requested) });
+      // Each log is read on from where the home's last measurement of it stopped (sessionState.ts prunes them).
+      measure = await measureSession(logs, { since: since === null ? null : Date.parse(since), at: at.getTime(), live: transcript !== null || own.some(entry => entry.session === logs.requested), cache: path.join(atlasHome(options.atlasHome), 'cache', 'session-logs') });
     } catch (error) {
       failure = (error instanceof Error ? error.message : String(error)).replace(/\.$/, '');
       warnings.push('Agent time and tokens were not measured: ' + failure + '.');

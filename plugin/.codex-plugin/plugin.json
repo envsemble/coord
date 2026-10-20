@@ -9,6 +9,7 @@
   "keywords": ["planning", "plans", "ledger"],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
+  "hooks": "./hooks/codex.json",
   "interface": {
     "displayName": "Atlas",
     "shortDescription": "Plans, ledgers and work statistics for agents",

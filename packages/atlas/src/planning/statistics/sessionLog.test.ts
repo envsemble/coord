@@ -407,3 +407,49 @@ test('when both harnesses name a session, the one whose log was written last is 
   utimesSync(file, new Date(at(-900)), new Date(at(-900)));
   assert.equal((await sessionLogs(both, { environment, home }))?.harness, 'claude-code');
 });
+
+test('a log read on from where the last measurement left it measures as reading it whole does, as it grows mid-line or is rewritten', async t => {
+  const { claudeSession, rollout, environment, home, root } = folders(t);
+  const cache = path.join(root, 'cursors');
+  const asks = (minutes: number) => ({ type: 'assistant', message: { model: 'claude-opus-5-5', id: 'msg_ask', role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_q', name: 'AskUserQuestion', input: {} }], usage: usage(1, 1) }, timestamp: iso(minutes) });
+  const answered = (minutes: number) => ({ type: 'user', message: { role: 'user', content: [{ tool_use_id: 'toolu_q', type: 'tool_result', content: 'placeholder' }] }, timestamp: iso(minutes) });
+  // Claude Code: a question answered later, a response written as two lines, a compaction, and
+  // earlier lines written again (a resumed conversation), out of time order.
+  const claudeLines = jsonl([
+    claude.prompt(0), asks(1), answered(20), claude.response(21, 'msg_2', 'claude-opus-5-5', usage(5, 5), null), claude.response(22, 'msg_2', 'claude-opus-5-5', usage(5, 50)),
+    claude.result(25), claude.compaction(30, 60000, 'auto'), claude.prompt(5), claude.response(6, 'msg_old', 'claude-opus-5-5'),
+    claude.response(40, 'msg_3', 'claude-opus-5-5', undefined, 'end_turn'), claude.prompt(50), claude.response(55, 'msg_4', 'claude-sonnet-5-5'),
+  ]);
+  claudeSession([]);
+  const claudeFile = path.join(environment.CLAUDE_CONFIG_DIR, 'projects', 'C--work-example', session + '.jsonl');
+  const question = (minutes: number, call: string) => ({ timestamp: iso(minutes), ordinal: 7, type: 'response_item', payload: { type: 'function_call', name: 'request_user_input', arguments: '{}', call_id: call } });
+  const answer = (minutes: number, call: string) => ({ timestamp: iso(minutes), ordinal: 8, type: 'response_item', payload: { type: 'function_call_output', call_id: call, output: '{}' } });
+  const codexLines = jsonl([
+    codex.meta(thread), codex.started(0, 't1'), codex.context(0, 't1', 'gpt-6.1-sol'), codex.tokens(2, 1000, 800, 50), question(5, 'call_1'), answer(30, 'call_1'),
+    codex.tokens(31, 3000, 2600, 90), codex.complete(40, 't1'), codex.started(45, 't2'), codex.context(45, 't2', 'gpt-5-codex'), codex.tokens(50, 4000, 3000, 100),
+  ]);
+  const codexFile = rollout(thread, []);
+  for (const [harness, file, text] of [['claude-code', claudeFile, claudeLines], ['codex', codexFile, codexLines]] as const) {
+    const logs = harness === 'codex' ? await sessionLogs([{ harness, session: thread }], { environment, home }) : await sessionLogs([{ harness, session }], { environment, home });
+    assert.ok(logs);
+    const same = async (what: string) => {
+      for (const [since, until, live] of [[-1, 60, true], [10, 60, false], [null, 60, false]] as const) {
+        const interval = { since: since === null ? null : at(since), at: at(until), live };
+        // A log with nothing to read yet fails alike.
+        const outcome = (cached: boolean): Promise<unknown> => measureSession(logs, cached ? { ...interval, cache } : interval).catch((error: Error) => error.message);
+        assert.deepEqual(await outcome(true), await outcome(false), `${harness}, ${what}, since ${since}`);
+      }
+    };
+    writeFileSync(file, '');
+    // Seven cuts, mostly mid-line: each read goes on from the last one's cursor.
+    for (let cut = 1, written = 0; cut <= 7; cut++) {
+      const until = Math.round(text.length * cut / 7);
+      appendFileSync(file, text.slice(written, until));
+      written = until;
+      await same('cut ' + cut);
+    }
+    // A log rewritten shorter than its cursor is read from its start again.
+    writeFileSync(file, text.slice(0, text.indexOf('\n', text.length / 2) + 1));
+    await same('rewritten');
+  }
+});

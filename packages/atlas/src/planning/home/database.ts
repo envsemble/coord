@@ -46,6 +46,12 @@ const schema = `CREATE TABLE setting (key TEXT PRIMARY KEY, value TEXT NOT NULL)
     id INTEGER PRIMARY KEY, session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE, project_id INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
     work_id TEXT NOT NULL, linked_at TEXT NOT NULL, amending INTEGER NOT NULL DEFAULT 0, amended_at TEXT, touched_at TEXT NOT NULL, focused_at TEXT,
     UNIQUE (session_id, project_id, work_id));
+  -- A work item a session left whose report is not measured yet: from since to when it left (at), as
+  -- planning when it was amending the accepted plan; the session's next turn end measures it.
+  CREATE TABLE session_leave (
+    id INTEGER PRIMARY KEY, link INTEGER NOT NULL REFERENCES session_work(id) ON DELETE CASCADE, since TEXT NOT NULL, at TEXT NOT NULL,
+    amending INTEGER NOT NULL DEFAULT 0);
+  CREATE INDEX session_leave_link ON session_leave(link);
   -- A session's waits for the person, each with the work item it was on (ended_at null while it waits).
   CREATE TABLE session_wait (
     id INTEGER PRIMARY KEY, session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE, project_id INTEGER REFERENCES project(id) ON DELETE CASCADE,

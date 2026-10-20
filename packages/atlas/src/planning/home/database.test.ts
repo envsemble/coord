@@ -22,7 +22,7 @@ const tables = (database: HomeDatabase) => (database.db.prepare("SELECT name FRO
 test('the database is created with the schema, and one of another version is refused', t => {
   const home = temporary(t);
   withDatabase(home, database => {
-    assert.deepEqual(tables(database), ['connection', 'device', 'place', 'project', 'report_effort', 'report_interval', 'report_model', 'report_subagent', 'session', 'session_agent', 'session_product', 'session_wait', 'session_work', 'setting', 'window', 'work_report']);
+    assert.deepEqual(tables(database), ['connection', 'device', 'place', 'project', 'report_effort', 'report_interval', 'report_model', 'report_subagent', 'session', 'session_agent', 'session_leave', 'session_product', 'session_wait', 'session_work', 'setting', 'window', 'work_report']);
     assert.equal(Number((database.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version), schemaVersion);
     assert.equal((database.db.prepare('PRAGMA journal_mode').get() as { journal_mode: string }).journal_mode, 'wal');
     database.setSetting('theme', 'dark');

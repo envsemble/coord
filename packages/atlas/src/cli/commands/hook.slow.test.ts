@@ -2,10 +2,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { withDatabase } from '../../planning/index.ts';
-import { atlas, command, homeWithPlanning } from '../testing.ts';
+import { atlas, command, environment, homeWithPlanning, temporary, write } from '../testing.ts';
 
 const session = '0b6c3c9e-5a1f-4d2b-9a7e-1f2e3d4c5b6a';
 
@@ -32,4 +32,15 @@ test('hooks of one session running at once keep each other\'s links', async t =>
 test('a hook process given bad input exits 0 and prints nothing', t => {
   const { env } = homeWithPlanning(t);
   assert.deepEqual(Object.values(atlas(['hook', 'SessionStart'], { env, input: 'not json' })), [0, '', '']);
+});
+
+test('a PostToolUse with nothing to do is answered before the hook loads; one that edits a planning file is not', t => {
+  const home = path.join(temporary(t), 'home'), env = { ...environment, ATLAS_HOME: home };
+  write(path.join(home, 'planning', 'shop', 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Shop', folders: [], work_items: [] }));
+  const edit = (file: string) => atlas(['hook', 'PostToolUse'], { env, input: JSON.stringify({ session_id: session, cwd: home, tool_name: 'Edit', tool_input: { file_path: file } }) });
+  // The hook itself would open the home database; answered early, nothing is.
+  assert.deepEqual(Object.values(edit(path.join(home, 'src.ts'))), [0, '', '']);
+  assert.ok(!existsSync(path.join(home, 'atlas.db')));
+  assert.equal(edit('planning/shop/notes.md').status, 0);
+  assert.ok(existsSync(path.join(home, 'atlas.db')));
 });

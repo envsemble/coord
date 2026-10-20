@@ -113,9 +113,10 @@ test('hooks give the session its planning context, check and link planning edits
   const activity = () => withDatabase(base.ATLAS_HOME!, database => [...database.workActivity().values()].flat().map(item => [item.workId, item.state]));
   assert.deepEqual(activity(), [['work-0003', 'working']]);
 
-  // A session is on the work item it touched last: moving on recorded the report of the one it left,
-  // up to then (each since the session came to it); Stop records the report of the one it is on,
-  // measured from the session's log, and clears amending for the edits it counted.
+  // A session is on the work item it touched last: moving on leaves the report of the one it left,
+  // up to then (each since the session came to it), to the turn's end; Stop records those and the
+  // report of the one it is on, measured from the session's log, and clears amending for the edits it counted.
+  assert.deepEqual(['work-0001', 'work-0002'].map(workId => reportsIn(root, workId, base.ATLAS_HOME!).length), [0, 0]);
   const spent = { input_tokens: 1, cache_creation_input_tokens: 2, cache_read_input_tokens: 3, output_tokens: 4 };
   const responded = Date.now();
   appendFileSync(transcript, JSON.stringify({ type: 'assistant', message: { id: 'msg_2', model: 'claude-opus-5-5', role: 'assistant', content: [], stop_reason: 'end_turn', usage: spent }, timestamp: new Date(responded).toISOString() }) + '\n');
@@ -232,6 +233,18 @@ test('a stop clears amending only for edits its report counted', async t => {
   amended(new Date(Date.now() - 1000).toISOString());
   await stop();
   assert.equal(linksIn(base.ATLAS_HOME!)[0].amending, false, 'the report counted the edit');
+});
+
+test('a Stop and a SubagentStop at once report the work item once', async t => {
+  const { root, checkout, directory, env: base } = homeWithPlanning(t);
+  const config = path.join(directory, 'claude');
+  const transcript = claudeLog(config);
+  const env = { ...base, CLAUDE_CONFIG_DIR: config };
+  const input = (event: string, extra: object = {}) => JSON.stringify({ session_id: session, transcript_path: transcript, cwd: checkout, hook_event_name: event, ...extra });
+  await runHook('PostToolUse', input('PostToolUse', { tool_name: 'Write', tool_input: { file_path: path.join(root, 'active', '0001-cart', 'plan.md') } }), env);
+  // Both measure from the link; the one that records second finds the other's report and leaves it at that.
+  await Promise.all([runHook('Stop', input('Stop'), env), runHook('SubagentStop', input('SubagentStop', { agent_id: 'a1' }), env)]);
+  assert.equal(reportsIn(root, 'work-0001', base.ATLAS_HOME!).length, 1);
 });
 
 test('a session in a folder that several projects cover is told to ask which one to plan in', async t => {

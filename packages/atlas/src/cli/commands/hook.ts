@@ -11,12 +11,19 @@
 //
 // A session is on one work item at a time, the one it last edited or called an Atlas tool on: its
 // state, live time and reports count there. When it moves to another, the one it leaves gets a
-// report up to then. The hooks that only record its state (sessionState.ts) run on every tool call.
+// report up to then, measured at the session's next turn end, so the edit that moved it is not held
+// up. The hooks that only record its state (sessionState.ts) run on every tool call; bin/atlas.js
+// answers a PostToolUse with nothing to do (no Atlas tool, no planning file) before this file loads.
+// Only what each event needs is loaded: checking, measuring and the session's context load on use.
 import { statSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { checkPaths, findPlanning, HomeDatabase, homePlanningDirectory, insertReport, liveWindowMs, logTail, parseFrontmatter, prepareWorkReport, projectOf, resolvePlanningFolder, type PreparedReport, type Whereabouts } from '../../planning/index.ts';
+import { HomeDatabase, liveWindowMs, projectOf } from '../../planning/home/database.ts';
+import { homePlanningDirectory } from '../../planning/home/storage.ts';
 import { atlasHome } from '../../planning/home/homePath.ts';
+import type { Whereabouts } from '../../planning/projects/resolve.ts';
+import type { insertReport } from '../../planning/statistics/statistics.ts';
+import type { PreparedReport } from '../../planning/statistics/workReport.ts';
 import type { Output } from '../args.ts';
 import { logFailure, pruneStamps, recordActivity, recordAgent, recordSession, sessionPattern, stateEvents, stateHook, stopAgent, type Activity, type ActivityDetails } from './sessionState.ts';
 
@@ -69,7 +76,7 @@ const recordState = (database: HomeDatabase, home: string, links: SessionLinks, 
  * it with Stop; else the end of a Claude Code log) and the session's latest title, from the log's end.
  */
 async function turnEnd(input: HookInput, transcriptPath: string | null): Promise<{ message: string | null; title: string | null }> {
-  const tail = transcriptPath ? await logTail(transcriptPath) : { message: null, title: null };
+  const tail = transcriptPath ? await (await import('../../planning/statistics/sessionLog.ts')).logTail(transcriptPath) : { message: null, title: null };
   const given = typeof input.last_assistant_message === 'string' && input.last_assistant_message.trim() ? input.last_assistant_message : null;
   return { message: given ?? tail.message, title: tail.title };
 }
@@ -90,20 +97,48 @@ function link(database: HomeDatabase, session: string, projectId: number, workId
  */
 async function prepareReport(home: string, links: SessionLinks, item: Link, at: string, event: string): Promise<PreparedReport | null> {
   try {
+    const { prepareWorkReport } = await import('../../planning/statistics/workReport.ts');
     const prepared = await prepareWorkReport(item.planningFolder, item.workId, { session: links.session, at: new Date(at) }, { amending: item.amending, since: latest(item.linked, item.came), atlasHome: home, ...links.transcriptPath && { transcriptPath: links.transcriptPath } });
     if (prepared.warnings.length) logFailure(home, event, new Error(item.workId + ': ' + prepared.warnings.join(' ')));
     return prepared;
   } catch (error) { logFailure(home, event, error); return null; }
 }
 /**
- * Record a report in the same transaction as what changes with it: the session's time not yet
- * reported counts from the report on, so the report and the live count never both count it; and
- * amending ends for the edits it counted (one made while it was measured is counted by the next).
+ * What a report's end changes besides the report: the session's time not yet reported counts from
+ * then, so the report and the live count never both count it; and amending ends for the edits it
+ * counted (one made while it was measured is counted by the next).
  */
-function recordReport(database: HomeDatabase, session: string, item: Link, prepared: PreparedReport, at: string) {
-  insertReport(database, item.projectId, item.workId, prepared.report);
+function reported(database: HomeDatabase, session: string, item: Link, at: string) {
   database.db.prepare('UPDATE session SET counts_at = ? WHERE id = ? AND (counts_at IS NULL OR counts_at < ?)').run(at, session, at);
   if (item.amending) database.db.prepare('UPDATE session_work SET amending = 0 WHERE id = ? AND (amended_at IS NULL OR amended_at < ?)').run(item.id, at);
+}
+/**
+ * Record a report, unless another hook of the session (a Stop and a SubagentStop at once) reported
+ * the work item since this one was measured from: both measured the same time, which counts once.
+ * Returns whether it was recorded; run in a transaction, which reads what the other hook wrote.
+ */
+function insertOnce(database: HomeDatabase, insert: typeof insertReport, session: string, item: Link, prepared: PreparedReport): boolean {
+  const since = prepared.report.measured?.since ?? latest(item.linked, item.came);
+  if (database.db.prepare('SELECT 1 FROM work_report WHERE project_id = ? AND work_id = ? AND session = ? AND at > ? LIMIT 1').get(item.projectId, item.workId, session, since)) return false;
+  insert(database, item.projectId, item.workId, prepared.report);
+  return true;
+}
+/** Record a report in the same transaction as what changes with it. */
+function recordReport(database: HomeDatabase, insert: typeof insertReport, session: string, item: Link, prepared: PreparedReport, at: string) {
+  if (insertOnce(database, insert, session, item, prepared)) reported(database, session, item, at);
+}
+/**
+ * The work items the session left whose reports are not measured yet (session_leave), oldest
+ * first: each as the link it was then, measured from when it came there to when it left.
+ */
+function leftWork(database: HomeDatabase, session: string): { leave: number; item: Link; at: string }[] {
+  const rows = database.db.prepare(`SELECT session_leave.id AS leave, session_leave.since, session_leave.at, session_leave.amending, session_work.id, session_work.project_id, session_work.work_id, project.folder
+    FROM session_leave JOIN session_work ON session_work.id = session_leave.link JOIN project ON project.id = session_work.project_id
+    WHERE session_work.session_id = ? ORDER BY session_leave.at, session_leave.id`).all(session) as Record<string, unknown>[];
+  return rows.map(row => ({ leave: Number(row.leave), at: String(row.at), item: {
+    id: Number(row.id), projectId: Number(row.project_id), planningFolder: String(row.folder), workId: String(row.work_id), amending: Boolean(row.amending),
+    linked: String(row.since), came: String(row.since), amended: null,
+  } }));
 }
 
 // ---- SessionStart -------------------------------------------------------------------------------
@@ -199,6 +234,7 @@ async function postToolUse(input: HookInput, home: string, links: SessionLinks):
   if (/^mcp__.*atlas.*__(?:work|step)_(?!status$)/.test(input.tool_name ?? '')) {
     const about = toolWork(input);
     if (about) {
+      const { resolvePlanningFolder } = await import('../../planning/projects/resolve.ts');
       const root = about.planningFolder ?? await resolvePlanningFolder({ cwd: input.cwd ?? process.cwd(), home, work: about.workId }).catch(() => null);
       if (root) requests.push({ planningFolder: root, workId: about.workId, amending: false });
     }
@@ -217,6 +253,7 @@ async function postToolUse(input: HookInput, home: string, links: SessionLinks):
   }
   if (!files.length) return { output: null, requests };
   const problems: string[] = [], warnings: string[] = [];
+  const [{ checkPaths }, { parseFrontmatter }] = await Promise.all([import('../../planning/check/checkPaths.ts'), import('../../planning/check/check.ts')]);
   for (const result of await checkPaths(files.map(file => file.absolute))) {
     problems.push(...result.errors.map(message => path.basename(result.planningFolder) + ': ' + message));
     warnings.push(...result.warnings.map(message => path.basename(result.planningFolder) + ': ' + message));
@@ -255,6 +292,7 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
     const agent = typeof input.agent_id === 'string' && sessionPattern.test(input.agent_id) ? input.agent_id : null;
     if (event === 'SessionStart') {
       pruneStamps(home);
+      const { findPlanning } = await import('../../planning/projects/resolve.ts');
       const context = sessionContext(await findPlanning(input.cwd ?? process.cwd(), { home }));
       return JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: context } });
     }
@@ -265,10 +303,9 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
       const { output, requests } = await postToolUse(input, home, links);
       if (!requests.length) return output ? JSON.stringify(output) : '';
       const projects = await Promise.all(requests.map(request => projectOf(database!, request.planningFolder)));
-      // The session is on the last work item it touched; the one it leaves gets its report up to now.
+      // The session is on the last work item it touched; the one it leaves gets its report up to now, at the turn's end.
       const target = requests.at(-1)!, targetProject = projects.at(-1)!.id;
       const left = links.on && !(links.on.projectId === targetProject && links.on.workId === target.workId) ? links.on : null;
-      const report = left && await prepareReport(home, links, left, at, event);
       database.transaction(() => {
         recordSession(database!, session, harnessOf(transcriptPath), transcriptPath, at, typeof input.cwd === 'string' ? input.cwd : null);
         const rows = requests.map((request, index) => link(database!, session, projects[index].id, request.workId, request.amending, at));
@@ -277,8 +314,12 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
           database!.db.prepare('UPDATE session SET focus = ? WHERE id = ?').run(rows.at(-1)!, session);
           if (left || !links.on) database!.db.prepare('UPDATE session_work SET focused_at = ? WHERE id = ?').run(at, rows.at(-1)!);
         }
-        // Another hook of the session that moved it on meanwhile reported the work item it left.
-        if (left && report && focus === links.focus) recordReport(database!, session, left, report, at);
+        // The work item it left is measured up to now at the session's next turn end, and its time not
+        // yet reported counts from now on. Another hook of the session that moved it on meanwhile left it.
+        if (left && focus === links.focus) {
+          database!.db.prepare('INSERT INTO session_leave (link, since, at, amending) VALUES (?, ?, ?, ?)').run(left.id, latest(left.linked, left.came), at, left.amending ? 1 : 0);
+          reported(database!, session, left, at);
+        }
         // A subagent's edit says it is at work; the main agent's state stays as it is.
         if (agent) recordAgent(database!, home, session, agent, typeof input.agent_type === 'string' ? input.agent_type.slice(0, 100) : null, at, liveWindowMs);
         else recordState(database!, home, links, 'tool', at, { cwd: typeof input.cwd === 'string' ? input.cwd : null });
@@ -292,10 +333,19 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
       recordState(database, home, links, 'stop', at, { cwd: typeof input.cwd === 'string' ? input.cwd : null, message: end.message });
       if (end.title) database.db.prepare('UPDATE session SET title = ? WHERE id = ?').run(end.title, session);
     }
-    if (!links.on) return '';
-    const report = await prepareReport(home, links, links.on, at, event);
+    // The work items the session left since are reported first, each up to when it left it.
+    const left = leftWork(database, session);
+    if (!links.on && !left.length) return '';
+    const { insertReport } = await import('../../planning/statistics/statistics.ts');
+    const reports = await Promise.all(left.map(entry => prepareReport(home, links, entry.item, entry.at, event)));
+    const report = links.on && await prepareReport(home, links, links.on, at, event);
     database.transaction(() => {
-      if (report) recordReport(database!, session, links.on!, report, at);
+      // A leave another hook of the session reported meanwhile is gone; one that could not be measured is let go.
+      left.forEach((entry, index) => {
+        const prepared = reports[index];
+        if (database!.db.prepare('DELETE FROM session_leave WHERE id = ?').run(entry.leave).changes && prepared) insertOnce(database!, insertReport, session, entry.item, prepared);
+      });
+      if (report) recordReport(database!, insertReport, session, links.on!, report, at);
       // A subagent stopping only says the session is still seen.
       if (event === 'SubagentStop') {
         recordState(database!, home, links, null, at);
@@ -309,12 +359,12 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
   } finally { database?.close(); }
 }
 
-export async function hook(args: string[], out: Output) {
-  const at = new Date().toISOString();
+/** Run `atlas hook <event>` on its input (read from stdin unless bin/atlas.js read it already); `at` is when it started. */
+export async function hook(args: string[], out: Output, input: string | null = null, at = new Date().toISOString()) {
   try {
     const event = args[0] ?? '';
-    let text = '';
-    if (!process.stdin.isTTY) for await (const chunk of process.stdin) text += chunk;
+    let text = input ?? '';
+    if (input === null && !process.stdin.isTTY) for await (const chunk of process.stdin) text += chunk;
     const output = await runHook(event, text, process.env, at);
     if (output) out.stdout(output);
   } catch (error) { logFailure(atlasHome(), args[0] ?? '', error); }

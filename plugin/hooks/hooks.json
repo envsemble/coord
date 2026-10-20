@@ -14,7 +14,6 @@
     "PermissionRequest": [{ "hooks": [{ "type": "command", "command": "atlas hook PermissionRequest", "timeout": 30, "async": true }] }],
     "Stop": [{ "hooks": [{ "type": "command", "command": "atlas hook Stop", "timeout": 60 }] }],
     "StopFailure": [{ "hooks": [{ "type": "command", "command": "atlas hook StopFailure", "timeout": 60 }] }],
-    "Interrupt": [{ "hooks": [{ "type": "command", "command": "atlas hook Interrupt", "timeout": 3 }] }],
     "SubagentStart": [{ "hooks": [{ "type": "command", "command": "atlas hook SubagentStart", "timeout": 30, "async": true }] }],
     "SubagentStop": [{ "hooks": [{ "type": "command", "command": "atlas hook SubagentStop", "timeout": 60 }] }],
     "SessionEnd": [{ "hooks": [{ "type": "command", "command": "atlas hook SessionEnd", "timeout": 3 }] }]
