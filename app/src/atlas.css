@@ -292,10 +292,8 @@ body { margin: 0; }
 /* A plan's sessions, each by its title, then its harness, model and effort, state, when and agent time. */
 .about-sessions { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; font-size: var(--font-size-body-small); }
 .about-session { display: flex; align-items: flex-start; gap: var(--space-2); }
-.about-session > :first-child { flex: none; margin-block-start: 0.125rem; }
-.about-session-text { display: grid; flex: 1; min-inline-size: 0; }
+.about-session > .status-icon { flex: none; margin-block-start: 0.125rem; }
 .about-session-title { overflow-wrap: anywhere; }
-.session-ended-icon { inline-size: 1.125rem; block-size: 1.125rem; padding: 0.375rem; color: var(--color-tone-neutral); }
 .about-more { justify-self: start; }
 .about-statistics-link { justify-self: start; font-size: var(--font-size-body-small); }
 .facts { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-4); margin: 0; font-size: var(--font-size-body-small); }

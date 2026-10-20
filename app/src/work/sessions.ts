@@ -5,7 +5,6 @@ import type { Work, WorkSession, WorkTimeline } from '../types';
 import { duration } from '../ui/format';
 
 export const harnessNames: Record<WorkSession['harness'], string> = { 'claude-code': 'Claude Code', codex: 'Codex', unknown: 'Agent' };
-export const sessionStates: Record<WorkSession['state'], string> = { working: 'Working', waiting: 'Needs you', ended: 'Ended' };
 
 const hour = 3600000, day = 24 * hour;
 /** A stage's length as people say it: minutes, hours under a day, else days ("4 days"). */

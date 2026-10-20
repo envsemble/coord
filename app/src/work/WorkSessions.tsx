@@ -7,15 +7,14 @@ import { Markdown } from '@envsemble/envui/content';
 import type { WorkProduct, WorkSession, WorkTimeline } from '../types';
 import { api } from '../api';
 import { ModelName } from '../ui/AiModel';
-import { absoluteDate, duration, relativeDate } from '../ui/format';
-import { DotIcon } from '../ui/icons';
+import { absoluteDate, relativeDate } from '../ui/format';
 import { statuses } from '../ui/status';
 import { StatusIcon } from '../ui/ui';
 import { useWorkbench } from '../workbench/workbenchContext';
 import { ReferenceLink, ReferencesContext, useCollectedReferences, useResolvedReferences } from '../workbench/ReferenceLink';
 import { rehypeReferences, wholeReference, type Found } from '../workbench/references';
 import type { Plugins } from '../workbench/Reader';
-import { excerpt, harnessNames, sessionStates } from './sessions';
+import { excerpt, harnessNames } from './sessions';
 import type { LiveActivity } from './agentTime';
 
 /** What changes when the plan's activity does: the sessions' states and since when. */
@@ -56,18 +55,15 @@ export const sessionTitle = (session: Pick<WorkSession, 'title' | 'harness' | 's
 const shown = 5;
 
 /**
- * The plan's sessions, the latest first: each by its title, then quietly its harness, model and
- * effort, its state, when it was last active and its agent time.
+ * The plan's sessions, the latest first: the names of the chats that worked on it, with an indicator
+ * while one is working. Their models, times and tokens are in the statistics below.
  */
 export function SessionsList({ sessions }: { sessions: WorkSession[] }) {
   const [all, setAll] = useState(false);
   return <>
     <ul className="about-sessions">{(all ? sessions : sessions.slice(0, shown)).map(session => <li key={session.session} className="about-session" data-state={session.state}>
-      {session.state === 'ended' ? <DotIcon className="session-ended-icon" label="Ended" /> : <StatusIcon status={statuses[session.state]} />}
-      <div className="about-session-text">
-        <span className="about-session-title">{sessionTitle(session)}</span>
-        <span className="muted"><SessionLabel session={session} /> · {sessionStates[session.state]} · <span title={absoluteDate(session.lastSeen)}>{relativeDate(session.lastSeen)}</span>{session.agentMs > 0 && ' · ' + duration(session.agentMs)}</span>
-      </div>
+      <span className="about-session-title">{sessionTitle(session)}</span>
+      {session.state === 'working' && <StatusIcon status={statuses.working} />}
     </li>)}</ul>
     {sessions.length > shown && <Button variant="text" className="about-more" onClick={() => setAll(!all)}>{all ? 'Show fewer' : 'Show all ' + sessions.length}</Button>}
   </>;
