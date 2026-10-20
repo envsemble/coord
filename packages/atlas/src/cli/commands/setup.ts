@@ -1,5 +1,5 @@
 // `atlas setup`: make Atlas part of every agent session on this computer. It creates the Atlas home
-// and its database (or brings the database up to date), grants the home to Claude Code
+// and its database, grants the home to Claude Code
 // (permissions.additionalDirectories) and Codex ([sandbox_workspace_write] writable_roots) so agents
 // can edit planning prose from any checkout, and installs the Atlas plugin into each harness on PATH
 // through the harness's own commands. Running it again changes nothing. --dry-run only says what it
@@ -319,7 +319,7 @@ export async function setup(args: string[], out: Output, environment: NodeJS.Pro
   else {
     await prepareHome({ environment, home: user });
     out.stdout(`Atlas home: ${home}`);
-    // Opening the database creates it, or brings it up to date.
+    // Opening the database creates it; one of another schema version is refused.
     try { HomeDatabase.open(home).close(); }
     catch (error) { failed = true; out.stderr(`atlas: the Atlas home's database could not be opened: ${(error as Error).message}`); }
   }

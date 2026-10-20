@@ -15,7 +15,7 @@ Orders keep their lines and the address they ship to.
 [Order model](diagrams/orders.puml)
 ```
 
-A fragment names one element, which the card shows as a chip and the viewer focuses: `[the order](diagrams/orders.puml#Order)`. It is the element's PlantUML name, or a class's display name, URL-encoded (`#Order%20Item`). Any document of the work item can link its diagrams this way: the plan, the ledger, the glossary or a decision record. A diagram's history is its file's history in the planning folder's Git.
+A fragment names one element, which the card shows as a chip and the viewer focuses: `[the order](diagrams/orders.puml#Order)`. It is the element's PlantUML name, or a class's display name, URL-encoded (`#Order%20Item`). Any Markdown document of the work item can link its diagrams this way, such as the plan or the glossary; `atlas check` warns about a diagram no document links. A diagram's history is its file's history in the planning folder's Git.
 
 ## The subset
 
@@ -169,11 +169,11 @@ Any other `' atlas` word is an error, so a typo is caught; write remarks as plai
 The subset has no notes, so a description is how a diagram says what an element or member is for:
 
 ```plantuml
-' atlas description A tab of a window, showing something of one project.
-entity tab {
+' atlas description A place a window shows: a project's plans, a plan, a diagram or a file.
+entity place {
   *id : integer <<PK>>
   --
-  ' atlas description Empty for a project page.
+  ' atlas description Empty for a project's plans.
   target : text
 }
 ```
@@ -234,7 +234,7 @@ Several proposals of one capture are alternatives, for when the agent is not sur
 
 ## Before and after
 
-`atlas-implement` captures when implementation starts and again at its end, so the work item shows the system before and after:
+When a work item's diagrams include captures, `atlas-implement` captures again when implementation starts and at its end, so the work item shows the system before and after:
 
 ```sh
 atlas capture capture.json --work work-0012 --name before
@@ -248,7 +248,7 @@ atlas capture capture.json --work work-0012 --name after --compares before.puml
 
 A scenario is an object diagram of example instances that says whether it should hold against a class diagram: `' atlas scenario ../enrollment.puml expected valid` (or `invalid`). Each object names its classes, its slots are attributes of those classes, and each link is labelled with the name of the relation it instantiates. `atlas check` assesses the scenario and reports one that does not turn out as expected.
 
-The assessment counts an object as an instance of its classes, of everything they inherit and of the interfaces they implement, requires an object of an abstract class or an interface to be an instance of a concrete class too, and checks every relation's multiplicities at both ends for the objects shown. It is a closed-world check of the instances listed, not a proof that the model is right. A relation without counts or a dependency cannot be assessed; such a scenario is a warning, not an error. A class diagram shows its scenarios, assessed, in the viewer's guide.
+The assessment counts an object as an instance of its classes, of everything they inherit and of the interfaces they implement, requires an object of an abstract class or an interface to be an instance of a concrete class too, and checks every relation's multiplicities at both ends for the objects shown. It is a closed-world check of the instances listed, not a proof that the model is right. A relation without counts or a dependency cannot be assessed; such a scenario is a warning, not an error. A class diagram shows its scenarios, assessed, under **Understand the model** in the viewer.
 
 ## In the viewer
 

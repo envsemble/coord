@@ -44,7 +44,7 @@ Both JSON elements are inert data; every `<` in them is written as the JSON esca
 }
 ```
 
-`files` lists every file of the work folder by work-folder-relative POSIX path, sorted, its diagram files (`*.puml`) among them; a diagram's revisions are its Git history. It leaves out hidden files, `node_modules`, symbolic links and empty folders; export lists anything skipped as a warning. `currentPlan` is the registered main plan, `plan.md`, relative to the work folder. An export carries no repositories or local checkout paths. Git history is not exported.
+`files` lists every file of the work folder by work-folder-relative POSIX path, sorted, its diagram files (`*.puml`) among them; a diagram's revisions are its Git history. It leaves out hidden files, `node_modules`, symbolic links and empty folders; export lists anything skipped as a warning. `currentPlan` is the registered main plan, `plan.md`, relative to the work folder. Every export carries `plan.md` and `ledger.md`, and an import refuses a file without them. An export carries no repositories or local checkout paths. Git history is not exported.
 
 Text in the manifest (title, planning folder, paths) may not contain control characters, so it cannot rewrite a terminal when it is shown.
 
@@ -52,7 +52,7 @@ Exports above 50 MB are written with a warning. A work folder may hold at most 3
 
 ## Viewer
 
-The viewer looks like the Atlas app: the work page with its status, its Plan, Ledger, Diagrams and Files sections (with the theme) in one switcher at the top left, and the About sidebar. Markdown renders with envUI's styles, as in the app, including the diagram cards under the headings a model explains. Diagrams use the shared React viewer and stay interactive; a capture and its proposals are laid out together, so switching among them keeps everything in place. Every file can be downloaded.
+The viewer shows the work item in the Atlas app's style: its status, its Plan, Ledger, Diagrams and Files sections in one switcher at the top left with the theme, and a sidebar with its progress, handoffs and details. Markdown renders with envUI's styles, as in the app, including the diagram cards under the headings a diagram explains. Diagrams use the shared React viewer and stay interactive; a capture and its proposals are laid out together, so switching among them keeps everything in place. Every file can be downloaded.
 
 Embedded content is displayed, never executed. Raw HTML in Markdown is left out. Links work only between exported files or to explicit `http`/`https` addresses, which open in a new tab when clicked. Images show only when they are exported files. HTML and other text attachments show as source, and images (including SVG) are shown through `<img>`, where they cannot run scripts. The page makes no network requests when it opens.
 
