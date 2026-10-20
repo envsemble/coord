@@ -19,7 +19,7 @@ Plan when the user is designing something, or asks for work whose requirements, 
 
 ## Interview and record
 
-Find facts yourself; put only genuine decisions to the user, with your recommendation, and wait. Settled answers stay settled. [Domain modeling](references/DOMAIN-MODELING.md) keeps the language sharp and links the [glossary](references/CONTEXT-FORMAT.md) and [ADR](references/ADR-FORMAT.md) formats. When the user asks to be grilled, the questioning runs as [atlas-grill](../atlas-grill/SKILL.md): rounds over a design tree until nothing is left open.
+Find facts yourself; put only genuine decisions to the user, with your recommendation, and wait. Settled answers stay settled. [Domain modeling](../atlas-grill/references/DOMAIN-MODELING.md) keeps the language sharp and links the [glossary](../atlas-grill/references/CONTEXT-FORMAT.md) and [ADR](../atlas-grill/references/ADR-FORMAT.md) formats. When the user asks to be grilled, the questioning runs as [atlas-grill](../atlas-grill/SKILL.md): rounds over a design tree until nothing is left open.
 
 Record as understanding settles, not only at the end:
 
@@ -92,4 +92,4 @@ When the work settles domain concepts, boundaries or data structure, offer a dia
 
 Close with `work_close` once the agreed completion criteria are verified and the outcome is recorded; for PR delivery that means the required PRs merged, unless the work agreed otherwise. Acceptance, implementation, PR readiness, merge and release are separate facts: record pending ones accurately. Unfinished scope stays active, or is explicitly transferred or dropped (`step_remove`, telling the user why). Closing never grants merge or deployment.
 
-The interview and domain-modeling methods are adapted from Matt Pocock's MIT-licensed skills: see [provenance](references/ATTRIBUTION.md) and [the license](references/LICENSE).
+The domain-modeling method and the glossary and ADR formats are [atlas-grill](../atlas-grill/SKILL.md)'s, adapted from Matt Pocock's MIT-licensed skills.

@@ -15,7 +15,7 @@ Before the first round, read what exists: the plan, its glossary and ADRs, its l
 
 ## Walk the design tree in rounds
 
-Follow [the interview method](../atlas/references/INTERVIEW.md) and [domain modeling](../atlas/references/DOMAIN-MODELING.md):
+Follow [the interview method](references/INTERVIEW.md) and [domain modeling](references/DOMAIN-MODELING.md):
 
 - **Map the design as a tree:** every decision branches into the decisions that depend on it.
 - **Ask the frontier each round:** every open decision whose prerequisites are settled, numbered, one decision per question, each with your recommendation and why. A question that depends on another still open waits for a later round. Never invent questions to fill a round.
@@ -32,4 +32,4 @@ After each round, write what settled into the work item as the atlas skill's [In
 
 The grilling ends when the frontier is empty: every relevant branch visited, nothing silently assumed. Reconcile `plan.md` with the final agreement (outcome, scope, decisions, edge cases and completion checks), bring the plan's `summary` up to date, give a short summary with a link to the plan, and ask the user whether they accept it; on yes, record it with `work_accept`, which marks the planning steps done. Acceptance does not start implementation: that is [atlas-implement](../atlas-implement/SKILL.md), when the user asks for it. When the user stops early, record where the design stands and what is still open.
 
-The interview and domain-modeling methods are adapted from Matt Pocock's MIT-licensed skills: see [provenance](../atlas/references/ATTRIBUTION.md) and [the license](../atlas/references/LICENSE).
+The interview and domain-modeling methods are adapted from Matt Pocock's MIT-licensed skills: see [provenance](references/ATTRIBUTION.md) and [the license](references/LICENSE).
