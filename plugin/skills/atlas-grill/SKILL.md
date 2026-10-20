@@ -32,4 +32,4 @@ After each round, write what settled into the work item as the atlas skill's [Re
 
 The grilling ends when the frontier is empty: every relevant branch visited, nothing silently assumed. Reconcile `plan.md` with the final agreement (outcome, scope, decisions, edge cases and completion checks), bring the plan's `summary` up to date, give a short summary with a link to the plan, and ask the user whether they accept it; on yes, record it with `work_accept`, which marks the planning steps done. Acceptance does not start implementation: that is [atlas-implement](../atlas-implement/SKILL.md), when the user asks for it. When the user stops early, record where the design stands and what is still open.
 
-The interview and domain-modeling methods are adapted from Matt Pocock's MIT-licensed skills: see [provenance](references/ATTRIBUTION.md) and [the license](references/LICENSE).
+The interview and domain-modeling methods are adapted from Matt Pocock's [skills](https://github.com/mattpocock/skills), under [the MIT license](references/LICENSE).

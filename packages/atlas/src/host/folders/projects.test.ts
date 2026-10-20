@@ -18,17 +18,18 @@ test('projects are the home\'s planning folders: created from the templates, ren
   assert.deepEqual([summary.active.length, summary.active.filter(item => item.state === 'blocked').length, summary.active.filter(item => item.state === 'implementing').length, summary.updated, summary.activity],
     [3, 1, 1, null, []]);
   assert.ok(summary.active.every(item => item.title), 'each item has its title');
-  // Each item's steps (none without a ledger) and last change, and the closed work with how it ended.
+  // Each item's steps and last change, and the closed work with how it ended.
   assert.deepEqual(summary.active.filter(item => item.id !== 'work-0003').map(item => [item.id, item.steps === null ? null : item.steps.total > 0, item.updated, item.outcome]),
-    [['work-0001', true, '2026-09-30', null], ['work-0002', null, '2026-10-07', null]]);
+    [['work-0001', true, '2026-09-30', null], ['work-0002', true, '2026-10-07', null]]);
   assert.deepEqual(summary.closed.map(item => [item.id, item.state, item.updated, item.outcome]), [['work-0004', 'closed', '2026-09-24', 'complete']]);
   // A session in a turn, linked to a work item, makes it live.
   const database = HomeDatabase.open(data);
   try {
     const project = database.projectByFolder(path.join(data, 'planning', 'planning'))!;
     const now = new Date().toISOString();
-    database.db.prepare('INSERT INTO session (id, harness, transcript_path, started_at, updated_at, working) VALUES (?, ?, NULL, ?, ?, 1)').run('session-1', 'claude-code', now, now);
-    database.db.prepare('INSERT INTO session_work (session_id, project_id, work_id, linked_at) VALUES (?, ?, ?, ?)').run('session-1', project.id, 'work-0001', now);
+    database.db.prepare('INSERT INTO session (id, harness, transcript_path, started_at, updated_at, working, turn_at) VALUES (?, ?, NULL, ?, ?, 1, ?)').run('session-1', 'claude-code', now, now, now);
+    const { lastInsertRowid } = database.db.prepare('INSERT INTO session_work (session_id, project_id, work_id, linked_at, touched_at) VALUES (?, ?, ?, ?, ?)').run('session-1', project.id, 'work-0001', now, now);
+    database.db.prepare('UPDATE session SET focus = ? WHERE id = ?').run(Number(lastInsertRowid), 'session-1');
   } finally { database.close(); }
   assert.deepEqual((await projectNamed(owner.connection)).summary?.activity.map(item => [item.workId, item.state]), [['work-0001', 'working']]);
   // A device creates one: a Git repository in the home with the templates and its name.
@@ -117,7 +118,7 @@ test('the project list has each work item\'s step, completion and statistics fro
     agentMs: 5_400_000, activeMs: 5_400_000, unmergedMs: 5_400_000, tokens: 1500, primaryModel: 'claude-opus', primaryEffort: null, otherModels: 1, planning: { agentMs: 3_600_000, tokens: 1000 }, implementation: { agentMs: 1_800_000, tokens: 500 },
     subagents: 0, lastReport: '2026-10-02T10:00:00.000Z',
   });
-  assert.deepEqual([work('work-0002').statistics, work('work-0002').step, work('work-0001').completed], [null, null, null], 'no reports, no steps (no ledger), open');
+  assert.deepEqual([work('work-0002').statistics, work('work-0002').step?.title, work('work-0001').completed], [null, 'Settle the design', null], 'no reports, the planning step it is on, open');
   assert.equal(work('work-0004').completed, '2026-09-24');
   // A report recorded with nothing else changing reaches clients with the next check, in the list
   // and in the plan's statistics: a session and its subagent, each in full, and the hour at least one worked.

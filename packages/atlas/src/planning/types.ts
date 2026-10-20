@@ -30,10 +30,7 @@ export interface HandoffLink {
   folderId: string | null; project: string; projectName: string; workId: string;
   title: string | null; state: 'blocked' | 'implementing' | 'draft' | 'other' | 'closed' | null; outcome: 'complete' | 'superseded' | 'abandoned' | null;
 }
-/**
- * One agent's working time on a work item: a session's own (subagent null) or one of its subagents'.
- * The subagent `unlisted` stands for the subagents older reports counted without naming them.
- */
+/** One agent's working time on a work item: a session's own (subagent null) or one of its subagents'. */
 export interface AgentUsage { session: string | null; subagent: string | null; model: string | null; effort: string | null; agentMs: number }
 /** Tokens by kind: new input, input read from the prompt cache, input written to it, and output. */
 export interface TokenKinds { input: number; cacheRead: number; cacheWrite: number; output: number }
@@ -67,8 +64,6 @@ export interface StageUsage {
  */
 export interface WorkStatistics {
   reports: number;
-  /** Lines of the statistics file that are not valid reports. */
-  invalid: number;
   /** Most agent time first. */
   models: ModelUsage[];
   /** The model that did most of the work: the most agent time (then tokens, then reports). */
@@ -85,8 +80,8 @@ export interface WorkStatistics {
   agentMs: number;
   /**
    * The time at least one agent was working: the union of every report's working intervals across
-   * sessions and subagents; reports without intervals (estimated, or older ones whose logs are gone)
-   * add their time as is.
+   * sessions and subagents; reports without intervals, such as those estimated from the time
+   * between reports, add their time as is.
    */
   activeMs: number;
   /** Of `activeMs`, the time of reports without intervals, added up rather than merged. */
@@ -99,8 +94,8 @@ export interface WorkStatistics {
   estimatedMs: number;
   /** Reports whose interval was measured from the session log. */
   measuredReports: number;
-  /** Agent time and tokens by stage; reports from before stages were recorded are unknown. */
-  stages: Record<WorkStage | 'unknown', StageUsage>;
+  /** Agent time and tokens by stage. */
+  stages: Record<WorkStage, StageUsage>;
   /** Subagents measured at work: how many (each once), and their busy time added up, each its own. */
   subagents: { count: number; agentMs: number };
   firstReport: string | null;

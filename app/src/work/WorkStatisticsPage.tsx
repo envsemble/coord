@@ -185,7 +185,7 @@ function Headline({ work, live, sessions, timeline }: { work: Work; live: LiveAc
   const line = timelineLine(timeline, work);
   return <div className="stats-grid">
     <StatsCard label="Agent time" value={totals ? <AgentTime totals={totals} activity={live} description={statistics ? agentTimeNote(statistics) : 'Every agent’s working time, added up'} after={statistics ? [measuredSection(statistics)] : []} /> : '—'} note="every agent's time added up" />
-    <StatsCard label="At least one agent working" value={totals ? duration(liveActiveMs(totals.activeMs, live, now, totals.lastReport, liveAgentMs(totals.agentMs, live, now))) : '—'} note={totals?.unmergedMs ? roughDuration(totals.unmergedMs) + ' from older reports added as is' : 'agents working at once count once'} />
+    <StatsCard label="At least one agent working" value={totals ? duration(liveActiveMs(totals.activeMs, live, now, totals.lastReport, liveAgentMs(totals.agentMs, live, now))) : '—'} note={totals?.unmergedMs ? roughDuration(totals.unmergedMs) + ' estimated and added as is' : 'agents working at once count once'} />
     <StatsCard label="Tokens" value={statistics?.tokens != null ? compactNumber(statistics.tokens) : '—'} note={statistics?.tokenKinds ? 'measured from session logs' : statistics?.tokens != null ? 'self-reported' : 'none reported yet'} />
     <StatsCard label="Sessions" value={sessions.length || '—'} note={line ?? undefined} />
   </div>;

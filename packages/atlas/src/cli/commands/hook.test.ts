@@ -54,7 +54,7 @@ test('hooks give the session its planning context, check and link planning edits
   assert.ok(context.includes(`Atlas project "shop-planning" for this folder: planning folder ${root}.`), context);
   assert.match(context, /write PRs and issues as owner\/repo#N and commits as owner\/repo@hash/);
   assert.ok(!context.includes('Several projects'), context);
-  assert.ok(context.includes('- work-0001 "Cart" (draft, not_started): no ledger yet. Plan: ' + path.join(root, 'active', '0001-cart', 'plan.md')), context);
+  assert.ok(context.includes('- work-0001 "Cart" (draft, not_started): No steps agreed yet. Plan: ' + path.join(root, 'active', '0001-cart', 'plan.md')), context);
   assert.match(context, /ask before opening a work item/);
   const elsewhere = temporary(t);
   assert.equal(await contextIn(env, elsewhere), [
@@ -94,9 +94,8 @@ test('hooks give the session its planning context, check and link planning edits
   write(setUp, '# Planning\n');
   assert.equal(await hook('PostToolUse', { tool_name: 'Write', tool_input: { file_path: notes } }), null);
   assert.equal(await hook('PostToolUse', { tool_name: 'Write', tool_input: { file_path: setUp } }), null);
-  // Reading a planning file records nothing.
+  // Reading a planning file does nothing.
   assert.equal(await hook('PostToolUse', { tool_name: 'Read', tool_input: { file_path: plan } }), null);
-  assert.equal(withDatabase(base.ATLAS_HOME!, database => (database.db.prepare('SELECT count(*) AS n FROM document_use').get() as { n: number }).n), 0);
 
   // Codex: apply_patch names its files in the patch, relative to the session's folder.
   assert.equal((await run(['work', 'create', '--title', 'Payments', '--summary', 'Payments by card.', '--planning-dir', root], { env })).status, 0);
@@ -188,7 +187,7 @@ test('hooks give the session its planning context, check and link planning edits
   const timeline = withDatabase(base.ATLAS_HOME!, database => workTimeline(database, project, 'work-0003', { created: null, accepted: null, completed: null }));
   assert.deepEqual([timeline.lanes.map(lane => [lane.session, lane.subagent, lane.waiting.length]), timeline.waitedMs > 0], [[[session, null, 3]], true]);
   assert.ok(!existsSync(path.join(root, 'active', '0001-cart', '.atlas')), 'nothing is written into the planning folder');
-  assert.equal((await run(['planning', 'check', root], { env })).status, 0);
+  assert.equal((await run(['check', root], { env })).status, 0);
 });
 
 test('a session\'s state follows its events: a wait for the person is left out of its time, a long tool call stays in its turn, and a late event changes nothing', () => {

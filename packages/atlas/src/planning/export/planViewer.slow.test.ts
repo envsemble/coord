@@ -25,6 +25,7 @@ function fixture(root: string) {
   mkdirSync(path.join(work, 'evidence'), { recursive: true });
   writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Shop', folders: [], work_items: [{ id: 'work-0001', path: 'active/0001-checkout', current_plan: 'active/0001-checkout/plan.md' }] }, null, 2));
   writeFileSync(path.join(work, 'plan.md'), ['---', 'schema_version: 2', 'kind: plan', 'id: work-0001', 'title: ' + JSON.stringify(hostileTitle), 'created: "2026-10-01"', 'updated: "2026-10-02"', 'design_status: accepted', 'implementation_status: in_progress', 'accepted_at: "2026-10-02"', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', '# Checkout', '', '## Data model', '', '[Orders](orders.puml#Order) have lines. See the [hostile notes](evidence/hostile.md).', ''].join('\n'));
+  writeFileSync(path.join(work, 'ledger.md'), '---\nschema_version: 2\nkind: ledger\nwork_id: work-0001\nupdated: null\nblocked: null\nsteps: []\n---\n');
   writeFileSync(path.join(work, 'evidence/hostile.md'), hostileMarkdown);
   writeFileSync(path.join(work, 'evidence/page.html'), '<!doctype html><script>window.__pwned = "html attachment"</script><p>Attached page</p>');
   writeFileSync(path.join(work, 'evidence/photo.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" onload="window.parent.__pwned=\'svg\'"><script>window.parent.__pwned = "svg script"</script><rect width="10" height="10" fill="red"/></svg>');

@@ -112,7 +112,7 @@ export class FolderRegistry {
     this.known.delete(folderId);
   }
 
-  /** Reports were recorded or measured again: every open folder reads its work's statistics again. */
+  /** Reports were recorded: every open folder reads its work's statistics again. */
   refreshStatistics() {
     for (const entry of this.entries.values()) void entry.started.then(() => entry.session.refreshStatistics());
   }

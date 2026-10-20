@@ -1,5 +1,5 @@
 // The app's own state in the home database (never in a planning folder): each window with its
-// bounds, the computer it shows and the place it shows there (a row of the tab table: something of
+// bounds, the computer it shows and the place it shows there (a row of the place table: something of
 // one project, or the hub or statistics of one project), and the settings every window shares: the
 // theme, the editor files open in and the width the reader gave a diagram's details. Windows stay in the database when Atlas
 // quits, and open again at the next start; a window closed by hand is removed with its places.
@@ -11,18 +11,18 @@ export interface Bounds { x: number; y: number; width: number; height: number }
 export interface WindowRow { id: number; connectionId: string | null; bounds: Bounds; maximized: boolean }
 /**
  * What a window showed of a project: a work item, a diagram or a file, or (`project`) the hub
- * filtered to the project, or with `{"page":"statistics"}` its statistics. Before the hub a window
- * had several of these as tabs; the active one is what it showed.
+ * filtered to the project, or with `{"page":"statistics"}` its statistics. The active one is what
+ * the window shows; the others are what it showed of projects it cannot list now.
  */
-export type TabKind = 'project' | 'work' | 'diagram' | 'file';
+export type PlaceKind = 'project' | 'work' | 'diagram' | 'file';
 /** A saved place: the project row it is of, what it shows, and whether it is the one the window shows. */
-export interface TabRow { projectId: number; kind: TabKind; target: string | null; active: boolean }
+export interface PlaceRow { projectId: number; kind: PlaceKind; target: string | null; active: boolean }
 
 /**
  * A saved place as the window shows it: something of the project, or its hub or its statistics; null
  * when the row cannot be read.
  */
-export function savedPlace(project: string, row: Pick<TabRow, 'kind' | 'target'>): Place | null {
+export function savedPlace(project: string, row: Pick<PlaceRow, 'kind' | 'target'>): Place | null {
   try {
     const saved = row.target ? JSON.parse(row.target) as Record<string, unknown> : {};
     if (row.kind === 'project') return { page: saved.page === 'statistics' ? 'statistics' : 'hub', project };
@@ -33,7 +33,7 @@ export function savedPlace(project: string, row: Pick<TabRow, 'kind' | 'target'>
  * How a place is saved: a row of its project, or none for a page of no project (which loads as the
  * hub). A ledger step the search found is not kept: it is pointed out once.
  */
-export function placeRow(place: Place): { project: string; kind: TabKind; target: string | null } | null {
+export function placeRow(place: Place): { project: string; kind: PlaceKind; target: string | null } | null {
   if (!('page' in place)) {
     const { kind, ...rest } = place.target;
     const { step: _found, ...kept } = rest as typeof rest & { step?: string | null };
@@ -81,8 +81,7 @@ export class DesktopState {
     }));
   }
   addWindow(connectionId: string | null, bounds: Bounds, maximized = false): number {
-    // The sidebar is gone; its column keeps a width for the database's schema.
-    const { lastInsertRowid } = this.database.db.prepare('INSERT INTO "window" (connection_id, x, y, width, height, maximized, sidebar_width) VALUES (?, ?, ?, ?, ?, ?, 280)')
+    const { lastInsertRowid } = this.database.db.prepare('INSERT INTO "window" (connection_id, x, y, width, height, maximized) VALUES (?, ?, ?, ?, ?, ?)')
       .run(connectionId, bounds.x, bounds.y, bounds.width, bounds.height, maximized ? 1 : 0);
     return Number(lastInsertRowid);
   }
@@ -96,9 +95,9 @@ export class DesktopState {
   removeWindow(id: number) { this.database.db.prepare('DELETE FROM "window" WHERE id = ?').run(id); }
 
   /** A window's saved places of the projects of one computer (connectionId null: this one), in their order. */
-  tabs(windowId: number, connectionId: string | null): TabRow[] {
-    return (this.database.db.prepare('SELECT tab.* FROM tab JOIN project ON project.id = tab.project_id WHERE window_id = ? AND project.connection_id IS ? ORDER BY tab.position, tab.id LIMIT ?').all(windowId, connectionId, rowLimit) as Row[])
-      .map(row => ({ projectId: Number(row.project_id), kind: row.kind as TabKind, target: (row.target as string | null) ?? null, active: Boolean(row.active) }));
+  places(windowId: number, connectionId: string | null): PlaceRow[] {
+    return (this.database.db.prepare('SELECT place.* FROM place JOIN project ON project.id = place.project_id WHERE window_id = ? AND project.connection_id IS ? ORDER BY place.position, place.id LIMIT ?').all(windowId, connectionId, rowLimit) as Row[])
+      .map(row => ({ projectId: Number(row.project_id), kind: row.kind as PlaceKind, target: (row.target as string | null) ?? null, active: Boolean(row.active) }));
   }
   /**
    * Replace a window's saved places of the projects whose places it loaded (`loaded`, project rows of
@@ -107,15 +106,15 @@ export class DesktopState {
    * folder) stay, after it, for when they are listed again; so do its places of other computers, for
    * when it shows them again.
    */
-  saveTabs(windowId: number, connectionId: string | null, tabs: TabRow[], loaded: number[]) {
+  savePlaces(windowId: number, connectionId: string | null, places: PlaceRow[], loaded: number[]) {
     this.database.transaction(() => {
       const { db } = this.database;
-      const shown = new Set([...loaded, ...tabs.map(tab => tab.projectId)]);
-      const kept = this.tabs(windowId, connectionId).filter(tab => !shown.has(tab.projectId));
-      db.prepare('DELETE FROM tab WHERE window_id = ? AND project_id IN (SELECT id FROM project WHERE connection_id IS ?)').run(windowId, connectionId);
-      const insert = db.prepare('INSERT INTO tab (window_id, project_id, position, kind, target, active) VALUES (?, ?, ?, ?, ?, ?)');
-      const active = tabs.some(tab => tab.active);
-      [...tabs, ...kept.map(tab => ({ ...tab, active: tab.active && !active }))].slice(0, rowLimit).forEach((tab, index) => insert.run(windowId, tab.projectId, index, tab.kind, tab.target, tab.active ? 1 : 0));
+      const shown = new Set([...loaded, ...places.map(place => place.projectId)]);
+      const kept = this.places(windowId, connectionId).filter(place => !shown.has(place.projectId));
+      db.prepare('DELETE FROM place WHERE window_id = ? AND project_id IN (SELECT id FROM project WHERE connection_id IS ?)').run(windowId, connectionId);
+      const insert = db.prepare('INSERT INTO place (window_id, project_id, position, kind, target, active) VALUES (?, ?, ?, ?, ?, ?)');
+      const active = places.some(place => place.active);
+      [...places, ...kept.map(place => ({ ...place, active: place.active && !active }))].slice(0, rowLimit).forEach((place, index) => insert.run(windowId, place.projectId, index, place.kind, place.target, place.active ? 1 : 0));
     });
   }
 }

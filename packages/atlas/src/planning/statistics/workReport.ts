@@ -4,15 +4,14 @@
 // subagents that log shows since the session's previous report on this work item (or since the
 // session started on it, when the caller knows), with when each agent worked. The report goes into
 // the home database, under the planning folder's project. The registry is read directly, without
-// indexing the whole planning folder, so reporting stays fast. Reports from before working intervals
-// are measured again from their logs, where those are still on this computer (remeasureReports).
+// indexing the whole planning folder, so reporting stays fast.
 import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { ledgerStatus } from '../work/ledger.ts';
 import { normalizedLocation, readDocument } from '../reading/planning.ts';
-import { harnessSessions, measureIntervals, measureSession, sessionLogs, transcriptLogs, type Harness, type LogOptions, type SessionCandidate, type SessionMeasure } from './sessionLog.ts';
-import { createReport, fitStep, insertEfforts, insertIntervals, insertReport, spansMs, storedReports, StatisticsReportError, type Measured, type ReportInput, type StatisticsReport } from './statistics.ts';
-import { projectOf, withDatabaseAsync, type HomeDatabase } from '../home/database.ts';
+import { harnessSessions, measureSession, sessionLogs, transcriptLogs, type Harness, type LogOptions, type SessionCandidate, type SessionMeasure } from './sessionLog.ts';
+import { createReport, fitStep, insertReport, storedReports, StatisticsReportError, type Measured, type ReportInput, type StatisticsReport } from './statistics.ts';
+import { projectOf, withDatabaseAsync } from '../home/database.ts';
 import type { WorkStage } from '../types.ts';
 
 /** `project`: the name of the project the report was recorded under. */
@@ -66,8 +65,8 @@ export async function prepareWorkReport(inputRoot: string, workId: string, input
     if (fitted.note) warnings.push(fitted.note);
   }
   const at = input.at ?? new Date();
-  // What was given is checked before anything is read.
-  createReport({ ...input, model: input.model ?? 'unknown', step, at });
+  // What was given is checked before anything is read; the stage comes from the plan later.
+  createReport({ ...input, model: input.model ?? 'unknown', step, stage: 'planning', at });
   const root = await realpath(inputRoot).catch(() => { throw new StatisticsReportError('The planning folder does not exist: ' + inputRoot); });
   let registry: unknown;
   try { registry = JSON.parse((await readFile(path.join(root, 'planning.json'), 'utf8')).replace(/^\uFEFF/, '')); }
@@ -121,7 +120,7 @@ export async function prepareWorkReport(inputRoot: string, workId: string, input
     if (measure.efforts.length) measured.efforts = measure.efforts;
   }
   let report: StatisticsReport;
-  try { report = createReport({ ...input, model, session, step, stage, at, measured }, Number.POSITIVE_INFINITY); }
+  try { report = createReport({ ...input, model, session, step, stage, at, measured }); }
   catch (error) {
     if (!measured) throw error;
     warnings.push('The measurement was left out: ' + (error as Error).message);
@@ -137,54 +136,4 @@ export async function prepareWorkReport(inputRoot: string, workId: string, input
     } catch { /* No readable ledger: the step stays as reported. */ }
   }
   return { root, report, warnings };
-}
-
-/** What measuring older reports again did: the reports measured, those whose logs are gone, and those still waiting. */
-export interface Remeasured { measured: number; missing: number; left: number }
-
-/**
- * Measure reports from before working intervals again from their sessions' logs, where those are
- * still on this computer, one session at a time until `budgetMs` has passed or `stopped` says
- * so: their intervals, and their agent time as every agent's time added up, each model's too. A
- * report whose logs are gone, or whose log now shows less than it recorded (cut short since), keeps
- * its total. Each report is tried once; other processes may do the same at once without counting
- * one twice.
- */
-export async function remeasureReports(database: HomeDatabase, options: LogOptions & { budgetMs?: number; stopped?: () => boolean } = {}): Promise<Remeasured> {
-  const started = Date.now();
-  const rows = database.db.prepare('SELECT id, session, at, measured_since, agent_ms FROM work_report WHERE intervals IS NULL AND measured_since IS NOT NULL ORDER BY session, at').all() as Record<string, unknown>[];
-  const sessions = new Map<string | null, Record<string, unknown>[]>();
-  for (const row of rows) {
-    const session = (row.session as string | null) ?? null;
-    sessions.set(session, [...sessions.get(session) ?? [], row]);
-  }
-  const result: Remeasured = { measured: 0, missing: 0, left: rows.length };
-  for (const [session, reports] of sessions) {
-    if (Date.now() - started > (options.budgetMs ?? 20_000) || options.stopped?.()) break;
-    let measures: SessionMeasure[] = [];
-    try {
-      const saved = session === null ? null : (database.db.prepare('SELECT transcript_path FROM session WHERE id = ?').get(session) as { transcript_path: string | null } | undefined)?.transcript_path;
-      const logs = session === null ? null : (saved ? await transcriptLogs(saved) : null) ?? await sessionLogs([{ harness: null, session }], options);
-      if (logs) measures = await measureIntervals(logs, reports.map(report => ({ since: Date.parse(String(report.measured_since)), at: Date.parse(String(report.at)) })));
-    } catch { /* Its logs cannot be read: its reports keep their totals. */ }
-    if (options.stopped?.()) break;
-    database.transaction(() => {
-      const settle = database.db.prepare('UPDATE work_report SET intervals = ?, agent_ms = ? WHERE id = ? AND intervals IS NULL');
-      const model = database.db.prepare('UPDATE report_model SET agent_ms = ? WHERE report_id = ? AND model = ?');
-      reports.forEach((report, index) => {
-        const measure = measures[index];
-        const recorded = Number(report.agent_ms);
-        const kept = measure && spansMs(measure.intervals.map((interval): [number, number] => [Date.parse(interval.start), Date.parse(interval.end)])) + 60_000 >= recorded * 0.9;
-        // Another process may have measured it meanwhile.
-        if (!settle.run(kept ? 1 : 0, kept ? measure.agentMs : recorded, Number(report.id)).changes) return;
-        result.left--;
-        if (!kept) { result.missing++; return; }
-        insertIntervals(database, Number(report.id), measure.intervals);
-        insertEfforts(database, Number(report.id), measure.efforts);
-        for (const item of measure.models) model.run(item.agentMs, Number(report.id), item.model);
-        result.measured++;
-      });
-    });
-  }
-  return result;
 }

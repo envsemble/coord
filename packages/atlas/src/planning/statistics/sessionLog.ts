@@ -622,28 +622,3 @@ export async function measureSession(logs: SessionLogs, interval: { since: numbe
   const timeline = await sessionTimeline(logs, interval.since, interval.at, interval.live ?? false);
   return measureTimeline(logs, timeline, interval.since ?? interval.at, interval.at);
 }
-
-/** The first index of a sorted list whose value is above `value`. */
-function above(values: number[], value: number) {
-  let low = 0, high = values.length;
-  while (low < high) { const middle = (low + high) >> 1; if (values[middle] <= value) low = middle + 1; else high = middle; }
-  return low;
-}
-
-/**
- * Measure several intervals of a session from one reading of its logs, as reports from before
- * intervals are measured again: from outside the session, so each turn ends at its last activity.
- * Each interval looks only at the segments and spends that can fall in it.
- */
-export async function measureIntervals(logs: SessionLogs, intervals: { since: number; at: number }[]): Promise<SessionMeasure[]> {
-  if (!intervals.length) return [];
-  const timeline = await sessionTimeline(logs, Math.min(...intervals.map(interval => interval.since)), Math.max(...intervals.map(interval => interval.at)), false);
-  const segments = [...timeline.segments].sort((a, b) => a.start - b.start), starts = segments.map(segment => segment.start);
-  const longest = segments.reduce((most, segment) => Math.max(most, segment.end - segment.start), 0);
-  const spends = [...timeline.spends].sort((a, b) => a.at - b.at), moments = spends.map(spend => spend.at);
-  return intervals.map(({ since, at }) => measureTimeline(logs, {
-    ...timeline,
-    segments: segments.slice(above(starts, since - longest - 1), above(starts, at)),
-    spends: spends.slice(above(moments, since), above(moments, at)),
-  }, since, at));
-}

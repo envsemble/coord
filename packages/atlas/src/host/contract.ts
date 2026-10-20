@@ -14,7 +14,7 @@ export const protocolVersion = 12;
  * Every paired device belongs to the person who owns this computer, so pairing grants the whole
  * computer; only managing who else may pair is a separate grant.
  * - `computer`: what the Atlas app can do on this computer: list, create and change its projects,
- *   read them, import and export plans, and count document use. Every paired device has it.
+ *   read them, and import and export plans. Every paired device has it.
  * - `access:manage`: create pairing links, list and revoke paired devices. A device has it when its
  *   pairing link granted it.
  * - `owner`: everything, including the remote-access settings. Only the desktop app on the same

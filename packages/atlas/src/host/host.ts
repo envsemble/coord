@@ -19,7 +19,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { readFile, stat } from 'node:fs/promises';
 import {
-  canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, handoffsByWork, linkHandoffs, projectStatistics, projectSummary, remeasureReports, resolveReferences, storedReports, workDates, workSessions, workTimeline,
+  canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, handoffsByWork, linkHandoffs, projectStatistics, projectSummary, resolveReferences, storedReports, workDates, workSessions, workTimeline,
   readRegistry, resolveDocument, setProjectFolders, setRegistryName, WorkError, type LogOptions, type ProjectRow, type ProjectTemplates, type StatisticsReport,
 } from '../planning/index.ts';
 import { compareHits, PlanningSearch, searchQuery } from '../planning/reading/search.ts';
@@ -63,7 +63,7 @@ export interface HostOptions {
   listingTimeout?: number;
   /** Milliseconds between checks of what agents do and of new reports, for the work's statuses and statistics (3 s). */
   liveCheck?: number;
-  /** Where the harnesses keep their session logs, to measure older reports again (this user's, by default). */
+  /** Where the harnesses keep their session logs, to read sessions (this user's, by default). */
   sessionLogs?: LogOptions;
   /** How long a search waits for a project's folder to be read before answering without what changed (5 s). */
   searchWait?: number;
@@ -198,7 +198,7 @@ export class Host {
     this.checkActivity(false);
     this.timers.push(setInterval(() => this.expireHeld(), 60000), setInterval(() => this.checkConnections(), this.options.heartbeat ?? 30000),
       setInterval(() => this.checkActivity(), this.options.liveCheck ?? 3000),
-      setTimeout(() => this.remeasure(), 5000), setInterval(() => this.remeasure(), 60_000));
+      setTimeout(() => this.clearExpired(), 5000), setInterval(() => this.clearExpired(), 60_000));
     for (const timer of this.timers) timer.unref?.();
     this.options.log.info('Host started', { port: this.loopback.port, hostId: this.access.hostId, managedBy: this.access.managedBy });
     return { port: this.loopback.port };
@@ -718,20 +718,10 @@ export class Host {
     this.liveKey = key;
     if (tell) this.projectsChanged();
   }
-  /**
-   * Measure reports from before working intervals again from their logs, a session at a time and
-   * for a while at most, while any are left; one pass at a time, never in a listing's way. Each
-   * minute also forgets the messages of waits that expired.
-   */
-  private remeasuring: Promise<void> | null = null;
-  private remeasure() {
-    if (this.remeasuring || this.stopped) return;
-    // A wait that expired takes its message with it.
+  /** Each minute, forget the messages of waits that expired: a wait that expired takes its message with it. */
+  private clearExpired() {
+    if (this.stopped) return;
     try { this.database.clearExpiredMessages(); } catch { /* Busy for now: the next minute. */ }
-    this.remeasuring = remeasureReports(this.database, { ...this.options.sessionLogs, budgetMs: 20_000, stopped: () => this.stopped })
-      .then(result => { if (result.measured || result.missing) this.options.log.info('Older reports measured again', { ...result }); },
-        error => { if (!this.stopped) this.options.log.warn('Older reports could not be measured again', { error: error instanceof Error ? error.message : String(error) }); })
-      .finally(() => { this.remeasuring = null; });
   }
   /**
    * Search every active project, as the database lists them (without reading their folders, which

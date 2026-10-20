@@ -18,8 +18,6 @@ test('a folder finds its planning folder in the home and drives a work item thro
   // Created in the project the folder belongs to.
   const created = JSON.parse((await inCheckout('work', 'create', '--title', 'Checkout flow')).stdout);
   assert.deepEqual([created.workId, created.path, created.planningFolder, created.designStatus], ['work-0002', 'active/0002-checkout-flow', root, 'draft']);
-  assert.equal('repositories' in created, false);
-  assert.equal((await inCheckout('work', 'create', '--title', 'X', '--repo', 'shop')).status, 2, 'work names no repositories');
   assert.equal((await json('work', 'accept', 'work-0002')).designStatus, 'accepted');
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'Plan');
   const started = await json('work', 'start', 'work-0002', '--step', 'Build', '--step', 'Review');
@@ -45,7 +43,7 @@ test('a folder finds its planning folder in the home and drives a work item thro
   const archived = await json('work', 'archive', 'work-0001', '--superseded-by', 'work-0002', '--reason', 'The checkout flow covers it');
   assert.deepEqual([archived.path, archived.designStatus], ['archive/0001-cart', 'superseded']);
   assert.ok(readFileSync(path.join(root, 'README.md'), 'utf8').includes('[Cart](archive/0001-cart/plan.md)'), 'links follow the move');
-  assert.equal((await run(['planning', 'check', root], { env })).status, 0);
+  assert.equal((await run(['check', root], { env })).status, 0);
 
   // Refusals exit 1 with the reason; usage errors exit 2.
   assert.match((await inRoot('work', 'start', 'work-0001', '--step', 'X')).stderr, /^atlas: The design is superseded; accept it/);
@@ -87,7 +85,7 @@ test('atlas project create makes a project covering folders, which then decide w
   assert.deepEqual(JSON.parse(created.stdout), { name: 'Shop work', planningFolder, folders: [directory] });
   for (const file of ['AGENTS.md', 'PLANS.md', 'README.md', 'plan-frontmatter.md', '.gitattributes', '.git']) assert.ok(existsSync(path.join(planningFolder, file)), file);
   assert.match(git(planningFolder, 'log', '--format=%s'), /^Create the Shop work project/);
-  assert.equal((await run(['planning', 'check', planningFolder], { env })).status, 0);
+  assert.equal((await run(['check', planningFolder], { env })).status, 0);
   assert.deepEqual(JSON.parse((await run(['home'], { env })).stdout).projects.map((item: { name: string }) => item.name), ['shop-planning', 'Shop work']);
   // A session in the folder belongs to the new project; in the shop's checkout, to the project of that deeper folder.
   const where = async (cwd: string) => JSON.parse((await run(['where'], { env, cwd })).stdout).matches.map((match: { project: string; via: string[] }) => [match.project, match.via]);
@@ -105,7 +103,7 @@ test('atlas project create makes a project covering folders, which then decide w
   assert.match(plain.stdout, /^Created the project Other in .*other, covering .*other\.\n$/);
   const bare = await inDirectory('project', 'create', '--name', 'Bare');
   assert.match(bare.stdout, /^Created the project Bare in .*bare; it covers no folders yet/);
-  for (const args of [['project', 'make'], ['project', 'create'], ['project', 'create', '--name', 'X', '--workspace', '.']]) assert.equal((await inDirectory(...args)).status, 2, args.join(' '));
+  for (const args of [['project', 'make'], ['project', 'create']]) assert.equal((await inDirectory(...args)).status, 2, args.join(' '));
 });
 
 test('atlas home lists the home\'s projects', async t => {
@@ -113,5 +111,4 @@ test('atlas home lists the home\'s projects', async t => {
   const listed = await run(['home'], { env });
   assert.deepEqual(JSON.parse(listed.stdout), { home, projects: [{ name: 'shop-planning', planningFolder: root }] });
   assert.deepEqual(JSON.parse((await run(['home', 'list'], { env })).stdout), JSON.parse(listed.stdout));
-  for (const args of [['home', 'adopt', root], ['home', 'move', root]]) assert.equal((await run(args, { env })).status, 2, args.join(' '));
 });

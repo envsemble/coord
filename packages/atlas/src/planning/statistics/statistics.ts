@@ -4,8 +4,6 @@
 // session log, the agent time and tokens measured since the session's previous report, with the
 // subagents that worked. Without a measurement, agent time is estimated from the time between
 // reports and tokens are self-reported. Plan revisions come from the planning folder's Git history.
-//
-// A report without a stage is from before stages were recorded: its stage is unknown.
 import { realpath } from 'node:fs/promises';
 import path from 'node:path';
 import type { AgentUsage, ModelUsage, StageUsage, TokenKinds, Work, WorkStage, WorkStatistics } from '../types.ts';
@@ -19,17 +17,13 @@ import { withDatabase, type HomeDatabase } from '../home/database.ts';
 export const sessionGap = 2 * 60 * 60 * 1000;
 const historyLimit = 20000;
 export const stepLimit = 200;
-/** A measurement names at most this many models, so a report stays one short line. */
-export const measuredModelLimit = 8;
-/** And lists at most this many subagents, the busiest; it counts them all. */
-export const measuredSubagentLimit = 4;
 export const workStages: readonly WorkStage[] = ['planning', 'implementation'];
 
 /** One model's share of a measured interval. */
 export interface MeasuredModel extends TokenKinds { model: string; agentMs: number }
 /** One subagent's share of a measured interval: the model it worked with longest, its own busy time and its tokens. */
 export interface MeasuredSubagent { id: string; model: string | null; agentMs: number; tokens: number }
-/** The subagents that worked in a measured interval: how many, their busy time added up (each its own), their tokens, and the busiest. */
+/** The subagents that worked in a measured interval: how many, their busy time added up (each its own), their tokens, and each one. */
 export interface MeasuredSubagents { count: number; agentMs: number; tokens: number; agents: MeasuredSubagent[] }
 /** A stretch one agent worked in a measured interval: the session's own agent (null) or a subagent. */
 export interface MeasuredInterval { agent: string | null; start: string; end: string }
@@ -39,12 +33,12 @@ export interface MeasuredEffort { agent: string | null; model: string; effort: s
  * What the session log showed for (since, at]: every agent's working time added up (the session's
  * own and each subagent's in full, also while they work at once) and each model's share; when
  * subagents worked, each subagent's own share; and when each agent worked (`intervals`, its
- * stretches merged), which reports from before intervals lack.
+ * stretches merged).
  */
 export interface Measured { since: string; agentMs: number; models: MeasuredModel[]; subagents?: MeasuredSubagents; intervals?: MeasuredInterval[]; efforts?: MeasuredEffort[] }
-/** Version 1 throughout: `stage` and `measured` are optional, and versions that do not know them read the rest. */
-export interface StatisticsReport { version: 1; at: string; model: string; session: string | null; tokens: number | null; step: string | null; stage?: WorkStage; measured?: Measured }
-export interface ReportInput { model: string; session?: string | null; tokens?: number | null; step?: string | null; stage?: WorkStage | null; at?: Date; measured?: Measured | null }
+/** One report: the work item's stage when it was made, and `measured` when the session log could be read. */
+export interface StatisticsReport { at: string; model: string; session: string | null; tokens: number | null; step: string | null; stage: WorkStage; measured?: Measured }
+export interface ReportInput { model: string; session?: string | null; tokens?: number | null; step?: string | null; stage: WorkStage; at?: Date; measured?: Measured | null }
 
 /** Model identifiers as harnesses show them, including bracketed variants such as `name[1m]`. */
 export const modelPattern = /^[A-Za-z0-9][A-Za-z0-9._:/@+\-[\]]{0,99}$/;
@@ -64,8 +58,7 @@ function checkedTokens(value: unknown): number | null {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0 || value > 1e12) throw new StatisticsReportError('Tokens must be a whole number from 0 to 1,000,000,000,000.');
   return value;
 }
-function checkedStage(value: unknown): WorkStage | null {
-  if (value === null || value === undefined) return null;
+function checkedStage(value: unknown): WorkStage {
   if (!workStages.includes(value as WorkStage)) throw new StatisticsReportError('The stage must be planning or implementation.');
   return value as WorkStage;
 }
@@ -98,10 +91,9 @@ const tokenKinds = ['input', 'cacheRead', 'cacheWrite', 'output'] as const;
 
 /**
  * A measurement as reports record it: an interval that ends at the report, times inside it (each
- * agent's at most the whole interval), distinct models. Reports name at most eight; read, any
- * number fits the line.
+ * agent's at most the whole interval), distinct models.
  */
-function checkedMeasured(value: unknown, at: string, modelLimit: number): Measured | null {
+function checkedMeasured(value: unknown, at: string): Measured | null {
   if (value === null || value === undefined) return null;
   const invalid = (detail: string) => new StatisticsReportError('The measurement is not valid: ' + detail + '.');
   if (typeof value !== 'object' || Array.isArray(value)) throw invalid('it is not an object');
@@ -109,10 +101,10 @@ function checkedMeasured(value: unknown, at: string, modelLimit: number): Measur
   const since = utcTime(entry.since);
   if (!since || since > at) throw invalid('since must be a UTC time no later than the report');
   const interval = Date.parse(at) - Date.parse(since);
-  const subagents = checkedSubagents(entry.subagents, interval, Number.isFinite(modelLimit) ? measuredSubagentLimit : modelLimit, invalid);
+  const subagents = checkedSubagents(entry.subagents, interval, invalid);
   if (!whole(entry.agentMs, interval * (1 + (subagents?.count ?? 0)))) throw invalid('agentMs must be whole milliseconds within the interval for each agent');
   const total = entry.agentMs;
-  if (!Array.isArray(entry.models) || entry.models.length > modelLimit) throw invalid(`models must be a list of at most ${modelLimit}`);
+  if (!Array.isArray(entry.models)) throw invalid('models must be a list');
   const models = entry.models.map((item: unknown): MeasuredModel => {
     const model = item && typeof item === 'object' ? item as Record<string, unknown> : {};
     if (typeof model.model !== 'string' || !modelPattern.test(model.model)) throw invalid('each model needs its identifier');
@@ -156,8 +148,8 @@ function checkedIntervals(value: unknown, since: string, at: string, invalid: (d
   });
 }
 
-/** Subagents as a measurement records them: each within the interval, listed once, no more than counted. */
-function checkedSubagents(value: unknown, interval: number, limit: number, invalid: (detail: string) => StatisticsReportError): MeasuredSubagents | null {
+/** Subagents as a measurement records them: each within the interval, every one counted listed once. */
+function checkedSubagents(value: unknown, interval: number, invalid: (detail: string) => StatisticsReportError): MeasuredSubagents | null {
   if (value === null || value === undefined) return null;
   if (typeof value !== 'object' || Array.isArray(value)) throw invalid('subagents is not an object');
   const entry = value as Record<string, unknown>;
@@ -165,7 +157,7 @@ function checkedSubagents(value: unknown, interval: number, limit: number, inval
   const count = entry.count;
   if (!whole(entry.agentMs, count * interval)) throw invalid('the subagents\' agentMs must be whole milliseconds within the interval for each');
   if (!whole(entry.tokens, 1e12)) throw invalid('the subagents\' tokens must be a whole number');
-  if (!Array.isArray(entry.agents) || entry.agents.length > Math.min(limit, count)) throw invalid(`subagents must list at most ${measuredSubagentLimit} of those counted`);
+  if (!Array.isArray(entry.agents) || entry.agents.length !== count) throw invalid('subagents must list each subagent counted');
   const agents = entry.agents.map((item: unknown): MeasuredSubagent => {
     const agent = item && typeof item === 'object' ? item as Record<string, unknown> : {};
     if (typeof agent.id !== 'string' || !subagentPattern.test(agent.id)) throw invalid('each subagent needs its identifier');
@@ -178,16 +170,14 @@ function checkedSubagents(value: unknown, interval: number, limit: number, inval
   return { count, agentMs: entry.agentMs, tokens: entry.tokens, agents };
 }
 
-/** Build a valid report line, or throw StatisticsReportError. */
-export function createReport(input: ReportInput, modelLimit = measuredModelLimit): StatisticsReport {
+/** Build a valid report, or throw StatisticsReportError. */
+export function createReport(input: ReportInput): StatisticsReport {
   if (typeof input.model !== 'string' || !modelPattern.test(input.model)) throw new StatisticsReportError('The model must be its identifier, such as the API model name: letters, digits and . _ : / @ + - [ ], at most 100 characters.');
   const session = input.session ?? null;
   if (session !== null && (typeof session !== 'string' || !sessionPattern.test(session))) throw new StatisticsReportError('The session must be an identifier: letters, digits and . _ : -, at most 128 characters.');
   const at = (input.at ?? new Date()).toISOString();
-  const report: StatisticsReport = { version: 1, at, model: input.model, session, tokens: checkedTokens(input.tokens), step: checkedStep(input.step) };
-  const stage = checkedStage(input.stage);
-  if (stage) report.stage = stage;
-  const measured = checkedMeasured(input.measured, at, modelLimit);
+  const report: StatisticsReport = { at, model: input.model, session, tokens: checkedTokens(input.tokens), step: checkedStep(input.step), stage: checkedStage(input.stage) };
+  const measured = checkedMeasured(input.measured, at);
   if (measured) report.measured = measured;
   return report;
 }
@@ -196,13 +186,6 @@ const sum = (kinds: TokenKinds) => kinds.input + kinds.cacheRead + kinds.cacheWr
 const noTokens = (): TokenKinds => ({ input: 0, cacheRead: 0, cacheWrite: 0, output: 0 });
 const noUsage = (): StageUsage => ({ reports: 0, agentMs: 0, tokens: null, tokenKinds: null });
 const added = (into: TokenKinds | null, kinds: TokenKinds): TokenKinds => ({ input: (into?.input ?? 0) + kinds.input, cacheRead: (into?.cacheRead ?? 0) + kinds.cacheRead, cacheWrite: (into?.cacheWrite ?? 0) + kinds.cacheWrite, output: (into?.output ?? 0) + kinds.output });
-
-/**
- * Subagents an older report counted without naming them (it named only the busiest four): their
- * rows in the database, and the one entry of a work item's agents that stands for them all.
- */
-const unlistedPrefix = 'unlisted-';
-export const unlistedAgents = 'unlisted';
 
 /** Spans of time ([start, end] milliseconds) in time order, those that overlap or touch merged into one. */
 export function mergeSpans(spans: [number, number][]): [number, number][] {
@@ -229,14 +212,13 @@ export const spansMs = (spans: [number, number][]) => mergeSpans(spans).reduce((
  *   two hours passed, which is a break; and a session's self-reported token count is cumulative, so
  *   a report adds its increase over the previous one (a lower count means a new conversation under
  *   the same session and counts in full).
- * What a report covers counts toward its stage (unknown for reports from before stages). Subagents
- * are counted once per session however many reports list them; those a report counts without
- * listing them (beyond the busiest four) are counted as new. Their time is each one's own, added up.
+ * What a report covers counts toward its stage. Subagents are counted once per session however many
+ * reports list them; their time is each one's own, added up.
  * Agent time adds every agent up; the time at least one worked is the union of the reports' working
  * intervals (what an earlier report of the session covered left out), with the time of reports
  * without intervals added as is.
  */
-export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit<WorkStatistics, 'planRevisions'> {
+export function summarizeReports(reports: StatisticsReport[]): Omit<WorkStatistics, 'planRevisions'> {
   const sorted = [...reports].sort((a, b) => a.at.localeCompare(b.at));
   const usage = new Map<string, { model: string; reports: number; agentMs: number; tokens: number; tokensKnown: boolean; tokenKinds: TokenKinds | null; sessions: Set<string> }>();
   const model = (name: string) => {
@@ -245,7 +227,7 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
     return entry;
   };
   const runs = new Map<string, { last: number; tokens: number | null; id: string }>();
-  const stages: Record<WorkStage | 'unknown', StageUsage> = { planning: noUsage(), implementation: noUsage(), unknown: noUsage() };
+  const stages: Record<WorkStage, StageUsage> = { planning: noUsage(), implementation: noUsage() };
   const subagents = new Set<string>();
   // Each agent's own time, by session (its run) and subagent, with the time of each model it worked with.
   const agents = new Map<string, { session: string | null; subagent: string | null; agentMs: number; models: Map<string | null, number>; efforts: Map<string | null, number> }>();
@@ -259,10 +241,10 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
     entry.models.set(name, (entry.models.get(name) ?? 0) + agentMs);
   };
   const spans: [number, number][] = [];
-  let anonymous = 0, measuredMs = 0, estimatedMs = 0, measuredReports = 0, unlisted = 0, subagentMs = 0, unmergedMs = 0;
+  let anonymous = 0, measuredMs = 0, estimatedMs = 0, measuredReports = 0, subagentMs = 0, unmergedMs = 0;
   let kinds: TokenKinds | null = null;
   for (const report of sorted) {
-    const stage = stages[report.stage ?? 'unknown'];
+    const stage = stages[report.stage];
     stage.reports++;
     const time = Date.parse(report.at);
     const key = report.session ? 'session:' + report.session : 'model:' + report.model;
@@ -305,12 +287,8 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
         subagentMs += part(helpers.agentMs);
         for (const agent of helpers.agents) {
           subagents.add(run.id + '\0' + agent.id);
-          credit(run.id, report.session, agent.id.startsWith(unlistedPrefix) ? unlistedAgents : agent.id, agent.model, part(agent.agentMs));
+          credit(run.id, report.session, agent.id, agent.model, part(agent.agentMs));
         }
-        unlisted += helpers.count - helpers.agents.length;
-        // A report line names only the busiest subagents: the others' time, together.
-        const rest = helpers.agentMs - helpers.agents.reduce((total, agent) => total + agent.agentMs, 0);
-        if (rest > 0) credit(run.id, report.session, unlistedAgents, null, part(rest));
       }
       // The session's own agent worked what its subagents leave of the time.
       credit(run.id, report.session, null, report.model, Math.max(0, part(report.measured.agentMs) - (share > 0 ? part(helpers?.agentMs ?? 0) : 0)));
@@ -323,7 +301,7 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
         if (!byEffort) levels.set(level.model, byEffort = new Map());
         const counted = byEffort.get(level.effort) ?? { agentMs: 0, tokens: 0 };
         byEffort.set(level.effort, { agentMs: counted.agentMs + part(level.agentMs), tokens: counted.tokens + part(level.tokens) });
-        const agent = agents.get(run.id + '\0' + (level.agent === null ? '' : level.agent.startsWith(unlistedPrefix) ? unlistedAgents : level.agent));
+        const agent = agents.get(run.id + '\0' + (level.agent ?? ''));
         agent?.efforts.set(level.effort, (agent.efforts.get(level.effort) ?? 0) + part(level.agentMs));
       }
     } else if (previous !== null && time - previous <= sessionGap) {
@@ -354,26 +332,22 @@ export function summarizeReports(reports: StatisticsReport[], invalid = 0): Omit
   const agentUsage: AgentUsage[] = [...agents.values()].filter(entry => entry.agentMs > 0).map(entry => ({ session: entry.session, subagent: entry.subagent, model: busiest(entry.models), effort: busiest(entry.efforts), agentMs: entry.agentMs }))
     .sort((a, b) => b.agentMs - a.agentMs || (a.session ?? '').localeCompare(b.session ?? '') || (a.subagent ?? '').localeCompare(b.subagent ?? ''));
   return {
-    reports: sorted.length, invalid, models, primaryModel: models[0]?.model ?? null, primaryEffort: models[0]?.efforts[0]?.effort ?? null, tokens, tokenKinds: kinds,
+    reports: sorted.length, models, primaryModel: models[0]?.model ?? null, primaryEffort: models[0]?.efforts[0]?.effort ?? null, tokens, tokenKinds: kinds,
     agentMs: measuredMs + estimatedMs, measuredMs, estimatedMs, measuredReports,
     activeMs: spansMs(spans) + unmergedMs, unmergedMs, agents: agentUsage,
-    stages, subagents: { count: subagents.size + unlisted, agentMs: subagentMs },
+    stages, subagents: { count: subagents.size, agentMs: subagentMs },
     firstReport: sorted[0]?.at ?? null, lastReport: sorted.at(-1)?.at ?? null,
   };
 }
 
 type Row = Record<string, unknown>;
 
-/**
- * Record a report of a work item in the home database, with its measurement's models, subagents and
- * working intervals. A measurement without intervals (from a statistics file) waits to be measured
- * again (see remeasureReports).
- */
+/** Record a report of a work item in the home database, with its measurement's models, subagents and working intervals. */
 export function insertReport(database: HomeDatabase, projectId: number, workId: string, report: StatisticsReport) {
   database.transaction(() => {
     const measured = report.measured;
     const { lastInsertRowid } = database.db.prepare('INSERT INTO work_report (project_id, work_id, at, stage, step, model, session, tokens, measured_since, agent_ms, intervals) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(projectId, workId, report.at, report.stage ?? null, report.step, report.model, report.session, report.tokens, measured?.since ?? null, measured?.agentMs ?? null, !measured ? 0 : measured.intervals ? 1 : null);
+      .run(projectId, workId, report.at, report.stage, report.step, report.model, report.session, report.tokens, measured?.since ?? null, measured?.agentMs ?? null, measured?.intervals ? 1 : 0);
     if (!measured) return;
     insertIntervals(database, Number(lastInsertRowid), measured.intervals ?? []);
     insertEfforts(database, Number(lastInsertRowid), measured.efforts ?? []);
@@ -383,11 +357,6 @@ export function insertReport(database: HomeDatabase, projectId: number, workId: 
     if (!helpers) return;
     const subagent = database.db.prepare('INSERT INTO report_subagent (report_id, agent, model, agent_ms, tokens) VALUES (?, ?, ?, ?, ?)');
     for (const agent of helpers.agents) subagent.run(lastInsertRowid, agent.id, agent.model, agent.agentMs, agent.tokens);
-    // A report line lists only the busiest subagents: the others it counted get rows of their own, with the rest of the time and tokens.
-    const unlisted = helpers.count - helpers.agents.length;
-    const restMs = Math.max(0, helpers.agentMs - helpers.agents.reduce((total, agent) => total + agent.agentMs, 0));
-    const restTokens = Math.max(0, helpers.tokens - helpers.agents.reduce((total, agent) => total + agent.tokens, 0));
-    for (let index = 0; index < unlisted; index++) subagent.run(lastInsertRowid, `${unlistedPrefix}${lastInsertRowid}-${index + 1}`, null, index ? 0 : restMs, index ? 0 : restTokens);
   });
 }
 /** Record a report's time and tokens by model and reasoning effort. */
@@ -437,8 +406,7 @@ export function storedReports(database: HomeDatabase, projectId: number, workIds
   const result = new Map<string, StatisticsReport[]>();
   for (const row of rows) {
     const id = Number(row.id);
-    const report: StatisticsReport = { version: 1, at: String(row.at), model: String(row.model ?? 'unknown'), session: (row.session as string | null) ?? null, tokens: row.tokens === null ? null : Number(row.tokens), step: (row.step as string | null) ?? null };
-    if (row.stage) report.stage = row.stage as WorkStage;
+    const report: StatisticsReport = { at: String(row.at), model: String(row.model), session: (row.session as string | null) ?? null, tokens: row.tokens === null ? null : Number(row.tokens), step: (row.step as string | null) ?? null, stage: row.stage as WorkStage };
     if (row.measured_since !== null) {
       report.measured = { since: String(row.measured_since), agentMs: Number(row.agent_ms), models: models.get(id) ?? [] };
       const helpers = agents.get(id);
@@ -496,7 +464,7 @@ async function planHistory(root: string): Promise<{ head: string; commits: Commi
 
 /** The work folder and file a path ends in, such as `0012-export/plan.md`, to recognise a moved plan. */
 const tail = (value: string) => sameKey(value.split('/').slice(-2).join('/'));
-/** A work folder's registration number (`0012` of `0012-export`), or null for a legacy name. */
+/** A work folder's registration number (`0012` of `0012-export`), or null when it has none. */
 const workNumber = (value: string) => /^(\d{4,})-/.exec(value.split('/').at(-2) ?? '')?.[1] ?? null;
 /** Git paired two different work items' plans (similar templates) as a rename. */
 const crossWork = (from: string, to: string) => { const a = workNumber(from), b = workNumber(to); return a !== null && b !== null && a !== b; };

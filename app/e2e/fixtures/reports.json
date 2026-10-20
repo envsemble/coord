@@ -1,7 +1,6 @@
 {
   "work-0001": [
     {
-      "version": 1,
       "at": "2026-09-30T08:00:00.000Z",
       "model": "claude-sonnet-4-5-20250929",
       "session": "session-0001-a",
@@ -10,7 +9,6 @@
       "stage": "planning"
     },
     {
-      "version": 1,
       "at": "2026-09-30T09:30:00.000Z",
       "model": "claude-sonnet-4-5-20250929",
       "session": "session-0001-a",
@@ -19,7 +17,6 @@
       "stage": "planning"
     },
     {
-      "version": 1,
       "at": "2026-10-08T13:00:00.000Z",
       "model": "claude-opus-5-5",
       "session": "3f6d8a2e-91b4-4c7e-8d15-6b0a4e2c9f71",
@@ -28,7 +25,6 @@
       "stage": "implementation"
     },
     {
-      "version": 1,
       "at": "2026-10-08T14:10:00.000Z",
       "model": "claude-opus-5-5",
       "session": "3f6d8a2e-91b4-4c7e-8d15-6b0a4e2c9f71",
@@ -72,7 +68,6 @@
       }
     },
     {
-      "version": 1,
       "at": "2026-10-08T16:40:00.000Z",
       "model": "claude-opus-5-5",
       "session": "3f6d8a2e-91b4-4c7e-8d15-6b0a4e2c9f71",
@@ -97,20 +92,20 @@
   ],
   "work-0004": [
     {
-      "version": 1,
       "at": "2026-09-15T07:00:00.000Z",
       "model": "gpt-6.1-sol",
       "session": "01a0f3c2-5b7e-7d41-9a2c-3e8f0b6d4a19",
       "tokens": null,
-      "step": null
+      "step": null,
+      "stage": "implementation"
     },
     {
-      "version": 1,
       "at": "2026-09-15T08:30:00.000Z",
       "model": "gpt-6.1-sol",
       "session": "01a0f3c2-5b7e-7d41-9a2c-3e8f0b6d4a19",
       "tokens": null,
       "step": null,
+      "stage": "implementation",
       "measured": {
         "since": "2026-09-15T07:00:00.000Z",
         "agentMs": 5040000,
@@ -127,12 +122,12 @@
       }
     },
     {
-      "version": 1,
       "at": "2026-09-15T10:00:00.000Z",
       "model": "gpt-6.1-sol",
       "session": "01a0f3c2-5b7e-7d41-9a2c-3e8f0b6d4a19",
       "tokens": null,
       "step": null,
+      "stage": "implementation",
       "measured": {
         "since": "2026-09-15T08:30:00.000Z",
         "agentMs": 4560000,

@@ -67,7 +67,7 @@ test('the owner reads any folder it opens; a request with the wrong shape or sco
   assert.match(image.headers.get('content-security-policy') ?? '', /sandbox/);
   // Paths stay inside the folder: an encoded escape and hidden folders are refused.
   assert.equal((await connection.fetch(`/api/folders/${opened.folderId}/files/..%2F..%2Fpackage.json`)).status, 403);
-  assert.equal((await connection.fetch(`/api/folders/${opened.folderId}/files/active/0001-saved-payment-methods/.atlas/statistics.jsonl`)).status, 403);
+  assert.equal((await connection.fetch(`/api/folders/${opened.folderId}/files/active/0001-saved-payment-methods/.cache/x.json`)).status, 403);
   const prepared = await connection.request('plan.exportPrepare', { folderId: opened.folderId, work: 'work-0003' });
   assert.equal(prepared.fileName, 'customer-notifications-work-0003.atlas-plan.html');
   const exported = await connection.fetch('/api/exports/' + prepared.token);

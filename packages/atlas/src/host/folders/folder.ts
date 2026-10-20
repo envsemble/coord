@@ -114,7 +114,7 @@ export class FolderSession {
   }
 
   /**
-   * Reports were recorded or measured again: the work's statistics from the home database, without
+   * Reports were recorded: the work's statistics from the home database, without
    * reading the folder again. A read under way reads them anyway.
    */
   async refreshStatistics() {

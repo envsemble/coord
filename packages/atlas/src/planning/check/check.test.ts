@@ -1,4 +1,4 @@
-// Disposable semantic fixtures for the read-only planning checker (ported from test_check_planning.py).
+// Disposable semantic fixtures for the read-only planning checker.
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -22,6 +22,7 @@ function fixture(t: TestContext) {
   mkdirSync(work, { recursive: true });
   const plan = path.join(work, 'plan.md');
   writeFileSync(path.join(work, 'evidence.txt'), 'actual verification evidence\n');
+  writeFileSync(path.join(work, 'ledger.md'), '---\nschema_version: 2\nkind: ledger\nwork_id: work-0001\nupdated: null\nblocked: null\nsteps: []\n---\n');
   const state = {
     root, work, plan,
     body: '# Useful plan\n\nPreserve this rationale and [evidence](evidence.txt).\n',
@@ -167,14 +168,11 @@ test('only the current formats are read: the registry, work items and plan heade
     return setup.validate().errors;
   };
   assert.deepEqual(errorsWith(() => { setup.registry.schema_version = 1; }), ['registry schema_version must be integer 2']);
-  for (const field of ['repositories', 'workspaces']) {
-    assert.ok(errorsWith(() => { setup.registry[field] = []; }).some(error => error.includes(field + ' is not part of the registry')), field);
-  }
+  assert.ok(errorsWith(() => { setup.registry.repositories = []; }).some(error => error.includes('unknown fields: repositories')));
   assert.ok(errorsWith(() => { delete setup.registry.folders; }).includes('folders must be an array of absolute folder paths'));
   assert.ok(errorsWith(() => { delete setup.registry.name; }).some(error => error.startsWith('name must be')));
-  assert.ok(errorsWith(() => { setup.registry.work_items[0].repositories = ['example-app']; }).some(error => error.includes('repositories is not part of a work item')));
   assert.ok(errorsWith(() => { setup.header.schema_version = 1; }).some(error => error.includes('schema_version must be integer 2')));
-  assert.ok(errorsWith(() => { setup.header.repositories = ['example-app']; }).some(error => error.includes('repositories is not part of a plan header')));
+  assert.ok(errorsWith(() => { setup.header.repositories = ['example-app']; }).some(error => error.includes('unknown fields: repositories')));
   // The main plan is the work folder's plan.md, with a header.
   assert.ok(errorsWith(() => { setup.registry.work_items[0].current_plan = null; }).length);
   writeFileSync(path.join(setup.work, 'other.md'), 'Another plan');
@@ -414,7 +412,7 @@ test('Windows line endings, a byte-order mark and undecodable bytes are handled 
 });
 
 const git = spawnSync('git', ['--version']).status === 0;
-test('an actual Git baseline recovers records after a move', { skip: !git && 'Git unavailable for recovery fixture' }, t => {
+test('the planning folder keeps files byte for byte through Git, whatever core.autocrlf says', { skip: !git && 'Git unavailable' }, t => {
   const setup = fixture(t);
   const run = (...args: string[]) => execFileSync('git', ['-C', setup.root, ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
   run('init');

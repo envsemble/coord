@@ -51,10 +51,10 @@ function fixture(root: string) {
   const work = path.join(root, 'active/0001-checkout');
   mkdirSync(path.join(work, 'evidence'), { recursive: true });
   mkdirSync(path.join(work, 'docs/adr'), { recursive: true });
-  mkdirSync(path.join(root, 'archive/0002-legacy'), { recursive: true });
+  mkdirSync(path.join(root, 'archive/0002-abandoned'), { recursive: true });
   writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Planning', folders: [], work_items: [
     { id: 'work-0001', path: 'active/0001-checkout', current_plan: 'active/0001-checkout/plan.md' },
-    { id: 'work-0002', path: 'archive/0002-legacy', current_plan: 'archive/0002-legacy/plan.md' },
+    { id: 'work-0002', path: 'archive/0002-abandoned', current_plan: 'archive/0002-abandoned/plan.md' },
   ] }, null, 2) + '\n');
   writeFileSync(path.join(work, 'plan.md'), BOM + plan('work-0001', 'Checkout', '## Data model\n\nSee the [glossary](CONTEXT.md#orders), the [orders](diagrams/orders.puml#Order) and ![photo](evidence/photo.png).\n'));
   writeFileSync(path.join(work, 'ledger.md'), BOM + '---\r\nschema_version: 2\r\nkind: ledger\r\nwork_id: "work-0001"\r\nupdated: "2026-10-02"\r\nblocked: null\r\nsteps:\r\n  - title: "Building it"\r\n    status: doing\r\n---\r\n\r\n# Ledger\r\n');
@@ -63,11 +63,9 @@ function fixture(root: string) {
   writeFileSync(path.join(work, 'evidence/photo.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d, 0xff, 0xfe]));
   writeFileSync(path.join(work, 'evidence/bytes.bin'), Buffer.from(Array.from({ length: 512 }, (_, index) => index % 256)));
   writeFileSync(path.join(work, 'evidence/notes.txt'), 'line one\r\nline two\r\n\u00e9\u4e2d\r\n');
-  writeFileSync(path.join(root, 'archive/0002-legacy/README.md'), '# Legacy notes\n');
-  writeFileSync(path.join(root, 'archive/0002-legacy/plan.md'), plan('work-0002', 'Legacy').replace('design_status: accepted', 'design_status: abandoned'));
-  // Transient Atlas output is not part of the plan.
-  mkdirSync(path.join(work, '.atlas/results'), { recursive: true });
-  writeFileSync(path.join(work, '.atlas/results/x.json'), '{}');
+  writeFileSync(path.join(root, 'archive/0002-abandoned/README.md'), '# Abandoned notes\n');
+  writeFileSync(path.join(root, 'archive/0002-abandoned/ledger.md'), '---\nschema_version: 2\nkind: ledger\nwork_id: work-0002\nupdated: null\nblocked: null\nsteps: []\n---\n');
+  writeFileSync(path.join(root, 'archive/0002-abandoned/plan.md'), plan('work-0002', 'Abandoned').replace('design_status: accepted', 'design_status: abandoned'));
   // Diagrams: an authored class diagram, a database capture and a proposal over it.
   mkdirSync(path.join(work, 'diagrams'));
   writeFileSync(path.join(work, 'diagrams/orders.puml'), ORDERS);
@@ -80,12 +78,12 @@ function fixture(root: string) {
 // read them: laying out its diagrams makes each export of work-0001 slow.
 const sharedDirectory = mkdtempSync(path.join(tmpdir(), 'plan-export-'));
 test.after(() => rmSync(sharedDirectory, { recursive: true, force: true }));
-let sharedExports: Promise<{ source: string; checkout: PlanExportResult; legacy: PlanExportResult }> | undefined;
+let sharedExports: Promise<{ source: string; checkout: PlanExportResult; abandoned: PlanExportResult }> | undefined;
 function shared() {
   return sharedExports ??= (async () => {
     const source = path.join(sharedDirectory, 'source');
     mkdirSync(source); fixture(source);
-    return { source, checkout: await exportPlan(source, 'work-0001', { now }), legacy: await exportPlan(source, 'work-0002', { now }) };
+    return { source, checkout: await exportPlan(source, 'work-0001', { now }), abandoned: await exportPlan(source, 'work-0002', { now }) };
   })();
 }
 
@@ -97,7 +95,6 @@ function payloadOf(html: string) {
 function assertRoundTrip(sourceWork: string, targetWork: string, from: string, to: string, currentPlan: string | null) {
   const source = snapshot(sourceWork), target = snapshot(targetWork);
   for (const [name, bytes] of source) {
-    if (/^\.atlas\/(?:results|prepared|exports)\//.test(name)) continue;
     assert.ok(target.has(name), `${name} was imported`);
     const imported = target.get(name)!;
     if (name === currentPlan || name === 'ledger.md') {
@@ -110,15 +107,14 @@ function assertRoundTrip(sourceWork: string, targetWork: string, from: string, t
 }
 
 test('exports the whole work folder and imports it losslessly as new work', async t => {
-  const { source, checkout: exported, legacy } = await shared();
+  const { source, checkout: exported, abandoned } = await shared();
   const work = path.join(source, 'active/0001-checkout'), target = path.join(temporary(t), 'target');
   cpSync(source, target, { recursive: true });
 
   assert.deepEqual(exported.warnings, []);
   assert.equal(exported.bytes, Buffer.byteLength(exported.html));
-  assert.equal((await exportPlan(source, 'archive/0002-legacy/', { now })).html, legacy.html, 'exports are deterministic, by ID or folder');
+  assert.equal((await exportPlan(source, 'archive/0002-abandoned/', { now })).html, abandoned.html, 'exports are deterministic, by ID or folder');
   assert.equal(exported.manifest.source.location, 'active');
-  assert.ok(!exported.manifest.files.some(file => file.path.startsWith('.atlas/results')));
   assert.equal(exported.manifest.exportedAt, now.toISOString());
 
   const preview = readPlanExport(Buffer.from(exported.html));
@@ -161,39 +157,22 @@ test('exports the whole work folder and imports it losslessly as new work', asyn
 });
 
 test('keeps the archive location, takes the next free number and imports twice as two items', async t => {
-  const { source, legacy } = await shared();
+  const { source, abandoned } = await shared();
   const target = path.join(temporary(t), 'target');
   cpSync(source, target, { recursive: true });
   mkdirSync(path.join(target, 'archive/0003-unregistered'), { recursive: true });
   mkdirSync(path.join(target, 'active/2026-10-roadmap'), { recursive: true });
-  assert.equal(legacy.manifest.source.location, 'archive');
-  const first = await importPlan(target, legacy.html);
-  assert.deepEqual([first.workId, first.path], ['work-0004', 'archive/0004-legacy']);
-  const second = await importPlan(target, legacy.html);
-  assert.deepEqual([second.workId, second.path], ['work-0005', 'archive/0005-legacy']);
-  assert.deepEqual(readFileSync(path.join(target, 'archive/0005-legacy/README.md')), readFileSync(path.join(source, 'archive/0002-legacy/README.md')));
+  assert.equal(abandoned.manifest.source.location, 'archive');
+  const first = await importPlan(target, abandoned.html);
+  assert.deepEqual([first.workId, first.path], ['work-0004', 'archive/0004-abandoned']);
+  const second = await importPlan(target, abandoned.html);
+  assert.deepEqual([second.workId, second.path], ['work-0005', 'archive/0005-abandoned']);
+  assert.deepEqual(readFileSync(path.join(target, 'archive/0005-abandoned/README.md')), readFileSync(path.join(source, 'archive/0002-abandoned/README.md')));
   assert.deepEqual(validatePlanning(target).errors, []);
   // Re-exporting an imported item keeps its earlier import record.
   const again = await importPlan(target, (await exportPlan(target, 'work-0005', { now })).html);
   assert.ok(existsSync(path.join(target, again.path, 'import-provenance.json')));
   assert.equal(JSON.parse(readFileSync(path.join(target, again.path, 'import-provenance-2.json'), 'utf8')).source.workId, 'work-0005');
-});
-
-test('a draft imported without a ledger gets one with the planning steps, as new work does', async t => {
-  const directory = temporary(t);
-  const source = path.join(directory, 'source'), target = path.join(directory, 'target');
-  mkdirSync(source);
-  const work = fixture(source);
-  rmSync(path.join(work, 'ledger.md'));
-  rmSync(path.join(work, 'diagrams'), { recursive: true }); // spares the export their layout
-  writeFileSync(path.join(work, 'plan.md'), plan('work-0001', 'Checkout').replace('design_status: accepted', 'design_status: draft').replace('implementation_status: in_progress', 'implementation_status: not_started').replace('accepted_at: "2026-10-02"', 'accepted_at: null'));
-  cpSync(source, target, { recursive: true });
-  const imported = await importPlan(target, (await exportPlan(source, 'work-0001', { now })).html);
-  assert.ok(imported.notes.includes('The draft had no ledger; it got one with the planning steps.'));
-  const ledger = readFileSync(path.join(target, imported.path, 'ledger.md'), 'utf8');
-  assert.match(ledger, new RegExp(`^---\\nschema_version: 2\\nkind: ledger\\nwork_id: ${imported.workId}\\n`));
-  assert.match(ledger, /- title: "Understand the request"\n {4}status: doing\n {4}phase: planning\n/);
-  assert.deepEqual(validatePlanning(target).errors, []);
 });
 
 test('registers the work in the registry\'s own style', async t => {
@@ -270,7 +249,7 @@ test('refuses a target that is not a valid planning repository', async t => {
 });
 
 test('portable path rules', () => {
-  for (const good of ['plan.md', 'docs/adr/0001-x.md', '.atlas/models/m-0.json', 'evidence/ünïcode.md', 'evidence/日本語 notes.md', 'evidence/' + String.fromCharCode(0x5e9, 0x5dc, 0x5d5, 0x5dd) + '.md']) assert.equal(planExportPathProblem(good), null, good);
+  for (const good of ['plan.md', 'docs/adr/0001-x.md', 'evidence/ünïcode.md', 'evidence/日本語 notes.md', 'evidence/' + String.fromCharCode(0x5e9, 0x5dc, 0x5d5, 0x5dd) + '.md']) assert.equal(planExportPathProblem(good), null, good);
   for (const control of [0x202e, 0x202a, 0x2066, 0x2069, 0x200e, 0x200f, 0x61c]) assert.match(planExportPathProblem('evidence/a' + String.fromCharCode(control) + 'txt.md') ?? '', /direction/, control.toString(16));
   for (const bad of ['', '/x', 'x/', '..', 'a/../b', '.atlas', '.env', 'docs/.atlas/x', 'x*.md', 'nul', 'lpt1.txt', 'a.',
     'docs/../../escape.md', 'C:/Windows/evil.md', '\\\\server\\share.md', 'docs\\evil.md', './plan2.md', 'a//b.md', '.git/config', 'docs/.hidden',
@@ -337,6 +316,7 @@ test('clears references to other work so the target stays valid, and rolls back 
   writeFileSync(path.join(source, 'planning.json'), JSON.stringify(registry, null, 2));
   const successor = plan('work-0003', 'Successor').replace('supersedes: []', 'supersedes:\n  - work-0001\n  - work-0002');
   writeFileSync(path.join(source, 'active/0003-successor/plan.md'), successor);
+  writeFileSync(path.join(source, 'active/0003-successor/ledger.md'), '---\nschema_version: 2\nkind: ledger\nwork_id: work-0003\nupdated: null\nblocked: null\nsteps: []\n---\n');
   writeFileSync(path.join(source, 'active/0001-checkout/plan.md'), BOM + plan('work-0001', 'Checkout').replace('superseded_by: null', 'superseded_by: "work-0003"  # replaced\ncontinues: work-0002'));
   assert.deepEqual(validatePlanning(source).errors, [], 'the source is valid');
   mkdirSync(target); fixture(target);
@@ -354,7 +334,7 @@ test('clears references to other work so the target stays valid, and rolls back 
   // The viewer shows the handoffs as they stood at export time: the work it continues, the work continuing it.
   const viewOf = (html: string) => JSON.parse(/<script id="atlas-plan-view" type="application\/json">(.*?)<\/script>/s.exec(html)![1]).work;
   const handoff = { folderId: null, project: 'source', projectName: 'Planning', state: null };
-  assert.deepEqual(viewOf((await exportPlan(source, 'work-0001', { now })).html).continues, [{ ...handoff, workId: 'work-0002', title: 'Legacy', outcome: 'abandoned' }]);
+  assert.deepEqual(viewOf((await exportPlan(source, 'work-0001', { now })).html).continues, [{ ...handoff, workId: 'work-0002', title: 'Abandoned', outcome: 'abandoned' }]);
   assert.deepEqual(viewOf((await exportPlan(source, 'work-0002', { now })).html).continuedIn, [{ ...handoff, workId: 'work-0001', title: 'Checkout', outcome: null }]);
 
   // A plan whose metadata names another work ID would leave the target invalid: nothing stays.
@@ -396,7 +376,7 @@ test('refuses to export what no import would accept', async t => {
 });
 
 test('rolls back every step of a failed import, and says what is left when it cannot', async t => {
-  const { legacy: { html } } = await shared();
+  const { abandoned: { html } } = await shared();
   const target = temporary(t);
   mkdirSync(path.join(target, 'active'), { recursive: true });
   // A registry with a byte order mark and CRLF line endings, and no archive/ folder yet.
@@ -413,7 +393,7 @@ test('rolls back every step of a failed import, and says what is left when it ca
 
   planExportTesting.removeFolder = async () => { throw new Error('locked by a scanner'); };
   await assert.rejects(importPlan(target, html), (error: unknown) => error instanceof PlanExportError && error.code === 'ROLLBACK'
-    && /disk vanished/.test(error.message) && /could not be fully undone/.test(error.message) && /archive[\\/]0001-legacy; delete it/.test(error.message));
+    && /disk vanished/.test(error.message) && /could not be fully undone/.test(error.message) && /archive[\\/]0001-abandoned; delete it/.test(error.message));
   assert.equal(readFileSync(path.join(target, 'planning.json'), 'utf8'), registry, 'planning.json is still restored');
 });
 
@@ -421,7 +401,7 @@ test('records the import beside an existing record, whatever its case', async t 
   const directory = temporary(t);
   const source = path.join(directory, 'source'), target = path.join(directory, 'target');
   mkdirSync(source); fixture(source);
-  writeFileSync(path.join(source, 'archive/0002-legacy/Import-Provenance.json'), '{"earlier": true}\n');
+  writeFileSync(path.join(source, 'archive/0002-abandoned/Import-Provenance.json'), '{"earlier": true}\n');
   mkdirSync(target); fixture(target);
   const result = await importPlan(target, (await exportPlan(source, 'work-0002', { now })).html);
   assert.equal(readFileSync(path.join(target, result.path, 'Import-Provenance.json'), 'utf8'), '{"earlier": true}\n');
@@ -430,7 +410,7 @@ test('records the import beside an existing record, whatever its case', async t 
 });
 
 test('refuses an export too large for an import to read', async t => {
-  const { source, legacy: { html } } = await shared();
+  const { source, abandoned: { html } } = await shared();
   const limit = planExportTesting.maxInputLength;
   t.after(() => { planExportTesting.maxInputLength = limit; });
   planExportTesting.maxInputLength = html.length - 1;

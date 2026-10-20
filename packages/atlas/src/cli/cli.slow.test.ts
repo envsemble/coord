@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { atlas, command, homeWithPlanning, reportsIn, temporary } from './testing.ts';
@@ -25,7 +25,9 @@ function atlasAsync(args: string[], env: NodeJS.ProcessEnv) {
 test('the atlas command exits 0 with its output on stdout, 1 when refused and 2 on usage errors, with the reason on stderr', t => {
   const shown = atlas(['--version']);
   assert.deepEqual([shown.status, shown.stdout, shown.stderr], [0, version + '\n', '']);
-  const refused = atlas(['planning', 'check', path.join(temporary(t), 'missing')]);
+  const broken = temporary(t);
+  writeFileSync(path.join(broken, 'planning.json'), 'not JSON');
+  const refused = atlas(['check', broken]);
   assert.equal(refused.status, 1);
   assert.match(refused.stderr, /^ERROR: planning\.json: /m);
   const wrong = atlas(['tools']);

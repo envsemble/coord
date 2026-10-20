@@ -47,8 +47,8 @@ export interface ProjectWork {
 /**
  * A work item's statistics in brief, counted as the plan page counts them (see summarizeReports):
  * agent time (measured and estimated), tokens, the main model and how many others took part, the
- * planning and implementation stages (reports from before stages count in the totals only),
- * subagents and the last report. Plan revisions need Git, so they are left out.
+ * planning and implementation stages, subagents and the last report. Plan revisions need Git, so
+ * they are left out.
  */
 export interface ProjectWorkStatistics {
   agentMs: number; activeMs: number; unmergedMs: number; tokens: number | null; primaryModel: string | null; primaryEffort: string | null; otherModels: number;
@@ -98,7 +98,7 @@ function currentStep(steps: Step[]): ProjectWork['step'] {
 }
 
 /** A work item from its registry entry, plan header, ledger header and reports. */
-async function workOf(root: string, entry: { id: string; path: string; title?: unknown; current_plan?: unknown }, closed: boolean, reports: StatisticsReport[]): Promise<ProjectWork> {
+async function workOf(root: string, entry: { id: string; path: string; current_plan?: unknown }, closed: boolean, reports: StatisticsReport[]): Promise<ProjectWork> {
   const folder = inside(root, entry.path), plan = inside(root, entry.current_plan);
   const [ledger, planHeader] = await Promise.all([folder ? header(path.join(folder, 'ledger.md'), ['steps']) : null, plan ? header(plan) : null]);
   const blocked = closed ? null : text(ledger?.blocked);
@@ -109,7 +109,7 @@ async function workOf(root: string, entry: { id: string; path: string; title?: u
   const steps = Array.isArray(ledger?.steps) ? (ledger.steps as Step[]) : null;
   const counted = (list: Step[]) => ({ done: list.filter(step => step?.status === 'done').length, total: list.length });
   return {
-    id: entry.id, title: text(planHeader?.title) ?? text(entry.title) ?? entry.path.split('/').at(-1)!, state, blocked,
+    id: entry.id, title: text(planHeader?.title) ?? entry.path.split('/').at(-1)!, state, blocked,
     summary: text(planHeader?.summary), steps: steps && { ...counted(steps), planning: counted(steps.filter(step => step?.phase === 'planning')) },
     updated: text(planHeader?.updated) ?? text(planHeader?.completed_at), outcome,
     step: steps && currentStep(steps), completed: text(planHeader?.completed_at), statistics: workStatisticsBrief(reports),

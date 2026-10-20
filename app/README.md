@@ -13,8 +13,6 @@ Atlas is built for Windows and Linux. Builds are unsigned, by decision for a sin
 
 Both come from `npm run package` in a checkout (they land in `app/release/`): the installer on Windows, the AppImage on Linux. Each [GitHub Release](../docs/releases.md#github-releases) carries both.
 
-To open a folder from a terminal or a file manager's "Open with", pass it on the command line: `Atlas.exe C:\work\planning` or `./Atlas-<version>-x86_64.AppImage ~/work/planning`. If Atlas is already running, the folder opens in that instance; a folder that is already open just gets focus.
-
 ### Linux sandbox
 
 Atlas keeps Chromium's sandbox on and never disables it. An AppImage cannot use Chromium's setuid sandbox helper, so it needs unprivileged user namespaces. Ubuntu 23.10 and later restrict those through AppArmor; there the AppImage launcher would start Atlas with `--no-sandbox`, and Atlas refuses to run that way: it shows "Atlas does not run without its sandbox" and quits (the log records it too). Allow the namespaces instead, either:
@@ -39,7 +37,6 @@ Requires Node.js 24 or newer, npm, and Git for planning history. From the reposi
 
     npm ci
     npm run dev                          # the desktop app, with hot reload
-    npm run dev -- C:/path/to/planning   # …opening a planning folder
 
 `npm run dev` runs electron-vite: the window reloads React changes in place, and the app restarts when main-process or preload code changes. There is no browser mode. Set `ATLAS_HOME` to a folder of its own for development runs (`ATLAS_HOME=~/.atlas-dev npm run dev`): the run then keeps all its files there, Electron's included, and runs beside your installed Atlas. Without it, a development run uses your Atlas home and shares the installed app's single-instance lock.
 
@@ -65,10 +62,10 @@ Requires Node.js 24 or newer, npm, and Git for planning history. From the reposi
 Atlas shows **projects**: each is a planning folder in the [Atlas home](../docs/command.md#the-atlas-home), named by the `name` in its `planning.json` (else by the folder's name), on this computer or on a computer this one is paired with ([remote access](../docs/remote-access.md)). Projects are mostly for agents: each covers **folders** on its computer, and an agent working in one of them, or in a folder inside it, plans in that project. People find plans in the hub.
 
 - **The Projects page** (the **Projects** section) lists every project, active and then archived, one row each: its initials in a colour of its own, its name, its open plans with how many agents work on them or wait for you and when it changed, its folders, and its planning folder. Choosing a project's name shows its plans in the hub; **Statistics** opens its statistics. Its menu edits the folders it covers (**Folders…**), renames it (the name is written into its `planning.json`) and archives it (its plans leave the hub; **Restore** brings it back). Atlas never deletes a project; to drop one, remove its folder from the home.
-- **New project**, on the Projects page or **File › New Project…**, asks for a name and a folder (typed as a full path, or chosen with **Browse…**). Atlas creates the planning folder in the home from the bundled templates, as a Git repository with a first commit, covering the folder. A project made in a window on a paired computer gets a name only: its folders are paths there, chosen in Atlas on that computer, and its folders are not changed from here. Agents can create projects too, with the atlas skill.
+- **New project**, on the Projects page or **New Project…** in the menu, asks for a name and the project's folders, each chosen in the file manager. Atlas creates the planning folder in the home from the bundled templates, as a Git repository with a first commit, covering those folders. A project made in a window on a paired computer gets a name only: its folders are paths there, chosen in Atlas on that computer, and its folders are not changed from here. Agents can create projects too, with the atlas skill.
 - **The computer menu** (the computer's name in the title bar, after **File**) lists this computer and the paired ones. Choosing a computer shows its plans in this window, at the place this window last showed there. **Manage Computers…** opens a computer in a new window or forgets a paired one.
 - **New Window** (Ctrl+Shift+N) opens another window on the same computer. **Close Window** (Ctrl+Shift+W) closes one; closing windows one by one keeps the last one.
-- Windows open at quit come back on the next start, each with its size and position and, per computer, the place it showed (a window from before the hub shows the tab that was active). A window whose paired computer does not answer at the start shows the hub at once and its place when the computer answers; the place of a project whose folder cannot be listed for a while is kept for when it can.
+- Windows open at quit come back on the next start, each with its size and position and, per computer, the place it showed. A window whose paired computer does not answer at the start shows the hub at once and its place when the computer answers; the place of a project whose folder cannot be listed for a while is kept for when it can.
 
 Atlas keeps its own data in the **Atlas home**, `~/.atlas` (or `ATLAS_HOME`), shared with the `atlas` command: the planning folders in `planning/`, and everything else in the home database, `atlas.db`: the projects and their order and state, windows and the places they show, the theme, this computer's identity, remote access settings and paired devices, the computers this one paired with, and statistics. The [command reference](../docs/command.md#the-atlas-home) describes the whole home.
 
@@ -144,8 +141,7 @@ The app follows Electron's security checklist (the desktop-only decision is work
 
 **Connect to Another Atlas…** (in **File** and the computer menu) pairs with another computer from its link and shows its projects. Then work on it from the computer menu at the top left of the window:
 - its projects, which you can rename, archive and reorder (the order and state are this device's) and create;
-- export, and import (the file is sent there);
-- document use, counted there.
+- export, and import (the file is sent there).
 
 Only Reveal in File Explorer stays on that computer. See [remote access](../docs/remote-access.md).
 
@@ -161,7 +157,7 @@ Registry locations use POSIX-relative paths. Safe aliases such as ./ prefixes an
 
 Path comparisons follow the connected folder's case and Unicode-normalization behavior, detected from existing entries without writing probe files. Filesystem aliases retain indexed document spelling and shared collector identities; distinct names remain separate.
 
-Work IDs follow the shared work-0001 format. Explicit selected-plan pointers establish plan ownership; other documents belong to their most-specific registered location in both the viewer and consultation logger. Git activity uses the registry before deletions and after additions, preserving ownership when nested work is archived. Previously unregistered files can use their current registration without overriding established historical owners.
+Work IDs follow the shared work-0001 format. Explicit selected-plan pointers establish plan ownership; other documents belong to their most-specific registered location in the viewer. Git activity uses the registry before deletions and after additions, preserving ownership when nested work is archived. Previously unregistered files can use their current registration without overriding established historical owners.
 
 Design acceptance, implementation status, archive location, and known dates are displayed separately. A ledger's steps report its progress; the plan's summary and its commits tell what actually happened. Unknown dates stay unknown; invalid dates and chronology generate health errors. Recorded calendar durations are not engineering time. Git activity shows recent checkpoints, associating work through retained registry identities so archiving or renaming its folder preserves earlier activity. Filesystem and Git reads do not update plans or lifecycle state.
 

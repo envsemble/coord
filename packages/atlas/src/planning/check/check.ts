@@ -2,10 +2,9 @@
 // schema version 2; anything else is refused.
 //
 // Accepts the contract's plain/quoted scalars and flow/block lists, plus the ledger's block list
-// of flat step mappings; this is deliberately not a general YAML parser or migration tool. Quote string values that resemble implicit
-// YAML booleans, nulls, numbers, or timestamps. Plain ISO dates remain compatible only in
-// the contract's date fields. Ported from the former check_planning.py with the same rules
-// and messages.
+// of flat step mappings; this is deliberately not a general YAML parser. Quote string values that
+// resemble implicit YAML booleans, nulls, numbers, or timestamps; plain ISO dates are accepted
+// only in the contract's date fields.
 import { readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { ledgerStatus } from '../work/ledger.ts';
@@ -286,8 +285,7 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
   catch (error) { return { errors: ['planning.json: ' + (error as Error).message], warnings }; }
   if (!isObject(registry)) return { errors: ['planning.json must be an object'], warnings };
   if (registry.schema_version !== 2) errors.push('registry schema_version must be integer 2');
-  for (const field of ['repositories', 'workspaces']) if (Object.hasOwn(registry, field)) errors.push(`planning.json: ${field} is not part of the registry; a project is its planning folder and its folders`);
-  const unknown = Object.keys(registry).filter(field => !registryFields.includes(field) && field !== 'repositories' && field !== 'workspaces');
+  const unknown = Object.keys(registry).filter(field => !registryFields.includes(field));
   if (unknown.length) errors.push('planning.json has unknown fields: ' + unknown.join(', '));
   // The project's name, which the app shows.
   if (typeof registry.name !== 'string' || !registry.name.trim() || registry.name.length > 100) errors.push('name must be a nonempty string of at most 100 characters');
@@ -340,8 +338,7 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     const location = contained(entry.path, label + '.path');
     if (location !== null && locations.has(pathKey(location))) errors.push(label + ' duplicates a retained location');
     if (location !== null) locations.add(pathKey(location));
-    if (Object.hasOwn(entry, 'repositories')) errors.push(label + ': repositories is not part of a work item');
-    const extra = Object.keys(entry).filter(field => !workFields.includes(field) && field !== 'repositories');
+    const extra = Object.keys(entry).filter(field => !workFields.includes(field));
     if (extra.length) errors.push(label + ' has unknown fields: ' + extra.join(', '));
     if (!Object.hasOwn(entry, 'current_plan')) { errors.push(label + ' needs current_plan'); return; }
     const pointer = entry.current_plan;
@@ -362,7 +359,8 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     const missing = planFields.filter(field => !Object.hasOwn(metadata, field)).sort();
     if (missing.length) errors.push(prefix + 'missing fields: ' + missing.join(', '));
     if (!isInteger(metadata.schema_version) || metadata.schema_version !== 2) errors.push(prefix + 'schema_version must be integer 2');
-    if (Object.hasOwn(metadata, 'repositories')) errors.push(prefix + 'repositories is not part of a plan header');
+    const unknownFields = Object.keys(metadata).filter(field => !planFields.includes(field) && field !== 'summary' && field !== 'continues').sort();
+    if (unknownFields.length) errors.push(prefix + 'unknown fields: ' + unknownFields.join(', '));
     if (metadata.kind !== 'plan') errors.push(prefix + 'kind must be plan');
     if (metadata.id !== workId) errors.push(prefix + 'id disagrees with registry');
     if (typeof metadata.title !== 'string' || !metadata.title.trim()) errors.push(prefix + 'title must be a nonempty string');
@@ -411,7 +409,7 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     const location = contained(entry.path, 'ledger work location');
     if (location === null || !isDirectory(location)) continue;
     const ledger = path.join(location, 'ledger.md');
-    if (!isFile(ledger)) continue;
+    if (!isFile(ledger)) { errors.push(path.relative(root, ledger).split(path.sep).join('/') + ': missing; every work item has a ledger'); continue; }
     if (contained(path.relative(root, ledger).split(path.sep).join('/'), 'ledger') === null) continue;
     try {
       const metadata = parseFrontmatter(readText(ledger, true), { entryLists: ledgerEntryLists });

@@ -41,7 +41,7 @@ export function ignoredPath(relative: string): boolean {
   const normalized = relative.replaceAll('\\', '/').replace(/^\.\//, '');
   if (normalized === '.git/objects' || normalized.startsWith('.git/objects/')) return true;
   if (normalized.startsWith('.atlas-import')) return true;
-  return normalized.split('/').some(part => part === 'node_modules' || part === '__pycache__') || /(?:^|\/)\.atlas\/(?:prepared|results|exports)(?:\/|$)/.test(normalized);
+  return normalized.split('/').some(part => part === 'node_modules' || part === '__pycache__');
 }
 
 const homeIgnored = new Set(['.git', 'node_modules', '__pycache__']);
@@ -52,7 +52,7 @@ const homeIgnored = new Set(['.git', 'node_modules', '__pycache__']);
  */
 export function ignoredInHome(relative: string): boolean {
   const parts = relative.replaceAll('\\', '/').split('/').filter(Boolean);
-  if (parts.some(part => homeIgnored.has(part) || part.startsWith('.atlas'))) return true;
+  if (parts.some(part => homeIgnored.has(part) || part.startsWith('.atlas-import'))) return true;
   return parts.length >= 4 && (parts[1] === 'active' || parts[1] === 'archive') && parts[3] === 'evidence';
 }
 /**

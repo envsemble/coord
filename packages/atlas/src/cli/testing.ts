@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { storedReports, withDatabase } from '../planning/index.ts';
+import { planningLedger } from '../planning/work/work.ts';
 import { main } from './main.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -73,6 +74,7 @@ function makeTemplate() {
   const root = path.join(template, 'home', 'planning', 'shop-planning');
   write(path.join(root, 'planning.json'), registryText([]));
   write(path.join(root, 'active/0001-cart/plan.md'), planText('work-0001', 'Cart'));
+  write(path.join(root, 'active/0001-cart/ledger.md'), planningLedger('work-0001', '2026-10-01', []));
   write(path.join(root, 'README.md'), '# Planning\n\n- [Cart](active/0001-cart/plan.md)\n');
   git(root, 'init', '-q');
   git(root, 'add', '-A');

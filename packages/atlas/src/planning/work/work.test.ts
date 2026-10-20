@@ -24,7 +24,6 @@ test('a work item is created under the next unused number, registered, and valid
   assert.ok(read(root, 'planning.json').startsWith(before.slice(0, before.lastIndexOf('}\n  ]'))), 'the registry is extended, not rewritten');
   assert.deepEqual(JSON.parse(read(root, 'planning.json')).work_items.at(-1), { id: 'work-0004', path: 'active/0004-save-the-cart', current_plan: 'active/0004-save-the-cart/plan.md' });
   assert.match(read(root, created.plan), /^schema_version: 2$/m);
-  assert.doesNotMatch(read(root, created.plan), /repositories/);
   assert.match(read(root, created.plan), /^title: "Säve the \\"cart\\""$/m);
   assert.deepEqual(errorsOf(root), []);
   const slugged = await createWork(root, { title: 'Other', slug: 'custom-name' }, today);
@@ -90,10 +89,10 @@ test('new work has its planning steps from the start: added to while designing, 
   assert.deepEqual(errorsOf(root), []);
 });
 
-test('work in progress or partly done without a started ledger starts once', async t => {
+test('work in progress or partly done whose ledger has no implementation steps starts once', async t => {
   const root = planningFolder(temporary(t));
   const accepted = { design_status: 'accepted', accepted_at: '"2026-10-02"' };
-  // A plan in progress without a ledger gets one when it starts.
+  // A plan in progress whose ledger has no steps gets them when it starts.
   writeFileSync(path.join(root, 'active/0001-existing/plan.md'), plan('work-0001', { ...accepted, implementation_status: 'in_progress' }));
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'Plans');
   const started = await startWork(root, 'work-0001', { steps: ['Build'] }, today);
@@ -106,12 +105,12 @@ test('work in progress or partly done without a started ledger starts once', asy
   await assert.rejects(startWork(root, 'work-0002', { steps: ['Again'] }, today), /implementation has started already/);
 });
 
-test('a ledger whose steps have no phase reads as before, and a phase is planning or implementation', async t => {
+test('a step without a phase is an implementation step, and a phase is planning or implementation', async t => {
   const root = planningFolder(temporary(t));
   const header = (steps: string) => `---\nschema_version: 2\nkind: ledger\nwork_id: work-0001\nupdated: "2026-10-14"\nblocked: null\nsteps:\n${steps}---\n\n# Ledger\n`;
   write(path.join(root, 'active/0001-existing/ledger.md'), header('  - title: "Build"\n    status: doing\n'));
   assert.deepEqual([(await workStatus(root, 'work-0001')).steps, errorsOf(root)], [[{ title: 'Build', status: 'doing' }], []]);
-  // A step added to an older ledger is an implementation step, after the others: only work not
+  // A step added to work with implementation steps is one too, after the others: only work not
   // started, with no implementation step yet, is being planned.
   assert.deepEqual((await addSteps(root, 'work-0001', ['Ship'], today)).steps, [{ title: 'Build', status: 'doing' }, { title: 'Ship', status: 'todo' }]);
   writeFileSync(path.join(root, 'active/0001-existing/plan.md'), plan('work-0001', { implementation_status: 'unknown' }));
@@ -176,12 +175,9 @@ test('closing refuses while items are open, then completes and archives, repairi
     return /cannot close while items are open/.test(error.message);
   });
   await assert.rejects(closeWork(root, 'work-0002', today), /only accepted work is closed/);
-  // Work that never started, or whose ledger has no implementation steps, has nothing to show as done.
+  // Work that never started has nothing to show as done.
   await acceptWork(root, 'work-0002', today);
-  await assert.rejects(closeWork(root, 'work-0002', today), /no ledger: its implementation never started/);
-  write(path.join(root, 'active/0002-other/ledger.md'), '---\nschema_version: 2\nkind: ledger\nwork_id: work-0002\nupdated: "2026-10-14"\nblocked: null\nsteps: []\n---\n\n# Ledger\n');
   await assert.rejects(closeWork(root, 'work-0002', today), /ledger has no implementation steps/);
-  rmSync(path.join(root, 'active/0002-other/ledger.md'));
   await setStepStatus(root, 'work-0001', 'Review', 'done', today);
   await setBlocked(root, 'work-0001', null, today);
   const closed = await closeWork(root, 'work-0001', { today: '2026-10-16' });

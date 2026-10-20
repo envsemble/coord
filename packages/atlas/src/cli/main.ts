@@ -21,7 +21,6 @@ ${planningUsage}
   atlas mcp
   atlas hook <SessionStart|UserPromptSubmit|PostToolUse|ToolUse|Notification|PermissionRequest|Stop|StopFailure|Interrupt|SubagentStart|SubagentStop|SessionEnd>
   atlas setup [--dry-run]
-  atlas planning check <planning-root>
   atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]
   atlas plan import <file> [--planning-dir <dir>] [--dry-run]
   atlas work report <planning-root> --work <work-id> [--step <title>] [--model <model>] [--session <id>] [--tokens <n>]
@@ -46,10 +45,9 @@ capture this one is compared with. It prints the capture's summary as JSON and e
 the capture fails or is refused, and 2 on usage errors.
 mcp serves the planning-state operations to an agent harness over stdio. hook runs one harness
 hook (Claude Code or Codex) on the JSON it reads from stdin; it always exits 0. setup creates the
-Atlas home and its database (or brings the database up to date), grants the home to
+Atlas home and its database, grants the home to
 Claude Code and Codex, and installs the Atlas plugin into each harness on PATH; --dry-run prints
 what it would do.
-planning check exits 0 when valid, 1 on errors and 2 on usage errors; it never writes.
 plan export writes one self-contained HTML file of a work item (default
 <slug>-<work-id>.atlas-plan.html in the current folder; an existing file needs --force).
 plan import prints a preview, then adds the export as new work under the next free number
@@ -72,22 +70,10 @@ folders, and Atlas keeps its database (atlas.db) and logs beside them.`;
 
 const console_: Output = { stdout: text => process.stdout.write(text + '\n'), stderr: text => process.stderr.write(text + '\n') };
 
-const checkUsage = 'Usage: atlas planning check <planning-root>';
 const exportUsage = 'Usage: atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]';
 const importUsage = 'Usage: atlas plan import <file> [--planning-dir <dir>] [--dry-run]';
 const reportUsage = 'Usage: atlas work report <planning-root> --work <work-id> [--step <title>] [--model <model>] [--session <id>] [--tokens <n>]';
 const serveUsage = 'Usage: atlas serve [--address <ip>] [--port <n>] [--home <dir>]';
-
-function planningCheck(args: string[], out: Output) {
-  if (args.length === 1 && ['--help', '-h', 'help'].includes(args[0])) { out.stdout(checkUsage); return 0; }
-  const { positional } = parseOptions(args, { values: [] }, checkUsage);
-  if (positional.length !== 1) throw new UsageError(positional.length ? 'unrecognized arguments: ' + positional.slice(1).join(' ') : 'the following arguments are required: planning-root', checkUsage);
-  const { errors, warnings } = validatePlanning(positional[0]);
-  for (const message of warnings) out.stdout('WARNING: ' + message);
-  for (const message of errors) out.stderr('ERROR: ' + message);
-  if (!errors.length) out.stdout('Planning registry and selected plan metadata valid; files were not modified.');
-  return errors.length ? 1 : 0;
-}
 
 async function workReport(args: string[], out: Output) {
   if (args.length === 1 && ['--help', '-h', 'help'].includes(args[0])) { out.stdout(reportUsage); return 0; }
@@ -219,14 +205,13 @@ export async function main(args: string[], out: Output = console_): Promise<numb
     if (command === 'capture') return await capture(args.slice(1), out);
     if (command === 'home') return await home(args.slice(1), out);
     if (command === 'project') return await project(args.slice(1), out);
-    if (command === 'planning' && subcommand === 'check') return planningCheck(rest, out);
     if (command === 'plan' && subcommand === 'export') return await planExport(rest, printableOutput(out));
     if (command === 'plan' && subcommand === 'import') return await planImport(rest, printableOutput(out));
     if (command === 'work' && subcommand === 'report') return await workReport(rest, printableOutput(out));
     if (command === 'work') return await work(subcommand, rest, out);
     // The QR code is drawn with terminal colour codes; serve prints only local, trusted text.
     if (command === 'serve') return await serveCommand(args.slice(1), out);
-    throw new UsageError(command === 'planning' || command === 'plan' || command === 'work' ? `unknown ${command} command: ${subcommand ?? '(none)'}` : 'unknown command: ' + command);
+    throw new UsageError(command === 'plan' || command === 'work' ? `unknown ${command} command: ${subcommand ?? '(none)'}` : 'unknown command: ' + command);
   } catch (error) {
     if (error instanceof PlanExportError || error instanceof PlanningNotFoundError || error instanceof CaptureError || error instanceof DatabaseVersionError) { out.stderr('atlas: ' + printable(error.message)); return 1; }
     if (error instanceof WorkError) {

@@ -34,7 +34,7 @@ export interface HookInput {
  * clears only what it counted.
  */
 interface Link { id: number; projectId: number; planningFolder: string; workId: string; amending: boolean; linked: string; came: string; amended: string | null }
-/** The session's links, and the one it is on: its focus, else (for a session from before focus) the one it touched last. */
+/** The session's links, and the one it is on: its focus. */
 interface SessionLinks { session: string; transcriptPath: string | null; work: Link[]; on: Link | null; focus: number | null }
 
 const fileTools = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
@@ -53,12 +53,12 @@ const latest = (...values: string[]) => values.sort().at(-1)!;
 /** The session's links; a new session's when it has none. */
 function readLinks(database: HomeDatabase, session: string, transcriptPath: string | null): SessionLinks {
   const saved = database.db.prepare('SELECT transcript_path, focus FROM session WHERE id = ?').get(session) as { transcript_path: string | null; focus: number | null } | undefined;
-  const rows = database.db.prepare('SELECT session_work.*, project.folder FROM session_work JOIN project ON project.id = session_work.project_id WHERE session_id = ? ORDER BY ifnull(touched_at, linked_at), session_work.id').all(session) as Record<string, unknown>[];
+  const rows = database.db.prepare('SELECT session_work.*, project.folder FROM session_work JOIN project ON project.id = session_work.project_id WHERE session_id = ? ORDER BY touched_at, session_work.id').all(session) as Record<string, unknown>[];
   const work = rows.map((row): Link => ({
     id: Number(row.id), projectId: Number(row.project_id), planningFolder: String(row.folder), workId: String(row.work_id), amending: Boolean(row.amending),
     linked: String(row.linked_at), came: String(row.focused_at ?? row.linked_at), amended: (row.amended_at as string | null) ?? null,
   }));
-  return { session, transcriptPath: transcriptPath ?? saved?.transcript_path ?? null, work, on: work.find(item => item.id === saved?.focus) ?? work.at(-1) ?? null, focus: saved?.focus ?? null };
+  return { session, transcriptPath: transcriptPath ?? saved?.transcript_path ?? null, work, on: work.find(item => item.id === saved?.focus) ?? null, focus: saved?.focus ?? null };
 }
 /** The harness a session runs in, as its log's place tells. */
 const harnessOf = (transcriptPath: string | null) => transcriptPath === null ? 'unknown' : /[\\/]\.codex[\\/]/.test(transcriptPath) ? 'codex' : 'claude-code';
@@ -133,7 +133,7 @@ export function sessionContext(where: Whereabouts): string {
     for (const item of match.work.slice(0, 10)) {
       const doing = item.steps.filter(step => step.status === 'doing').map(step => step.title);
       const state = [item.designStatus, item.implementationStatus].filter(Boolean).join(', ');
-      lines.push(`- ${item.workId} "${item.title}"${state ? ' (' + state + ')' : ''}: ${item.progress ?? 'no ledger yet'}${doing.length ? '; doing: ' + doing.join('; ') : ''}${item.blocked ? '; BLOCKED: ' + item.blocked : ''}. Plan: ${path.join(match.planningFolder, ...(item.plan ?? item.path).split('/'))}`);
+      lines.push(`- ${item.workId} "${item.title}"${state ? ' (' + state + ')' : ''}: ${item.progress}${doing.length ? '; doing: ' + doing.join('; ') : ''}${item.blocked ? '; BLOCKED: ' + item.blocked : ''}. Plan: ${path.join(match.planningFolder, ...(item.plan ?? item.path).split('/'))}`);
     }
     if (match.work.length > 10) lines.push(`- …and ${match.work.length - 10} more (Atlas tool where).`);
   }

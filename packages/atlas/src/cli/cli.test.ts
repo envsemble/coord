@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { environment, reportsIn, run, temporary } from './testing.ts';
+import { planningLedger } from '../planning/work/work.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { version } = JSON.parse(readFileSync(path.resolve(here, '../../package.json'), 'utf8')) as { version: string };
@@ -14,6 +15,7 @@ function planningFolder(directory: string) {
   mkdirSync(work, { recursive: true });
   writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'planning', folders: [], work_items: [{ id: 'work-0001', path: 'active/0001-example', current_plan: 'active/0001-example/plan.md' }] }));
   writeFileSync(path.join(work, 'plan.md'), ['---', 'schema_version: 2', 'kind: plan', 'id: work-0001', 'title: Example work', 'created: "2026-10-01"', 'updated: "2026-10-02"', 'design_status: accepted', 'implementation_status: in_progress', 'accepted_at: "2026-10-02"', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', '# Example work', ''].join('\n'));
+  writeFileSync(path.join(work, 'ledger.md'), planningLedger('work-0001', '2026-10-01', [{ title: 'Build it', status: 'doing' }]));
   writeFileSync(path.join(root, 'README.md'), '# Planning\n');
   return root;
 }
@@ -29,32 +31,11 @@ test('version and help describe the one atlas command', async () => {
 });
 
 test('unknown commands are usage errors', async () => {
-  for (const args of [['tools'], ['planning'], ['plan', 'share']]) {
+  for (const args of [['tools'], ['plan', 'share']]) {
     const result = await run(args);
     assert.equal(result.status, 2, args.join(' '));
     assert.match(result.stderr, /atlas: error:/);
   }
-});
-
-test('atlas planning check validates read-only with 0/1/2 exit codes', async t => {
-  const directory = temporary(t);
-  const root = planningFolder(directory);
-  const before = readFileSync(path.join(root, 'active/0001-example/plan.md'));
-  const valid = await run(['planning', 'check', root]);
-  assert.equal(valid.status, 0, valid.stderr);
-  assert.match(valid.stdout, /Planning registry and selected plan metadata valid; files were not modified\./);
-  assert.deepEqual(readFileSync(path.join(root, 'active/0001-example/plan.md')), before);
-  writeFileSync(path.join(root, 'active/0001-example/plan.md'), before.toString().replace('title: Example work', 'title: 1.5'));
-  const invalid = await run(['planning', 'check', root]);
-  assert.equal(invalid.status, 1);
-  assert.match(invalid.stderr, /^ERROR: active\/0001-example\/plan\.md: ambiguous implicit YAML scalar; quote intended strings$/m);
-  const missing = await run(['planning', 'check', path.join(directory, 'missing')]);
-  assert.equal(missing.status, 1);
-  assert.match(missing.stderr, /^ERROR: planning\.json: /m);
-  assert.equal((await run(['planning', 'check'])).status, 2);
-  assert.equal((await run(['planning', 'check', root, 'extra'])).status, 2);
-  assert.equal((await run(['planning', 'check', root, '--fix'])).status, 2);
-  assert.equal((await run(['planning', 'check', '--help'])).status, 0);
 });
 
 test('atlas work report records each report in the home database and never fails the caller', async t => {
@@ -79,7 +60,7 @@ test('atlas work report records each report in the home database and never fails
   assert.equal((await run(['work', 'report', root, '--work', 'work-0001'])).status, 2, '--model is required outside a harness');
   assert.equal((await run(['work', 'report', '--work', 'work-0001', '--model', 'model-a'])).status, 2, 'the planning root is required');
   assert.equal((await run(['work', 'report', root, '--work', 'work-0001', '--model', 'model-a', '--tokens', '12k'])).status, 2);
-  assert.equal((await run(['planning', 'check', root])).status, 0, 'the planning check accepts the reports');
+  assert.equal((await run(['check', root])).status, 0, 'the check accepts the reports');
 });
 
 test('inside a harness, atlas work report needs only the work and the step: the session log gives the rest', async t => {
@@ -149,7 +130,7 @@ test('atlas plan export and import share a work item with a preview, --dry-run a
   assert.match(imported.stdout, /Import as: +work-0001/);
   assert.match(imported.stdout, /README/);
   assert.deepEqual(readFileSync(path.join(target, 'active/0001-example/plan.md')), readFileSync(path.join(source, 'active/0001-example/plan.md')));
-  assert.equal((await run(['planning', 'check', target])).status, 0);
+  assert.equal((await run(['check', target])).status, 0);
 
   // Text from an export cannot drive the terminal: control characters are refused, other invisible controls replaced.
   const payload = /<script id="atlas-plan-export" type="application\/json">([\s\S]*?)<\/script>/.exec(html.toString())!;
@@ -183,16 +164,3 @@ test('atlas plan export and import share a work item with a preview, --dry-run a
     assert.equal((await run(args)).status, 2, args.join(' '));
   }
 });
-
-// Local-only: the sibling planning repositories of this workspace (absent in CI).
-const workspaceRoot = path.resolve(here, '../../../../..');
-for (const name of ['planning', 'demo/planning']) {
-  const folder = path.join(workspaceRoot, name);
-  test(`atlas planning check passes on the local ${name} folder`, { skip: !existsSync(path.join(folder, 'planning.json')) && 'local planning folder absent' }, async () => {
-    const registry = readFileSync(path.join(folder, 'planning.json'));
-    const result = await run(['planning', 'check', folder]);
-    assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /metadata valid; files were not modified/);
-    assert.deepEqual(readFileSync(path.join(folder, 'planning.json')), registry);
-  });
-}

@@ -117,8 +117,8 @@ async function reported(database: HomeDatabase, home: string, root: string) {
   const other = database.addProject(path.join(home, 'planning', 'other'), 'Other');
   const opus = 'claude-opus', haiku = 'claude-haiku';
   const tokens = (input: number, output: number) => ({ input, cacheRead: 0, cacheWrite: 0, output });
-  const report = (project: number, work: string, at: string, more: Partial<ReportInput>) => insertReport(database, project, work, createReport({ model: opus, session: 's1', at: new Date(at), ...more }));
-  // Measured planning, measured implementation with a second model and two subagents, then an hour estimated before stages were recorded.
+  const report = (project: number, work: string, at: string, more: Partial<ReportInput>) => insertReport(database, project, work, createReport({ model: opus, session: 's1', at: new Date(at), stage: 'implementation', ...more }));
+  // Measured planning, measured implementation with a second model and two subagents, then an hour of implementation estimated.
   report(shop.id, 'work-0001', '2026-10-01T10:00:00Z', { stage: 'planning', measured: { since: '2026-10-01T09:50:00.000Z', agentMs: 600_000, models: [{ model: opus, agentMs: 600_000, ...tokens(100, 50) }] } });
   report(shop.id, 'work-0001', '2026-10-01T11:00:00Z', {
     stage: 'implementation', measured: {
@@ -137,9 +137,9 @@ async function reported(database: HomeDatabase, home: string, root: string) {
   assert.deepEqual([brief('work-0004').step, brief('work-0004').completed], [null, '2026-09-20']);
   assert.deepEqual(brief('work-0001').statistics, {
     agentMs: 600_000 + 1_200_000 + 3_600_000, activeMs: 5_400_000, unmergedMs: 5_400_000, tokens: 150 + 300 + 50, primaryModel: opus, primaryEffort: null, otherModels: 1,
-    planning: { agentMs: 600_000, tokens: 150 }, implementation: { agentMs: 1_200_000, tokens: 350 },
+    planning: { agentMs: 600_000, tokens: 150 }, implementation: { agentMs: 1_200_000 + 3_600_000, tokens: 350 },
     subagents: 2, lastReport: '2026-10-01T12:00:00.000Z',
-  }, 'counted as the plan page counts them; the hour without a stage is in the totals only');
+  }, 'counted as the plan page counts them');
   assert.deepEqual(['work-0002', 'work-0003', 'work-0004'].map(id => brief(id).statistics), [null, null, null], 'work without reports has none');
   assert.equal((await projectSummary(root)).active[0].statistics, null, 'without the database, none');
 }
@@ -156,12 +156,14 @@ test('what agents do now: sessions in a turn, seen lately, and those waiting for
     const session = (id: string, seen: number, state: ({ turn: number } | { waiting: number }) & { counts?: number } | null, links: [number, string, number][]) => {
       database.db.prepare('INSERT INTO session (id, harness, transcript_path, started_at, updated_at, working, turn_at, waiting_at, counts_at) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)')
         .run(id, 'claude-code', ago(600), ago(seen), state && 'turn' in state ? 1 : 0, state && 'turn' in state ? ago(state.turn) : null, state && 'waiting' in state ? ago(state.waiting) : null, state?.counts === undefined ? null : ago(state.counts));
-      for (const [project, work, touched] of links) database.db.prepare('INSERT INTO session_work (session_id, project_id, work_id, linked_at, touched_at) VALUES (?, ?, ?, ?, ?)').run(id, project, work, ago(600), ago(touched));
+      const rows = links.map(([project, work, touched]) => ({ touched, row: Number(database.db.prepare('INSERT INTO session_work (session_id, project_id, work_id, linked_at, touched_at) VALUES (?, ?, ?, ?, ?)').run(id, project, work, ago(600), ago(touched)).lastInsertRowid) }));
+      // The hooks put the session on the work item it touched last.
+      database.db.prepare('UPDATE session SET focus = ? WHERE id = ?').run(rows.sort((a, b) => a.touched - b.touched)[0].row, id);
     };
     // One conversation on two plans counts for the one it touched last.
     session('a', 2, { turn: 10 }, [[shop.id, 'work-0001', 30], [coord.id, 'work-0003', 5]]);
     session('b', 5, { turn: 8 }, [[shop.id, 'work-0001', 6], [shop.id, 'work-0002', 7]]);
-    database.db.prepare('INSERT INTO work_report (project_id, work_id, at, model, session) VALUES (?, ?, ?, ?, ?)').run(shop.id, 'work-0001', ago(3), 'claude-opus', 'b');
+    database.db.prepare('INSERT INTO work_report (project_id, work_id, at, stage, model, session) VALUES (?, ?, ?, ?, ?, ?)').run(shop.id, 'work-0001', ago(3), 'implementation', 'claude-opus', 'b');
     session('c', 1, { waiting: 1 }, [[shop.id, 'work-0001', 4]]);
     // Its turn ended five minutes after its last report: those count until its report is in.
     session('stopped', 1, { waiting: 40, counts: 45 }, [[shop.id, 'work-0004', 50]]);
@@ -193,7 +195,7 @@ test('a plan waits for the person once while its sessions wait at once, and no l
     wait('a', 0, 60);
     wait('b', 30, 90);
     // Session c works on the plan from minute 40 to 50.
-    insertReport(database, shop.id, 'work-0001', createReport({ model: 'claude-opus', session: 'c', at: new Date(at(50)), measured: { since: at(40), agentMs: 600_000, models: [], intervals: [{ agent: null, start: at(40), end: at(50) }] } }));
+    insertReport(database, shop.id, 'work-0001', createReport({ model: 'claude-opus', session: 'c', at: new Date(at(50)), stage: 'implementation', measured: { since: at(40), agentMs: 600_000, models: [], intervals: [{ agent: null, start: at(40), end: at(50) }] } }));
     const timeline = workTimeline(database, shop.id, 'work-0001', { created: '2026-10-14', accepted: '2026-10-15', completed: null }, Date.parse(at(100)));
     assert.deepEqual([timeline.plannedMs, timeline.waitedMs / 60_000], [86_400_000, 40], 'minutes 0 to 40: the two waits once, ended by c\'s work');
     assert.deepEqual(timeline.lanes.map(lane => [lane.session, lane.working, lane.waiting]), [
@@ -213,7 +215,7 @@ test('a project\'s statistics put time on the days it was worked, by model and e
     const shop = database.addProject(root, 'Shop');
     // Local times: worked from 22:00 on the 13th to 02:00 on the 14th, at high effort.
     const local = (day: number, hour: number) => new Date(2026, 9, day, hour);
-    insertReport(database, shop.id, 'work-0001', createReport({ model: 'claude-opus', session: 's1', at: local(14, 2), measured: {
+    insertReport(database, shop.id, 'work-0001', createReport({ model: 'claude-opus', session: 's1', at: local(14, 2), stage: 'implementation', measured: {
       since: local(13, 21).toISOString(), agentMs: 4 * 3_600_000, models: [{ model: 'claude-opus', agentMs: 4 * 3_600_000, input: 0, cacheRead: 0, cacheWrite: 0, output: 100 }],
       intervals: [{ agent: null, start: local(13, 22).toISOString(), end: local(14, 2).toISOString() }],
       efforts: [{ agent: null, model: 'claude-opus', effort: 'high', agentMs: 4 * 3_600_000, tokens: 100 }],
@@ -231,7 +233,7 @@ test('a project\'s statistics put time on the days it was worked, by model and e
     write(path.join(appRoot, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'App', folders: [], work_items: [item('active/0001')] }));
     write(path.join(appRoot, 'active/0001/plan.md'), plan('in_progress', 'title: Checkout app\n'));
     const app = database.addProject(appRoot, 'App');
-    insertReport(database, app.id, 'work-0001', createReport({ model: 'claude-opus', session: 's2', at: local(13, 12), measured: {
+    insertReport(database, app.id, 'work-0001', createReport({ model: 'claude-opus', session: 's2', at: local(13, 12), stage: 'implementation', measured: {
       since: local(13, 11).toISOString(), agentMs: 3_600_000, models: [], intervals: [{ agent: null, start: local(13, 11).toISOString(), end: local(13, 12).toISOString() }],
     } }));
     const all = await projectStatistics(database, [{ projectId: shop.id, root }, { projectId: app.id, root: appRoot }], { from: local(12, 0).toISOString(), to: local(15, 0).toISOString(), unit: 'day' });

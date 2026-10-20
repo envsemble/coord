@@ -156,7 +156,7 @@ function pairingHost(link: string, code: string | null) {
 
 /**
  * A window's layout as the database keeps it: the shared settings and the place it showed of its
- * computer's projects (a window from before the hub showed its active tab; with none, the hub). A
+ * computer's projects (with none, the hub). A
  * paired computer that is not connected is not waited for: the window shows the hub, its place of a
  * project not listed yet waits in the database (`pending`), and the window asks again once the
  * computer answers.
@@ -171,7 +171,7 @@ async function loadUi(manager: WindowManager, window: AtlasWindow): Promise<UiSt
   await (window.computer === null || window.client().status === 'connected' ? listing : Promise.race([listing, new Promise(resolve => setTimeout(resolve, 2000))]));
   // The window now knows the saved places of the projects listed, and saves replace only theirs.
   for (const rowId of window.listedRows()) window.placesLoaded.add(rowId);
-  const saved = state.tabs(window.rowId, connectionId).find(row => row.active);
+  const saved = state.places(window.rowId, connectionId).find(row => row.active);
   const project = saved ? window.folderOf(saved.projectId) : null;
   const place = saved && project ? savedPlace(project, saved) : null;
   const inspectorWidth = state.inspectorWidth;
@@ -195,7 +195,7 @@ async function saveUi(manager: WindowManager, window: AtlasWindow, ui: UiState) 
   // A project listed since the layout loaded (made meanwhile) has its place replaced from now on too.
   if (projectId !== null) window.placesLoaded.add(projectId);
   // The window may have moved to another computer meanwhile: this place is no longer its own.
-  if (window.computer === computer) state.saveTabs(window.rowId, computer === null ? null : connections.idOf(computer), rows, [...window.placesLoaded]);
+  if (window.computer === computer) state.savePlaces(window.rowId, computer === null ? null : connections.idOf(computer), rows, [...window.placesLoaded]);
 }
 
 export function channels(manager: WindowManager, actions: { openLogs(): void; about(): AboutInfo }): Record<InvokeChannel, Channel> {
@@ -238,7 +238,6 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'references:resolve': { args: [folderId, referenceInputs], handle: async (window, project: string, items: ReferenceInput[]) => remoteErrors((await window.readable(project)).request('references.resolve', { folderId: project, items }, { timeout: 30000 })) },
     'work:sessions': { args: [folderId, workId], handle: async (window, project: string, work: string) => remoteErrors((await window.readable(project)).request('work.sessions', { folderId: project, work })) },
     'work:timeline': { args: [folderId, workId], handle: async (window, project: string, work: string) => remoteErrors((await window.readable(project)).request('work.timeline', { folderId: project, work })) },
-    // Views count in the document use of the computer the project is on.
     // A project's statistics for a period, from the project's computer.
     'project:statistics': { args: [folderId, nullable(isoTime), nullable(isoTime), statisticsUnit], handle: async (window, project: string, from: string | null, to: string | null, unit: 'day' | 'week') => remoteErrors((await window.readable(project)).request('project.statistics', { folderId: project, from, to, unit }, { timeout: 30000 })) },
     // All plans: the projects this window's computer has active, as the app keeps them.

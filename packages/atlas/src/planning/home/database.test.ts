@@ -1,8 +1,7 @@
-// The home database: its schema and versions, projects (order, state, paired computers' rows), and
-// the migration of the files Atlas kept in its home before it.
+// The home database: its schema and version, and projects (order, state, paired computers' rows).
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -20,22 +19,21 @@ function planningFolder(folder: string, name?: string) {
 }
 const tables = (database: HomeDatabase) => (database.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as { name: string }[]).map(row => row.name);
 
-test('the database is created with the accepted schema, stays open to older versions it only added to, and refuses a newer one', t => {
+test('the database is created with the schema, and one of another version is refused', t => {
   const home = temporary(t);
   withDatabase(home, database => {
-    assert.deepEqual(tables(database), ['collection_gap', 'connection', 'device', 'document_use', 'project', 'report_effort', 'report_interval', 'report_model', 'report_subagent', 'session', 'session_agent', 'session_product', 'session_wait', 'session_work', 'setting', 'tab', 'window', 'work_report']);
-    // An older Atlas checks user_version: version 2 knows enough to use it.
-    assert.deepEqual([Number((database.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version), database.setting('schema.version')], [2, String(schemaVersion)]);
+    assert.deepEqual(tables(database), ['connection', 'device', 'place', 'project', 'report_effort', 'report_interval', 'report_model', 'report_subagent', 'session', 'session_agent', 'session_product', 'session_wait', 'session_work', 'setting', 'window', 'work_report']);
+    assert.equal(Number((database.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version), schemaVersion);
     assert.equal((database.db.prepare('PRAGMA journal_mode').get() as { journal_mode: string }).journal_mode, 'wal');
     database.setSetting('theme', 'dark');
   });
-  // Opening again keeps what is there, also after a newer Atlas added to it.
-  withDatabase(home, database => database.setSetting('schema.version', String(schemaVersion + 1)));
-  assert.equal(withDatabase(home, database => database.setting('theme')), 'dark');
-  const raw = new DatabaseSync(path.join(home, 'atlas.db'));
-  raw.exec(`PRAGMA user_version = ${schemaVersion + 1}`);
-  raw.close();
-  assert.throws(() => HomeDatabase.open(home), DatabaseVersionError);
+  assert.equal(withDatabase(home, database => database.setting('theme')), 'dark', 'opening again keeps what is there');
+  for (const version of [schemaVersion - 1, schemaVersion + 1]) {
+    const raw = new DatabaseSync(path.join(home, 'atlas.db'));
+    raw.exec(`PRAGMA user_version = ${version}`);
+    raw.close();
+    assert.throws(() => HomeDatabase.open(home), DatabaseVersionError);
+  }
 });
 
 test('the home and its database are owner-only on POSIX', { skip: process.platform === 'win32' && 'Windows profile permissions apply' }, async t => {
@@ -47,16 +45,6 @@ test('the home and its database are owner-only on POSIX', { skip: process.platfo
   withDatabase(home, database => database.setSetting('theme', 'dark'));
   const file = path.join(home, 'atlas.db');
   for (const name of [file, file + '-wal', file + '-shm']) if (existsSync(name)) assert.equal(mode(name), 0o600, name);
-  // A database an earlier Atlas left readable is tightened when it is opened.
-  const other = path.join(directory, 'other');
-  mkdirSync(other);
-  const raw = new DatabaseSync(path.join(other, 'atlas.db'));
-  raw.exec('PRAGMA journal_mode = WAL; CREATE TABLE x (y);');
-  chmodSync(path.join(other, 'atlas.db'), 0o644);
-  for (const suffix of ['-wal', '-shm']) if (existsSync(path.join(other, 'atlas.db' + suffix))) chmodSync(path.join(other, 'atlas.db' + suffix), 0o644);
-  withDatabase(other, database => database.setSetting('theme', 'dark'));
-  raw.close();
-  for (const suffix of ['', '-wal', '-shm']) if (existsSync(path.join(other, 'atlas.db' + suffix))) assert.equal(mode(path.join(other, 'atlas.db' + suffix)), 0o600, suffix);
 });
 
 test('projects keep their order and state, and a paired computer\'s rows are kept apart', async t => {
@@ -74,8 +62,7 @@ test('projects keep their order and state, and a paired computer\'s rows are kep
     database.updateProject(third.id, { position: 0 });
     database.updateProject(second.id, { name: 'Two' });
     database.updateProject(first.id, { state: 'archived' });
-    // A project an older Atlas hid reads as archived.
-    database.db.prepare("UPDATE project SET state = 'hidden' WHERE id = ?").run(second.id);
+    database.updateProject(second.id, { state: 'archived' });
     assert.deepEqual(database.projects().map(project => [project.name, project.state]), [['Three', 'active'], ['Coord', 'archived'], ['Two', 'archived']]);
     // A paired computer's projects: rows of this app, ordered and archived here.
     database.db.prepare('INSERT INTO connection (id, host_id, name, origin, device_id, token, paired_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('c1', 'host-0001', 'Laptop', 'http://100.64.0.2:7346', 'd-' + 'a'.repeat(32), Buffer.from('plain:x'), '2026-10-15T00:00:00.000Z');

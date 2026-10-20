@@ -8,6 +8,7 @@ import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Document } from '../types.ts';
+import { planningLedger } from '../work/work.ts';
 
 // ---------------------------------------------------------------------------
 // The reader's tests (planning.test.ts)
@@ -52,7 +53,7 @@ const registry = (directory: string) => JSON.stringify({ schema_version: 2, name
 ] }, null, 2) + '\n';
 // The planning folder and its first commit are made once; each test works on a copy.
 let template: string | undefined;
-/** A planning folder in a Git repository with work-0001 (draft) and an unregistered folder 0003. */
+/** A planning folder in a Git repository with work-0001 and work-0002 (drafts, their ledgers without steps) and an unregistered folder 0003. */
 export function planningFolder(directory: string, name = 'planning') {
   if (!template) {
     const shared = realpathSync(mkdtempSync(path.join(tmpdir(), 'atlas-work-')));
@@ -61,6 +62,7 @@ export function planningFolder(directory: string, name = 'planning') {
     write(path.join(template, 'planning.json'), registry(shared));
     write(path.join(template, 'active/0001-existing/plan.md'), plan('work-0001'));
     write(path.join(template, 'active/0002-other/plan.md'), plan('work-0002').replace('[the other work](../0002-other/plan.md)', '[the first](../0001-existing/plan.md#why)'));
+    for (const [id, folder] of [['work-0001', '0001-existing'], ['work-0002', '0002-other']]) write(path.join(template, 'active', folder, 'ledger.md'), planningLedger(id, '2026-10-01', []));
     write(path.join(template, 'active/0003-unregistered/notes.md'), '# Notes\n');
     write(path.join(template, 'notes/glossary.md'), '# Glossary\n');
     write(path.join(template, 'README.md'), '# Planning\n\n- [Existing](active/0001-existing/plan.md)\n- [Ledger][ledger]\n\n[ledger]: <active/0001-existing/ledger.md>\n\n```\n[not a link](active/0001-existing/plan.md)\n```\n');

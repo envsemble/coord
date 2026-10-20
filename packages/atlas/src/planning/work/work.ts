@@ -98,7 +98,7 @@ interface Entry { id: string; path: string; current_plan: string | null }
 interface Loaded {
   root: string; registryText: string; entry: Entry; plan: string;
   planText: string; planMetadata: Metadata;
-  ledgerText: string | null; ledgerSteps: LedgerStep[] | null; blocked: string | null;
+  ledgerText: string; ledgerSteps: LedgerStep[]; blocked: string | null;
 }
 
 async function planningRoot(input: string) {
@@ -141,11 +141,12 @@ async function load(input: string, workId: string): Promise<Loaded> {
   try { planMetadata = parseFrontmatter(planText); } catch (error) { throw new WorkError(`The plan header of ${plan} cannot be read: ${(error as Error).message}`); }
   if (!planMetadata) throw new WorkError(`The plan ${plan} has no metadata header.`);
   if (planMetadata.id !== workId) throw new WorkError(`The plan ${plan} has the id ${String(planMetadata.id)}, not ${workId}.`);
-  const ledgerText = await readFile(file(root, entry.path + '/ledger.md'), 'utf8').catch(() => null);
-  const ledger = ledgerText === null ? null : ledgerOf(ledgerText, workId);
+  let ledgerText: string;
+  try { ledgerText = await readFile(file(root, folder + '/ledger.md'), 'utf8'); } catch { throw new WorkError(`${workId} has no readable ledger.md; atlas check says what to fix.`); }
+  const ledger = ledgerOf(ledgerText, workId);
   return {
     root, registryText: registry.text, entry: { id: workId, path: folder, current_plan: plan },
-    plan, planText, planMetadata, ledgerText, ledgerSteps: ledger?.steps ?? null, blocked: ledger?.blocked ?? null,
+    plan, planText, planMetadata, ledgerText, ledgerSteps: ledger.steps, blocked: ledger.blocked,
   };
 }
 
@@ -166,8 +167,8 @@ async function describe(loaded: Loaded): Promise<WorkStatus> {
     plan: loaded.plan,
     designStatus: text(plan.design_status), implementationStatus: text(plan.implementation_status),
     created: text(plan.created), updated: text(plan.updated), acceptedAt: text(plan.accepted_at), completedAt: text(plan.completed_at),
-    ledger: loaded.ledgerText === null ? null : entry.path + '/ledger.md',
-    steps: loaded.ledgerSteps ?? [], progress: loaded.ledgerSteps ? stepSummary(stepCounts(loaded.ledgerSteps)) : null, blocked: loaded.blocked,
+    ledger: entry.path + '/ledger.md',
+    steps: loaded.ledgerSteps, progress: stepSummary(stepCounts(loaded.ledgerSteps)), blocked: loaded.blocked,
     statistics: { reports: statistics?.reports ?? 0, agentMinutes: Math.round((statistics?.agentMs ?? 0) / 60000), tokens: statistics?.tokens ?? null, primaryModel: statistics?.primaryModel ?? null },
   };
 }
@@ -242,7 +243,7 @@ export const planningSteps = ['Understand the request', 'Settle the design', 'Wr
 /** A new work item's ledger: only its header, with its planning steps (by default the usual ones, the first under way). */
 export function planningLedger(workId: string, today: string, steps = planningSteps.map((step, index) => ({ title: step, status: index ? 'todo' : 'doing' }))) {
   return [
-    '---', 'schema_version: 2', 'kind: ledger', 'work_id: ' + workId, `updated: "${today}"`, 'blocked: null', 'steps:',
+    '---', 'schema_version: 2', 'kind: ledger', 'work_id: ' + workId, `updated: "${today}"`, 'blocked: null', steps.length ? 'steps:' : 'steps: []',
     ...steps.flatMap(step => ['  - title: ' + JSON.stringify(step.title), '    status: ' + step.status, '    phase: planning']),
     '---', '',
   ].join('\n');
@@ -251,7 +252,7 @@ export function planningLedger(workId: string, today: string, steps = planningSt
  * Whether the work is past planning, so new steps are implementation steps: only work whose
  * implementation is not_started, with no implementation step in its ledger, is still being planned.
  */
-const implementing = (loaded: Loaded) => loaded.planMetadata.implementation_status !== 'not_started' || (loaded.ledgerSteps ?? []).some(step => step.phase !== 'planning');
+const implementing = (loaded: Loaded) => loaded.planMetadata.implementation_status !== 'not_started' || loaded.ledgerSteps.some(step => step.phase !== 'planning');
 
 /**
  * Create and register a work item: the next unused number across active, archived and registered
@@ -297,28 +298,20 @@ export async function acceptWork(root: string, workId: string, options: Operatio
   if (design === 'accepted') return result(loaded.root, workId, [], [`The design was already accepted${loaded.planMetadata.accepted_at ? ' on ' + String(loaded.planMetadata.accepted_at) : ''}.`]);
   if (design !== 'draft') throw new WorkError(`The design is ${String(design)}; only a draft can be accepted.`);
   const changed = [await writePlan(loaded, { design_status: 'accepted', accepted_at: today }, today)];
-  if (loaded.ledgerText !== null && loaded.ledgerSteps?.some(step => step.phase === 'planning' && step.status !== 'done')) {
+  if (loaded.ledgerSteps.some(step => step.phase === 'planning' && step.status !== 'done')) {
     const steps = loaded.ledgerSteps.map(step => step.phase === 'planning' ? { ...step, status: 'done' as const } : step);
     changed.push(await writeLedger(loaded, setFields(setSteps(loaded.ledgerText, steps), { updated: today })));
   }
   return result(loaded.root, workId, changed);
 }
 
-/** A ledger for work without one: only its header, with these steps. */
-function newLedger(loaded: Loaded, titles: string[], today: string) {
-  return [
-    '---', 'schema_version: 2', 'kind: ledger', 'work_id: ' + loaded.entry.id, `updated: "${today}"`, 'blocked: null',
-    ...(titles.length ? ['steps:', ...titles.flatMap(step => ['  - title: ' + JSON.stringify(step), '    status: todo'])] : ['steps: []']),
-    '---', '',
-  ].join('\n');
-}
 /** The ledger with these todo steps after its steps. */
 const withSteps = (loaded: Loaded, titles: string[], today: string) =>
-  setFields(setSteps(loaded.ledgerText!, [...loaded.ledgerSteps!, ...titles.map(title => ({ title, status: 'todo' as const }))]), { updated: today });
+  setFields(setSteps(loaded.ledgerText, [...loaded.ledgerSteps, ...titles.map(title => ({ title, status: 'todo' as const }))]), { updated: today });
 
 /**
  * Start implementation: `implementation_status: in_progress` and the given steps after the ledger's
- * planning steps (in a new ledger for work without one).
+ * planning steps.
  */
 export async function startWork(root: string, workId: string, request: { steps: string[] }, options: OperationOptions = {}): Promise<WorkResult> {
   const today = dateOf(options);
@@ -327,14 +320,14 @@ export async function startWork(root: string, workId: string, request: { steps: 
   const loaded = await load(root, workId);
   if (loaded.planMetadata.design_status !== 'accepted') throw new WorkError(`The design is ${String(loaded.planMetadata.design_status)}; accept it before implementation starts.`);
   if (loaded.planMetadata.implementation_status === 'complete') throw new WorkError('The implementation is already complete; reopen the work instead.');
-  // Started once already: the ledger has its implementation steps. Work in progress without them gets them now.
-  if (loaded.ledgerSteps?.some(step => step.phase !== 'planning')) {
+  // Started once already: the ledger has its implementation steps.
+  if (loaded.ledgerSteps.some(step => step.phase !== 'planning')) {
     throw new WorkError('The implementation has started already; add steps with step_add instead.');
   }
-  const taken = titles.filter(title => loaded.ledgerSteps?.some(step => step.title === title));
+  const taken = titles.filter(title => loaded.ledgerSteps.some(step => step.title === title));
   if (taken.length) throw new WorkError('The ledger already has these steps: ' + taken.join(', ') + '. Give new titles.');
   if (locationOf(loaded.entry.path) === 'archive') throw new WorkError('The work is archived; reopen it instead.');
-  const ledger = await writeLedger(loaded, loaded.ledgerText === null ? newLedger(loaded, titles, today) : withSteps(loaded, titles, today));
+  const ledger = await writeLedger(loaded, withSteps(loaded, titles, today));
   const plan = await writePlan(loaded, { implementation_status: 'in_progress' }, today);
   return result(loaded.root, workId, [ledger, plan]);
 }
@@ -343,7 +336,6 @@ export async function startWork(root: string, workId: string, request: { steps: 
 async function changeLedger(root: string, workId: string, options: OperationOptions, change: (steps: LedgerStep[], loaded: Loaded) => { steps?: LedgerStep[]; fields?: Record<string, string | null> }) {
   const today = dateOf(options);
   const loaded = await load(root, workId);
-  if (loaded.ledgerText === null || loaded.ledgerSteps === null) throw new WorkError(`${workId} has no ledger yet; start its implementation first.`);
   const { steps, fields } = change(loaded.ledgerSteps.map(step => ({ ...step })), loaded);
   let next = loaded.ledgerText;
   if (steps) next = setSteps(next, steps);
@@ -423,7 +415,7 @@ export async function setBlocked(root: string, workId: string, reason: string | 
 /** What keeps a work item open: steps not done, and `blocked`. */
 function openItems(loaded: Loaded) {
   return [
-    ...(loaded.ledgerSteps ?? []).filter(step => step.status !== 'done').map(step => `Step "${step.title}" is ${step.status}.`),
+    ...loaded.ledgerSteps.filter(step => step.status !== 'done').map(step => `Step "${step.title}" is ${step.status}.`),
     ...loaded.blocked ? ['Blocked: ' + loaded.blocked] : [],
   ];
 }
@@ -450,7 +442,7 @@ async function move(loaded: Loaded, to: 'active' | 'archive') {
   const repaired = await repairLinks(loaded.root, from, target);
   // The repair may have changed the plan and the ledger: later changes start from what is there now.
   loaded.planText = await readFile(file(loaded.root, plan), 'utf8');
-  if (loaded.ledgerText !== null) loaded.ledgerText = await readFile(file(loaded.root, target + '/ledger.md'), 'utf8');
+  loaded.ledgerText = await readFile(file(loaded.root, target + '/ledger.md'), 'utf8');
   return ['planning.json', ...repaired];
 }
 
@@ -555,7 +547,6 @@ export async function closeWork(root: string, workId: string, options: Operation
   const loaded = await load(root, workId);
   if (loaded.planMetadata.design_status !== 'accepted') throw new WorkError(`The design is ${String(loaded.planMetadata.design_status)}; only accepted work is closed as complete. Archive it instead.`);
   if (locationOf(loaded.entry.path) !== 'active') throw new WorkError(`${workId} is not in active/ (${loaded.entry.path}).`);
-  if (loaded.ledgerSteps === null) throw new WorkError(`${workId} has no ledger: its implementation never started. Start it with its steps, or archive it as superseded or abandoned.`);
   if (!loaded.ledgerSteps.some(step => step.phase !== 'planning')) throw new WorkError(`${workId}'s ledger has no implementation steps: start it with the agreed steps and finish them before closing.`);
   const open = openItems(loaded);
   if (open.length) throw new WorkError(`${workId} cannot close while items are open. Finish them, or remove a dropped one with step_remove.`, open);
@@ -573,10 +564,10 @@ export async function reopenWork(root: string, workId: string, request: { steps:
   // Superseded or abandoned work that had been accepted is accepted again once reopened.
   const design = loaded.planMetadata.design_status, disposed = design === 'superseded' || design === 'abandoned';
   if (design !== 'accepted' && !(disposed && loaded.planMetadata.accepted_at)) throw new WorkError(`The design is ${String(design)}; accept it before reopening its implementation.`);
-  const taken = titles.filter(title => loaded.ledgerSteps?.some(step => step.title === title));
+  const taken = titles.filter(title => loaded.ledgerSteps.some(step => step.title === title));
   if (taken.length) throw new WorkError('The ledger already has these steps: ' + taken.join(', ') + '. Give new titles.');
   const changed = await move(loaded, 'active');
-  changed.push(await writeLedger(loaded, loaded.ledgerText === null ? newLedger(loaded, titles, today) : withSteps(loaded, titles, today)));
+  changed.push(await writeLedger(loaded, withSteps(loaded, titles, today)));
   changed.push(await writePlan(loaded, { implementation_status: 'in_progress', completed_at: null, ...disposed && { design_status: 'accepted', superseded_by: null } }, today));
   return result(loaded.root, workId, changed);
 }

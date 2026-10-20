@@ -48,14 +48,6 @@ const HOOK_EVENTS = {
   SessionEnd: ["SessionEnd"],
 };
 
-// Old skill and product names. Character classes keep this file itself free of them.
-const RETIRED_NAMES = [
-  /work[t]rail[\w-]*/gi,
-  /ontouml[- ]atla[s]/gi,
-  /(?<![\w-])plannin[g]-(?:bootstrap|grill|implement|record|organize)\b/gi,
-  /(?<![\w-])implement-pla[n]\b/gi,
-  /(?<![\w-])atlas-(?:recor[d]|organiz[e]|bootstra[p]|mode[l]|modelin[g]|babysit-p[r])\b/gi,
-];
 const PROVIDER_NAME =
   /\b(gpt[\w.-]*|chatgpt|openai|codex|anthropic|claude[\w.-]*|opus|sonnet|haiku|fable|gemini|sol|llama|mistral)\b/gi;
 
@@ -82,7 +74,9 @@ const USAGE = [
   read(path.join(CLI, "..", "main.ts")),
   read(path.join(CLI, "planning.ts")),
 ]
-  .flatMap((text) => [...text.matchAll(/(?:^|`) {2}atlas ([a-z][^\n`]*)(?:`;)?$/gm)])
+  .flatMap((text) => [
+    ...text.matchAll(/(?:^|`) {2}atlas ([a-z][^\n`]*)(?:`;)?$/gm),
+  ])
   .map((match) =>
     match[1]
       .split(" ")
@@ -100,7 +94,8 @@ const TOOLS = [
     /const tools[\s\S]*?\n\];/.exec(read(path.join(CLI, "mcp.ts")))?.[0] ?? ""
   ).matchAll(/name: '([a-z_]+)'/g),
 ].map((match) => match[1]);
-const TOOL_MENTION = /`(?!work_(?:items|id)`)((?:work|step|project)_[a-z_]+|where)`/g; // Registry and ledger fields are not tools.
+const TOOL_MENTION =
+  /`(?!work_(?:items|id)`)((?:work|step|project)_[a-z_]+|where)`/g; // Registry and ledger fields are not tools.
 
 /** Whether `atlas <words>` names a command: it and a usage line agree for as long as both have words. */
 function knownCommand(words) {
@@ -184,10 +179,6 @@ test("the plugin packages exactly the atlas, atlas-grill and atlas-implement ski
       .sort();
   assert.deepEqual(folders(SKILLS), PLUGIN_SKILLS);
   assert.deepEqual(folders(EXTRAS), EXTRA_SKILLS);
-  assert.ok(
-    !existsSync(path.join(REPO, "skills")),
-    "the old skills/ folder is gone",
-  );
   for (const name of readdirSync(REPO))
     assert.ok(
       !existsSync(path.join(REPO, name, "SKILL.md")),
@@ -258,15 +249,6 @@ test("Codex interface metadata uses the Atlas names", () => {
   }
 });
 
-test("no old skill or product name appears in the skills", () => {
-  for (const file of skillFiles()) {
-    const found = RETIRED_NAMES.flatMap((pattern) =>
-      [...read(file).matchAll(pattern)].map((m) => m[0]),
-    );
-    assert.deepEqual(found, [], `${rel(file)} mentions old names`);
-  }
-});
-
 test("skills name no model, provider or harness-specific reviewer", () => {
   for (const file of textFiles()) {
     const text = read(file);
@@ -278,17 +260,6 @@ test("skills name no model, provider or harness-specific reviewer", () => {
       `${rel(file)} assumes a reviewer or reasoning cap`,
     );
   }
-});
-
-test("skills use the atlas command, not Python helpers", () => {
-  for (const file of skillFiles())
-    assert.doesNotMatch(rel(file), /\.py$/, "no bundled Python");
-  for (const file of textFiles())
-    assert.doesNotMatch(
-      read(file),
-      /\bpython\b|\.py\b|requirements-dev/i,
-      `${rel(file)} refers to Python`,
-    );
 });
 
 test("every atlas command and Atlas tool the skills and docs name exists in the code", () => {
@@ -418,6 +389,8 @@ test("the plugin's hooks are the ones Atlas handles", () => {
   }
   assert.match(
     read(path.join(REPO, "packages", "atlas", "src", "cli", "main.ts")),
-    new RegExp(`atlas hook <${[...new Set(Object.values(HOOK_EVENTS).flat())].join("\\|")}>`),
+    new RegExp(
+      `atlas hook <${[...new Set(Object.values(HOOK_EVENTS).flat())].join("\\|")}>`,
+    ),
   );
 });

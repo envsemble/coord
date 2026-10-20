@@ -1,9 +1,10 @@
 // Agent time where it shows (the hub's Agents column, a plan's statistics): every agent's time added
 // up, counting up once a second while agents work on the plan, and on hover and focus its report:
-// the time at least one agent worked, older reports added as is, and as far as the place knows, by
-// agent, by model and by stage, who works now, and how it was measured. Only these values tick, so a
-// working plan renders little each second. The reported time they count on is the project listing's,
-// which comes with the activity in one reading, so a report replaces the live count it covers at once.
+// the time at least one agent worked, estimated reports added as is, and as far as the place knows,
+// by agent, by model and by stage, who works now, and how it was measured. Only these values tick,
+// so a working plan renders little each second. The reported time they count on is the project
+// listing's, which comes with the activity in one reading, so a report replaces the live count it
+// covers at once.
 import { useEffect, useState } from 'react';
 import type { SessionActivity, WorkStatistics } from '../types';
 import { absoluteDate, duration } from '../ui/format';
@@ -40,7 +41,7 @@ export interface ReportSection { heading?: string; rows: { label: string; value:
 
 /**
  * The agent time a place knows: every agent's added up, the time at least one worked, of that the
- * older reports' added as is, and when the latest report was made.
+ * estimated reports' added as is, and when the latest report was made.
  */
 export interface AgentTotals { agentMs: number; activeMs: number; unmergedMs: number; lastReport: string | null }
 
@@ -71,7 +72,7 @@ export function AgentTime({ totals, activity, sections = [], after = [], descrip
     { rows: [
       { label: 'Agent time', value },
       { label: 'At least one agent working', value: duration(activeMs, working) },
-      ...totals.unmergedMs > 0 ? [{ label: 'Of that, from older reports added as is', value: duration(totals.unmergedMs) }] : [],
+      ...totals.unmergedMs > 0 ? [{ label: 'Of that, estimated and added as is', value: duration(totals.unmergedMs) }] : [],
     ] },
     ...sections,
     ...current ? [current] : [],

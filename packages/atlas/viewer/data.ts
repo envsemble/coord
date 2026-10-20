@@ -5,7 +5,7 @@ import type { HandoffLink, WorkProgress } from '../src/planning/types.ts';
 export interface ExportFile { path: string; size: number; sha256: string; data: string }
 export interface ExportPayload {
   format: string; version: number; atlasVersion: string; exportedAt: string;
-  source: { planningFolder: string; workId: string; title: string; location: 'active' | 'archive'; path: string; currentPlan: string | null };
+  source: { planningFolder: string; workId: string; title: string; location: 'active' | 'archive'; path: string; currentPlan: string };
   files: ExportFile[];
 }
 export interface ViewDocument { path: string; title: string; category: string; format: string }

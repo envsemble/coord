@@ -45,14 +45,14 @@ test('the MCP server serves the planning-state tools, resolving the planning fol
       assert.match(closing.content![0].text, /- Step "Review" is todo\.\n- Blocked: Waiting$/);
       assert.equal((await inRoot('work_block', { work: 'work-0001' })).structuredContent!.blocked, null);
       const created = await call('work_create', { title: 'Payments' });
-      assert.deepEqual([created.structuredContent!.workId, 'repositories' in created.structuredContent!], ['work-0002', false]);
+      assert.equal(created.structuredContent!.workId, 'work-0002');
       assert.deepEqual((await inRoot('work_continue', { work: 'work-0002', continues: ['work-0001'] })).structuredContent!.continues, ['work-0001']);
       assert.match(readFileSync(path.join(root, 'active/0001-cart/ledger.md'), 'utf8'), /status: done/);
       // A reason alone is refused, not dropped; naming the work that supersedes it implies superseded.
       assert.match((await inRoot('work_archive', { work: 'work-0001', reason: 'Replaced' })).content![0].text, /only with a disposition/);
       const archived = await inRoot('work_archive', { work: 'work-0001', supersededBy: 'work-0002', reason: 'Payments covers it' });
       assert.deepEqual([archived.structuredContent!.location, archived.structuredContent!.designStatus], ['archive', 'superseded']);
-      assert.equal((await run(['planning', 'check', root], { env })).status, 0);
+      assert.equal((await run(['check', root], { env })).status, 0);
 
       // A project for another folder: made in the home as the app makes one, and from then on that folder's project.
       const returns = path.join(directory, 'returns');

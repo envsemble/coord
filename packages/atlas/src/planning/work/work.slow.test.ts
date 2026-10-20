@@ -30,7 +30,7 @@ test('a folder finds its planning folders in the home: in one of their folders, 
   const where = await findPlanning(path.join(shop, 'src'), { home });
   assert.equal(where.cwd, realpathSync(path.join(shop, 'src')));
   assert.deepEqual(where.matches.map(match => [match.planningFolder, match.via]), [[root, ['folder']]]);
-  assert.deepEqual(where.matches[0].work.map(item => [item.workId, item.title, item.designStatus, item.progress]), [['work-0001', 'Existing work', 'accepted', '0 of 1 step done · 1 left'], ['work-0002', 'Existing work', 'draft', null]]);
+  assert.deepEqual(where.matches[0].work.map(item => [item.workId, item.title, item.designStatus, item.progress]), [['work-0001', 'Existing work', 'accepted', '0 of 1 step done · 1 left'], ['work-0002', 'Existing work', 'draft', 'No steps agreed yet']]);
   // Inside the planning folder: all of its active work.
   const inside = await findPlanning(path.join(root, 'active'), { home });
   assert.deepEqual(inside.matches.map(match => [match.via, match.work.map(item => item.workId)]), [[['inside'], ['work-0001', 'work-0002']]]);
@@ -38,7 +38,7 @@ test('a folder finds its planning folders in the home: in one of their folders, 
   const outside = await findPlanning(directory, { home });
   assert.deepEqual(outside.matches, []);
   assert.deepEqual(outside.projects.map(project => [project.project, project.planningFolder, project.folders, project.match, project.work.map(item => [item.workId, item.title, item.designStatus, item.implementationStatus, item.progress])]), [
-    ['Planning', root, [shop], false, [['work-0001', 'Existing work', 'accepted', 'in_progress', '0 of 1 step done · 1 left'], ['work-0002', 'Existing work', 'draft', 'not_started', null]]],
+    ['Planning', root, [shop], false, [['work-0001', 'Existing work', 'accepted', 'in_progress', '0 of 1 step done · 1 left'], ['work-0002', 'Existing work', 'draft', 'not_started', 'No steps agreed yet']]],
     ['unrelated', unrelated, [path.join(directory, 'other')], false, []],
   ]);
   assert.ok(!('steps' in outside.projects[0].work[0]), 'the list stays compact: no steps');
@@ -52,13 +52,11 @@ test('a folder finds its planning folders in the home: in one of their folders, 
   assert.deepEqual(several.matches.map(match => match.project), ['Planning', 'Coord']);
   await assert.rejects(resolvePlanningFolder({ cwd: shop, home }), /Several projects cover this folder: Planning \(.*\), Coord \(.*\)\. Ask the user which project to plan in/);
   assert.equal(await resolvePlanningFolder({ cwd: shop, home, work: 'work-0001' }), root, 'a work item only one of them registers names its project');
-  // Archived projects (and those an older Atlas hid) do not match; a folder without a project row is active.
+  // Archived projects do not match; a folder without a project row is active.
   const coord = realpathSync(unrelated);
   withDatabase(home, database => database.addProject(coord, 'Coord', null, 'archived'));
   assert.deepEqual((await findPlanning(shop, { home })).matches.map(match => match.project), ['Planning']);
   assert.equal(await resolvePlanningFolder({ cwd: shop, home }), root);
-  withDatabase(home, database => database.db.prepare("UPDATE project SET state = 'hidden' WHERE id = ?").run(database.projectByFolder(coord)!.id));
-  assert.deepEqual((await findPlanning(shop, { home })).matches.map(match => match.project), ['Planning']);
   assert.deepEqual((await findPlanning(directory, { home })).projects.map(project => project.project), ['Planning'], 'archived projects are not listed');
   withDatabase(home, database => database.addProject(root, 'main', null, 'archived'));
   assert.deepEqual((await findPlanning(shop, { home })).matches, []);
@@ -67,7 +65,7 @@ test('a folder finds its planning folders in the home: in one of their folders, 
   const raw = new DatabaseSync(path.join(home, 'atlas.db'));
   raw.exec('PRAGMA user_version = 999');
   raw.close();
-  await assert.rejects(findPlanning(shop, { home }), /schema version 999, newer than this Atlas knows/);
+  await assert.rejects(findPlanning(shop, { home }), /schema version 999; this Atlas uses version/);
 });
 
 test('a folder in a project\'s folder belongs to that project, the deepest folder winning', async t => {

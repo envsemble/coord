@@ -1,5 +1,5 @@
 // The open plan's files, in a card always beside its pages: its work folder (plan, ledger, context,
-// diagrams, evidence and the rest) as a tree of real folder and file names; a work item's diagram
+// diagrams and the rest) as a tree of real folder and file names; a work item's diagram
 // files open as its diagrams. A click, or Enter, opens a file in the window; folders open and close in
 // place.
 import { createContext, useContext, useMemo } from 'react';

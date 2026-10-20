@@ -8,10 +8,10 @@ import { appendFileSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSyn
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { loadPlanning } from '../reading/planning.ts';
-import { createReport, fitStep, insertReport, storedReports, summarizeReports, StatisticsReportError, type Measured, type MeasuredSubagents, type StatisticsReport } from './statistics.ts';
-import { withDatabase, withDatabaseAsync } from '../home/database.ts';
+import { createReport, fitStep, storedReports, summarizeReports, StatisticsReportError, type Measured, type MeasuredSubagents, type ReportInput, type StatisticsReport } from './statistics.ts';
+import { withDatabase } from '../home/database.ts';
 import type { WorkStage } from '../types.ts';
-import { recordWorkReport, remeasureReports } from './workReport.ts';
+import { recordWorkReport } from './workReport.ts';
 
 // Reports made here never measure the developer's own session: no harness session, no logs at home.
 delete process.env.CLAUDE_CODE_SESSION_ID;
@@ -22,7 +22,7 @@ process.env.CODEX_HOME = path.join(noLogs, 'codex');
 test.after(() => rmSync(noLogs, { recursive: true, force: true }));
 
 const at = (minutes: number) => new Date(Date.UTC(2026, 9, 11, 9, 0) + minutes * 60000).toISOString();
-const report = (minutes: number, model: string, tokens: number | null = null, session: string | null = null): StatisticsReport => ({ version: 1, at: at(minutes), model, session, tokens, step: null });
+const report = (minutes: number, model: string, tokens: number | null = null, session: string | null = null): StatisticsReport => ({ at: at(minutes), model, session, tokens, step: null, stage: 'implementation' });
 type Share = [model: string, minutes: number, tokens: [input: number, cacheRead: number, cacheWrite: number, output: number]];
 const measurement = (since: number, minutes: number, shares: Share[]): Measured => ({ since: at(since), agentMs: minutes * 60000, models: shares.map(([model, time, [input, cacheRead, cacheWrite, output]]) => ({ model, agentMs: time * 60000, input, cacheRead, cacheWrite, output })) });
 const measured = (minutes: number, model: string, session: string, since: number, agentMinutes: number, shares: Share[]): StatisticsReport => ({ ...report(minutes, model, null, session), measured: measurement(since, agentMinutes, shares) });
@@ -65,17 +65,17 @@ test('a lower token count starts the session again, and out-of-order lines are s
   assert.equal(summary.tokens, 1000 + 500);
   assert.equal(summarizeReports([report(0, 'model-a', 7000, 's1')]).tokens, null, 'one report is a starting point only: its cost is unknown, not zero');
   const none = { reports: 0, agentMs: 0, tokens: null, tokenKinds: null };
-  assert.deepEqual(summarizeReports([]), { reports: 0, invalid: 0, models: [], primaryModel: null, primaryEffort: null, tokens: null, tokenKinds: null, agentMs: 0, measuredMs: 0, estimatedMs: 0, measuredReports: 0, activeMs: 0, unmergedMs: 0, agents: [], stages: { planning: none, implementation: none, unknown: none }, subagents: { count: 0, agentMs: 0 }, firstReport: null, lastReport: null });
+  assert.deepEqual(summarizeReports([]), { reports: 0, models: [], primaryModel: null, primaryEffort: null, tokens: null, tokenKinds: null, agentMs: 0, measuredMs: 0, estimatedMs: 0, measuredReports: 0, activeMs: 0, unmergedMs: 0, agents: [], stages: { planning: none, implementation: none }, subagents: { count: 0, agentMs: 0 }, firstReport: null, lastReport: null });
 });
 
-test('a measured report replaces the estimate for its interval, long gaps included; older reports keep the estimate', () => {
+test('a measured report replaces the estimate for its interval, long gaps included; unmeasured reports keep the estimate', () => {
   const session = '5752382d-8571-4733-a9e9-0db82c361b65';
   const summary = summarizeReports([
     report(0, 'claude-opus-5-5', null, session), // the starting point
     measured(90, 'claude-opus-5-5', session, 0, 70, [['claude-opus-5-5', 70, [10, 5000, 300, 900]], ['claude-haiku-5-5', 20, [5, 1000, 100, 200]]]),
     // Six hours later: an estimate would call it a break; the log shows 200 minutes of work.
     measured(450, 'claude-opus-5-5', session, 90, 200, [['claude-opus-5-5', 200, [20, 9000, 500, 1500]]]),
-    // An older Atlas's reports of another session: estimated from report times, tokens self-reported.
+    // Reports made by hand in another session: estimated from report times, tokens self-reported.
     report(0, 'model-alpha-2', 1000, 'session-b'), report(30, 'model-alpha-2', 4000, 'session-b'),
   ]);
   assert.deepEqual([summary.measuredMs / 60000, summary.estimatedMs / 60000, summary.agentMs / 60000, summary.measuredReports], [270, 30, 300, 2]);
@@ -93,11 +93,9 @@ test('a measured report replaces the estimate for its interval, long gaps includ
 });
 
 test('measured reports are validated when written', () => {
-  const valid = createReport({ model: 'claude-opus-5-5', session: 's'.repeat(128), step: '"'.repeat(200), at: new Date(at(60)), measured: measurement(0, 50, Array.from({ length: 8 }, (_, index): Share => [String(index).repeat(100), 50, [1e12, 1e12, 1e12, 1e12]])) });
-  const line = JSON.stringify(valid);
-  assert.ok(line.length < 3000, 'the longest step, session and model names with the largest counts stay well inside a line: ' + line.length);
-  assert.deepEqual(Object.keys(JSON.parse(line)), ['version', 'at', 'model', 'session', 'tokens', 'step', 'measured'], 'version 1 with every field older versions read');
-  assert.equal(JSON.stringify(createReport({ model: 'model-a', at: new Date(at(0)) })).includes('measured'), false, 'an unmeasured report is written as before');
+  const valid = measurement(0, 50, [['model-a', 50, [1, 2, 3, 4]]]);
+  assert.deepEqual(createReport({ model: 'model-a', stage: 'planning', at: new Date(at(60)), measured: valid }).measured, valid);
+  assert.equal(createReport({ model: 'model-a', stage: 'planning', at: new Date(at(0)) }).measured, undefined, 'an unmeasured report has no measurement');
   const invalid: unknown[] = [
     [], 'yes', { ...measurement(0, 5, []), since: at(61) }, { ...measurement(0, 5, []), since: 'yesterday' }, { ...measurement(0, 5, []), since: '2026-02-30T09:00:00.000Z' },
     measurement(0, 61, []), measurement(0, -1, []), { ...measurement(0, 5, []), agentMs: 1.5 }, measurement(30, 31, []),
@@ -106,11 +104,8 @@ test('measured reports are validated when written', () => {
     { ...measurement(0, 5, []), models: [{ model: 'model-a', agentMs: 0, input: 0, cacheRead: 0, cacheWrite: 0 }] }, { since: at(0), agentMs: 0 },
   ];
   for (const value of invalid) {
-    assert.throws(() => createReport({ model: 'model-a', at: new Date(at(60)), measured: value as Measured }), StatisticsReportError, JSON.stringify(value));
+    assert.throws(() => createReport({ model: 'model-a', stage: 'planning', at: new Date(at(60)), measured: value as Measured }), StatisticsReportError, JSON.stringify(value));
   }
-  // Reports name at most eight models.
-  const nine = { ...measurement(0, 5, []), models: Array.from({ length: 9 }, (_, index) => ({ model: 'm' + index, agentMs: 0, input: 0, cacheRead: 0, cacheWrite: 0, output: 0 })) };
-  assert.throws(() => createReport({ model: 'model-a', at: new Date(at(60)), measured: nine }), StatisticsReportError);
 });
 
 test('two agents of a session reporting at once measure from the same report: what an earlier report covered counts once', () => {
@@ -131,65 +126,54 @@ test('agent time and tokens add up by stage, and each subagent counts once howev
   const session = '5752382d-8571-4733-a9e9-0db82c361b65';
   const staged = (stage: WorkStage, entry: StatisticsReport, subagents?: MeasuredSubagents): StatisticsReport => ({ ...entry, stage, ...(subagents && { measured: { ...entry.measured!, subagents } }) });
   const summary = summarizeReports([
-    // From before stages were recorded: estimated, with self-reported tokens.
-    report(0, 'model-alpha-2', 1000, 'session-b'), report(30, 'model-alpha-2', 4000, 'session-b'),
     staged('planning', report(0, 'claude-opus-5-5', null, session)),
     staged('planning', measured(60, 'claude-opus-5-5', session, 0, 50, [['claude-opus-5-5', 50, [0, 1000, 0, 100]]])),
     staged('implementation', measured(120, 'claude-opus-5-5', session, 60, 40, [['claude-opus-5-5', 40, [0, 2000, 0, 200]], ['claude-haiku-5-5', 30, [0, 500, 0, 50]]]), helpers(2, 45, 550, [['a1', 'claude-haiku-5-5', 30, 550], ['a2', null, 15, 0]])),
     // Another agent of the session at the same moment, from the same report: nothing new, no new subagent.
     staged('implementation', measured(120, 'claude-opus-5-5', session, 60, 40, [['claude-opus-5-5', 40, [0, 2000, 0, 200]]]), helpers(1, 40, 0, [['a6', null, 40, 0]])),
-    // Six subagents, four listed: a1 again, three new, and two more unlisted.
-    staged('implementation', measured(180, 'claude-opus-5-5', session, 120, 30, [['claude-opus-5-5', 30, [0, 0, 0, 10]]]), helpers(6, 60, 0, [['a1', 'claude-haiku-5-5', 20, 0], ['a3', null, 10, 0], ['a4', null, 10, 0], ['a5', null, 10, 0]])),
+    // Four subagents: a1 again and three new.
+    staged('implementation', measured(180, 'claude-opus-5-5', session, 120, 30, [['claude-opus-5-5', 30, [0, 0, 0, 10]]]), helpers(4, 50, 0, [['a1', 'claude-haiku-5-5', 20, 0], ['a3', null, 10, 0], ['a4', null, 10, 0], ['a5', null, 10, 0]])),
   ]);
   assert.deepEqual(summary.stages, {
     planning: { reports: 2, agentMs: 50 * 60000, tokens: 1100, tokenKinds: { input: 0, cacheRead: 1000, cacheWrite: 0, output: 100 } },
     implementation: { reports: 3, agentMs: 70 * 60000, tokens: 2760, tokenKinds: { input: 0, cacheRead: 2500, cacheWrite: 0, output: 260 } },
-    unknown: { reports: 2, agentMs: 30 * 60000, tokens: 3000, tokenKinds: null },
   });
-  assert.equal(summary.agentMs, 150 * 60000, 'the stages add up to the whole');
-  assert.equal(summary.tokens, 1100 + 2760 + 3000);
-  assert.deepEqual(summary.subagents, { count: 5 + 2, agentMs: (45 + 60) * 60000 }, 'a1 to a5 and the two unlisted; a6 came with an interval already covered');
+  assert.equal(summary.agentMs, 120 * 60000, 'the stages add up to the whole');
+  assert.equal(summary.tokens, 1100 + 2760);
+  assert.deepEqual(summary.subagents, { count: 5, agentMs: (45 + 50) * 60000 }, 'a1 to a5; a6 came with an interval already covered');
   const shares = summary.agents.filter(agent => agent.session === session && agent.subagent !== null).map(agent => [agent.subagent, agent.agentMs / 60000]);
-  assert.deepEqual(Object.fromEntries(shares), { a1: 50, a2: 15, a3: 10, a4: 10, a5: 10, unlisted: 10 }, 'each subagent\'s share, the unlisted together: they add up to the subagents\' time');
+  assert.deepEqual(Object.fromEntries(shares), { a1: 50, a2: 15, a3: 10, a4: 10, a5: 10 }, 'each subagent\'s share: they add up to the subagents\' time');
   // The same subagent identifier in another session is another subagent.
   const other = summarizeReports([report(0, 'model-a', null, 's1'), measured(10, 'model-a', 's1', 0, 10, []), report(0, 'model-a', null, 's2'), measured(10, 'model-a', 's2', 0, 10, [])].map(entry => entry.measured ? staged('implementation', entry, helpers(1, 5, 0, [['a1', null, 5, 0]])) : entry));
   assert.deepEqual(other.subagents, { count: 2, agentMs: 10 * 60000 });
 });
 
 test('stages and subagents are validated when written', () => {
-  const valid = createReport({ model: 'model-a', at: new Date(at(60)), stage: 'implementation', measured: { ...measurement(0, 50, [['model-a', 50, [1, 2, 3, 4]]]), subagents: helpers(5, 100, 10, [['a1', 'model-a', 50, 10], ['a2', null, 50, 0]]) } });
-  assert.deepEqual(Object.keys(JSON.parse(JSON.stringify(valid))), ['version', 'at', 'model', 'session', 'tokens', 'step', 'stage', 'measured']);
+  const valid = createReport({ model: 'model-a', at: new Date(at(60)), stage: 'implementation', measured: { ...measurement(0, 50, [['model-a', 50, [1, 2, 3, 4]]]), subagents: helpers(2, 100, 10, [['a1', 'model-a', 50, 10], ['a2', null, 50, 0]]) } });
+  assert.deepEqual([valid.stage, valid.measured?.subagents?.count], ['implementation', 2]);
   assert.throws(() => createReport({ model: 'model-a', stage: 'review' as WorkStage }), StatisticsReportError);
+  assert.throws(() => createReport({ model: 'model-a' } as ReportInput), StatisticsReportError, 'every report has its stage');
   const invalid: unknown[] = [
-    'yes', [], { ...helpers(1, 5, 0, []), count: -1 }, helpers(1, 61, 0, []), helpers(1, 5, -1, []), helpers(1, 5, 0, [['a1', null, 5, 0], ['a2', null, 5, 0]]),
-    helpers(2, 5, 0, [['a 1', null, 5, 0]]), helpers(2, 5, 0, [['a1', 'model a', 5, 0]]), helpers(2, 5, 0, [['a1', null, 61, 0]]), helpers(2, 5, 0, [['a1', null, 5, 0.5]]),
+    'yes', [], { ...helpers(1, 5, 0, []), count: -1 }, helpers(1, 61, 0, [['a1', null, 5, 0]]), helpers(1, 5, -1, [['a1', null, 5, 0]]), helpers(1, 5, 0, [['a1', null, 5, 0], ['a2', null, 5, 0]]),
+    helpers(2, 5, 0, [['a1', null, 5, 0]]), helpers(1, 5, 0, [['a 1', null, 5, 0]]), helpers(1, 5, 0, [['a1', 'model a', 5, 0]]), helpers(1, 5, 0, [['a1', null, 61, 0]]), helpers(1, 5, 0, [['a1', null, 5, 0.5]]),
     helpers(2, 5, 0, [['a1', null, 1, 0], ['a1', null, 1, 0]]), { ...helpers(1, 5, 0, []), agents: undefined },
   ];
   for (const subagents of invalid) {
     const value = { ...measurement(0, 5, []), subagents } as Measured;
-    assert.throws(() => createReport({ model: 'model-a', at: new Date(at(60)), measured: value }), StatisticsReportError, JSON.stringify(subagents));
+    assert.throws(() => createReport({ model: 'model-a', stage: 'implementation', at: new Date(at(60)), measured: value }), StatisticsReportError, JSON.stringify(subagents));
   }
-  // Reports list at most four subagents.
-  const five = helpers(5, 5, 0, ['a1', 'a2', 'a3', 'a4', 'a5'].map((id): Helper => [id, null, 1, 0]));
-  assert.throws(() => createReport({ model: 'model-a', at: new Date(at(60)), measured: { ...measurement(0, 5, []), subagents: five } }), StatisticsReportError);
-  // The longest of everything still fits the line older versions read (4,096 characters).
-  const longest = createReport({ model: 'model-a', session: 's'.repeat(128), step: '"'.repeat(200), stage: 'implementation', at: new Date(at(60)), measured: {
-    ...measurement(0, 50, Array.from({ length: 8 }, (_, index): Share => [String(index).repeat(100), 50, [1e12, 1e12, 1e12, 1e12]])),
-    subagents: { count: 1e6, agentMs: 1e6 * 3600000, tokens: 1e12, agents: Array.from({ length: 4 }, (_, index) => ({ id: String(index).repeat(64), model: String(index).repeat(100), agentMs: 3600000, tokens: 1e12 })) },
-  } });
-  const line = JSON.stringify(longest);
-  assert.ok(line.length <= 4096, 'longest line: ' + line.length);
 });
 
 test('reports are validated when written', () => {
-  assert.throws(() => createReport({ model: 'two words' }), StatisticsReportError);
-  assert.throws(() => createReport({ model: 'model-a', tokens: -1 }), StatisticsReportError);
-  assert.throws(() => createReport({ model: 'model-a', tokens: 1.5 }), StatisticsReportError);
-  assert.throws(() => createReport({ model: 'model-a', session: 'has space' }), StatisticsReportError);
-  assert.throws(() => createReport({ model: 'model-a', step: 'two\nlines' }), StatisticsReportError);
-  assert.equal(createReport({ model: 'vendor/model-1.5@2026', step: '  Trimmed  ' }).step, 'Trimmed');
-  assert.equal(createReport({ model: 'model-x[1m]' }).model, 'model-x[1m]', 'bracketed model variants');
-  assert.equal(createReport({ model: 'model-a', step: '' }).step, null);
+  const stage = 'planning';
+  assert.throws(() => createReport({ model: 'two words', stage }), StatisticsReportError);
+  assert.throws(() => createReport({ model: 'model-a', stage, tokens: -1 }), StatisticsReportError);
+  assert.throws(() => createReport({ model: 'model-a', stage, tokens: 1.5 }), StatisticsReportError);
+  assert.throws(() => createReport({ model: 'model-a', stage, session: 'has space' }), StatisticsReportError);
+  assert.throws(() => createReport({ model: 'model-a', stage, step: 'two\nlines' }), StatisticsReportError);
+  assert.equal(createReport({ model: 'vendor/model-1.5@2026', stage, step: '  Trimmed  ' }).step, 'Trimmed');
+  assert.equal(createReport({ model: 'model-x[1m]', stage }).model, 'model-x[1m]', 'bracketed model variants');
+  assert.equal(createReport({ model: 'model-a', stage, step: '' }).step, null);
   assert.deepEqual(fitStep('Two\nlines'), { step: 'Two lines', note: 'The step was recorded as one line.', shortened: false });
   assert.equal(fitStep('x'.repeat(300)).step!.length, 200);
   assert.equal(fitStep('A \u202eright-to-left\u202c step').step, 'A right-to-left step');
@@ -336,7 +320,7 @@ test('a report records the work item\'s stage: planning until its plan is accept
   writeFileSync(path.join(root, folder, 'plan.md'), planText('work-0001', 'Body.'));
   assert.equal(await stage(), 'implementation', 'accepted');
   assert.equal(await stage({ amending: true }), 'planning', 'a session amending the accepted plan');
-  assert.deepEqual(Object.entries((await loadPlanning(root)).work[0].statistics!.stages).map(([name, usage]) => [name, usage.reports]), [['planning', 3], ['implementation', 1], ['unknown', 0]]);
+  assert.deepEqual(Object.entries((await loadPlanning(root)).work[0].statistics!.stages).map(([name, usage]) => [name, usage.reports]), [['planning', 3], ['implementation', 1]]);
 });
 
 test('a hook names the session\'s log: it is measured with its subagents, whatever the environment says', async t => {
@@ -372,19 +356,4 @@ test('a hook names the session\'s log: it is measured with its subagents, whatev
   writeFileSync(elsewhere, prompt(0) + '\n');
   const unread = await recordWorkReport(root, 'work-0001', { model: 'model-a', at: new Date(at(50)) }, { ...options, transcriptPath: elsewhere });
   assert.deepEqual([unread.report.measured, unread.warnings], [undefined, ['Agent time and tokens were not measured: ' + elsewhere + ' is not a Claude Code or Codex session log.']]);
-
-  // A report from before intervals (as an older Atlas measured it: the union, without intervals) is
-  // measured again from its log, once; one whose log is gone keeps its total, added as is.
-  const projectId = withDatabase(undefined, database => database.projectByFolder(realpathSync.native(root))!.id);
-  withDatabase(undefined, database => {
-    database.db.prepare('UPDATE work_report SET intervals = NULL, agent_ms = ? WHERE project_id = ? AND measured_since IS NOT NULL').run(20 * 60000, projectId);
-    database.db.prepare('DELETE FROM report_interval WHERE report_id IN (SELECT id FROM work_report WHERE project_id = ?)').run(projectId);
-    insertReport(database, projectId, 'work-0001', createReport({ model: 'claude-opus-5-5', session: '22222222-3333-4444-8555-666666666666', at: new Date(at(45)), measured: measurement(35, 5, []) }));
-  });
-  const remeasure = () => withDatabaseAsync(undefined, database => remeasureReports(database, { environment: { CLAUDE_CONFIG_DIR: config }, home: options.home }));
-  assert.equal((await remeasure()).left, 0);
-  assert.deepEqual(withDatabase(undefined, database => database.db.prepare('SELECT intervals FROM work_report WHERE project_id = ? AND measured_since IS NOT NULL ORDER BY at').all(projectId).map(row => row.intervals)), [1, 0]);
-  assert.deepEqual(await remeasure(), { measured: 0, missing: 0, left: 0 }, 'each report is tried once');
-  const remeasured = (await loadPlanning(root)).work[0].statistics!;
-  assert.deepEqual([remeasured.agentMs, remeasured.activeMs, remeasured.unmergedMs].map(ms => ms / 60000), [28 + 5, 20 + 5, 5]);
 });

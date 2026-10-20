@@ -35,21 +35,6 @@ async function check() {
     for (const file of first.manifest.files)
       assert.equal(hash(files[file.name]), file.sha256, file.name);
     assert.equal(first.manifest.format, "atlas/release");
-    // Atlas is the only product name. Old names may appear only in the history
-    // maps and historical changelog entries.
-    const oldName = /work[t]rail|ontouml[- ]atla[s]/i;
-    const mayNameOld = (name) =>
-      name.startsWith("docs/history/") || name === "CHANGELOG.md";
-    for (const [name, bytes] of Object.entries(files))
-      if (
-        /\.(?:[cm]?js|jsx|tsx?|json|md|html|css|svg|ya?ml|txt)$/.test(name) &&
-        !mayNameOld(name)
-      )
-        assert.doesNotMatch(
-          Buffer.from(bytes).toString("utf8"),
-          oldName,
-          `${name} uses an old product name`,
-        );
     // The enrollment example carries its scenarios; the shop's, its changes.
     const embedded = (name) => {
       const html = Buffer.from(files[name]).toString("utf8");
@@ -115,10 +100,6 @@ async function check() {
     assert(files["docs/history/atlas-import-commit-map.txt"]);
     assert(files["CHANGELOG.md"]);
     assert(files["package-lock.json"]);
-    assert(
-      !Object.keys(files).some((name) => /(?:^|\/)\.atlas\//.test(name)),
-      "Local model data leaked into the release",
-    );
     assert(
       !Object.keys(files).some((name) => /(?:^|\/)node_modules\//.test(name)),
       "Installed dependencies leaked into the release",

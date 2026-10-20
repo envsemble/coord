@@ -156,7 +156,7 @@ export function recordActivity(database: HomeDatabase, home: string, session: st
         if (row.waiting_at !== null) database.db.prepare('UPDATE session_wait SET ended_at = ? WHERE session_id = ? AND ended_at IS NULL').run(at, session);
         if (now.waiting_at !== null) {
           const on = database.db.prepare(`SELECT session_work.project_id, session_work.work_id FROM session JOIN session_work ON session_work.session_id = session.id
-            WHERE session.id = ? ORDER BY session_work.id = ifnull(session.focus, -1) DESC, ifnull(session_work.touched_at, session_work.linked_at) DESC, session_work.id DESC LIMIT 1`).get(session) as { project_id: number; work_id: string } | undefined;
+            WHERE session.id = ? ORDER BY session_work.id = ifnull(session.focus, -1) DESC, session_work.touched_at DESC, session_work.id DESC LIMIT 1`).get(session) as { project_id: number; work_id: string } | undefined;
           database.db.prepare('INSERT INTO session_wait (session_id, project_id, work_id, started_at) VALUES (?, ?, ?, ?)').run(session, on?.project_id ?? null, on?.work_id ?? null, now.waiting_at);
         }
       }

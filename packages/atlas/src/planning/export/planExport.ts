@@ -15,7 +15,6 @@ import type { Provenance } from '../reading/provenance.ts';
 import { describeFiles, isDiagram } from '../reading/diagrams.ts';
 import { appendRegistryEntries, RegistryFormatError } from '../work/registryText.ts';
 import { acquireImportLock, ImportLockBusyError } from '../home/importLock.ts';
-import { localDate, planningLedger } from '../work/work.ts';
 import type { HandoffLink, Work } from '../types.ts';
 import { handoffLinksAt } from '../work/handoffs.ts';
 import { packageJson, planViewerFile } from '../../packageFiles.ts';
@@ -56,8 +55,8 @@ export interface PlanExportSource {
   location: 'active' | 'archive';
   /** Planning-relative work folder at export time. */
   path: string;
-  /** The registered main plan, a Markdown file relative to the work folder, or null. */
-  currentPlan: string | null;
+  /** The registered main plan, a Markdown file relative to the work folder. */
+  currentPlan: string;
 }
 export interface PlanExportFile { path: string; size: number; sha256: string }
 export interface PlanExportManifest {
@@ -130,10 +129,10 @@ export function planExportPathProblem(value: unknown): string | null {
   if (controlCharacter.test(value) || /[:*?"<>|]/.test(value)) return 'contains a character that is not portable';
   if (bidiControl.test(value)) return 'contains an invisible text-direction control';
   const segments = value.split('/');
-  for (const [index, segment] of segments.entries()) {
+  for (const segment of segments) {
     if (!segment) return 'has an empty segment';
     if (segment === '.' || segment === '..') return 'has a dot segment';
-    if (segment.startsWith('.') && !(index === 0 && segment === '.atlas' && segments.length > 1)) return 'has a hidden segment outside .atlas/';
+    if (segment.startsWith('.')) return 'has a hidden segment';
     if (/[. ]$/.test(segment)) return 'ends a segment with a dot or a space';
     if (reservedName.test(segment)) return 'uses a reserved device name';
     if (Buffer.byteLength(segment) > 255) return 'has a segment longer than 255 bytes';
@@ -143,9 +142,9 @@ export function planExportPathProblem(value: unknown): string | null {
 /** Paths that one case-insensitive or normalizing filesystem would store as the same entry. */
 const pathKey = (value: string) => value.normalize('NFC').toLowerCase();
 const printableTitle = (value: string) => value.replace(new RegExp(controlCharacter.source, 'g'), String.fromCharCode(0xfffd));
-const isMarkdown = (name: string) => /\.md$/i.test(name) && !name.startsWith('.atlas/');
-/** The work folder's diagram files: every `.puml` outside `.atlas/`. */
-const isDiagramFile = (name: string) => isDiagram(name) && !name.startsWith('.atlas/');
+const isMarkdown = (name: string) => /\.md$/i.test(name);
+/** The work folder's diagram files: every `.puml`. */
+const isDiagramFile = isDiagram;
 
 // ---------------------------------------------------------------------------
 // Reading an export
@@ -233,7 +232,7 @@ function validatePayload(payload: unknown): Decoded {
   if (sourceProblem) throw new PlanExportError('PATH', `The source folder ${JSON.stringify(sourcePath)} ${sourceProblem}.`);
   const title = textField(source, 'title', 'title');
   const planningFolder = textField(source, 'planningFolder', 'planning folder');
-  if (source.currentPlan !== null && typeof source.currentPlan !== 'string') throw new PlanExportError('FORMAT', "The plan export's main plan must be a path or null.");
+  if (typeof source.currentPlan !== 'string') throw new PlanExportError('FORMAT', "The plan export's main plan must be a path.");
   if (!Array.isArray(payload.files)) throw new PlanExportError('FORMAT', 'The plan export has no file list.');
 
   // Check every entry's shape and the declared total before decoding anything.
@@ -276,11 +275,10 @@ function validatePayload(payload: unknown): Decoded {
     files.push({ path: name, size, sha256 });
     contents.set(name, bytes);
   }
-  const currentPlan = source.currentPlan as string | null;
-  if (currentPlan !== null) {
-    if (!contents.has(currentPlan)) throw new PlanExportError('FORMAT', `The main plan ${currentPlan} is not among the exported files.`);
-    if (!isMarkdown(currentPlan)) throw new PlanExportError('FORMAT', `The main plan ${currentPlan} must be a Markdown file in the work folder, outside .atlas/.`);
-  }
+  const currentPlan = source.currentPlan;
+  if (!contents.has(currentPlan)) throw new PlanExportError('FORMAT', `The main plan ${currentPlan} is not among the exported files.`);
+  if (!isMarkdown(currentPlan)) throw new PlanExportError('FORMAT', `The main plan ${currentPlan} must be a Markdown file in the work folder.`);
+  if (!contents.has('ledger.md')) throw new PlanExportError('FORMAT', 'The plan export has no ledger.md.');
 
   const manifest: PlanExportManifest = {
     format: planExportFormat, version: planExportVersion, atlasVersion: version, exportedAt,
@@ -329,18 +327,14 @@ interface PlanView {
   plan: string | null; ledger: string | null; documents: ViewDocument[]; diagrams: ViewDiagram[];
 }
 
-// Left out of exports: generated working files.
-const transient = /^\.atlas\/(?:results|prepared|exports)(?:\/|$)|^\.atlas\/.*\.(?:lock|tmp)$/;
 async function workFiles(folder: string, warnings: string[]) {
   const result: { name: string; size: number }[] = [];
   async function walk(directory: string, relative: string) {
     const entries = await readdir(directory, { withFileTypes: true });
     for (const entry of entries) {
       const child = relative ? relative + '/' + entry.name : entry.name;
-      if (transient.test(child)) continue;
       if (entry.isSymbolicLink()) { warnings.push(`Skipped the symbolic link ${child}; plan exports carry regular files only.`); continue; }
-      const atlasFolder = !relative && entry.name === '.atlas' && entry.isDirectory();
-      if (entry.name.startsWith('.') && !atlasFolder) { warnings.push(`Skipped the hidden ${entry.isDirectory() ? 'folder' : 'file'} ${child}.`); continue; }
+      if (entry.name.startsWith('.')) { warnings.push(`Skipped the hidden ${entry.isDirectory() ? 'folder' : 'file'} ${child}.`); continue; }
       if (entry.isDirectory()) {
         if (entry.name === 'node_modules' || entry.name === '__pycache__') { warnings.push(`Skipped the ${entry.name} folder ${child}.`); continue; }
         await walk(path.join(directory, entry.name), child);
@@ -443,8 +437,9 @@ export async function exportPlan(planningRoot: string, work: string, options: { 
   }
   const location = item.path.startsWith('archive/') ? 'archive' : 'active';
   if (!item.path.startsWith('archive/') && !item.path.startsWith('active/')) warnings.push(`${item.path} is neither active nor archived work; an import places it under active/.`);
-  const currentPlan = item.currentPlan && item.currentPlan.startsWith(item.path + '/') ? item.currentPlan.slice(item.path.length + 1) : null;
-  if (currentPlan && !names.includes(currentPlan)) throw new PlanExportError('WORK', `The main plan ${item.currentPlan} could not be exported.`);
+  const currentPlan = item.currentPlan?.startsWith(item.path + '/') ? item.currentPlan.slice(item.path.length + 1) : null;
+  if (!currentPlan || !names.includes(currentPlan)) throw new PlanExportError('WORK', `The main plan ${item.currentPlan} could not be exported.`);
+  if (!names.includes('ledger.md')) throw new PlanExportError('WORK', `${item.path}/ledger.md could not be exported.`);
   const manifest: PlanExportManifest = {
     format: planExportFormat, version: planExportVersion, atlasVersion, exportedAt: (options.now ?? new Date()).toISOString(),
     source: { planningFolder: path.basename(index.root), workId: item.id, title: item.title, location, path: item.path, currentPlan },
@@ -549,11 +544,6 @@ async function removeLeftovers(root: string): Promise<number> {
 function decodeText(bytes: Buffer) {
   try { return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes); } catch { return null; }
 }
-/** A plan's design_status, or null when its header cannot be read. */
-function designOf(bytes: Buffer) {
-  const text = decodeText(bytes);
-  try { return text === null ? null : parseFrontmatter(text)?.design_status ?? null; } catch { return null; }
-}
 /** The metadata header of a Markdown text: offsets of its block, or null. */
 function header(text: string) {
   const bom = text.startsWith(BOM) ? 1 : 0;
@@ -633,7 +623,7 @@ async function replaceFile(file: string, text: string) {
  * planning folder take turns through a lock. The work folder is written to a
  * temporary folder and renamed into place, its identity is rewritten and its
  * references to other work are cleared, then it is registered in planning.json.
- * When the result would not pass `atlas planning check`, everything is rolled back.
+ * When the result would not pass `atlas check`, everything is rolled back.
  * Nothing is committed and the README index is left for the user.
  */
 export async function importPlan(planningRootPath: string, html: string | Uint8Array | PlanExportPreview, options: PlanImportOptions = {}): Promise<PlanImportResult> {
@@ -664,7 +654,7 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
   // Prepare the registry text first, so a registry Atlas cannot extend is refused before anything is written.
   let registryText: string;
   try {
-    registryText = appendRegistryEntries(state.registryText, 'work_items', [{ id: target.workId, path: target.path, current_plan: source.currentPlan === null ? null : target.path + '/' + source.currentPlan }]);
+    registryText = appendRegistryEntries(state.registryText, 'work_items', [{ id: target.workId, path: target.path, current_plan: target.path + '/' + source.currentPlan }]);
   } catch (error) {
     if (error instanceof RegistryFormatError) throw new PlanExportError('TARGET', error.message);
     throw error;
@@ -685,7 +675,7 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
     }
     const rewrites: Rewrite[] = [];
     const write = (name: string, text: string) => writeFile(path.join(temporary, ...name.split('/')), text);
-    if (source.currentPlan) {
+    {
       const original = decodeText(contents.get(source.currentPlan)!);
       let text = original === null ? null : rewriteField(original, 'id', source.workId, target.workId);
       if (text !== null) rewrites.push({ file: source.currentPlan, field: 'id', from: source.workId, to: target.workId });
@@ -698,16 +688,13 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
         if (cleared.continues.length) rewrites.push({ file: source.currentPlan, field: 'continues', from: cleared.continues, to: [] });
       }
       if (text !== null && text !== original) await write(source.currentPlan, text);
-    } else notes.push('This work item has no registered main plan.');
-    if (contents.has('ledger.md')) {
+    }
+    {
       const original = decodeText(contents.get('ledger.md')!);
       const text = original === null ? null : rewriteField(original, 'work_id', source.workId, target.workId);
-      if (text !== null) { await write('ledger.md', text); rewrites.push({ file: 'ledger.md', field: 'work_id', from: source.workId, to: target.workId }); }
-      else notes.push(`ledger.md has no work_id: ${source.workId} status line, so it was kept as exported.`);
-    } else if (target.path.startsWith('active/') && source.currentPlan && designOf(contents.get(source.currentPlan)!) === 'draft') {
-      // A draft without a ledger is planned from here, as new work is: with the planning steps.
-      await writeFile(path.join(temporary, 'ledger.md'), planningLedger(target.workId, localDate()), { flag: 'wx' });
-      notes.push('The draft had no ledger; it got one with the planning steps.');
+      if (text === null) throw new PlanExportError('FORMAT', `ledger.md has no work_id: ${source.workId} line.`);
+      await write('ledger.md', text);
+      rewrites.push({ file: 'ledger.md', field: 'work_id', from: source.workId, to: target.workId });
     }
 
     const provenanceName = provenanceFileName(contents.keys());
@@ -735,7 +722,7 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
     // The import must not make the planning folder invalid.
     const before = new Set(state.errors);
     const introduced = validatePlanning(root).errors.filter(error => !before.has(error));
-    if (introduced.length) throw new PlanExportError('TARGET', `Importing would leave ${root} failing atlas planning check, so nothing was imported:\n` + introduced.slice(0, 10).map(error => '  ' + error).join('\n'));
+    if (introduced.length) throw new PlanExportError('TARGET', `Importing would leave ${root} failing atlas check, so nothing was imported:\n` + introduced.slice(0, 10).map(error => '  ' + error).join('\n'));
 
     const count = contents.size + 1;
     const describe = (value: Rewrite['from']) => Array.isArray(value) ? `[${value.join(', ')}]` : String(value);
@@ -764,7 +751,7 @@ async function importLocked(root: string, manifest: PlanExportManifest, contents
     if (createdParent) await rmdir(createdParent).catch(() => undefined);
     if (left.length) {
       const reason = error instanceof Error ? error.message : String(error);
-      throw new PlanExportError('ROLLBACK', `${reason}\nThe import could not be fully undone. Left behind: ${left.join('; ')}. Then run atlas planning check.`);
+      throw new PlanExportError('ROLLBACK', `${reason}\nThe import could not be fully undone. Left behind: ${left.join('; ')}. Then run atlas check.`);
     }
     throw error;
   }

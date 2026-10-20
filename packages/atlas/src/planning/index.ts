@@ -5,12 +5,11 @@ export { PlanningError, loadPlanning, readDocument, resolveDocument, gitHistory,
 export { filesystemCaseSensitive, filesystemNormalizesUnicode } from './system/filesystem.ts';
 export { atlasHome, electronDataDirectory, homePlanningDirectory, homePlanningFolders, prepareHome } from './home/storage.ts';
 export { DatabaseVersionError, HomeDatabase, NotPlanningFolderError, canonicalProjectFolder, canonicalProjectFolderSync, databaseName, folderKey, isPlanningFolder, liveWindowMs, planningName, projectOf, schemaVersion, waitingWindowMs, withDatabase, withDatabaseAsync, type ProjectRow, type ProjectState, type SessionActivityRow, type WorkActivityRow } from './home/database.ts';
-export { samePlatformPath } from './system/planningRoots.ts';
 export { parseFrontmatter, validatePlanning, FrontmatterError } from './check/check.ts';
 export { LedgerStatusError, ledgerStatus, ledgerStepStatuses, stepCounts } from './work/ledger.ts';
-export { StatisticsReportError, createReport, insertReport, measuredModelLimit, measuredSubagentLimit, planRevisions, sessionGap, storedReports, summarizeReports, workStages, workStatistics, type Measured, type MeasuredInterval, type MeasuredModel, type MeasuredSubagent, type MeasuredSubagents, type ReportInput, type StatisticsReport } from './statistics/statistics.ts';
+export { StatisticsReportError, createReport, insertReport, planRevisions, sessionGap, storedReports, summarizeReports, workStages, workStatistics, type Measured, type MeasuredInterval, type MeasuredModel, type MeasuredSubagent, type MeasuredSubagents, type ReportInput, type StatisticsReport } from './statistics/statistics.ts';
 export { codexThreadName, harnessSessions, logTail, measureSession, sessionLogs, transcriptLogs, type Harness, type LogOptions, type SessionMeasure } from './statistics/sessionLog.ts';
-export { prepareWorkReport, recordWorkReport, remeasureReports, type PreparedReport, type RecordedReport, type Remeasured, type WorkReportInput, type WorkReportOptions } from './statistics/workReport.ts';
+export { prepareWorkReport, recordWorkReport, type PreparedReport, type RecordedReport, type WorkReportInput, type WorkReportOptions } from './statistics/workReport.ts';
 export { handoffsByWork, linkHandoffs, type ListedProject } from './projects/handoffLinks.ts';
 export { HandoffGraph, handoffExists, handoffLoop, handoffsOf, handoffText, parseHandoff, type HandoffReference } from './work/handoffs.ts';
 export { projectStatistics, type ProjectStatisticsEntry } from './statistics/projectStatistics.ts';

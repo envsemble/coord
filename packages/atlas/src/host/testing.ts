@@ -49,7 +49,7 @@ export async function start(t: TestContext, options: { data?: string; loopbackPo
     home: data, version: '0.0.0-test', log: quiet, owner: 'a test', idleClose: 50,
     createPlanWorker: () => new Worker(new URL('./export/planWorker.ts', import.meta.url)) as unknown as WorkerLike,
     templates: () => readTemplates(templates),
-    // Older reports are measured again from session logs in the test's home, never the developer's.
+    // Session logs are read in the test's home, never the developer's.
     sessionLogs: { home: data, environment: {} },
     ...options,
   });

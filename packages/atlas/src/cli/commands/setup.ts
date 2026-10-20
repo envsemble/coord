@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSyn
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { atlasHome, HomeDatabase, prepareHome, samePlatformPath } from '../../planning/index.ts';
+import { atlasHome, folderKey, HomeDatabase, prepareHome } from '../../planning/index.ts';
 import { parseOptions, positionals, wantsHelp, type Output } from '../args.ts';
 
 const line = 'Usage: atlas setup [--dry-run]';
@@ -19,7 +19,7 @@ export const repository = path.resolve(path.dirname(fileURLToPath(import.meta.ur
 function userHome(environment: NodeJS.ProcessEnv) {
   return (process.platform === 'win32' ? environment.USERPROFILE || environment.HOME : environment.HOME) || homedir();
 }
-const same = (left: string, right: string) => samePlatformPath(path.resolve(left), path.resolve(right));
+const same = (left: string, right: string) => folderKey(path.resolve(left)) === folderKey(path.resolve(right));
 
 // Where the members of a JSON object or the items of a list are in the text (of valid JSON).
 interface JsonContainer { close: number; items: { key: string | null; start: number; end: number }[] }

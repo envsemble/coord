@@ -1,2 +1,2 @@
-# Preserve original bytes when capturing records, including inherited autocrlf.
+# Keep files exactly as Atlas and agents write them, whatever core.autocrlf says.
 * -text
