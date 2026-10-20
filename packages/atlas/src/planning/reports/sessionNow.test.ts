@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { nowOf } from './sessionNow.ts';
+import { nowOf, redact } from './sessionNow.ts';
 
 const line = (value: unknown) => JSON.stringify(value);
 
@@ -31,5 +31,6 @@ test('a Codex rollout\'s commands and patches are its actions', () => {
     line({ type: 'response_item', payload: { type: 'custom_tool_call', name: 'apply_patch', input: '*** Begin Patch\n*** Update File: C:\\repo\\README.md\n@@\n-a\n+b\n*** End Patch' } }),
     line({ type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'CI passed.' }] } }),
   ];
-  assert.deepEqual(nowOf(lines), { message: 'CI passed.', actions: [{ kind: 'edit', text: 'Edited README.md' }, { kind: 'command', text: 'gh pr checks 24' }] });
+  assert.deepEqual(nowOf(lines), { message: 'CI passed.', actions: [{ kind: 'edit', text: 'Edited README.md' }, { kind: 'command', text: 'gh pr checks 24', raw: true }] });
+  assert.equal(redact('git clone https://bob:s3cret@github.com/a/b && export API_KEY=abc123 && gh auth login --with-token ghp_abcdefghijklmnop'), 'git clone https://bob:…@github.com/a/b && export API_KEY=… && gh auth login --with-token …', 'what looks like a secret is left out');
 });

@@ -125,7 +125,7 @@ export function NowSection({ sessions }: { sessions: WorkSession[] }) {
       <div className="now-head">
         {session.state === 'working' && <StatusIcon status={statuses.working} decorative />}
         <span className="now-title">{sessionTitle(session)}</span>
-        <span className="muted"> · {session.state === 'working' ? 'working' : session.state === 'waiting' ? 'needs you' : session.state === 'idle' ? 'waiting on something else' : 'ended'} · <span title={absoluteDate(session.lastSeen)}>{relativeDate(session.lastSeen)}</span></span>
+        <span className="muted"> · {session.state === 'working' ? 'working' : session.state === 'waiting' ? 'needs you' : session.state === 'idle' ? 'idle, waiting on something else' : 'ended'} · <span title={absoluteDate(session.lastSeen)}>{relativeDate(session.lastSeen)}</span></span>
       </div>
       {session.now!.message && session.state !== 'waiting' && <SessionMessage message={session.now!.message} className="now-message" />}
       {session.now!.actions.length > 0 && <ul className="now-actions" aria-label="Its last actions, newest first">
