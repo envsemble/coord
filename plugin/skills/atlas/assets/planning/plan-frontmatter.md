@@ -16,4 +16,4 @@ superseded_by: null
 
 # Example change
 
-The Atlas tool `work_create` writes this header for new work, and the other Atlas tools keep its statuses and dates current. When writing a header by hand, replace this example identity, title, and summary with the registered work item and set known creation/update dates to quoted ISO date strings. The summary says in two or three plain sentences what the work is, why, and where it stands; agents keep it current as the work moves. Write the intended outcome and relevant scope, choices, and completion checks in the form the work needs; no fixed body structure is required.
+The Atlas tool `work_create` writes this header, and the other Atlas tools keep its statuses and dates current. The body says the intended outcome, scope, choices and completion checks in whatever form the work needs.
