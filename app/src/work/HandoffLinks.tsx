@@ -6,7 +6,7 @@ import { ArrowBack } from '@envsemble/envui/icons/ArrowBack';
 import { ArrowForward } from '@envsemble/envui/icons/ArrowForward';
 import type { Handoff } from './handoffs';
 
-/** Opens another plan: its project's folder ID and its work ID. */
+/** Opens another plan: its project's ID and its work ID. */
 export type OpenHandoff = (to: { project: string; work: string }) => void;
 
 /** The other plan by its number and title, a link where it can be opened; muted text where it cannot. */

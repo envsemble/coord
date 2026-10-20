@@ -3,7 +3,7 @@ import { Link } from '@envsemble/envui';
 import type { Place, ProjectWork, Snapshot, Target } from '../types';
 import type { LiveActivity } from '../work/agentTime';
 
-/** `project`: open it in another project of the window's computer than the one shown (by folder ID). */
+/** `project`: open it in another project of the window's computer than the one shown (by its ID). */
 export interface OpenOptions { project?: string }
 export type Notify = (message: string, tone?: 'info' | 'warning' | 'danger') => void;
 /**
@@ -12,7 +12,7 @@ export type Notify = (message: string, tone?: 'info' | 'warning' | 'danger') => 
  * what depends on them alone, like the reader's rendering of a document, is not drawn again.
  */
 export interface WorkbenchActions {
-  /** The project, by its folder ID. */
+  /** The project, by its ID. */
   project: string;
   /** Its name. */
   projectName: string;
@@ -20,7 +20,7 @@ export interface WorkbenchActions {
   open(target: Target, options?: OpenOptions): void;
   /** Show any place: the hub, a page, or something of a project. */
   go(place: Place): void;
-  /** The project of the window's computer in a sibling folder of this one's in the Atlas home, by the folder's name (its folder ID), if one is listed. */
+  /** The project of the window's computer in a sibling folder of this one's in the Atlas home, by the folder's name (its project ID), if one is listed. */
   sibling(folder: string): string | null;
   /** Open a document, work folder or diagram of another project by its path there, once that project is read. */
   openPath(project: string, path: string, anchor: string | null): void;

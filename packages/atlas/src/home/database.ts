@@ -15,18 +15,18 @@ export const databaseName = 'atlas.db';
 
 /** The schema. */
 const schema = `CREATE TABLE setting (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-  CREATE TABLE connection (
+  CREATE TABLE paired_computer (
     id TEXT PRIMARY KEY, host_id TEXT NOT NULL UNIQUE, name TEXT NOT NULL, origin TEXT NOT NULL, device_id TEXT NOT NULL,
     token BLOB NOT NULL, paired_at TEXT NOT NULL, manage_access INTEGER NOT NULL DEFAULT 0);
   CREATE TABLE device (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, secret_hash TEXT NOT NULL UNIQUE, paired_at TEXT NOT NULL, last_seen_at TEXT,
     platform TEXT NOT NULL DEFAULT '', manage_access INTEGER NOT NULL DEFAULT 0);
   CREATE TABLE project (
-    id INTEGER PRIMARY KEY, connection_id TEXT REFERENCES connection(id) ON DELETE CASCADE, name TEXT NOT NULL, folder TEXT NOT NULL,
+    id INTEGER PRIMARY KEY, computer_id TEXT REFERENCES paired_computer(id) ON DELETE CASCADE, name TEXT NOT NULL, folder TEXT NOT NULL,
     position INTEGER NOT NULL, state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'archived')), created_at TEXT NOT NULL);
-  CREATE UNIQUE INDEX project_folder ON project(ifnull(connection_id, ''), folder);
+  CREATE UNIQUE INDEX project_folder ON project(ifnull(computer_id, ''), folder);
   CREATE TABLE "window" (
-    id INTEGER PRIMARY KEY, connection_id TEXT REFERENCES connection(id) ON DELETE SET NULL, x INTEGER NOT NULL, y INTEGER NOT NULL,
+    id INTEGER PRIMARY KEY, computer_id TEXT REFERENCES paired_computer(id) ON DELETE SET NULL, x INTEGER NOT NULL, y INTEGER NOT NULL,
     width INTEGER NOT NULL, height INTEGER NOT NULL, maximized INTEGER NOT NULL DEFAULT 0);
   -- What a window shows of a project (active), and what it showed of other computers' projects or of projects it could not list.
   CREATE TABLE place (
@@ -125,7 +125,7 @@ export class DatabaseVersionError extends Error {
 }
 
 export type ProjectState = 'active' | 'archived';
-export interface ProjectRow { id: number; connectionId: string | null; name: string; folder: string; position: number; state: ProjectState; createdAt: string }
+export interface ProjectRow { id: number; computerId: string | null; name: string; folder: string; position: number; state: ProjectState; createdAt: string }
 
 /** Compare folders as the platform does: case-insensitively on Windows and macOS. */
 export const folderKey = (value: string, platform: NodeJS.Platform = process.platform) => platform === 'win32' || platform === 'darwin' ? value.toLowerCase() : value;
@@ -137,9 +137,9 @@ export interface SessionActivityRow { session: string; harness: 'claude-code' | 
 export interface WorkActivityRow { workId: string; state: 'working' | 'waiting'; since: string; sessions: SessionActivityRow[] }
 
 /**
- * The database holds secrets (the host's, device hashes, connection tokens), so on POSIX the home is
- * created 0700 and the database 0600 before SQLite opens it; its -wal and -shm files take the
- * database's mode. On Windows the home is in the user's profile, whose permissions suffice.
+ * The database holds secrets (the host's, device hashes, the tokens for paired computers), so on
+ * POSIX the home is created 0700 and the database 0600 before SQLite opens it; its -wal and -shm
+ * files take the database's mode. On Windows the home is in the user's profile, whose permissions suffice.
  */
 function ownerOnly(home: string, file: string) {
   mkdirSync(home, { recursive: true, mode: 0o700 });
@@ -147,7 +147,7 @@ function ownerOnly(home: string, file: string) {
   if (!existsSync(file)) closeSync(openSync(file, 'a', 0o600));
 }
 const projectRow = (row: Row): ProjectRow => ({
-  id: Number(row.id), connectionId: (row.connection_id as string | null) ?? null, name: String(row.name), folder: String(row.folder),
+  id: Number(row.id), computerId: (row.computer_id as string | null) ?? null, name: String(row.name), folder: String(row.folder),
   position: Number(row.position), state: row.state as ProjectState, createdAt: String(row.created_at),
 });
 
@@ -223,11 +223,11 @@ export class HomeDatabase {
 
   // ---- Projects ----------------------------------------------------------------------------------
 
-  /** The projects of this computer (connectionId null) or the rows kept for a paired computer's, in their order. */
-  projects(connectionId: string | null = null): ProjectRow[] {
-    const rows = connectionId === null
-      ? this.db.prepare('SELECT * FROM project WHERE connection_id IS NULL ORDER BY position, id').all()
-      : this.db.prepare('SELECT * FROM project WHERE connection_id = ? ORDER BY position, id').all(connectionId);
+  /** The projects of this computer (computerId null) or the rows kept for a paired computer's, in their order. */
+  projects(computerId: string | null = null): ProjectRow[] {
+    const rows = computerId === null
+      ? this.db.prepare('SELECT * FROM project WHERE computer_id IS NULL ORDER BY position, id').all()
+      : this.db.prepare('SELECT * FROM project WHERE computer_id = ? ORDER BY position, id').all(computerId);
     return (rows as Row[]).map(projectRow);
   }
   project(id: number): ProjectRow | null {
@@ -235,17 +235,17 @@ export class HomeDatabase {
     return row ? projectRow(row) : null;
   }
   /** The project of a folder (a canonical path on this computer, or a paired computer's path), if it has one. */
-  projectByFolder(folder: string, connectionId: string | null = null): ProjectRow | null {
+  projectByFolder(folder: string, computerId: string | null = null): ProjectRow | null {
     const key = folderKey(folder);
-    return this.projects(connectionId).find(project => folderKey(project.folder) === key) ?? null;
+    return this.projects(computerId).find(project => folderKey(project.folder) === key) ?? null;
   }
   /** Add a project at the end of its computer's list, or return the one the folder has. */
-  addProject(folder: string, name: string, connectionId: string | null = null, state: ProjectState = 'active', createdAt = new Date().toISOString()): ProjectRow {
+  addProject(folder: string, name: string, computerId: string | null = null, state: ProjectState = 'active', createdAt = new Date().toISOString()): ProjectRow {
     return this.transaction(() => {
-      const existing = this.projectByFolder(folder, connectionId);
+      const existing = this.projectByFolder(folder, computerId);
       if (existing) return existing;
-      const position = Number((this.db.prepare('SELECT ifnull(max(position) + 1, 0) AS next FROM project WHERE connection_id IS ?').get(connectionId) as Row).next);
-      const { lastInsertRowid } = this.db.prepare('INSERT INTO project (connection_id, name, folder, position, state, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(connectionId, name, folder, position, state, createdAt);
+      const position = Number((this.db.prepare('SELECT ifnull(max(position) + 1, 0) AS next FROM project WHERE computer_id IS ?').get(computerId) as Row).next);
+      const { lastInsertRowid } = this.db.prepare('INSERT INTO project (computer_id, name, folder, position, state, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(computerId, name, folder, position, state, createdAt);
       return this.project(Number(lastInsertRowid))!;
     });
   }
@@ -278,7 +278,7 @@ export class HomeDatabase {
     const later = this.db.prepare(`SELECT 1 FROM session_work WHERE project_id = ? AND work_id = ? AND session_id != ? AND max(ifnull(focused_at, ''), touched_at) > ?
       UNION ALL SELECT 1 FROM work_report WHERE project_id = ? AND work_id = ? AND ifnull(session, '') != ? AND at > ? LIMIT 1`);
     const latest = (...values: (string | null)[]) => values.filter((value): value is string => value !== null).sort().at(-1) ?? null;
-    const work = new Map<string, { projectId: number; workId: string; sessions: SessionActivityRow[] }>();
+    const work = new Map<string, { projectRowId: number; workId: string; sessions: SessionActivityRow[] }>();
     const liveFrom = new Date(now - liveWindowMs).toISOString(), dayFrom = new Date(now - waitingWindowMs).toISOString();
     for (const row of on.values()) {
       const id = String(row.id), waiting = row.waiting_at as string | null;
@@ -287,7 +287,7 @@ export class HomeDatabase {
       const key = row.project_id + '\0' + row.work_id;
       const sessions = () => {
         let entry = work.get(key);
-        if (!entry) work.set(key, entry = { projectId: Number(row.project_id), workId: String(row.work_id), sessions: [] });
+        if (!entry) work.set(key, entry = { projectRowId: Number(row.project_id), workId: String(row.work_id), sessions: [] });
         return entry.sessions;
       };
       // Each subagent at work counts for the work item its session is on, its time from its start
@@ -307,12 +307,12 @@ export class HomeDatabase {
     }
     const order = (a: { state: string; since: string }, b: { state: string; since: string }) => Number(b.state === 'working') - Number(a.state === 'working') || b.since.localeCompare(a.since);
     const activity = new Map<number, WorkActivityRow[]>();
-    for (const { projectId, workId, sessions } of work.values()) {
+    for (const { projectRowId, workId, sessions } of work.values()) {
       sessions.sort(order);
       const working = sessions.filter(session => session.state === 'working');
       // Working: since the earliest working session's turn began; waiting: since the latest began to wait.
       const item: WorkActivityRow = working.length ? { workId, state: 'working', since: working.map(session => session.since).sort()[0], sessions } : { workId, state: 'waiting', since: sessions[0].since, sessions };
-      activity.set(projectId, [...activity.get(projectId) ?? [], item].sort(order));
+      activity.set(projectRowId, [...activity.get(projectRowId) ?? [], item].sort(order));
     }
     return activity;
   }
@@ -337,7 +337,7 @@ export class HomeDatabase {
       if (change.state !== undefined) this.db.prepare('UPDATE project SET state = ? WHERE id = ?').run(change.state, id);
       if (change.folder !== undefined) this.db.prepare('UPDATE project SET folder = ? WHERE id = ?').run(change.folder, id);
       if (change.position !== undefined) {
-        const order = this.projects(project.connectionId).filter(other => other.id !== id);
+        const order = this.projects(project.computerId).filter(other => other.id !== id);
         order.splice(Math.max(0, Math.min(change.position, order.length)), 0, project);
         const place = this.db.prepare('UPDATE project SET position = ? WHERE id = ?');
         order.forEach((other, index) => place.run(index, other.id));

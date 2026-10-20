@@ -27,7 +27,7 @@ import { AccessStore, newToken } from './access/access.ts';
 import { hostAddresses } from './access/addresses.ts';
 import {
   closeCodes, methodScopes, pairingUrl, protocolVersion, routes, snapshotValue,
-  type AccessState, type EventName, type Events, type FolderState, type HostDescriptor, type ImportPreviewValue, type MethodName, type Methods,
+  type AccessState, type EventName, type Events, type OpenProjectState, type HostDescriptor, type ImportPreviewValue, type MethodName, type Methods,
   type NetworkStatus, type PairResponse, type Project, type ProjectSummary, type Scope, type SearchResult, type SnapshotValue, type HandoffLink,
 } from './contract.ts';
 import { HostError, toErrorValue, type Logger } from './errors.ts';
@@ -70,7 +70,7 @@ export interface HostOptions {
 
 interface Credential { scopes: Set<Scope>; deviceId: string | null; label: string }
 interface Listener { server: Server; address: string; port: number; local: boolean; sockets: Set<WebSocket> }
-interface Held { owner: string; folderId: string; workerToken: string; fileName?: string; expires: number }
+interface Held { owner: string; projectId: string; workerToken: string; fileName?: string; expires: number }
 
 const exportLifetime = 10 * 60 * 1000;
 /** A plan export sent for import: the largest an export can be (see planExportMaxBytes), with room for its encoding. */
@@ -118,14 +118,14 @@ class Connection {
   written = 0;
   /** The connection's socket, whose byte counts show whether a large answer is still moving. */
   raw: { bytesWritten?: number; writableLength?: number } | null = null;
-  /** Each folder's subscribe and unsubscribe requests, applied one after another in the order they came. */
+  /** Each project's subscribe and unsubscribe requests, applied one after another in the order they came. */
   private readonly queues = new Map<string, Promise<unknown>>();
   constructor(ws: WebSocket, credential: Credential, listener: Listener) { this.ws = ws; this.credential = credential; this.listener = listener; }
-  inOrder<T>(folderId: string, run: () => Promise<T>): Promise<T> {
-    const next = (this.queues.get(folderId) ?? Promise.resolve()).then(run);
+  inOrder<T>(projectId: string, run: () => Promise<T>): Promise<T> {
+    const next = (this.queues.get(projectId) ?? Promise.resolve()).then(run);
     const settled = next.catch(() => undefined);
-    this.queues.set(folderId, settled);
-    void settled.then(() => { if (this.queues.get(folderId) === settled) this.queues.delete(folderId); });
+    this.queues.set(projectId, settled);
+    void settled.then(() => { if (this.queues.get(projectId) === settled) this.queues.delete(projectId); });
     return next;
   }
   get owner() { return this.credential.scopes.has('owner'); }
@@ -137,7 +137,7 @@ export class Host {
   readonly ownerToken = newToken();
   readonly database: HomeDatabase;
   readonly access: AccessStore;
-  readonly folders: OpenProjects;
+  readonly openProjects: OpenProjects;
   private readonly options: HostOptions;
   private readonly exports: PlanWorkerClient;
   private readonly connections = new Set<Connection>();
@@ -174,7 +174,7 @@ export class Host {
     this.database = HomeDatabase.open(options.home);
     this.access = new AccessStore(this.database, options.log, options.owner);
     this.exports = new PlanWorkerClient(options.createPlanWorker);
-    this.folders = new OpenProjects({ key: () => this.access.folderKey, database: this.database, log: options.log, watchDelay: options.watchDelay, idleClose: options.idleClose, onChange: state => this.folderChanged(state) });
+    this.openProjects = new OpenProjects({ key: () => this.access.projectIdKey, database: this.database, log: options.log, watchDelay: options.watchDelay, idleClose: options.idleClose, onChange: state => this.projectChanged(state) });
   }
 
   get descriptor(): HostDescriptor { return { protocol: protocolVersion, hostId: this.access.hostId, name: this.access.name, version: this.options.version }; }
@@ -212,7 +212,7 @@ export class Host {
     for (const connection of this.connections) connection.ws.close(closeCodes.shuttingDown, 'The host is stopping');
     await Promise.all([this.loopback, this.network].map(listener => listener && this.closeListener(listener)));
     this.loopback = this.network = null;
-    this.folders.closeAll();
+    this.openProjects.closeAll();
     this.projectsWatcher?.close();
     if (this.projectsTimer) clearTimeout(this.projectsTimer);
     if (this.projectsLookAgain) clearTimeout(this.projectsLookAgain);
@@ -391,12 +391,12 @@ export class Host {
   private async serveFile(c: Context<{ Bindings: HttpBindings }>, listener: Listener) {
     const credential = this.authorize(c, listener);
     if (!credential) return c.json({ code: 'unauthorized', message: 'Pair with this host first.' }, 401);
-    const folderId = c.req.param('folderId') ?? '';
+    const projectId = c.req.param('projectId') ?? '';
     try {
       let relative: string;
-      try { relative = decodeURIComponent(c.req.path.replace(/^\/api\/folders\/[^/]+\/files\//, '')); }
+      try { relative = decodeURIComponent(c.req.path.replace(/^\/api\/projects\/[^/]+\/files\//, '')); }
       catch { return c.json({ code: 'invalid-argument', message: 'This file path is not valid.' }, 400); }
-      const folder = await this.accessibleFolder(credential, folderId);
+      const folder = await this.accessibleProject(credential, projectId);
       const file = await resolveDocument(folder.root, relative);
       if ((await stat(file)).size > fileLimit) return c.json({ code: 'unavailable', message: 'This file is too large to show here.' }, 413);
       const type = imageTypes[path.extname(file).toLowerCase()] ?? 'application/octet-stream';
@@ -435,7 +435,7 @@ export class Host {
     this.preparing.add(holder);
     const file = path.join(tmpdir(), 'atlas-import-' + process.pid + '-' + randomBytes(8).toString('hex') + '.html');
     try {
-      const folder = await this.accessibleFolder(credential, c.req.param('folderId') ?? '');
+      const folder = await this.accessibleProject(credential, c.req.param('projectId') ?? '');
       const body = c.req.raw.body;
       if (!body) return c.json({ code: 'invalid-argument', message: 'Send the plan export file.' }, 400);
       const handle = await open(file, 'wx', 0o600);
@@ -471,7 +471,7 @@ export class Host {
   private async readImport(folder: OpenProject, file: string, owner: string): Promise<ImportPreviewValue> {
     const read = await this.exports.read(folder.root, file);
     const token = randomBytes(16).toString('hex');
-    this.held.set(token, { owner, folderId: folder.state().folderId, workerToken: read.token, expires: Date.now() + 30 * 60000 });
+    this.held.set(token, { owner, projectId: folder.state().projectId, workerToken: read.token, expires: Date.now() + 30 * 60000 });
     const { manifest, files, totalBytes, diagrams } = read.preview;
     return {
       token, title: manifest.source.title, originalId: manifest.source.workId, origin: manifest.source.planningFolder, location: manifest.source.location,
@@ -513,7 +513,7 @@ export class Host {
     ws.on('close', () => {
       this.connections.delete(connection);
       listener.sockets.delete(ws);
-      for (const folderId of connection.subscriptions) this.folders.release(folderId);
+      for (const projectId of connection.subscriptions) this.openProjects.release(projectId);
       for (const [token, held] of this.held) if (held.owner === connection.id || (held.owner === this.holder(credential) && !this.connectedHolder(held.owner))) { this.held.delete(token); void this.exports.drop(held.workerToken).catch(() => undefined); }
       if (credential.deviceId) this.broadcastAccess();
     });
@@ -549,12 +549,12 @@ export class Host {
   }
 
   private event<E extends EventName>(connection: Connection, event: E, data: Events[E]) { connection.send({ event, data }); }
-  private folderChanged(state: FolderState) {
-    for (const connection of this.connections) if (connection.subscriptions.has(state.folderId)) this.event(connection, 'folder.changed', state);
+  private projectChanged(state: OpenProjectState) {
+    for (const connection of this.connections) if (connection.subscriptions.has(state.projectId)) this.event(connection, 'project.changed', state);
     // Only a read of its files changes what the project list shows (its name lives in its
     // planning.json); its statistics and handoffs come from the listing's own reading.
     if (state.revision !== state.files) return;
-    const folder = this.folders.pathOf(state.folderId);
+    const folder = this.openProjects.pathOf(state.projectId);
     if (folder) this.searchTouched(folder);
     this.projectsChanged();
   }
@@ -621,10 +621,10 @@ export class Host {
 
   // ---- Projects --------------------------------------------------------------------------------
 
-  /** A project as clients see it, by the ID of its folder, with the folders its planning.json lists. */
+  /** A project as clients see it, with its ID and the folders its planning.json lists. */
   private async project(row: ProjectRow): Promise<Project> {
     const folders = (await readRegistry(row.folder).catch(() => null))?.folders ?? [];
-    return { folderId: this.folders.idOf(row.folder), name: row.name, path: row.folder, position: row.position, state: row.state, folders };
+    return { id: this.openProjects.idOf(row.folder), name: row.name, path: row.folder, position: row.position, state: row.state, folders };
   }
   /** The home's projects, as the database lists them: only those whose folder is in the home's planning folder. */
   private homeProjects(): ProjectRow[] {
@@ -662,14 +662,14 @@ export class Host {
    * handoffs changed (a plan elsewhere that now continues one of theirs), so their plans show them.
    */
   private noteHandoffs(projects: Project[]) {
-    linkHandoffs(projects.map(project => ({ folderId: project.folderId, folder: project.path, name: project.name, summary: project.summary ?? null })));
+    linkHandoffs(projects.map(project => ({ projectId: project.id, folder: project.path, name: project.name, summary: project.summary ?? null })));
     const before = this.handoffs;
-    this.handoffs = new Map(projects.map(project => [folderKey(project.path), handoffsByWork({ folderId: project.folderId, folder: project.path, name: project.name, summary: project.summary ?? null })]));
+    this.handoffs = new Map(projects.map(project => [folderKey(project.path), handoffsByWork({ projectId: project.id, folder: project.path, name: project.name, summary: project.summary ?? null })]));
     this.handoffsListed = true;
     const signature = (found: Map<string, unknown> | undefined) => JSON.stringify(found ? [...found] : []);
     for (const project of projects) {
-      if (!this.folders.has(project.folderId) || signature(before.get(folderKey(project.path))) === signature(this.handoffs.get(folderKey(project.path)))) continue;
-      this.folders.get(project.folderId).touch();
+      if (!this.openProjects.has(project.id) || signature(before.get(folderKey(project.path))) === signature(this.handoffs.get(folderKey(project.path)))) continue;
+      this.openProjects.get(project.id).touch();
     }
   }
   /**
@@ -715,7 +715,7 @@ export class Host {
   private checkActivity(tell = true) {
     let reports = '';
     try { reports = this.database.reportsMark(); } catch { /* Unreadable for now: as before. */ }
-    if (tell && reports !== this.reportsKey) this.folders.refreshStatistics();
+    if (tell && reports !== this.reportsKey) this.openProjects.refreshStatistics();
     this.reportsKey = reports;
     const key = reports + JSON.stringify([...this.readActivity()]);
     if (key === this.liveKey) return;
@@ -744,11 +744,11 @@ export class Host {
       const key = folderKey(row.folder);
       let index = this.searches.get(key);
       if (!index) this.searches.set(key, index = new PlanningSearch(row.folder));
-      const project = { folderId: this.folders.idOf(row.folder), name: row.name };
+      const project = { id: this.openProjects.idOf(row.folder), name: row.name };
       return (await index.search(query, row.name, this.options.searchWait ?? 5000)).map(hit => ({ hit, project }));
     }));
     return found.flat().sort((a, b) => compareHits(a.hit, b.hit)).slice(0, limit).map(({ hit, project }): SearchResult => ({
-      kind: hit.kind, title: hit.title, snippet: hit.snippet, folderId: project.folderId, project: project.name, work: hit.work, path: hit.path, anchor: hit.anchor, element: hit.element,
+      kind: hit.kind, title: hit.title, snippet: hit.snippet, projectId: project.id, projectName: project.name, work: hit.work, path: hit.path, anchor: hit.anchor, element: hit.element,
     }));
   }
   /** Something changed in a project's planning folder (null: in any): its search index looks again. */
@@ -756,21 +756,21 @@ export class Host {
     if (folder === null) { for (const index of this.searches.values()) index.invalidate(); return; }
     this.searches.get(folderKey(canonicalProjectFolderSync(folder)))?.invalidate();
   }
-  /** A project by its folder's ID. */
-  private async projectRow(folderId: string): Promise<ProjectRow> {
+  /** A project's row by its ID. */
+  private async projectRow(projectId: string): Promise<ProjectRow> {
     await this.projects();
-    const row = this.homeProjects().find(entry => this.folders.idOf(entry.folder) === folderId);
+    const row = this.homeProjects().find(entry => this.openProjects.idOf(entry.folder) === projectId);
     if (!row) throw new HostError('not-found', `This project is not on ${this.access.name}.`);
     return row;
   }
-  /** A project by its folder's ID, without listing the projects again when its folder was opened here. */
-  private async projectOfFolder(folderId: string): Promise<ProjectRow> {
-    const known = this.folders.pathOf(folderId);
-    return (known && this.database.projectByFolder(canonicalProjectFolderSync(known))) || this.projectRow(folderId);
+  /** A project's row by its ID, without listing the projects again when its folder was opened here. */
+  private async projectRowOf(projectId: string): Promise<ProjectRow> {
+    const known = this.openProjects.pathOf(projectId);
+    return (known && this.database.projectByFolder(canonicalProjectFolderSync(known))) || this.projectRow(projectId);
   }
-  /** The path of a folder by its ID: one this process opened, or a project's. */
-  private async pathOf(folderId: string): Promise<string | null> {
-    return this.folders.pathOf(folderId) ?? (await this.projectRow(folderId).catch(() => null))?.folder ?? null;
+  /** The planning folder of a project by its ID: one this process opened, or a listed project's. */
+  private async pathOf(projectId: string): Promise<string | null> {
+    return this.openProjects.pathOf(projectId) ?? (await this.projectRow(projectId).catch(() => null))?.folder ?? null;
   }
   private async createProject(params: Methods['projects.create']['params']): Promise<Project> {
     if (!this.options.templates) throw new HostError('unavailable', `New projects cannot be created on ${this.access.name} by this Atlas.`);
@@ -786,7 +786,7 @@ export class Host {
     if (!connection.owner) throw new HostError('forbidden', `Only the Atlas app on ${this.access.name} may ${what}.`);
   }
   private async updateProject(params: Methods['projects.update']['params']): Promise<Project> {
-    const row = await this.projectRow(params.folderId);
+    const row = await this.projectRow(params.projectId);
     // The folders first: when they are refused, nothing has changed.
     if (params.folders !== undefined) {
       try {
@@ -805,24 +805,24 @@ export class Host {
   }
 
   /**
-   * Open a folder by its ID: one that is open, one this process opened before, or a project's. A
+   * Open a project's planning folder by the project's ID: one that is open, one this process opened before, or a listed project's. A
    * device reaches planning folders only, so their files are all a device can read.
    */
-  private async accessibleFolder(credential: Credential, folderId: string): Promise<OpenProject> {
+  private async accessibleProject(credential: Credential, projectId: string): Promise<OpenProject> {
     let folder: OpenProject;
-    if (this.folders.has(folderId)) folder = this.folders.get(folderId);
+    if (this.openProjects.has(projectId)) folder = this.openProjects.get(projectId);
     else {
-      const root = await this.pathOf(folderId);
+      const root = await this.pathOf(projectId);
       if (!root) throw new HostError('not-found', `This project is not on ${this.access.name}.`);
-      folder = await this.folders.open(root);
+      folder = await this.openProjects.open(root);
     }
     if (!credential.scopes.has('owner') && !await isPlanningFolder(folder.root)) throw new HostError('forbidden', 'Only planning folders open on another device.');
     return folder;
   }
-  /** A folder the connection subscribed to. */
-  private subscribed(connection: Connection, folderId: string): OpenProject {
-    if (!connection.subscriptions.has(folderId)) throw new HostError('forbidden', 'Open this planning folder first.');
-    return this.folders.get(folderId);
+  /** A project the connection subscribed to. */
+  private subscribed(connection: Connection, projectId: string): OpenProject {
+    if (!connection.subscriptions.has(projectId)) throw new HostError('forbidden', 'Open this planning folder first.');
+    return this.openProjects.get(projectId);
   }
 
   async accessState(): Promise<AccessState> {
@@ -850,27 +850,27 @@ export class Host {
       }
       case 'search.query': { const { query, limit } = p as Methods['search.query']['params']; return this.search(query, limit) as never; }
       case 'references.resolve': {
-        const { folderId, items } = p as Methods['references.resolve']['params'];
+        const { projectId, items } = p as Methods['references.resolve']['params'];
         // A paired device gets what is not of this computer only: no files.
-        return resolveReferences((await this.projectOfFolder(folderId)).folder, items, { local: connection.owner }) as never;
+        return resolveReferences((await this.projectRowOf(projectId)).folder, items, { local: connection.owner }) as never;
       }
       case 'work.sessions': {
-        const { folderId, work } = p as Methods['work.sessions']['params'];
-        return workSessions(this.database, (await this.projectOfFolder(folderId)).id, work, { local: connection.owner, logs: this.options.sessionLogs }) as never;
+        const { projectId, work } = p as Methods['work.sessions']['params'];
+        return workSessions(this.database, (await this.projectRowOf(projectId)).id, work, { local: connection.owner, logs: this.options.sessionLogs }) as never;
       }
       case 'project.statistics': {
-        const { folderId, from, to, unit } = p as Methods['project.statistics']['params'];
-        const row = await this.projectOfFolder(folderId);
-        return projectStatistics(this.database, [{ projectId: row.id, root: row.folder }], { from, to, unit }) as never;
+        const { projectId, from, to, unit } = p as Methods['project.statistics']['params'];
+        const row = await this.projectRowOf(projectId);
+        return projectStatistics(this.database, [{ projectRowId: row.id, root: row.folder }], { from, to, unit }) as never;
       }
       case 'projects.statistics': {
-        const { folderIds, from, to, unit } = p as Methods['projects.statistics']['params'];
-        const rows = await Promise.all([...new Set(folderIds)].map(folderId => this.projectOfFolder(folderId)));
-        return projectStatistics(this.database, rows.map(row => ({ projectId: row.id, root: row.folder })), { from, to, unit }) as never;
+        const { projectIds, from, to, unit } = p as Methods['projects.statistics']['params'];
+        const rows = await Promise.all([...new Set(projectIds)].map(projectId => this.projectRowOf(projectId)));
+        return projectStatistics(this.database, rows.map(row => ({ projectRowId: row.id, root: row.folder })), { from, to, unit }) as never;
       }
       case 'work.timeline': {
-        const { folderId, work } = p as Methods['work.timeline']['params'];
-        const row = await this.projectOfFolder(folderId);
+        const { projectId, work } = p as Methods['work.timeline']['params'];
+        const row = await this.projectRowOf(projectId);
         return workTimeline(this.database, row.id, work, await workDates(row.folder, work)) as never;
       }
       case 'projects.update': {
@@ -878,32 +878,32 @@ export class Host {
         if (params.folders !== undefined) this.ownerOnly(connection, 'choose the folders a project covers');
         return this.updateProject(params) as never;
       }
-      case 'folders.subscribe': {
-        const { folderId } = p as { folderId: string };
-        return connection.inOrder(folderId, async () => {
-          const folder = await this.accessibleFolder(connection.credential, folderId);
+      case 'projects.subscribe': {
+        const { projectId } = p as { projectId: string };
+        return connection.inOrder(projectId, async () => {
+          const folder = await this.accessibleProject(connection.credential, projectId);
           // Opening can take a while: the connection may have gone since.
           if (!this.connections.has(connection)) throw new HostError('cancelled', 'The connection closed.');
-          if (!connection.subscriptions.has(folderId)) { this.folders.acquire(folderId); connection.subscriptions.add(folderId); }
+          if (!connection.subscriptions.has(projectId)) { this.openProjects.acquire(projectId); connection.subscriptions.add(projectId); }
           return folder.state();
         }) as never;
       }
-      case 'folders.unsubscribe': {
-        const { folderId } = p as { folderId: string };
+      case 'projects.unsubscribe': {
+        const { projectId } = p as { projectId: string };
         // After a subscribe still opening the folder, which it undoes.
-        await connection.inOrder(folderId, async () => { if (connection.subscriptions.delete(folderId)) this.folders.release(folderId); });
+        await connection.inOrder(projectId, async () => { if (connection.subscriptions.delete(projectId)) this.openProjects.release(projectId); });
         return null as never;
       }
-      case 'folder.snapshot': return this.snapshotOf(this.subscribed(connection, (p as { folderId: string }).folderId)) as never;
-      case 'folder.work': return this.snapshotOf(this.subscribed(connection, (p as { folderId: string }).folderId)).work as never;
-      case 'folder.document': { const { folderId, path: file } = p as { folderId: string; path: string }; return this.subscribed(connection, folderId).document(file) as never; }
-      case 'folder.diagrams': { const { folderId, work } = p as { folderId: string; work: string }; return this.subscribed(connection, folderId).diagrams(work) as never; }
-      case 'folder.diagram': { const { folderId, work, path: file } = p as { folderId: string; work: string; path: string }; return this.subscribed(connection, folderId).diagram(work, file) as never; }
-      case 'folder.references': { const { folderId, work, path: file } = p as { folderId: string; work: string | null; path: string }; return this.subscribed(connection, folderId).references(work, file) as never; }
-      case 'folder.diagramIndex': return this.subscribed(connection, (p as { folderId: string }).folderId).diagramIndex() as never;
+      case 'project.snapshot': return this.snapshotOf(this.subscribed(connection, (p as { projectId: string }).projectId)) as never;
+      case 'project.work': return this.snapshotOf(this.subscribed(connection, (p as { projectId: string }).projectId)).work as never;
+      case 'project.document': { const { projectId, path: file } = p as { projectId: string; path: string }; return this.subscribed(connection, projectId).document(file) as never; }
+      case 'project.diagrams': { const { projectId, work } = p as { projectId: string; work: string }; return this.subscribed(connection, projectId).diagrams(work) as never; }
+      case 'project.diagram': { const { projectId, work, path: file } = p as { projectId: string; work: string; path: string }; return this.subscribed(connection, projectId).diagram(work, file) as never; }
+      case 'project.references': { const { projectId, work, path: file } = p as { projectId: string; work: string | null; path: string }; return this.subscribed(connection, projectId).references(work, file) as never; }
+      case 'project.diagramIndex': return this.subscribed(connection, (p as { projectId: string }).projectId).diagramIndex() as never;
       case 'plan.exportPrepare': {
-        const { folderId, work } = p as { folderId: string; work: string };
-        const folder = this.subscribed(connection, folderId);
+        const { projectId, work } = p as { projectId: string; work: string };
+        const folder = this.subscribed(connection, projectId);
         const item = folder.snapshot().work.find(entry => entry.id === work);
         if (!item) throw new HostError('not-found', 'This work item is not in the planning folder.');
         // Exports are large and held in memory: a device prepares one at a time and holds a few. The
@@ -920,7 +920,7 @@ export class Host {
         finally { if (!connection.owner) this.preparing.delete(holder); }
         const token = randomBytes(16).toString('hex');
         const fileName = exportFileName(item.path, item.id);
-        this.held.set(token, { owner: holder, folderId, workerToken: prepared.token, fileName, expires: Date.now() + exportLifetime });
+        this.held.set(token, { owner: holder, projectId, workerToken: prepared.token, fileName, expires: Date.now() + exportLifetime });
         return { token, bytes: prepared.bytes, warnings: prepared.warnings, fileName } as never;
       }
       case 'plan.exportDrop':
@@ -932,17 +932,17 @@ export class Host {
       }
       case 'plan.importRead': {
         // A file on this computer; another computer sends its file to routes.imports instead.
-        const { folderId, file } = p as { folderId: string; file: string };
-        return this.readImport(this.subscribed(connection, folderId), file, connection.id) as never;
+        const { projectId, file } = p as { projectId: string; file: string };
+        return this.readImport(this.subscribed(connection, projectId), file, connection.id) as never;
       }
       case 'plan.importConfirm': {
-        const { folderId, token } = p as { folderId: string; token: string };
+        const { projectId, token } = p as { projectId: string; token: string };
         const held = this.held.get(token);
         // A preview belongs to the connection that read it, or to the device that sent its file.
         const mine = held && (held.owner === connection.id || held.owner === this.holder(connection.credential));
-        if (!held || !mine || held.folderId !== folderId || held.expires < Date.now()) throw new HostError('invalid-argument', 'This import preview expired. Choose the file again.');
+        if (!held || !mine || held.projectId !== projectId || held.expires < Date.now()) throw new HostError('invalid-argument', 'This import preview expired. Choose the file again.');
         this.held.delete(token);
-        const folder = this.subscribed(connection, folderId);
+        const folder = this.subscribed(connection, projectId);
         try {
           const result = await this.exports.import(folder.root, held.workerToken);
           this.options.log.info('Plan imported', { workId: result.workId, files: result.files });

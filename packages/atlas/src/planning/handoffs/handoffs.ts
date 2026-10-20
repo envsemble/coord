@@ -160,7 +160,7 @@ export function handoffLoop(root: string, workId: string, references?: HandoffRe
 /**
  * A work item's handoffs read from the plans of the home's planning folders, for a plan export,
  * which has no listing to take them from: the work it continues and the work continuing it, each
- * with its title, project and outcome, and without folder IDs (an export opens no other plan).
+ * with its title, project and outcome, and without project IDs (an export opens no other plan).
  */
 export function handoffLinksAt(root: string, workId: string): { continues: HandoffLink[]; continuedIn: HandoffLink[] } {
   const graph = new HandoffGraph();
@@ -177,7 +177,7 @@ export function handoffLinksAt(root: string, workId: string): { continues: Hando
   const link = (folder: string | null, project: string, id: string, header: Record<string, unknown> | null): HandoffLink => {
     const design = header?.design_status, implementation = header?.implementation_status;
     return {
-      folderId: null, project, projectName: folder ? nameOf(folder) : project, workId: id, title: typeof header?.title === 'string' ? header.title : null, state: null,
+      projectId: null, project, projectName: folder ? nameOf(folder) : project, workId: id, title: typeof header?.title === 'string' ? header.title : null, state: null,
       outcome: design === 'superseded' || design === 'abandoned' ? design : implementation === 'complete' ? 'complete' : null,
     };
   };

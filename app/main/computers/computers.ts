@@ -1,10 +1,10 @@
-// The app's connections to Atlas hosts: its own host (main/host/localHost.ts), reached as the owner,
-// and the hosts of other computers it paired with, reached with a device token. A paired computer
-// is the same person's: its device token reaches everything Atlas can do there, and Manage access
-// when its pairing link granted it. Paired computers are rows of the home database's connection
-// table; tokens are encrypted with the system's credential store (Electron safeStorage) where it has
-// one. A paired computer's connection stays open while a window shows its projects; other requests
-// (the computer menu's check) use that connection or a short-lived one.
+// The computers whose projects the app shows: this one, whose host (main/host/localHost.ts) it reaches
+// as the owner, and the computers it paired with, whose hosts it reaches with a device token. A paired
+// computer is the same person's: its device token reaches everything Atlas can do there, and Manage
+// access when its pairing link granted it. Paired computers are rows of the home database's
+// paired_computer table; tokens are encrypted with the system's credential store (Electron
+// safeStorage) where it has one. A paired computer's connection stays open while a window shows its
+// projects; other requests (the computer menu's check) use that connection or a short-lived one.
 import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import { safeStorage } from 'electron';
@@ -12,13 +12,13 @@ import type { HomeDatabase } from '@envsemble/atlas/planning';
 import { describeHost, HostClient, HostRequestError, pairWithHost, parsePairing, type ClientStatus, type EventName, type Events } from '@envsemble/atlas/host';
 import type { Computer, ComputerStatus } from '../../shared/contract.ts';
 import { boolean, object, optional, string } from '../../shared/validate.ts';
-import type { LocalHost } from './localHost.ts';
+import type { LocalHost } from '../host/localHost.ts';
 import type { RotatingLog } from '../log.ts';
 
-/** A paired computer as the connection table keeps it: `id` is the row's, `token` sealed. */
-interface SavedConnection { id: string; hostId: string; name: string; origin: string; deviceId: string; token: string; pairedAt: string; manageAccess: boolean }
+/** A paired computer as the paired_computer table keeps it: `id` is the row's, `token` sealed. */
+interface SavedComputer { id: string; hostId: string; name: string; origin: string; deviceId: string; token: string; pairedAt: string; manageAccess: boolean }
 const hostIdPattern = /^[a-zA-Z0-9-]{8,64}$/;
-const saved = object<Omit<SavedConnection, 'id' | 'manageAccess'> & { manageAccess?: boolean }>({
+const saved = object<Omit<SavedComputer, 'id' | 'manageAccess'> & { manageAccess?: boolean }>({
   hostId: string({ min: 8, max: 64, pattern: hostIdPattern }), name: string({ min: 1, max: 80 }), origin: string({ min: 10, max: 300, pattern: /^https?:\/\/[^/]+$/ }),
   deviceId: string({ min: 8, max: 64, pattern: /^d-[a-f0-9]{32}$/ }), token: string({ min: 8, max: 2000 }), pairedAt: string({ min: 1, max: 40 }),
   manageAccess: optional(boolean),
@@ -26,20 +26,20 @@ const saved = object<Omit<SavedConnection, 'id' | 'manageAccess'> & { manageAcce
 /** How long the computer menu waits for a paired computer to answer. */
 const probeTimeout = 2500;
 
-export interface ConnectionEvents {
+export interface ComputerEvents {
   onEvent<E extends EventName>(client: HostClient, event: E, data: Events[E]): void;
   onStatus(client: HostClient, status: ClientStatus, detail: string | null): void;
 }
 
-export class Connections {
+export class Computers {
   readonly local: HostClient;
   private readonly database: HomeDatabase;
   private readonly log: RotatingLog;
-  private readonly events: ConnectionEvents;
+  private readonly events: ComputerEvents;
   private readonly localHost: LocalHost;
-  private readonly remote = new Map<string, { saved: SavedConnection; client: HostClient | null }>();
+  private readonly remote = new Map<string, { saved: SavedComputer; client: HostClient | null }>();
 
-  constructor(options: { database: HomeDatabase; localHost: LocalHost; log: RotatingLog } & ConnectionEvents) {
+  constructor(options: { database: HomeDatabase; localHost: LocalHost; log: RotatingLog } & ComputerEvents) {
     this.database = options.database;
     this.log = options.log;
     this.events = options;
@@ -56,16 +56,16 @@ export class Connections {
 
   private load() {
     // Each saved computer is checked on its own, so one unreadable row costs only itself.
-    for (const row of this.database.db.prepare('SELECT * FROM connection ORDER BY paired_at').all() as Record<string, unknown>[]) {
+    for (const row of this.database.db.prepare('SELECT * FROM paired_computer ORDER BY paired_at').all() as Record<string, unknown>[]) {
       try {
         const entry = saved({ hostId: row.host_id, name: row.name, origin: row.origin, deviceId: row.device_id, token: Buffer.from(row.token as Uint8Array).toString('utf8'), pairedAt: row.paired_at });
         this.remote.set(entry.hostId, { saved: { ...entry, id: String(row.id), manageAccess: Boolean(row.manage_access) }, client: null });
-      } catch (error) { this.log.warn('A saved connection is unreadable and was skipped', { id: row.id, message: (error as Error).message }); }
+      } catch (error) { this.log.warn('A paired computer is unreadable and was skipped', { id: row.id, message: (error as Error).message }); }
     }
   }
   /** Save a paired computer, keeping its row (and so its projects' order) when it pairs again. */
-  private save(entry: SavedConnection) {
-    this.database.db.prepare('INSERT INTO connection (id, host_id, name, origin, device_id, token, paired_at, manage_access) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (host_id) DO UPDATE SET name = excluded.name, origin = excluded.origin, device_id = excluded.device_id, token = excluded.token, paired_at = excluded.paired_at, manage_access = excluded.manage_access')
+  private save(entry: SavedComputer) {
+    this.database.db.prepare('INSERT INTO paired_computer (id, host_id, name, origin, device_id, token, paired_at, manage_access) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (host_id) DO UPDATE SET name = excluded.name, origin = excluded.origin, device_id = excluded.device_id, token = excluded.token, paired_at = excluded.paired_at, manage_access = excluded.manage_access')
       .run(entry.id, entry.hostId, entry.name, entry.origin, entry.deviceId, Buffer.from(entry.token, 'utf8'), entry.pairedAt, entry.manageAccess ? 1 : 0);
   }
 
@@ -87,11 +87,11 @@ export class Connections {
   get localName() { return this.local.descriptor?.name ?? (hostname().trim() || 'This computer'); }
   has(hostId: string) { return this.remote.has(hostId); }
   name(hostId: string) { return this.remote.get(hostId)?.saved.name ?? hostId; }
-  /** The connection row of a paired computer, which its projects' rows and windows name. */
+  /** The row of a paired computer, which its projects' rows and windows name (their computer_id). */
   idOf(hostId: string) { return this.entry(hostId).saved.id; }
-  /** The paired computer of a connection row, if it is still paired. */
-  hostIdFor(connectionId: string): string | null {
-    for (const [hostId, entry] of this.remote) if (entry.saved.id === connectionId) return hostId;
+  /** The host ID of a paired computer's row, if it is still paired. */
+  hostIdFor(computerId: string): string | null {
+    for (const [hostId, entry] of this.remote) if (entry.saved.id === computerId) return hostId;
     return null;
   }
   /** The paired computer a connection belongs to; null for this computer's own. */
@@ -125,7 +125,7 @@ export class Connections {
     if (!entry) throw new HostRequestError('not-found', 'This computer is not paired. Connect to it again.');
     return entry;
   }
-  private create(entry: { saved: SavedConnection }, events: boolean): HostClient {
+  private create(entry: { saved: SavedComputer }, events: boolean): HostClient {
     const token = this.open(entry.saved.token);
     const client: HostClient = new HostClient({
       origin: entry.saved.origin, token: () => token, hostId: entry.saved.hostId,
@@ -168,7 +168,7 @@ export class Connections {
     const { descriptor, pairing } = await pairWithHost(target.origin, target.code, { name: hostname().trim().slice(0, 80) || 'Atlas', platform: process.platform });
     if (descriptor.hostId !== described.hostId) throw new HostRequestError('unavailable', 'The host changed while pairing. Try again.');
     // Everything saved comes from the other computer: keep only what fits.
-    let entry: SavedConnection;
+    let entry: SavedComputer;
     const previous = this.remote.get(descriptor.hostId);
     try {
       const checked = saved({
@@ -190,7 +190,7 @@ export class Connections {
     if (!entry) return;
     entry.client?.close();
     this.remote.delete(hostId);
-    this.database.db.prepare('DELETE FROM connection WHERE id = ?').run(entry.saved.id);
+    this.database.db.prepare('DELETE FROM paired_computer WHERE id = ?').run(entry.saved.id);
   }
 
   /** Try every connection again now (the computer woke up, or the network changed). */

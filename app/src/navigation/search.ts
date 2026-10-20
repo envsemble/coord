@@ -11,7 +11,7 @@ export const searchKindLabels: Record<SearchKind, string> = {
 };
 
 /** Where a result opens: a place, or a file of a project (by its path in the planning folder) that the window resolves. */
-export type SearchDestination = { place: Place } | { project: string; path: string; anchor: string | null };
+export type SearchDestination = { place: Place } | { projectId: string; path: string; anchor: string | null };
 
 /** A result as the popup lists it: its kind, title, where it is (project and work item) and the snippet. */
 export interface SearchEntry {
@@ -26,44 +26,44 @@ export interface SearchEntry {
 }
 
 /** A plan's or file's key, so the window's own entries do not repeat the host's. */
-export const workKey = (project: string, work: string) => project + ':work:' + work;
-export const pathKey = (project: string, path: string) => project + ':path:' + path;
+export const workKey = (projectId: string, work: string) => projectId + ':work:' + work;
+export const pathKey = (projectId: string, path: string) => projectId + ':path:' + path;
 
 /** Where a result of the host's search opens. */
 export function resultDestination(result: SearchResult): SearchDestination {
-  const project = result.folderId;
+  const { projectId } = result;
   switch (result.kind) {
-    case 'project': return { place: hubPlace(project) };
+    case 'project': return { place: hubPlace(projectId) };
     case 'plan':
-      if (result.work) return { place: { project, target: workTarget(result.work) } };
+      if (result.work) return { place: { projectId, target: workTarget(result.work) } };
       break;
     // A step opens its plan, the step pointed out in its progress.
     case 'step':
-      if (result.work) return { place: { project, target: stepTarget(result.work, result.title) } };
+      if (result.work) return { place: { projectId, target: stepTarget(result.work, result.title) } };
       break;
     case 'diagram': case 'element':
-      if (result.path) return { project, path: result.path, anchor: result.element ?? result.anchor };
-      if (result.work) return { place: { project, target: diagramTarget(result.work, null, result.element) } };
+      if (result.path) return { projectId, path: result.path, anchor: result.element ?? result.anchor };
+      if (result.work) return { place: { projectId, target: diagramTarget(result.work, null, result.element) } };
       break;
     default:
-      if (result.path) return { project, path: result.path, anchor: result.anchor };
+      if (result.path) return { projectId, path: result.path, anchor: result.anchor };
   }
-  return result.work ? { place: { project, target: workTarget(result.work, result.anchor) } } : { place: hubPlace(project) };
+  return result.work ? { place: { projectId, target: workTarget(result.work, result.anchor) } } : { place: hubPlace(projectId) };
 }
 
 /** The host's results as the popup lists them, each with its project and work item (by number and title). */
 export function hostEntries(results: SearchResult[], projects: Project[]): SearchEntry[] {
   const titles = new Map<string, string>();
-  for (const project of projects) for (const work of [...project.summary?.active ?? [], ...project.summary?.closed ?? []]) titles.set(workKey(project.folderId, work.id), work.title);
+  for (const project of projects) for (const work of [...project.summary?.active ?? [], ...project.summary?.closed ?? []]) titles.set(workKey(project.id, work.id), work.title);
   // An archived project stays out of the way: its results are left out, should the host send any.
-  const archived = new Set(projects.filter(project => project.state !== 'active').map(project => project.folderId));
-  return results.filter(result => !archived.has(result.folderId)).map((result, index) => {
-    const work = result.work && result.kind !== 'plan' ? [workNumber(result.work), titles.get(workKey(result.folderId, result.work))].filter(Boolean).join(' ') : result.work ? workNumber(result.work) : null;
-    const key = result.kind === 'plan' && result.work ? workKey(result.folderId, result.work)
-      : (result.kind === 'document' || result.kind === 'diagram') && result.path && !result.anchor && !result.element ? pathKey(result.folderId, result.path) : null;
+  const archived = new Set(projects.filter(project => project.state !== 'active').map(project => project.id));
+  return results.filter(result => !archived.has(result.projectId)).map((result, index) => {
+    const work = result.work && result.kind !== 'plan' ? [workNumber(result.work), titles.get(workKey(result.projectId, result.work))].filter(Boolean).join(' ') : result.work ? workNumber(result.work) : null;
+    const key = result.kind === 'plan' && result.work ? workKey(result.projectId, result.work)
+      : (result.kind === 'document' || result.kind === 'diagram') && result.path && !result.anchor && !result.element ? pathKey(result.projectId, result.path) : null;
     return {
-      id: 'search:' + index + ':' + result.kind + ':' + result.folderId + ':' + (result.work ?? '') + ':' + (result.path ?? '') + '#' + (result.anchor ?? result.element ?? ''),
-      kind: result.kind, label: result.title, detail: [result.kind === 'project' ? null : result.project, work].filter(Boolean).join(' · '),
+      id: 'search:' + index + ':' + result.kind + ':' + result.projectId + ':' + (result.work ?? '') + ':' + (result.path ?? '') + '#' + (result.anchor ?? result.element ?? ''),
+      kind: result.kind, label: result.title, detail: [result.kind === 'project' ? null : result.projectName, work].filter(Boolean).join(' · '),
       snippet: result.snippet, destination: resultDestination(result), key,
     };
   });

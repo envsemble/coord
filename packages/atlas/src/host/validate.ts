@@ -79,7 +79,8 @@ export const workId = string({ min: 6, max: 32, pattern: /^work-[0-9]{4,}$/ });
 export const isoTime = string({ min: 20, max: 40, pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/ });
 /** A diagram file's path in its work folder, relative and inside it. */
 export const diagramPath = string({ min: 6, max: pathLimit, pattern: /^(?![\\/])(?![a-zA-Z]:)(?!.*(?:^|\/)\.\.(?:\/|$)).+\.puml$/i });
-export const folderId = string({ min: 34, max: 34, pattern: /^f-[a-f0-9]{32}$/ });
+/** A project's ID, as the project list gives it: `f-` and 32 hex digits. */
+export const projectId = string({ min: 34, max: 34, pattern: /^f-[a-f0-9]{32}$/ });
 export const token = string({ min: 16, max: 80, pattern: /^[a-zA-Z0-9-]+$/ });
 export const deviceId = string({ min: 8, max: 64, pattern: /^d-[a-f0-9]{32}$/ });
 
@@ -121,25 +122,25 @@ export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['p
   'projects.list': none,
   'projects.create': object({ name: projectName, folders: array(absolutePath, 20) }),
   'search.query': object({ query: string({ min: 1, max: 200 }), limit: optional(integer(1, 200)) }),
-  'references.resolve': object({ folderId, items: array(object({ kind: oneOf(['pull', 'commit', 'path'] as const), repository: nullable(string({ min: 1, max: 200 })), value: string({ min: 1, max: 1000 }), line: nullable(integer(1, 10_000_000)) }), 500) }),
-  'work.sessions': object({ folderId, work: workId }),
-  'work.timeline': object({ folderId, work: workId }),
-  'project.statistics': object({ folderId, from: nullable(isoTime), to: nullable(isoTime), unit: oneOf(['day', 'week'] as const) }),
-  'projects.statistics': object({ folderIds: array(folderId, 500), from: nullable(isoTime), to: nullable(isoTime), unit: oneOf(['day', 'week'] as const) }),
-  'projects.update': object({ folderId, name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), folders: optional(array(absolutePath, 20)) }),
-  'folders.subscribe': object({ folderId }),
-  'folders.unsubscribe': object({ folderId }),
-  'folder.snapshot': object({ folderId }),
-  'folder.work': object({ folderId }),
-  'folder.document': object({ folderId, path: relativePath }),
-  'folder.diagrams': object({ folderId, work: workId }),
-  'folder.diagram': object({ folderId, work: workId, path: diagramPath }),
-  'folder.references': object({ folderId, work: nullable(workId), path: relativePath }),
-  'folder.diagramIndex': object({ folderId }),
-  'plan.exportPrepare': object({ folderId, work: workId }),
+  'references.resolve': object({ projectId, items: array(object({ kind: oneOf(['pull', 'commit', 'path'] as const), repository: nullable(string({ min: 1, max: 200 })), value: string({ min: 1, max: 1000 }), line: nullable(integer(1, 10_000_000)) }), 500) }),
+  'work.sessions': object({ projectId, work: workId }),
+  'work.timeline': object({ projectId, work: workId }),
+  'project.statistics': object({ projectId, from: nullable(isoTime), to: nullable(isoTime), unit: oneOf(['day', 'week'] as const) }),
+  'projects.statistics': object({ projectIds: array(projectId, 500), from: nullable(isoTime), to: nullable(isoTime), unit: oneOf(['day', 'week'] as const) }),
+  'projects.update': object({ projectId, name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), folders: optional(array(absolutePath, 20)) }),
+  'projects.subscribe': object({ projectId }),
+  'projects.unsubscribe': object({ projectId }),
+  'project.snapshot': object({ projectId }),
+  'project.work': object({ projectId }),
+  'project.document': object({ projectId, path: relativePath }),
+  'project.diagrams': object({ projectId, work: workId }),
+  'project.diagram': object({ projectId, work: workId, path: diagramPath }),
+  'project.references': object({ projectId, work: nullable(workId), path: relativePath }),
+  'project.diagramIndex': object({ projectId }),
+  'plan.exportPrepare': object({ projectId, work: workId }),
   'plan.exportDrop': object({ token }),
-  'plan.importRead': object({ folderId, file: absolutePath }),
-  'plan.importConfirm': object({ folderId, token }),
+  'plan.importRead': object({ projectId, file: absolutePath }),
+  'plan.importConfirm': object({ projectId, token }),
   'plan.importDrop': object({ token }),
   'access.state': none,
   'access.update': object({ settings: accessSettings }),

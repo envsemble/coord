@@ -11,7 +11,7 @@ import { Worker } from 'node:worker_threads';
 import { HomeDatabase, readTemplates } from '../planning/index.ts';
 import { AccessStore } from './access/access.ts';
 import { HostClient, pairWithHost, parsePairing, type ClientStatus } from './client.ts';
-import type { FolderState, Project } from './contract.ts';
+import type { OpenProjectState, Project } from './contract.ts';
 import { Host } from './host.ts';
 import type { WorkerLike } from './export/planWorkerClient.ts';
 
@@ -78,12 +78,12 @@ export function accessStore(directory: string, owner = 'a test') {
   return store;
 }
 export function client(t: TestContext, origin: string | (() => string), token: string | (() => string | Promise<string>), hostId: string | null = null) {
-  const events: FolderState[] = [];
+  const events: OpenProjectState[] = [];
   const lists: Project[][] = [];
   const statuses: ClientStatus[] = [];
   const connection = new HostClient({
     origin, token: typeof token === 'function' ? token : () => token, hostId, retry: { first: 0, cap: 100 }, onStatus: status => statuses.push(status),
-    onEvent: (event, data) => { if (event === 'folder.changed') events.push(data as FolderState); else if (event === 'projects.changed') lists.push((data as { projects: Project[] }).projects); },
+    onEvent: (event, data) => { if (event === 'project.changed') events.push(data as OpenProjectState); else if (event === 'projects.changed') lists.push((data as { projects: Project[] }).projects); },
   });
   connection.start();
   t.after(() => connection.close());

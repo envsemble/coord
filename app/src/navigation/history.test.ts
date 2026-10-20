@@ -5,7 +5,7 @@ import { diagramTarget, fileTarget, hubPlace, projectsPlace, statisticsPlace, st
 import type { Target } from '../types.ts';
 
 const shop = 'f-' + 'a'.repeat(32), coord = 'f-' + 'b'.repeat(32);
-const at = (target: Target, project = shop): ProjectPlace => ({ project, target });
+const at = (target: Target, project = shop): ProjectPlace => ({ projectId: project, target });
 const hub = hubPlace();
 const plan = at(workTarget('work-0001'));
 const other = at(workTarget('work-0001'), coord);

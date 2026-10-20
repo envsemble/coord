@@ -18,7 +18,7 @@ test('links to a plan open the work item, and to other documents, its ledger too
   assert.deepEqual(documentTarget(nested, owner, 'déjà-vu--choices'), { kind: 'file', path: nested.path, anchor: 'déjà-vu--choices' });
   assert.deepEqual(documentTarget(notes, undefined, 'api_contract'), { kind: 'file', path: 'notes/terms.md', anchor: 'api_contract' });
   const project = 'f-' + 'a'.repeat(32);
-  const id = (target: ReturnType<typeof documentTarget>, of = project) => placeId({ project: of, target });
+  const id = (target: ReturnType<typeof documentTarget>, of = project) => placeId({ projectId: of, target });
   assert.equal(id(documentTarget(plan, owner, 'a')), id(documentTarget(plan, owner)), 'a plan is one thing, wherever it was opened');
   assert.notEqual(id(documentTarget(nested, owner)), id(documentTarget(plan, owner)));
   assert.notEqual(id(documentTarget(plan, owner)), id(documentTarget(plan, owner), 'f-' + 'b'.repeat(32)), 'another project, another thing');
@@ -26,8 +26,8 @@ test('links to a plan open the work item, and to other documents, its ledger too
 
 test('a work item and the hub keep their own scroll positions', () => {
   const project = 'f-' + 'a'.repeat(32);
-  assert.equal(scrollKey({ project, target: workTarget('work-0001') }), project + ':work:work-0001');
-  assert.equal(scrollKey({ project, target: workTarget('work-0001', 'why') }), scrollKey({ project, target: workTarget('work-0001') }), 'a heading is a place in the same document');
+  assert.equal(scrollKey({ projectId: project, target: workTarget('work-0001') }), project + ':work:work-0001');
+  assert.equal(scrollKey({ projectId: project, target: workTarget('work-0001', 'why') }), scrollKey({ projectId: project, target: workTarget('work-0001') }), 'a heading is a place in the same document');
   // The hub is one page whatever it is filtered to, which keeps its own position.
   assert.equal(placeId(hubPlace(project)), placeId(hubPlace()));
   assert.notEqual(scrollKey(hubPlace(project)), scrollKey(hubPlace()));
@@ -90,8 +90,8 @@ test('a link into a sibling project in the home names that folder and the path i
   assert.deepEqual(siblingReference('../../../envui/README.md', plan), { folder: 'envui', path: 'README.md', anchor: null });
   // Inside the project itself, above the home's planning folder, absolute or external: none.
   for (const href of ['../0019-x/plan.md', '../../../../elsewhere/plan.md', '/etc/passwd', 'https://example.com/a', '../../../atlas', '../../../.git/config']) assert.equal(siblingReference(href, plan), null, href);
-  const projects = [{ folderId: 'f-1', path: 'C:\\Users\\me\\.atlas\\planning\\coord' }, { folderId: 'f-2', path: 'C:\\Users\\me\\.atlas\\planning\\Atlas' }, { folderId: 'f-3', path: 'D:\\old\\atlas' }];
+  const projects = [{ id: 'f-1', path: 'C:\\Users\\me\\.atlas\\planning\\coord' }, { id: 'f-2', path: 'C:\\Users\\me\\.atlas\\planning\\Atlas' }, { id: 'f-3', path: 'D:\\old\\atlas' }];
   assert.equal(siblingProject(projects, 'f-1', 'atlas'), 'f-2', 'Windows paths compare without case');
   assert.equal(siblingProject(projects, 'f-1', 'envui'), null);
-  assert.equal(siblingProject([{ folderId: 'a', path: '/home/me/.atlas/planning/coord' }, { folderId: 'b', path: '/home/me/.atlas/planning/Atlas' }], 'a', 'atlas'), null, 'POSIX paths keep their case');
+  assert.equal(siblingProject([{ id: 'a', path: '/home/me/.atlas/planning/coord' }, { id: 'b', path: '/home/me/.atlas/planning/Atlas' }], 'a', 'atlas'), null, 'POSIX paths keep their case');
 });

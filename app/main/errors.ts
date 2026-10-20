@@ -1,15 +1,10 @@
 import { HostRequestError } from '@envsemble/atlas/host';
 import { PlanningError } from '@envsemble/atlas/planning';
 import type { AtlasErrorValue, ErrorCode } from '../shared/contract.ts';
+import { AtlasError } from '../shared/errors.ts';
 import { ValidationError } from '../shared/validate.ts';
 
-/** An error whose message is safe and useful to show in the window. */
-export class AtlasError extends Error {
-  readonly code: ErrorCode;
-  /** The code of the error this one reports, such as a PlanExportError code. */
-  readonly reason: string | null;
-  constructor(code: ErrorCode, message: string, reason: string | null = null) { super(message); this.code = code; this.reason = reason; }
-}
+export { AtlasError };
 
 const byStatus: Record<number, ErrorCode> = { 400: 'invalid-argument', 403: 'forbidden', 404: 'not-found', 409: 'unavailable', 413: 'unavailable', 415: 'invalid-argument', 422: 'folder-invalid', 503: 'unavailable' };
 

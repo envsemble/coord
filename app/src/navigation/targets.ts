@@ -8,12 +8,12 @@ import { workRelative } from '@envsemble/atlas/platform/paths';
 export type { PagePlace, Place, ProjectPlace };
 
 /** The hub: every plan, or one project's. */
-export const hubPlace = (project: string | null = null): PagePlace => ({ page: 'hub', project });
+export const hubPlace = (projectId: string | null = null): PagePlace => ({ page: 'hub', projectId });
 export const projectsPlace = (): PagePlace => ({ page: 'projects' });
-export const statisticsPlace = (project: string | null): PagePlace => ({ page: 'statistics', project });
+export const statisticsPlace = (projectId: string | null): PagePlace => ({ page: 'statistics', projectId });
 export const isPage = (place: Place): place is PagePlace => 'page' in place;
 /** The project a place is of: its own, the hub's filter or the statistics' project; null for none. */
-export const placeProject = (place: Place): string | null => !isPage(place) ? place.project : place.page === 'projects' ? null : place.project;
+export const placeProject = (place: Place): string | null => !isPage(place) ? place.projectId : place.page === 'projects' ? null : place.projectId;
 
 export const workTarget = (work: string, anchor: string | null = null): Target => ({ kind: 'work', work, anchor });
 /** A work item's statistics: its time and tokens by session, model and stage, and its timeline. */
@@ -45,8 +45,8 @@ export function documentTarget(file: Document, work: Work | undefined, anchor: s
  */
 export function placeId(place: Place): string {
   if (isPage(place)) return place.page;
-  const { project, target } = place;
-  return project + ':' + (target.kind === 'file' ? 'file:' + target.path : target.kind === 'work' ? (isWorkStatistics(target) ? 'statistics:' : 'work:') + target.work : 'diagram:' + target.work);
+  const { projectId, target } = place;
+  return projectId + ':' + (target.kind === 'file' ? 'file:' + target.path : target.kind === 'work' ? (isWorkStatistics(target) ? 'statistics:' : 'work:') + target.work : 'diagram:' + target.work);
 }
 
 /** What a place's scroll position belongs to: a page of a project, a work item's plan, a diagram, or a file. */

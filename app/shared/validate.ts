@@ -2,11 +2,11 @@
 // planning shapes are the host's (packages/atlas/src/host/validate.ts); this module adds what only the
 // desktop window sends. Unknown object keys are dropped.
 import { appCommands, editors, fullPath, limits, themePreferences, type PagePlace, type Place, type Project, type ProjectPlace, type ReferenceInput, type Target, type UiState } from './contract.ts';
-import { array, diagramPath, folderId, integer, nullable, object, oneOf, optional, relativePath, string, workId, type Validator } from '@envsemble/atlas/host/validate';
+import { array, diagramPath, integer, nullable, object, oneOf, optional, projectId, relativePath, string, workId, type Validator } from '@envsemble/atlas/host/validate';
 
 export {
-  ValidationError, argumentsOf, array, boolean, diagramPath, folderId, integer, ipAddress, nullable, object, oneOf, optional, pairingCode,
-  port, projectName, relativePath, string, token, workId, type Validator,
+  ValidationError, argumentsOf, array, boolean, diagramPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode,
+  port, projectId, projectName, relativePath, string, token, workId, type Validator,
 } from '@envsemble/atlas/host/validate';
 
 export const command = oneOf(appCommands);
@@ -35,8 +35,8 @@ export const target: Validator<Target> = (value, at = 'target') => {
 export const place: Validator<Place> = (value, at = 'place') => {
   const page = object<{ page?: PagePlace['page'] }>({ page: optional(oneOf(['hub', 'projects', 'statistics'] as const)) })(value, at).page;
   if (page === 'projects') return { page };
-  if (page) return { page, project: object<{ project: string | null }>({ project: nullable(folderId) })(value, at).project };
-  return object<ProjectPlace>({ project: folderId, target })(value, at);
+  if (page) return { page, projectId: object<{ projectId: string | null }>({ projectId: nullable(projectId) })(value, at).projectId };
+  return object<ProjectPlace>({ projectId, target })(value, at);
 };
 /** A window's layout as the window saves it. */
 export const uiState: Validator<UiState> = object<UiState>({
@@ -46,13 +46,13 @@ export const uiState: Validator<UiState> = object<UiState>({
 
 /**
  * Whether a host's own listing of its projects (with its projects.changed event) reads as one: a list
- * of projects, each with its folder ID, name, path, place in the order, state and folders.
+ * of projects, each with its ID, name, path, place in the order, state and folders.
  * Anything else is not taken; the windows list the projects again instead.
  */
 export function isProjectListing(value: unknown): value is Project[] {
   const project = (item: unknown) => {
     const entry = item as Partial<Record<keyof Project, unknown>> | null;
-    return Boolean(entry && typeof entry === 'object') && typeof entry!.folderId === 'string' && /^f-[a-f0-9]{32}$/.test(entry!.folderId) && typeof entry!.name === 'string'
+    return Boolean(entry && typeof entry === 'object') && typeof entry!.id === 'string' && /^f-[a-f0-9]{32}$/.test(entry!.id) && typeof entry!.name === 'string'
       && typeof entry!.path === 'string' && typeof entry!.position === 'number' && ['active', 'archived'].includes(entry!.state as string)
       && Array.isArray(entry!.folders) && entry!.folders.every(folder => typeof folder === 'string')
       && (entry!.summary === undefined || entry!.summary === null || typeof entry!.summary === 'object');

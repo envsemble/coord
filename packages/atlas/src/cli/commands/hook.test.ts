@@ -158,7 +158,7 @@ test('hooks give the session its planning context, check and link planning edits
   const { waiting } = state();
   const project = withDatabase(base.ATLAS_HOME!, database => database.projectByFolder(realpathSync.native(root))!.id);
   const sessions = (local = true) => withDatabaseAsync(base.ATLAS_HOME!, database => workSessions(database, project, 'work-0003', { local }));
-  assert.deepEqual((await sessions()).products.map(({ kind, repository, id, title, url, branch }) => ({ kind, repository, id, title, url, branch })),
+  assert.deepEqual((await sessions()).commits.map(({ kind, repository, id, title, url, branch }) => ({ kind, repository, id, title, url, branch })),
     [{ kind: 'commit', repository: 'example/shop', id: '9e8d7c6', title: 'Try it', url: 'https://github.com/example/shop/commit/9e8d7c6', branch: null },
       { kind: 'commit', repository: 'example/shop', id: '1a2b3c4', title: 'Add the cart', url: 'https://github.com/example/shop/commit/1a2b3c4', branch: 'main' }]);
   // While it waits, the session shows its turn's last message, and how to resume it in the folder it

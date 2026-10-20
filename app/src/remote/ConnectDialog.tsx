@@ -17,7 +17,7 @@ export function ConnectDialog({ onClose }: { onClose(): void }) {
   const needsCode = link.trim() !== '' && !/#token=/.test(link);
   const connect = async () => {
     setBusy(true); setError('');
-    try { setPaired(await api.pairRemote(link.trim(), needsCode ? code.trim() || null : null)); }
+    try { setPaired(await api.pairComputer(link.trim(), needsCode ? code.trim() || null : null)); }
     catch (failure) { if ((failure as { code?: string }).code !== 'cancelled') setError((failure as Error).message); }
     finally { setBusy(false); }
   };

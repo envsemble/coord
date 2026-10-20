@@ -1,10 +1,10 @@
-// The planning folders the host has open. Each folder has a stable ID derived from its canonical
-// path, one OpenProject while any client uses it, and closes a while after the last one leaves.
+// The projects the host has open. Each project has a stable ID derived from its planning folder's
+// canonical path, one OpenProject while any client uses it, and closes a while after the last one leaves.
 import { createHmac } from 'node:crypto';
 import { realpath } from 'node:fs/promises';
 import path from 'node:path';
 import type { HomeDatabase } from '../../planning/index.ts';
-import type { FolderState } from '../contract.ts';
+import type { OpenProjectState } from '../contract.ts';
 import { HostError, type Logger } from '../errors.ts';
 import { OpenProject } from './openProject.ts';
 
@@ -13,10 +13,11 @@ export function pathKey(value: string, platform: NodeJS.Platform = process.platf
   return platform === 'win32' || platform === 'darwin' ? value.toLowerCase() : value;
 }
 /**
- * A folder's ID: the same for the same canonical path on this host, keyed with the host's secret so
- * a device cannot confirm a guessed path (such as one with a user name in it) from an ID.
+ * A project's ID: the same for the same canonical planning folder path on this host, keyed with the
+ * host's secret so a device cannot confirm a guessed path (such as one with a user name in it) from an
+ * ID. The hashed text keeps its `atlas-folder:` prefix, so IDs stay as they were.
  */
-export function folderIdOf(canonical: string, key: string) {
+export function projectIdOf(canonical: string, key: string) {
   return 'f-' + createHmac('sha256', key).update('atlas-folder:' + pathKey(canonical)).digest('hex').slice(0, 32);
 }
 /** The canonical path of a folder; a missing folder keeps its absolute spelling. */
@@ -25,12 +26,12 @@ async function canonicalFolder(input: string) {
 }
 
 export interface OpenProjectsOptions {
-  /** The host's folder-ID key (AccessStore.folderKey), read when an ID is needed. */
+  /** The host's project ID key (AccessStore.projectIdKey), read when an ID is needed. */
   key(): string;
   /** The home database, where document use is recorded. */
   database: HomeDatabase | null;
   log: Logger;
-  onChange(state: FolderState): void;
+  onChange(state: OpenProjectState): void;
   /** How long a folder stays open after its last user leaves. */
   idleClose?: number;
   watchDelay?: { debounce: number; maxWait: number };
@@ -47,54 +48,54 @@ export class OpenProjects {
   /** Open (or find) a folder by path and wait for its first read. */
   async open(input: string): Promise<OpenProject> {
     const root = await canonicalFolder(input);
-    const folderId = this.idOf(root);
-    this.known.set(folderId, root);
-    let entry = this.entries.get(folderId);
+    const projectId = this.idOf(root);
+    this.known.set(projectId, root);
+    let entry = this.entries.get(projectId);
     if (!entry) {
-      const project = new OpenProject(root, { folderId, database: this.options.database, log: this.options.log, watchDelay: this.options.watchDelay, onChange: state => this.options.onChange(state) });
+      const project = new OpenProject(root, { projectId, database: this.options.database, log: this.options.log, watchDelay: this.options.watchDelay, onChange: state => this.options.onChange(state) });
       const created: Entry = { project, users: 0, timer: null, started: Promise.resolve() };
       // The idle timer starts once the first read is done, so a slow start cannot close the folder under its first user.
-      created.started = project.start().catch(error => this.options.log.error('Folder could not start', error)).then(() => this.scheduleClose(folderId, created));
+      created.started = project.start().catch(error => this.options.log.error('Folder could not start', error)).then(() => this.scheduleClose(projectId, created));
       entry = created;
-      this.entries.set(folderId, entry);
+      this.entries.set(projectId, entry);
     }
     await entry.started;
     return entry.project;
   }
 
-  /** The ID of a canonical folder path on this host. */
-  idOf(canonical: string) { return folderIdOf(canonical, this.options.key()); }
+  /** The project ID of a canonical planning folder path on this host. */
+  idOf(canonical: string) { return projectIdOf(canonical, this.options.key()); }
   /** The path of a folder opened by path before, if any. */
-  pathOf(folderId: string) { return this.known.get(folderId) ?? null; }
+  pathOf(projectId: string) { return this.known.get(projectId) ?? null; }
   /** Every folder path this host has opened, for keeping them out of what devices see. */
   knownRoots() { return [...this.known.values()]; }
 
   /** A folder that is open, for a client that may use it. */
-  get(folderId: string): OpenProject {
-    const entry = this.entries.get(folderId);
+  get(projectId: string): OpenProject {
+    const entry = this.entries.get(projectId);
     if (!entry) throw new HostError('not-found', 'This planning folder is not open on the host.');
     return entry.project;
   }
-  has(folderId: string) { return this.entries.has(folderId); }
+  has(projectId: string) { return this.entries.has(projectId); }
 
   /** A client starts using a folder: it stays open until every user has released it. */
-  acquire(folderId: string) {
-    const entry = this.entries.get(folderId);
+  acquire(projectId: string) {
+    const entry = this.entries.get(projectId);
     if (!entry) throw new HostError('not-found', 'This planning folder is not open on the host.');
     entry.users++;
     if (entry.timer) { clearTimeout(entry.timer); entry.timer = null; }
   }
-  release(folderId: string) {
-    const entry = this.entries.get(folderId);
+  release(projectId: string) {
+    const entry = this.entries.get(projectId);
     if (!entry) return;
     entry.users = Math.max(0, entry.users - 1);
-    this.scheduleClose(folderId, entry);
+    this.scheduleClose(projectId, entry);
   }
-  private scheduleClose(folderId: string, entry: Entry) {
-    if (entry.users || entry.timer || this.entries.get(folderId) !== entry) return;
+  private scheduleClose(projectId: string, entry: Entry) {
+    if (entry.users || entry.timer || this.entries.get(projectId) !== entry) return;
     entry.timer = setTimeout(() => {
       if (entry.users) return;
-      this.entries.delete(folderId);
+      this.entries.delete(projectId);
       entry.project.close();
       this.options.log.info('Planning folder closed', { root: entry.project.root });
     }, this.options.idleClose ?? 30000);
@@ -102,14 +103,14 @@ export class OpenProjects {
   }
 
   /** Close a folder now and forget its path (it moved): its ID no longer opens anything. */
-  forget(folderId: string) {
-    const entry = this.entries.get(folderId);
+  forget(projectId: string) {
+    const entry = this.entries.get(projectId);
     if (entry) {
       if (entry.timer) clearTimeout(entry.timer);
-      this.entries.delete(folderId);
+      this.entries.delete(projectId);
       entry.project.close();
     }
-    this.known.delete(folderId);
+    this.known.delete(projectId);
   }
 
   /** Reports were recorded: every open folder reads its work's statistics again. */

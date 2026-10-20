@@ -4,24 +4,24 @@ import { hostEntries, listEntries, ownPerKind, pathKey, resultDestination, workK
 import type { Project, SearchResult } from '../types.ts';
 
 const folder = 'f-' + '1'.repeat(32);
-const result = (change: Partial<SearchResult>): SearchResult => ({ kind: 'plan', title: 'Plans hub', snippet: null, folderId: folder, project: 'Atlas', work: null, path: null, anchor: null, element: null, ...change });
+const result = (change: Partial<SearchResult>): SearchResult => ({ kind: 'plan', title: 'Plans hub', snippet: null, projectId: folder, projectName: 'Atlas', work: null, path: null, anchor: null, element: null, ...change });
 const atlas: Project = {
-  folderId: folder, name: 'Atlas', path: '/home/me/.atlas/planning/atlas', position: 1, state: 'active', folders: [],
+  id: folder, name: 'Atlas', path: '/home/me/.atlas/planning/atlas', position: 1, state: 'active', folders: [],
   summary: { active: [{ id: 'work-0023', title: 'Plans hub', state: 'implementing', blocked: null, summary: null, steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null }], closed: [], updated: null, activity: [], now: '2026-10-15T10:00:00Z' },
 };
 
 test('each kind of result opens where it is: a plan, a plan at a step, a document at its heading, a diagram at its element, a project in the hub', () => {
-  assert.deepEqual(resultDestination(result({ work: 'work-0023' })), { place: { project: folder, target: { kind: 'work', work: 'work-0023', anchor: null } } });
+  assert.deepEqual(resultDestination(result({ work: 'work-0023' })), { place: { projectId: folder, target: { kind: 'work', work: 'work-0023', anchor: null } } });
   // A step opens its plan with the step pointed out in its progress.
-  assert.deepEqual(resultDestination(result({ kind: 'step', title: 'Build the hub', work: 'work-0023', path: 'active/0023-plans-hub/plan.md' })), { place: { project: folder, target: { kind: 'work', work: 'work-0023', anchor: null, step: 'Build the hub' } } });
-  assert.deepEqual(resultDestination(result({ kind: 'heading', work: 'work-0023', path: 'active/0023-plans-hub/plan.md', anchor: 'why' })), { project: folder, path: 'active/0023-plans-hub/plan.md', anchor: 'why' });
-  assert.deepEqual(resultDestination(result({ kind: 'document', path: 'notes/shop.md' })), { project: folder, path: 'notes/shop.md', anchor: null });
-  assert.deepEqual(resultDestination(result({ kind: 'term', path: 'CONTEXT.md', anchor: 'plan' })), { project: folder, path: 'CONTEXT.md', anchor: 'plan' });
-  assert.deepEqual(resultDestination(result({ kind: 'element', work: 'work-0023', path: 'active/0023-plans-hub/diagrams/hub.puml', element: 'Hub' })), { project: folder, path: 'active/0023-plans-hub/diagrams/hub.puml', anchor: 'Hub' });
-  assert.deepEqual(resultDestination(result({ kind: 'diagram', work: 'work-0023', element: 'Hub' })), { place: { project: folder, target: { kind: 'diagram', work: 'work-0023', path: null, element: 'Hub' } } });
-  assert.deepEqual(resultDestination(result({ kind: 'project' })), { place: { page: 'hub', project: folder } });
+  assert.deepEqual(resultDestination(result({ kind: 'step', title: 'Build the hub', work: 'work-0023', path: 'active/0023-plans-hub/plan.md' })), { place: { projectId: folder, target: { kind: 'work', work: 'work-0023', anchor: null, step: 'Build the hub' } } });
+  assert.deepEqual(resultDestination(result({ kind: 'heading', work: 'work-0023', path: 'active/0023-plans-hub/plan.md', anchor: 'why' })), { projectId: folder, path: 'active/0023-plans-hub/plan.md', anchor: 'why' });
+  assert.deepEqual(resultDestination(result({ kind: 'document', path: 'notes/shop.md' })), { projectId: folder, path: 'notes/shop.md', anchor: null });
+  assert.deepEqual(resultDestination(result({ kind: 'term', path: 'CONTEXT.md', anchor: 'plan' })), { projectId: folder, path: 'CONTEXT.md', anchor: 'plan' });
+  assert.deepEqual(resultDestination(result({ kind: 'element', work: 'work-0023', path: 'active/0023-plans-hub/diagrams/hub.puml', element: 'Hub' })), { projectId: folder, path: 'active/0023-plans-hub/diagrams/hub.puml', anchor: 'Hub' });
+  assert.deepEqual(resultDestination(result({ kind: 'diagram', work: 'work-0023', element: 'Hub' })), { place: { projectId: folder, target: { kind: 'diagram', work: 'work-0023', path: null, element: 'Hub' } } });
+  assert.deepEqual(resultDestination(result({ kind: 'project' })), { place: { page: 'hub', projectId: folder } });
   // Without a work item or a file, its project's plans.
-  assert.deepEqual(resultDestination(result({ kind: 'document' })), { place: { page: 'hub', project: folder } });
+  assert.deepEqual(resultDestination(result({ kind: 'document' })), { place: { page: 'hub', projectId: folder } });
 });
 
 test("the host's results say their project and work item, and the snippet", () => {
@@ -38,12 +38,12 @@ test("the host's results say their project and work item, and the snippet", () =
 
 test("an archived project's results are left out", () => {
   const other = 'f-' + '2'.repeat(32);
-  const shelved: Project = { ...atlas, folderId: other, name: 'Old', state: 'archived' };
-  const listed = hostEntries([result({ work: 'work-0023' }), result({ folderId: other, project: 'Old', work: 'work-0001' })], [atlas, shelved]);
+  const shelved: Project = { ...atlas, id: other, name: 'Old', state: 'archived' };
+  const listed = hostEntries([result({ work: 'work-0023' }), result({ projectId: other, projectName: 'Old', work: 'work-0001' })], [atlas, shelved]);
   assert.deepEqual(listed.map(item => item.detail), ['Atlas · #0023']);
 });
 
-const entry = (id: string, kind: SearchEntry['kind'], key: string | null = null): SearchEntry => ({ id, kind, label: id, detail: '', snippet: null, destination: { place: { page: 'hub', project: null } }, key });
+const entry = (id: string, kind: SearchEntry['kind'], key: string | null = null): SearchEntry => ({ id, kind, label: id, detail: '', snippet: null, destination: { place: { page: 'hub', projectId: null } }, key });
 const local = [entry('plan', 'plan', workKey(folder, 'work-0023')), entry('diagram', 'diagram'), entry('other plan', 'plan', workKey(folder, 'work-0024')), entry('doc', 'document', pathKey(folder, 'a.md'))];
 const host = [entry('heading', 'heading'), entry('plan again', 'plan', workKey(folder, 'work-0023')), entry('doc again', 'document', pathKey(folder, 'a.md')), entry('summary plan', 'plan', workKey(folder, 'work-0025')), entry('heading 2', 'heading')];
 

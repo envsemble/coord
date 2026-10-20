@@ -1,6 +1,6 @@
 // The `atlas:` scheme, registered on each window's own session:
 //   atlas://app/…       the built renderer (production), served with a strict CSP
-//   atlas://planning/<folder ID>/…  a file inside a project's folder that window follows (images
+//   atlas://planning/<project ID>/…  a file inside the planning folder of a project that window follows (images
 //                       and attachments in documents), fetched from its host, which checks containment
 // Nothing else is reachable: other hosts, paths outside the renderer build, hidden files and
 // paths outside the planning folder all answer 404/403.
@@ -67,7 +67,7 @@ export function containedFile(directory: string, pathname: string): string | nul
   return inside && !inside.startsWith('..') && !path.isAbsolute(inside) ? resolved : null;
 }
 
-export function createProtocolHandler(options: { rendererDirectory: string | null; planningFile: (folderId: string, relative: string) => Promise<Response> | null }) {
+export function createProtocolHandler(options: { rendererDirectory: string | null; planningFile: (projectId: string, relative: string) => Promise<Response> | null }) {
   return async (request: Request): Promise<Response> => {
     let url: URL;
     try { url = new URL(request.url); } catch { return respond(400, 'Bad request'); }
@@ -88,8 +88,8 @@ export function createProtocolHandler(options: { rendererDirectory: string | nul
       // A path that steps out of the folder is refused here; the host also resolves every path
       // inside the folder (no hidden or excluded parts, real files only).
       if (relative.split('/').some(segment => segment === '..' || segment === '.') || /[\\\0]/.test(relative)) return respond(403, 'Not available');
-      const [folderId, ...rest] = relative.split('/');
-      const pending = rest.length ? options.planningFile(folderId, rest.join('/')) : null;
+      const [projectId, ...rest] = relative.split('/');
+      const pending = rest.length ? options.planningFile(projectId, rest.join('/')) : null;
       if (!pending) return respond(404, 'Not found');
       try {
         const answer = await pending;

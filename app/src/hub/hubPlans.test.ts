@@ -7,7 +7,7 @@ import type { Project, ProjectSummary, ProjectWork } from '../types.ts';
 const work = (id: string, state: ProjectWork['state'], change: Partial<ProjectWork> = {}): ProjectWork =>
   ({ id, title: 'Work ' + id, state, blocked: null, summary: null, steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null, ...change });
 const project = (name: string, position: number, summary: Partial<ProjectSummary> | null, state: Project['state'] = 'active'): Project => ({
-  folderId: 'f-' + String(position).repeat(32), name, path: '/home/me/.atlas/planning/' + name.toLowerCase(), position, state, folders: [],
+  id: 'f-' + String(position).repeat(32), name, path: '/home/me/.atlas/planning/' + name.toLowerCase(), position, state, folders: [],
   summary: summary && { active: [], closed: [], updated: null, activity: [], now: '2026-10-15T10:05:00Z', ...summary },
 });
 
@@ -36,8 +36,8 @@ test('the hub lists the plans of every active project, or of the project it is f
     ...['work-0021', 'work-0022', 'work-0023', 'work-0024', 'work-0025', 'work-0019', 'work-0018'].map(id => 'Atlas ' + id), 'Coord work-0001',
   ], 'archived projects and projects whose folder could not be read list none');
   assert.deepEqual(all.filter(item => item.activity).map(item => item.work.id + ' ' + item.status.label), ['work-0021 Needs you', 'work-0024 Working']);
-  assert.deepEqual(hubItems(projects, coord.folderId).map(item => item.work.id), ['work-0001']);
-  assert.deepEqual(hubItems(projects, archived.folderId).map(item => item.work.id), ['work-0007'], 'filtered to an archived project, it lists that project\'s plans');
+  assert.deepEqual(hubItems(projects, coord.id).map(item => item.work.id), ['work-0001']);
+  assert.deepEqual(hubItems(projects, archived.id).map(item => item.work.id), ['work-0007'], 'filtered to an archived project, it lists that project\'s plans');
   assert.deepEqual(hubItems([], null), []);
 });
 

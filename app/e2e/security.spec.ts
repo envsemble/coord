@@ -2,13 +2,13 @@ import { expect, test } from '@playwright/test';
 import { close, hubRows, launchProject, type Launched } from './app';
 
 let launched: Launched | undefined;
-/** The project's folder ID, as the bridge names it. */
+/** The project's ID, as the bridge names it. */
 let project: string;
 test.beforeEach(async () => {
   launched = await launchProject();
   project = await launched.window.evaluate(async () => {
-    const result = await (window as unknown as { atlas: { projects(): Promise<{ ok: boolean; value: { folderId: string }[] }> } }).atlas.projects();
-    return result.value[0].folderId;
+    const result = await (window as unknown as { atlas: { projects(): Promise<{ ok: boolean; value: { id: string }[] }> } }).atlas.projects();
+    return result.value[0].id;
   });
 });
 test.afterEach(async () => { await close(launched); launched = undefined; });
@@ -43,13 +43,13 @@ test('the window is isolated and sandboxed, with a strict content security polic
   await hubRows(atlasWindow, 'Customer order notifications').first().getByRole('link', { name: 'Customer order notifications', exact: true }).evaluate(link => (link as HTMLElement).click());
   await expect(atlasWindow.locator('.work-header h1')).toHaveText('Customer order notifications');
   // Requests through the window's own session, as its pages make them.
-  const status = await app.evaluate(async ({ BrowserWindow }, folderId) => {
+  const status = await app.evaluate(async ({ BrowserWindow }, projectId) => {
     const session = BrowserWindow.getAllWindows()[0].webContents.session;
     const get = (url: string) => session.fetch(url).then(response => response.status, () => 'blocked');
     return {
-      readme: await get(`atlas://planning/${folderId}/README.md`),
-      escape: await get(`atlas://planning/${folderId}/..%2F..%2Fsecret.txt`),
-      hidden: await get(`atlas://planning/${folderId}/active/0001-saved-payment-methods/.atlas/plan.md`),
+      readme: await get(`atlas://planning/${projectId}/README.md`),
+      escape: await get(`atlas://planning/${projectId}/..%2F..%2Fsecret.txt`),
+      hidden: await get(`atlas://planning/${projectId}/active/0001-saved-payment-methods/.atlas/plan.md`),
       unfollowed: await get('atlas://planning/f-' + '0'.repeat(32) + '/README.md'),
       app: await get('atlas://app/index.html'),
       appEscape: await get('atlas://app/..%2Fmain%2Findex.js'),
@@ -58,9 +58,9 @@ test('the window is isolated and sandboxed, with a strict content security polic
   }, project);
   expect(status).toEqual({ readme: 200, escape: 403, hidden: 403, unfollowed: 404, app: 200, appEscape: 404, other: 404 });
   // The page itself cannot reach the network or read planning files with fetch.
-  const fetched = await atlasWindow.evaluate(async folderId => ({
+  const fetched = await atlasWindow.evaluate(async projectId => ({
     remote: await fetch('https://example.com/').then(() => 'loaded', () => 'blocked'),
-    planning: await fetch(`atlas://planning/${folderId}/README.md`).then(() => 'loaded', () => 'blocked'),
+    planning: await fetch(`atlas://planning/${projectId}/README.md`).then(() => 'loaded', () => 'blocked'),
   }), project);
   expect(fetched).toEqual({ remote: 'blocked', planning: 'blocked' });
   // Web links go to the system browser; record them instead of starting one. A page that sends the
@@ -92,24 +92,24 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
     (globalThis as unknown as { asked: string[] }).asked = asked;
     dialog.showMessageBox = (async (_window: unknown, options: { message: string }) => { asked.push(options.message); return { response: 1, checkboxChecked: false }; }) as unknown as typeof dialog.showMessageBox;
   });
-  const results = await atlasWindow.evaluate(async folderId => {
+  const results = await atlasWindow.evaluate(async projectId => {
     const bridge = (window as unknown as { atlas: unknown }).atlas as Record<string, (...args: unknown[]) => Promise<unknown>>;
     return {
-      traversal: await bridge.document(folderId, '../outside.md'),
-      absolute: await bridge.document(folderId, 'C:/Windows/win.ini'),
-      hidden: await bridge.document(folderId, 'active/0001-saved-payment-methods/.atlas/plan.md'),
-      wrongType: await bridge.diagrams(folderId, 42),
+      traversal: await bridge.document(projectId, '../outside.md'),
+      absolute: await bridge.document(projectId, 'C:/Windows/win.ini'),
+      hidden: await bridge.document(projectId, 'active/0001-saved-payment-methods/.atlas/plan.md'),
+      wrongType: await bridge.diagrams(projectId, 42),
       noProject: await bridge.snapshot('not a folder id'),
       otherProject: await bridge.snapshot('f-' + '0'.repeat(32)),
-      badDiagram: await bridge.diagram(folderId, 'work-0001', '../../planning.json'),
-      notDiagram: await bridge.diagram(folderId, 'work-0001', 'plan.md'),
+      badDiagram: await bridge.diagram(projectId, 'work-0001', '../../planning.json'),
+      notDiagram: await bridge.diagram(projectId, 'work-0001', 'plan.md'),
       command: await bridge.command('openFolder'),
       // Edit's commands are the window's own keys and the application menu's, not the page's.
       paste: await bridge.command('paste'),
       closeWindow: await bridge.command('closeWindow'),
       // A workspace folder is a full path of this computer.
       createRelative: await bridge.createProject('Coord', ['relative/folder']),
-      updateRelative: await bridge.updateProject(folderId, { folders: ['..\\up'] }),
+      updateRelative: await bridge.updateProject(projectId, { folders: ['..\\up'] }),
       // Quitting and opening windows or the logs ask first.
       quit: await bridge.command('quit'),
       newWindow: await bridge.command('newWindow'),
@@ -117,7 +117,7 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
       // So do remote access and pairing, which could hand the computer to someone else.
       access: await bridge.updateAccess({ network: { enabled: true, address: '127.0.0.1', port: 7346 } }),
       pairing: await bridge.createPairing(null, null, { label: null, manageAccess: true }),
-      pair: await bridge.pairRemote('http://127.0.0.1:9/#token=abc', null),
+      pair: await bridge.pairComputer('http://127.0.0.1:9/#token=abc', null),
       web: await bridge.openExternal('https://example.com/'),
       external: await bridge.openExternal('file:///C:/Windows/System32/calc.exe'),
       // An application's link opens only with a scheme on the allowlist, and asks first.
@@ -125,12 +125,12 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
       script: await bridge.openExternal('javascript:alert(1)'),
       unknownScheme: await bridge.openExternal('ms-settings:'),
       // Open in opens, without asking, only the file of the place the window shows, inside the project's folder.
-      notShown: await bridge.openShown({ project: folderId, target: { kind: 'file', path: 'README.md' } }, 'README.md'),
-      fileTraversal: await bridge.openShown({ project: folderId, target: { kind: 'file', path: '../outside.md' } }, '../outside.md'),
+      notShown: await bridge.openShown({ projectId, target: { kind: 'file', path: 'README.md' } }, 'README.md'),
+      fileTraversal: await bridge.openShown({ projectId, target: { kind: 'file', path: '../outside.md' } }, '../outside.md'),
       // Files open only as the host resolves them, and the editor is one of a fixed list.
-      referenceKind: await bridge.openReference(folderId, { kind: 'commit', repository: null, value: 'abcdef1', line: null }),
+      referenceKind: await bridge.openReference(projectId, { kind: 'commit', repository: null, value: 'abcdef1', line: null }),
       editorCommand: await bridge.setEditor('notepad.exe'),
-      ok: await bridge.document(folderId, 'README.md').then(value => (value as { ok: boolean }).ok),
+      ok: await bridge.document(projectId, 'README.md').then(value => (value as { ok: boolean }).ok),
     };
   }, project);
   for (const key of ['traversal', 'absolute', 'wrongType', 'noProject', 'badDiagram', 'notDiagram', 'command', 'paste', 'closeWindow', 'createRelative', 'updateRelative', 'referenceKind', 'editorCommand', 'fileTraversal'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });

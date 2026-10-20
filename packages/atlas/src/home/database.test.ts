@@ -22,7 +22,7 @@ const tables = (database: HomeDatabase) => (database.db.prepare("SELECT name FRO
 test('the database is created with the schema, and one of another version is refused', t => {
   const home = temporary(t);
   withDatabase(home, database => {
-    assert.deepEqual(tables(database), ['connection', 'device', 'place', 'project', 'report_effort', 'report_interval', 'report_model', 'report_subagent', 'session', 'session_agent', 'session_commit', 'session_leave', 'session_wait', 'session_work', 'setting', 'window', 'work_report']);
+    assert.deepEqual(tables(database), ['device', 'paired_computer', 'place', 'project', 'report_effort', 'report_interval', 'report_model', 'report_subagent', 'session', 'session_agent', 'session_commit', 'session_leave', 'session_wait', 'session_work', 'setting', 'window', 'work_report']);
     assert.equal(Number((database.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version), schemaVersion);
     assert.equal((database.db.prepare('PRAGMA journal_mode').get() as { journal_mode: string }).journal_mode, 'wal');
     database.setSetting('theme', 'dark');
@@ -65,14 +65,14 @@ test('projects keep their order and state, and a paired computer\'s rows are kep
     database.updateProject(second.id, { state: 'archived' });
     assert.deepEqual(database.projects().map(project => [project.name, project.state]), [['Three', 'active'], ['Coord', 'archived'], ['Two', 'archived']]);
     // A paired computer's projects: rows of this app, ordered and archived here.
-    database.db.prepare('INSERT INTO connection (id, host_id, name, origin, device_id, token, paired_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('c1', 'host-0001', 'Laptop', 'http://100.64.0.2:7346', 'd-' + 'a'.repeat(32), Buffer.from('plain:x'), '2026-10-15T00:00:00.000Z');
+    database.db.prepare('INSERT INTO paired_computer (id, host_id, name, origin, device_id, token, paired_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('c1', 'host-0001', 'Laptop', 'http://100.64.0.2:7346', 'd-' + 'a'.repeat(32), Buffer.from('plain:x'), '2026-10-15T00:00:00.000Z');
     const remote = database.addProject('/home/me/.atlas/planning/one', 'One', 'c1');
     assert.notEqual(remote.id, first.id);
     assert.equal(remote.position, 0, 'a computer\'s projects are numbered on their own');
     assert.deepEqual(database.projects('c1').map(project => project.name), ['One']);
     assert.ok(!database.projects().some(project => project.id === remote.id));
     // Forgetting the computer forgets its rows.
-    database.db.prepare("DELETE FROM connection WHERE id = 'c1'").run();
+    database.db.prepare("DELETE FROM paired_computer WHERE id = 'c1'").run();
     assert.deepEqual(database.projects('c1'), []);
   });
 });

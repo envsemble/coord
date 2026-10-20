@@ -3,12 +3,12 @@
 // with; that keeps the credential from a different Atlas at the same address (the ID is public, so it
 // is no defence against a deliberate impostor: use Tailscale for that). It pings to notice a dead
 // connection, reconnects on its own with jittered exponential backoff (capped at 30 seconds),
-// subscribes to its folders again, and stops for good when its access is revoked. No dependency on
+// subscribes to the projects it follows again, and stops for good when its access is revoked. No dependency on
 // the planning reader, so other clients (a phone) can use it too.
 import { WebSocket } from 'ws';
 import {
   closeCodes, protocolVersion, routes,
-  type ErrorCode, type EventMessage, type EventName, type Events, type FolderState, type HostDescriptor, type MethodName, type Methods,
+  type ErrorCode, type EventMessage, type EventName, type Events, type OpenProjectState, type HostDescriptor, type MethodName, type Methods,
   type PairResponse, type ResponseMessage,
 } from './contract.ts';
 
@@ -89,7 +89,7 @@ export class HostClient {
   private sequence = 0;
   private readonly pending = new Map<number, Pending>();
   private readonly waiting = new Set<() => void>();
-  private readonly folders = new Set<string>();
+  private readonly followed = new Set<string>();
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   /** A connection attempt is under way (it may be waiting for the token or the descriptor). */
   private attempting = false;
@@ -243,8 +243,8 @@ export class HostClient {
     if (!isRecord(parsed)) return;
     if ('event' in parsed) {
       const { event, data } = parsed as unknown as EventMessage;
-      if ((event !== 'folder.changed' && event !== 'projects.changed' && event !== 'access.changed') || !isRecord(data)) return;
-      if (event === 'folder.changed' && (typeof (data as Record<string, unknown>).folderId !== 'string' || typeof (data as Record<string, unknown>).status !== 'string')) return;
+      if ((event !== 'project.changed' && event !== 'projects.changed' && event !== 'access.changed') || !isRecord(data)) return;
+      if (event === 'project.changed' && (typeof (data as Record<string, unknown>).projectId !== 'string' || typeof (data as Record<string, unknown>).status !== 'string')) return;
       if (event === 'projects.changed' && !Array.isArray((data as Record<string, unknown>).projects)) return;
       try { this.options.onEvent?.(event, data as never); } catch { /* A listener's failure is its own. */ }
       return;
@@ -289,25 +289,25 @@ export class HostClient {
     });
   }
 
-  /** Follow a project's folder: subscribe now and again after every reconnection (also to a host that restarted). */
-  async follow(folderId: string): Promise<FolderState> {
-    this.folders.add(folderId);
-    return this.request('folders.subscribe', { folderId });
+  /** Follow a project: subscribe now and again after every reconnection (also to a host that restarted). */
+  async follow(projectId: string): Promise<OpenProjectState> {
+    this.followed.add(projectId);
+    return this.request('projects.subscribe', { projectId });
   }
-  /** Whether this client follows a folder (it subscribes again after reconnecting). */
-  follows(folderId: string) { return this.folders.has(folderId); }
-  async unfollow(folderId: string) {
-    this.folders.delete(folderId);
-    if (this.status === 'connected') await this.request('folders.unsubscribe', { folderId }).catch(() => undefined);
+  /** Whether this client follows a project (it subscribes again after reconnecting). */
+  follows(projectId: string) { return this.followed.has(projectId); }
+  async unfollow(projectId: string) {
+    this.followed.delete(projectId);
+    if (this.status === 'connected') await this.request('projects.unsubscribe', { projectId }).catch(() => undefined);
   }
-  /** After reconnecting, subscribe to every followed folder again, all at once. */
+  /** After reconnecting, subscribe to every followed project again, all at once. */
   private async resubscribe() {
-    await Promise.all([...this.folders].map(async folderId => {
+    await Promise.all([...this.followed].map(async projectId => {
       try {
-        this.options.onEvent?.('folder.changed', await this.request('folders.subscribe', { folderId }));
+        this.options.onEvent?.('project.changed', await this.request('projects.subscribe', { projectId }));
       } catch (error) {
-        if (!this.folders.has(folderId)) return;
-        this.options.onEvent?.('folder.changed', { folderId, name: '', status: 'missing', error: (error as Error).message, notice: null, revision: Date.now(), files: Date.now() });
+        if (!this.followed.has(projectId)) return;
+        this.options.onEvent?.('project.changed', { projectId, name: '', status: 'missing', error: (error as Error).message, notice: null, revision: Date.now(), files: Date.now() });
       }
     }));
   }

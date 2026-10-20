@@ -12,7 +12,7 @@ import { mergeSpans, sessionGap, storedReports, type WorkReport } from './report
 
 export interface PeriodFigures { agentMs: number; activeMs: number; plansCompleted: number; medianImplementingMs: number | null; waitedMs: number }
 /** A project the statistics cover: its row and its planning folder. */
-export interface StatisticsSource { projectId: number; root: string }
+export interface StatisticsSource { projectRowId: number; root: string }
 export interface StatisticsBucket { start: string; agents: { model: string | null; effort: string | null; agentMs: number }[]; activeMs: number; completed: { id: string; title: string }[] }
 export interface ProjectStatisticsEntry {
   from: string | null; to: string; unit: 'day' | 'week';
@@ -106,7 +106,7 @@ const cache = new Map<string, Promise<ProjectStatisticsEntry>>();
  * until the reports or waits change, or for a minute when the period ends now.
  */
 export function projectStatistics(database: HomeDatabase, sources: StatisticsSource[], period: { from: string | null; to: string | null; unit: 'day' | 'week' }, now = Date.now()): Promise<ProjectStatisticsEntry> {
-  const ids = sources.map(source => source.projectId);
+  const ids = sources.map(source => source.projectRowId);
   const waits = database.db.prepare(`SELECT count(*) AS n, ifnull(max(id), 0) AS last, ifnull(max(ended_at), '') AS ended FROM session_wait WHERE project_id IN (${ids.map(() => '?').join(', ') || 'NULL'})`).get(...ids) as { n: number; last: number; ended: string };
   const key = [ids.join(','), period.from, period.to ?? Math.floor(now / 60_000), period.unit, database.reportsMark(), waits.n, waits.last, waits.ended].join('|');
   const cached = cache.get(key);
@@ -125,10 +125,10 @@ async function compute(database: HomeDatabase, sources: StatisticsSource[], peri
   const reports = new Map<string, WorkReport[]>();
   const work: Item[] = [];
   for (const source of sources) {
-    const own = storedReports(database, source.projectId);
+    const own = storedReports(database, source.projectRowId);
     const summary = await projectSummary(source.root, { reports: own });
-    for (const [workId, list] of own) reports.set(source.projectId + '\0' + workId, list);
-    for (const item of [...summary.active, ...summary.closed]) work.push({ ...item, key: source.projectId + '\0' + item.id, source });
+    for (const [workId, list] of own) reports.set(source.projectRowId + '\0' + workId, list);
+    for (const item of [...summary.active, ...summary.closed]) work.push({ ...item, key: source.projectRowId + '\0' + item.id, source });
   }
   const { pieces, spends } = piecesOf(reports);
   const to = period.to ? Date.parse(period.to) : now;
@@ -137,7 +137,7 @@ async function compute(database: HomeDatabase, sources: StatisticsSource[], peri
   const from = period.from ? Date.parse(period.from) : Number.isFinite(first) ? first : to;
   // Each plan's timeline, for its waits.
   const dates = new Map(await Promise.all(work.map(async item => [item.key, await workDates(item.source.root, item.id)] as const)));
-  const timelines = new Map(work.map(item => [item.key, workTimeline(database, item.source.projectId, item.id, dates.get(item.key)!, now, reports.get(item.key) ?? [])]));
+  const timelines = new Map(work.map(item => [item.key, workTimeline(database, item.source.projectRowId, item.id, dates.get(item.key)!, now, reports.get(item.key) ?? [])]));
   const clipped = (spans: [number, number][], start: number, end: number) => spans.reduce((total, [a, b]) => total + Math.max(0, Math.min(b, end) - Math.max(a, start)), 0);
   const allWaits = mergeSpans([...timelines.values()].flatMap(timeline => timeline.lanes.flatMap(lane => lane.waiting.map(([start, end]): [number, number] => [Date.parse(start), Date.parse(end)]))));
   const completedIn = (start: number, end: number) => work.filter(item => { const day = localDay(item.completed); return day !== null && day >= start && day < end; });

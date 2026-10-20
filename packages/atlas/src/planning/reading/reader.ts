@@ -15,10 +15,10 @@ export class PlanningReader {
   readonly diagrams: DiagramCatalog;
   readonly index: (force?: boolean) => ReturnType<typeof loadPlanning>;
   readonly database: HomeDatabase | null;
-  readonly projectId: number | null;
-  private constructor(values: Pick<PlanningReader, 'root' | 'diagrams' | 'index' | 'database' | 'projectId'>) {
+  readonly projectRowId: number | null;
+  private constructor(values: Pick<PlanningReader, 'root' | 'diagrams' | 'index' | 'database' | 'projectRowId'>) {
     this.root = values.root; this.diagrams = values.diagrams; this.index = values.index;
-    this.database = values.database; this.projectId = values.projectId;
+    this.database = values.database; this.projectRowId = values.projectRowId;
   }
 
   static async open(root: string, options: { database?: HomeDatabase | null } = {}) {
@@ -28,9 +28,9 @@ export class PlanningReader {
       const file = await stat(path.join(root, 'planning.json'));
       return file.mtimeMs + ':' + file.size;
     });
-    let projectId: number | null = null;
-    try { if (database) projectId = (await projectOf(database, root)).id; }
+    let projectRowId: number | null = null;
+    try { if (database) projectRowId = (await projectOf(database, root)).id; }
     catch { /* Without a project, its work has no statistics. */ }
-    return new PlanningReader({ root, diagrams, index, database: projectId === null ? null : database, projectId });
+    return new PlanningReader({ root, diagrams, index, database: projectRowId === null ? null : database, projectRowId });
   }
 }

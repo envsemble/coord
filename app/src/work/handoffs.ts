@@ -20,11 +20,11 @@ export interface Handoff {
 
 export function handoff(link: HandoffLink, own: string): Handoff {
   return {
-    key: (link.folderId ?? link.project) + ':' + link.workId,
+    key: (link.projectId ?? link.project) + ':' + link.workId,
     number: workNumber(link.workId),
     title: link.title,
-    project: link.folderId === own ? null : link.projectName || link.project,
-    open: link.title !== null && link.folderId !== null ? { project: link.folderId, work: link.workId } : null,
+    project: link.projectId === own ? null : link.projectName || link.project,
+    open: link.title !== null && link.projectId !== null ? { project: link.projectId, work: link.workId } : null,
   };
 }
 

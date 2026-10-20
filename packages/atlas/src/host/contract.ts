@@ -28,20 +28,22 @@ export interface HostErrorValue { code: ErrorCode; message: string }
 /** Public, unauthenticated: lets a client check it reached the host it paired with before it sends a credential. */
 export interface HostDescriptor { protocol: number; hostId: string; name: string; version: string }
 
-export type FolderStatus = 'loading' | 'ready' | 'missing' | 'invalid';
+/** Whether a project's planning folder can be read: still loading, read, gone, or not a planning folder. */
+export type ProjectStatus = 'loading' | 'ready' | 'missing' | 'invalid';
 /**
- * A folder's state. `revision` increases whenever its snapshot changes; `files` is the revision at
- * which its files were last read, so a change that leaves `files` as it was changed only its work's
- * statistics or handoffs (folder.work has them, without the documents).
+ * A project as the host has it open, for the clients that follow it (projects.subscribe and the
+ * project.changed event). `revision` increases whenever its snapshot changes; `files` is the revision
+ * at which its files were last read, so a change that leaves `files` as it was changed only its work's
+ * statistics or handoffs (project.work has them, without the documents).
  */
-export interface FolderState { folderId: string; name: string; status: FolderStatus; error: string | null; notice: string | null; revision: number; files: number }
+export interface OpenProjectState { projectId: string; name: string; status: ProjectStatus; error: string | null; notice: string | null; revision: number; files: number }
 /**
  * A project of this computer: a planning folder in its Atlas home, with its name (from its
- * planning.json, else the folder's), its place in the computer's order and its state. `folderId`
- * identifies it in every request about its folder.
+ * planning.json, else the folder's), its place in the computer's order and its state. `id` (`f-` and
+ * 32 hex digits, derived from its planning folder's path) is the `projectId` every request about it names.
  */
 export interface Project {
-  folderId: string; name: string; path: string; position: number; state: ProjectState;
+  id: string; name: string; path: string; position: number; state: ProjectState;
   /**
    * The folders the project covers on this computer (planning.json's `folders`, absolute paths): an
    * agent session in one of them, or inside one, belongs to this project.
@@ -54,12 +56,13 @@ export interface Project {
 export type SearchKind = 'plan' | 'step' | 'document' | 'heading' | 'diagram' | 'element' | 'term' | 'project';
 /**
  * A search result in one of the computer's active projects: what it is, its title, a short snippet
- * around the match (null when the title matched), and where it opens: the project (`folderId`), the
+ * around the match (null when the title matched), and where it opens: the project (`projectId`, and its
+ * name, `projectName`), the
  * work item, the file in the planning folder (`path`, POSIX-relative), a heading anchor, or a diagram element.
  */
 export interface SearchResult {
   kind: SearchKind; title: string; snippet: string | null;
-  folderId: string; project: string; work: string | null; path: string | null; anchor: string | null; element: string | null;
+  projectId: string; projectName: string; work: string | null; path: string | null; anchor: string | null; element: string | null;
 }
 /**
  * An agent session linked to a work item, as the hooks record it. `working`: in a turn (seen within
@@ -132,7 +135,7 @@ export interface WorkSession {
   message: string | null;
 }
 /** A commit a session on the work item made, or a PR it opened, as its hooks saw them. */
-export interface WorkProduct {
+export interface WorkCommit {
   kind: 'commit' | 'pull'; session: string; at: string;
   /** The repository as `owner/repo`, from the checkout's remote or the PR's address; else the checkout's folder name; null when unknown. */
   repository: string | null;
@@ -187,9 +190,9 @@ export interface Snapshot extends PlanningIndex {
   /** Every visible folder below the planning root (POSIX-relative), including empty ones. */
   folders: string[];
 }
-/** A work item as folder.snapshot and folder.work send it: without its documents, which the snapshot lists once. */
+/** A work item as project.snapshot and project.work send it: without its documents, which the snapshot lists once. */
 export type SnapshotWork = Omit<Work, 'documents'>;
-/** A snapshot as folder.snapshot sends it: each document once, in `documents`; withWorkDocuments gives the work items theirs again. */
+/** A snapshot as project.snapshot sends it: each document once, in `documents`; withWorkDocuments gives the work items theirs again. */
 export interface SnapshotValue extends Omit<Snapshot, 'work'> { work: SnapshotWork[] }
 /** A snapshot to send: its work items without their documents. */
 export function snapshotValue(snapshot: Snapshot): SnapshotValue {
@@ -244,35 +247,35 @@ export interface Methods {
   /** Search every active project of the computer, best matches first (at most `limit`, default 50). */
   'search.query': { params: { query: string; limit?: number }; result: SearchResult[] };
   /** Resolve the references a planning file of the project makes (each in order; null when it leads nowhere). */
-  'references.resolve': { params: { folderId: string; items: ReferenceInput[] }; result: (ResolvedReference | null)[] };
+  'references.resolve': { params: { projectId: string; items: ReferenceInput[] }; result: (ResolvedReference | null)[] };
   /** A work item's sessions, newest first, and the commits and PRs they made, newest first. */
-  'work.sessions': { params: { folderId: string; work: string }; result: { sessions: WorkSession[]; products: WorkProduct[] } };
+  'work.sessions': { params: { projectId: string; work: string }; result: { sessions: WorkSession[]; commits: WorkCommit[] } };
   /** A work item's time and its sessions' working and waiting stretches. */
-  'work.timeline': { params: { folderId: string; work: string }; result: WorkTimeline };
+  'work.timeline': { params: { projectId: string; work: string }; result: WorkTimeline };
   /** A project's statistics for a period (ISO times; null: from its first report, or to now), by day or week. */
-  'project.statistics': { params: { folderId: string; from: string | null; to: string | null; unit: 'day' | 'week' }; result: ProjectStatistics };
+  'project.statistics': { params: { projectId: string; from: string | null; to: string | null; unit: 'day' | 'week' }; result: ProjectStatistics };
   /** Several projects' statistics together, as one (all plans: the app's active projects), for a period as project.statistics has it. */
-  'projects.statistics': { params: { folderIds: string[]; from: string | null; to: string | null; unit: 'day' | 'week' }; result: ProjectStatistics };
+  'projects.statistics': { params: { projectIds: string[]; from: string | null; to: string | null; unit: 'day' | 'week' }; result: ProjectStatistics };
   /** Rename a project (its planning.json's name), archive it or bring it back, move it in the order, or set its folders. */
-  'projects.update': { params: { folderId: string; name?: string; state?: ProjectState; position?: number; folders?: string[] }; result: Project };
-  'folders.subscribe': { params: { folderId: string }; result: FolderState };
-  'folders.unsubscribe': { params: { folderId: string }; result: null };
-  'folder.snapshot': { params: { folderId: string }; result: SnapshotValue };
-  /** The work items alone, for a change of their statistics or handoffs only (FolderState.files unchanged). */
-  'folder.work': { params: { folderId: string }; result: SnapshotWork[] };
-  'folder.document': { params: { folderId: string; path: string }; result: DocumentContent };
+  'projects.update': { params: { projectId: string; name?: string; state?: ProjectState; position?: number; folders?: string[] }; result: Project };
+  'projects.subscribe': { params: { projectId: string }; result: OpenProjectState };
+  'projects.unsubscribe': { params: { projectId: string }; result: null };
+  'project.snapshot': { params: { projectId: string }; result: SnapshotValue };
+  /** The work items alone, for a change of their statistics or handoffs only (OpenProjectState.files unchanged). */
+  'project.work': { params: { projectId: string }; result: SnapshotWork[] };
+  'project.document': { params: { projectId: string; path: string }; result: DocumentContent };
   /** A work item's diagrams: its `.puml` files, by their paths in the work folder. */
-  'folder.diagrams': { params: { folderId: string; work: string }; result: DiagramEntry[] };
+  'project.diagrams': { params: { projectId: string; work: string }; result: DiagramEntry[] };
   /** A diagram's viewer payload, with the payloads of the rest of its family (`siblings`), laid out together. */
-  'folder.diagram': { params: { folderId: string; work: string; path: string }; result: unknown };
+  'project.diagram': { params: { projectId: string; work: string; path: string }; result: unknown };
   /** The diagrams a document links to, under the headings the links sit under. */
-  'folder.references': { params: { folderId: string; work: string | null; path: string }; result: DiagramReference[] };
-  /** Every diagram of the folder, for quick open. */
-  'folder.diagramIndex': { params: { folderId: string }; result: DiagramIndexEntry[] };
-  'plan.exportPrepare': { params: { folderId: string; work: string }; result: PreparedExport };
+  'project.references': { params: { projectId: string; work: string | null; path: string }; result: DiagramReference[] };
+  /** Every diagram of the project, for quick open. */
+  'project.diagramIndex': { params: { projectId: string }; result: DiagramIndexEntry[] };
+  'plan.exportPrepare': { params: { projectId: string; work: string }; result: PreparedExport };
   'plan.exportDrop': { params: { token: string }; result: null };
-  'plan.importRead': { params: { folderId: string; file: string }; result: ImportPreviewValue };
-  'plan.importConfirm': { params: { folderId: string; token: string }; result: ImportResultValue };
+  'plan.importRead': { params: { projectId: string; file: string }; result: ImportPreviewValue };
+  'plan.importConfirm': { params: { projectId: string; token: string }; result: ImportResultValue };
   'plan.importDrop': { params: { token: string }; result: null };
   'access.state': { params: Record<string, never>; result: AccessState };
   'access.update': { params: { settings: AccessSettings }; result: AccessState };
@@ -294,15 +297,15 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'project.statistics': 'computer',
   'projects.statistics': 'computer',
   'projects.update': 'computer',
-  'folders.subscribe': 'computer',
-  'folders.unsubscribe': 'computer',
-  'folder.snapshot': 'computer',
-  'folder.work': 'computer',
-  'folder.document': 'computer',
-  'folder.diagrams': 'computer',
-  'folder.diagram': 'computer',
-  'folder.references': 'computer',
-  'folder.diagramIndex': 'computer',
+  'projects.subscribe': 'computer',
+  'projects.unsubscribe': 'computer',
+  'project.snapshot': 'computer',
+  'project.work': 'computer',
+  'project.document': 'computer',
+  'project.diagrams': 'computer',
+  'project.diagram': 'computer',
+  'project.references': 'computer',
+  'project.diagramIndex': 'computer',
   'plan.exportPrepare': 'computer',
   'plan.exportDrop': 'computer',
   // A file on this computer, by path: the app's own. Another device sends its file to routes.imports.
@@ -319,7 +322,7 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
 
 /** Events the host pushes to a connection. */
 export interface Events {
-  'folder.changed': FolderState;
+  'project.changed': OpenProjectState;
   /** The computer's projects changed (one was added, renamed, archived or moved). */
   'projects.changed': { projects: Project[] };
   /** Remote access changed: sent to connections that may manage access. */
@@ -334,7 +337,7 @@ export interface EventMessage<E extends EventName = EventName> { event: E; data:
 export const closeCodes = { revoked: 4401, protocol: 4400, shuttingDown: 4503 } as const;
 
 /** HTTP routes. */
-export const routes = { host: '/api/host', pair: '/api/pair', connect: '/api/connect', files: '/api/folders/:folderId/files/*', imports: '/api/folders/:folderId/imports', exports: '/api/exports/:token' } as const;
+export const routes = { host: '/api/host', pair: '/api/pair', connect: '/api/connect', files: '/api/projects/:projectId/files/*', imports: '/api/projects/:projectId/imports', exports: '/api/exports/:token' } as const;
 /** The default port for remote access, when the owner turns it on. */
 export const defaultPort = 7346;
 /** Pairing codes expire this long after they are created. */

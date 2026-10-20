@@ -1,15 +1,15 @@
 // Each window shows the projects of one computer: this one, or another computer this app paired
 // with. It shows one place at a time (the hub, or something of one project), and follows each
-// project's folder on that computer's Atlas host as its pages need it. Windows and their places are
+// project on that computer's Atlas host as its pages need it. Windows and their places are
 // kept in the home database, so they open again at the next start. Each window has its own
 // in-memory session, so its `atlas:` file protocol can only ever see the projects it follows.
 import { BrowserWindow, dialog, nativeTheme, screen, session as electronSession, shell, type Session } from 'electron';
 import type { HomeDatabase } from '@envsemble/atlas/planning';
-import type { AccessState, ClientStatus, FolderState, HostClient, Project } from '@envsemble/atlas/host';
+import type { AccessState, ClientStatus, OpenProjectState, HostClient, Project } from '@envsemble/atlas/host';
 import type { EventChannel, MenuCommand, Place, ProjectChangeRequest, WindowInfo } from '../../shared/contract.ts';
 import { AtlasError } from '../errors.ts';
-import type { Connections } from '../host/connections.ts';
-import { FolderView } from '../host/folderView.ts';
+import type { Computers } from '../computers/computers.ts';
+import { ProjectView } from '../computers/projectView.ts';
 import type { RotatingLog } from '../log.ts';
 import { createProtocolHandler, isEntry, originOf, rendererOrigin, scheme } from './protocol.ts';
 import { defaultSize, type Bounds, type DesktopState, type WindowRow } from '../state.ts';
@@ -46,7 +46,7 @@ export interface WindowContext {
   state: DesktopState;
   database: HomeDatabase;
   log: RotatingLog;
-  connections: Connections;
+  computers: Computers;
   version: string;
   preload: string;
   icon?: string;
@@ -74,11 +74,11 @@ export class AtlasWindow {
   readonly rowId: number;
   /** The computer whose projects the window shows: a paired computer's host ID, or null for this one. */
   computer: string | null;
-  /** The projects' folders the window follows, by folder ID. */
-  readonly views = new Map<string, FolderView>();
+  /** The projects the window follows, by their IDs. */
+  readonly views = new Map<string, ProjectView>();
   /** The place the page last said it shows (ui:save); Open in opens only a file of it. */
   shown: Place | null = null;
-  /** Projects whose folder is still being followed: a request for one waits for it. */
+  /** Projects still being followed: a request for one waits for it. */
   private readonly opening = new Map<string, Promise<void>>();
   /** The projects of the window's computer as last listed, with their rows in the home database. */
   private listed = new Map<string, { project: Project; rowId: number }>();
@@ -136,18 +136,18 @@ export class AtlasWindow {
 
   get id() { return this.win.id; }
   /** The name of the computer the window shows. */
-  get computerName() { return this.computer === null ? this.manager.context.connections.localName : this.manager.context.connections.name(this.computer); }
+  get computerName() { return this.computer === null ? this.manager.context.computers.localName : this.manager.context.computers.name(this.computer); }
   /** The connection to the window's computer. */
   client(): HostClient {
-    const { connections } = this.manager.context;
-    return this.computer === null ? connections.local : connections.client(this.computer);
+    const { computers } = this.manager.context;
+    return this.computer === null ? computers.local : computers.client(this.computer);
   }
 
   /** Lock this window's session down: our protocol only, no remote requests, no permissions. */
   private harden() {
     const { context } = this.manager;
     const session = this.session;
-    session.protocol.handle(scheme, createProtocolHandler({ rendererDirectory: context.devUrl ? null : context.rendererDirectory, planningFile: (folderId, relative) => this.views.get(folderId)?.file(relative) ?? null }));
+    session.protocol.handle(scheme, createProtocolHandler({ rendererDirectory: context.devUrl ? null : context.rendererDirectory, planningFile: (projectId, relative) => this.views.get(projectId)?.file(relative) ?? null }));
     // Copying text (the viewer's copy buttons) is the only permission a window gets.
     const allowed = (permission: string) => permission === 'clipboard-sanitized-write';
     session.setPermissionRequestHandler((_contents, permission, callback) => callback(allowed(permission)));
@@ -205,107 +205,107 @@ export class AtlasWindow {
   }
   /** The projects as the window's computer listed them (`computer`, the one asked), with this app's rows of them. */
   list(listed: Project[], computer = this.computer): Project[] {
-    const { connections, database } = this.manager.context;
+    const { computers, database } = this.manager.context;
     let projects: { project: Project; rowId: number }[];
     if (computer === null) {
       projects = listed.flatMap(project => { const row = database.projectByFolder(project.path); return row ? [{ project, rowId: row.id }] : []; });
     } else {
-      const connectionId = connections.idOf(computer);
+      const computerId = computers.idOf(computer);
       projects = listed.map(project => {
-        const row = database.addProject(project.path, project.name, connectionId);
+        const row = database.addProject(project.path, project.name, computerId);
         if (row.name !== project.name) database.updateProject(row.id, { name: project.name });
         return { project, rowId: row.id };
       });
-      const rows = new Map(database.projects(connectionId).map(row => [row.id, row]));
+      const rows = new Map(database.projects(computerId).map(row => [row.id, row]));
       // A project this app hid before reads as archived: hiding is gone.
       projects = projects.map(({ project, rowId }) => ({ project: { ...project, position: rows.get(rowId)!.position, state: rows.get(rowId)!.state }, rowId }))
         .sort((a, b) => a.project.position - b.project.position);
     }
-    if (computer === this.computer) this.listed = new Map(projects.map(entry => [entry.project.folderId, entry]));
+    if (computer === this.computer) this.listed = new Map(projects.map(entry => [entry.project.id, entry]));
     return projects.map(entry => entry.project);
   }
-  /** The folder IDs of the window's active projects, as last listed (listed now when none were). */
+  /** The IDs of the window's active projects, as last listed (listed now when none were). */
   async activeProjects(): Promise<Set<string>> {
     if (!this.listed.size) await this.projects();
-    return new Set([...this.listed.values()].filter(entry => entry.project.state === 'active').map(entry => entry.project.folderId));
+    return new Set([...this.listed.values()].filter(entry => entry.project.state === 'active').map(entry => entry.project.id));
   }
-  /** A project's row in the home database, by its folder ID (listed again when it is not known yet). */
-  async projectRow(folderId: string): Promise<number> {
-    if (!this.listed.has(folderId)) await this.projects();
-    const entry = this.listed.get(folderId);
+  /** A project's row in the home database, by its ID (listed again when it is not known yet). */
+  async projectRow(projectId: string): Promise<number> {
+    if (!this.listed.has(projectId)) await this.projects();
+    const entry = this.listed.get(projectId);
     if (!entry) throw new AtlasError('not-found', `This project is not on ${this.computerName}.`);
     return entry.rowId;
   }
   /** A project's row among the projects last listed, without listing them again; null when it is not among them. */
-  listedRow(folderId: string): number | null { return this.listed.get(folderId)?.rowId ?? null; }
+  listedRow(projectId: string): number | null { return this.listed.get(projectId)?.rowId ?? null; }
   /** The project rows whose saved places the page loaded (ui:load): saving replaces only theirs. */
   readonly placesLoaded = new Set<number>();
   /** The rows of the projects last listed. */
   listedRows(): number[] { return [...this.listed.values()].map(entry => entry.rowId); }
-  /** The folder ID of a project row, among the projects last listed. */
-  folderOf(rowId: number): string | null {
-    for (const [folderId, entry] of this.listed) if (entry.rowId === rowId) return folderId;
+  /** The project ID of a project row, among the projects last listed. */
+  projectIdOfRow(rowId: number): string | null {
+    for (const [projectId, entry] of this.listed) if (entry.rowId === rowId) return projectId;
     return null;
   }
   /** A new project covering folders of the window's computer. */
   async createProject(name: string, folders: string[]): Promise<Project> {
     const created = await this.client().request('projects.create', { name, folders }, { timeout: 60000 });
-    return (await this.projects()).find(project => project.folderId === created.folderId) ?? created;
+    return (await this.projects()).find(project => project.id === created.id) ?? created;
   }
   /**
    * Change a project: on this computer through its host, so every device sees it. On a paired
    * computer, a new name and folders go to its host (they are in the planning folder),
-   * while hiding, archiving and the order are this app's own.
+   * while archiving and the order are this app's own.
    */
-  async updateProject(folderId: string, change: ProjectChangeRequest): Promise<Project> {
+  async updateProject(projectId: string, change: ProjectChangeRequest): Promise<Project> {
     const { database } = this.manager.context;
-    if (this.computer === null) await this.client().request('projects.update', { folderId, ...change }, { timeout: 60000 });
+    if (this.computer === null) await this.client().request('projects.update', { projectId, ...change }, { timeout: 60000 });
     else {
-      if (change.name !== undefined || change.folders !== undefined) await this.client().request('projects.update', { folderId, name: change.name, folders: change.folders }, { timeout: 60000 });
-      const rowId = await this.projectRow(folderId);
+      if (change.name !== undefined || change.folders !== undefined) await this.client().request('projects.update', { projectId, name: change.name, folders: change.folders }, { timeout: 60000 });
+      const rowId = await this.projectRow(projectId);
       if (change.state !== undefined || change.position !== undefined) database.updateProject(rowId, { state: change.state, position: change.position });
       this.manager.projectsChanged(this.computer);
     }
-    const project = (await this.projects()).find(entry => entry.folderId === folderId);
+    const project = (await this.projects()).find(entry => entry.id === projectId);
     if (!project) throw new AtlasError('not-found', `This project is not on ${this.computerName}.`);
     return project;
   }
 
-  /** A project's folder, followed from now on (its changes reach the window). */
-  async open(folderId: string): Promise<FolderView> {
-    const known = this.views.get(folderId);
+  /** A project, followed from now on (its changes reach the window). */
+  async open(projectId: string): Promise<ProjectView> {
+    const known = this.views.get(projectId);
     // A request while the project is still opening waits for it, so it never asks before the host follows it.
-    if (known) { await this.opening.get(folderId); return known; }
-    const view = new FolderView(this.client(), folderId, this.computer === null ? null : { hostId: this.computer, hostName: this.computerName }, this.revisionFloor);
-    this.views.set(folderId, view);
+    if (known) { await this.opening.get(projectId); return known; }
+    const view = new ProjectView(this.client(), projectId, this.computer === null ? null : { hostId: this.computer, hostName: this.computerName }, this.revisionFloor);
+    this.views.set(projectId, view);
     const ready = (async () => {
-      try { view.update(await view.client.follow(folderId)); }
+      try { view.update(await view.client.follow(projectId)); }
       catch (error) {
-        this.manager.context.log.warn('Project could not open', { folderId, message: (error as Error).message });
+        this.manager.context.log.warn('Project could not open', { projectId, message: (error as Error).message });
         view.failed((error as Error).message);
       }
     })();
-    this.opening.set(folderId, ready);
-    try { await ready; } finally { if (this.opening.get(folderId) === ready) this.opening.delete(folderId); }
+    this.opening.set(projectId, ready);
+    try { await ready; } finally { if (this.opening.get(projectId) === ready) this.opening.delete(projectId); }
     return view;
   }
   /**
-   * Stop following a project's folder: the page shows nothing of it any more. The host keeps it while
+   * Stop following a project: the page shows nothing of it any more. The host keeps it while
    * another window on the same connection follows it.
    */
-  closeProject(folderId: string) {
-    const view = this.views.get(folderId);
+  closeProject(projectId: string) {
+    const view = this.views.get(projectId);
     if (!view) return;
-    this.views.delete(folderId);
+    this.views.delete(projectId);
     this.letGo(view);
   }
-  private letGo(view: FolderView) {
+  private letGo(view: ProjectView) {
     this.revisionFloor = Math.max(this.revisionFloor, view.revision);
-    if (!this.manager.all().some(other => other !== this && other.views.get(view.folderId)?.client === view.client)) view.close();
+    if (!this.manager.all().some(other => other !== this && other.views.get(view.projectId)?.client === view.client)) view.close();
   }
-  /** A project's folder for a request: followed, and readable. */
-  async readable(folderId: string): Promise<FolderView> {
-    const view = await this.open(folderId);
+  /** A project for a request: followed, and its planning folder readable. */
+  async readable(projectId: string): Promise<ProjectView> {
+    const view = await this.open(projectId);
     if (view.status === 'missing' || (view.status === 'invalid' && view.error)) throw new AtlasError(view.status === 'missing' ? 'folder-missing' : 'folder-invalid', view.error ?? 'This project cannot be read.');
     return view;
   }
@@ -321,7 +321,7 @@ export class AtlasWindow {
   showComputer(hostId: string | null) {
     this.release();
     this.computer = hostId;
-    this.manager.context.state.updateWindow(this.rowId, { connectionId: hostId === null ? null : this.manager.context.connections.idOf(hostId) });
+    this.manager.context.state.updateWindow(this.rowId, { computerId: hostId === null ? null : this.manager.context.computers.idOf(hostId) });
     if (hostId !== null) this.client();
     this.updateTitle();
     this.load();
@@ -461,26 +461,26 @@ export class WindowManager {
 
   /** A new window on a computer (null: this one), or one saved in the database. */
   create(hostId: string | null, saved?: WindowRow) {
-    const { connections, state } = this.context;
+    const { computers, state } = this.context;
     const row = saved ?? (() => {
       const bounds = { x: 0, y: 0, ...defaultSize };
       const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
       bounds.x = Math.round(display.x + (display.width - bounds.width) / 2); bounds.y = Math.round(display.y + (display.height - bounds.height) / 2);
-      const id = state.addWindow(hostId === null ? null : connections.idOf(hostId), bounds);
+      const id = state.addWindow(hostId === null ? null : computers.idOf(hostId), bounds);
       return state.windows().find(window => window.id === id)!;
     })();
     const window = new AtlasWindow(this, row, hostId);
     this.windows.set(window.id, window);
-    if (hostId !== null) { try { connections.client(hostId); } catch { /* Forgotten meanwhile: the window says so. */ } }
+    if (hostId !== null) { try { computers.client(hostId); } catch { /* Forgotten meanwhile: the window says so. */ } }
     window.load();
     return window;
   }
 
   /** The windows saved in the database (those open when Atlas quit), or one new window. */
   restore() {
-    const { connections } = this.context;
+    const { computers } = this.context;
     for (const row of this.context.state.windows()) {
-      const hostId = row.connectionId === null ? null : connections.hostIdFor(row.connectionId);
+      const hostId = row.computerId === null ? null : computers.hostIdFor(row.computerId);
       this.create(hostId, row);
     }
     if (!this.windows.size) this.create(null);
@@ -497,7 +497,7 @@ export class WindowManager {
   }
   /** The connection to a paired computer closes once no window shows it. */
   private releaseUnused(hostId: string | null) {
-    if (hostId && !this.all().some(other => other.computer === hostId)) this.context.connections.release(hostId);
+    if (hostId && !this.all().some(other => other.computer === hostId)) this.context.computers.release(hostId);
   }
 
   /**
@@ -508,18 +508,18 @@ export class WindowManager {
     for (const window of this.all()) if (window.computer === hostId) window.send('projects:changed', { hostId, ...listed && { projects: window.list(listed) } });
   }
 
-  /** A folder event from a host reaches the windows following that project. */
-  folderChanged(client: HostClient, state: FolderState) {
+  /** A project.changed event from a host reaches the windows following that project. */
+  projectChanged(client: HostClient, state: OpenProjectState) {
     for (const window of this.all()) {
-      const view = window.views.get(state.folderId);
+      const view = window.views.get(state.projectId);
       if (!view || view.client !== client) continue;
       view.update(state);
-      window.send('planning:changed', { project: state.folderId, ...view.change() });
+      window.send('project:changed', { projectId: state.projectId, ...view.change() });
     }
   }
   /** A connection's status reaches the windows reading through it. */
   connectionChanged(client: HostClient, status: ClientStatus, detail: string | null) {
-    const hostId = client === this.context.connections.local ? null : this.context.connections.hostIdOf(client);
+    const hostId = client === this.context.computers.local ? null : this.context.computers.hostIdOf(client);
     for (const window of this.all()) {
       if (window.computer !== hostId) continue;
       // Once the computer answers again, its projects are listed again.
@@ -527,7 +527,7 @@ export class WindowManager {
       for (const view of window.views.values()) {
         if (view.client !== client) continue;
         view.connection(status, detail);
-        window.send('planning:changed', { project: view.folderId, ...view.change() });
+        window.send('project:changed', { projectId: view.projectId, ...view.change() });
       }
     }
   }
@@ -543,13 +543,13 @@ export class WindowManager {
   }
 
   /** Pairing again replaced a computer's connection: its windows start again through the new one. */
-  rebindRemote(hostId: string) {
+  rebindComputer(hostId: string) {
     for (const window of this.all()) if (window.computer === hostId) window.showComputer(hostId);
   }
   /** Forget a paired computer: windows showing it show this computer instead; its rows go with it. */
   forgetComputer(hostId: string) {
     for (const window of this.all()) if (window.computer === hostId) window.showComputer(null);
-    this.context.connections.forget(hostId);
+    this.context.computers.forget(hostId);
   }
 
   closed(window: AtlasWindow) {

@@ -54,7 +54,7 @@ test('a project\'s summary lists its active work with where each item stands', a
   planningFolder(root);
   const none = { summary: null, steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null, continues: [], continuedIn: [] };
   // The work a plan continues, as its header names it: linked to its project and title by the host's listing.
-  const handoff = (project: string, workId: string) => ({ folderId: null, project, projectName: '', workId, title: null, state: null, outcome: null });
+  const handoff = (project: string, workId: string) => ({ projectId: null, project, projectName: '', workId, title: null, state: null, outcome: null });
   const unstepped = { steps: { done: 0, total: 0, planning: { done: 0, total: 0 } } };
   const other = (id: string, title = id.slice(-4), more = {}) => ({ id, title, state: 'other', blocked: null, ...none, ...more });
   assert.deepEqual(await projectSummary(root), {
@@ -129,7 +129,7 @@ async function reported(database: HomeDatabase, home: string, root: string) {
   report(shop.id, 'work-0001', '2026-10-01T12:00:00Z', {});
   // Another project's report for the same work ID is not this one's.
   report(other.id, 'work-0002', '2026-10-01T12:00:00Z', {});
-  const summary = await projectSummary(root, { database, projectId: shop.id });
+  const summary = await projectSummary(root, { database, projectRowId: shop.id });
   const brief = (id: string) => [...summary.active, ...summary.closed].find(work => work.id === id)!;
   assert.deepEqual(brief('work-0001').step, { title: 'Show', status: 'doing', phase: 'implementation' }, 'the step being worked on before the next');
   assert.deepEqual(brief('work-0002').step, { title: 'Settle the design', status: 'todo', phase: 'planning' }, 'else the next, with its phase');
@@ -220,7 +220,7 @@ test('a project\'s statistics put time on the days it was worked, by model and e
       intervals: [{ agent: null, start: local(13, 22).toISOString(), end: local(14, 2).toISOString() }],
       efforts: [{ agent: null, model: 'claude-opus', effort: 'high', agentMs: 4 * 3_600_000, tokens: 100 }],
     } }));
-    const statistics = await projectStatistics(database, [{ projectId: shop.id, root }], { from: local(12, 0).toISOString(), to: local(15, 0).toISOString(), unit: 'day' });
+    const statistics = await projectStatistics(database, [{ projectRowId: shop.id, root }], { from: local(12, 0).toISOString(), to: local(15, 0).toISOString(), unit: 'day' });
     const hours = (ms: number) => ms / 3_600_000;
     assert.deepEqual(statistics.buckets.map(bucket => [bucket.start, hours(bucket.agents.reduce((total, entry) => total + entry.agentMs, 0)), bucket.completed.map(plan => plan.id)]), [
       [local(12, 0).toISOString(), 0, []], [local(13, 0).toISOString(), 2, []], [local(14, 0).toISOString(), 2, ['work-0001']],
@@ -236,23 +236,23 @@ test('a project\'s statistics put time on the days it was worked, by model and e
     insertReport(database, app.id, 'work-0001', createReport({ model: 'claude-opus', session: 's2', at: local(13, 12), stage: 'implementation', measured: {
       since: local(13, 11).toISOString(), agentMs: 3_600_000, models: [], intervals: [{ agent: null, start: local(13, 11).toISOString(), end: local(13, 12).toISOString() }],
     } }));
-    const all = await projectStatistics(database, [{ projectId: shop.id, root }, { projectId: app.id, root: appRoot }], { from: local(12, 0).toISOString(), to: local(15, 0).toISOString(), unit: 'day' });
+    const all = await projectStatistics(database, [{ projectRowId: shop.id, root }, { projectRowId: app.id, root: appRoot }], { from: local(12, 0).toISOString(), to: local(15, 0).toISOString(), unit: 'day' });
     assert.deepEqual([hours(all.current.agentMs), all.current.plansCompleted, all.buckets.map(bucket => hours(bucket.agents.reduce((total, entry) => total + entry.agentMs, 0)))], [5, 1, [0, 3, 2]]);
   } finally { database.close(); }
 });
 
 test('handoffs link work across the home\'s projects both ways, by planning folder name, each once, and keep a reference that names nothing', () => {
-  const work = (id: string, continues: { project: string; workId: string }[] = []) => ({ id, title: 'Title ' + id, state: 'implementing', outcome: null, continues: continues.map(item => ({ folderId: null, projectName: '', title: null, state: null, outcome: null, ...item })) }) as never;
-  const shop = { folderId: 'f1', folder: path.join('home', 'planning', 'shop'), name: 'Shop', summary: { active: [work('work-0001'), work('work-0002', [{ project: '', workId: 'work-0001' }])], closed: [] } };
-  const app = { folderId: 'f2', folder: path.join('home', 'planning', 'app'), name: 'App', summary: { active: [work('work-0001', [{ project: 'Shop', workId: 'work-0002' }, { project: 'shop', workId: 'work-0002' }, { project: 'gone', workId: 'work-0001' }])], closed: [] } };
+  const work = (id: string, continues: { project: string; workId: string }[] = []) => ({ id, title: 'Title ' + id, state: 'implementing', outcome: null, continues: continues.map(item => ({ projectId: null, projectName: '', title: null, state: null, outcome: null, ...item })) }) as never;
+  const shop = { projectId: 'f1', folder: path.join('home', 'planning', 'shop'), name: 'Shop', summary: { active: [work('work-0001'), work('work-0002', [{ project: '', workId: 'work-0001' }])], closed: [] } };
+  const app = { projectId: 'f2', folder: path.join('home', 'planning', 'app'), name: 'App', summary: { active: [work('work-0001', [{ project: 'Shop', workId: 'work-0002' }, { project: 'shop', workId: 'work-0002' }, { project: 'gone', workId: 'work-0001' }])], closed: [] } };
   // A project outside the home finds only the folders beside it: not the home's shop.
-  const outside = { folderId: 'f3', folder: path.join('elsewhere', 'notes'), name: 'Notes', summary: { active: [work('work-0001', [{ project: 'shop', workId: 'work-0001' }])], closed: [] } };
+  const outside = { projectId: 'f3', folder: path.join('elsewhere', 'notes'), name: 'Notes', summary: { active: [work('work-0001', [{ project: 'shop', workId: 'work-0001' }])], closed: [] } };
   linkHandoffs([shop, app, outside]);
   const [first, second] = shop.summary.active as { continues: unknown[]; continuedIn: unknown[] }[];
-  assert.deepEqual(first.continuedIn, [{ folderId: 'f1', project: 'shop', projectName: 'Shop', workId: 'work-0002', title: 'Title work-0002', state: 'implementing', outcome: null }]);
-  assert.deepEqual(second.continuedIn, [{ folderId: 'f2', project: 'app', projectName: 'App', workId: 'work-0001', title: 'Title work-0001', state: 'implementing', outcome: null }]);
-  const [continued] = app.summary.active as { continues: { folderId: string | null; workId: string; title: string | null }[] }[];
-  assert.deepEqual(continued.continues.map(item => [item.folderId, item.workId, item.title]), [['f1', 'work-0002', 'Title work-0002'], [null, 'work-0001', null]]);
+  assert.deepEqual(first.continuedIn, [{ projectId: 'f1', project: 'shop', projectName: 'Shop', workId: 'work-0002', title: 'Title work-0002', state: 'implementing', outcome: null }]);
+  assert.deepEqual(second.continuedIn, [{ projectId: 'f2', project: 'app', projectName: 'App', workId: 'work-0001', title: 'Title work-0001', state: 'implementing', outcome: null }]);
+  const [continued] = app.summary.active as { continues: { projectId: string | null; workId: string; title: string | null }[] }[];
+  assert.deepEqual(continued.continues.map(item => [item.projectId, item.workId, item.title]), [['f1', 'work-0002', 'Title work-0002'], [null, 'work-0001', null]]);
   assert.deepEqual(handoffsByWork(app).get('work-0001')!.continues, continued.continues);
-  assert.deepEqual((outside.summary.active[0] as { continues: { folderId: string | null }[] }).continues.map(item => item.folderId), [null]);
+  assert.deepEqual((outside.summary.active[0] as { continues: { projectId: string | null }[] }).continues.map(item => item.projectId), [null]);
 });

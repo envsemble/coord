@@ -44,20 +44,20 @@ test('projects are the home\'s planning folders: created from the templates, ren
   await assert.rejects(device.connection.request('projects.create', { name: ' ', folders: [] }), (error: HostRequestError) => error.code === 'invalid-argument');
   await until(() => owner.lists.some(list => list.length === 3), 5000, () => owner.lists);
   // The lists clients are sent have the summaries too (a new project's folder has its first commit); a single project answered has none.
-  const sent = owner.lists.find(list => list.length === 3)!.find(project => project.folderId === coord.folderId)!;
+  const sent = owner.lists.find(list => list.length === 3)!.find(project => project.id === coord.id)!;
   assert.deepEqual({ ...sent.summary, updated: typeof sent.summary?.updated, now: typeof sent.summary?.now }, { active: [], closed: [], updated: 'string', activity: [], now: 'string' });
   assert.equal('summary' in coord, false);
   // Renaming writes the name into its planning.json; hiding, archiving and moving change only the order and state.
-  const renamed = await owner.connection.request('projects.update', { folderId: coord.folderId, name: 'Coord platform' });
+  const renamed = await owner.connection.request('projects.update', { projectId: coord.id, name: 'Coord platform' });
   assert.equal(renamed.name, 'Coord platform');
   assert.equal('summary' in renamed, false);
   assert.equal(JSON.parse(readFileSync(path.join(coord.path, 'planning.json'), 'utf8')).name, 'Coord platform');
-  await owner.connection.request('projects.update', { folderId: coord.folderId, position: 0 });
+  await owner.connection.request('projects.update', { projectId: coord.id, position: 0 });
   const second = (await owner.connection.request('projects.list', {}))[2];
-  await owner.connection.request('projects.update', { folderId: second.folderId, state: 'archived' });
+  await owner.connection.request('projects.update', { projectId: second.id, state: 'archived' });
   const planningProject = await projectNamed(owner.connection);
   // Projects are active or archived: there is no hiding them any more.
-  await assert.rejects(owner.connection.request('projects.update', { folderId: planningProject.folderId, state: 'hidden' as never }), (error: HostRequestError) => error.code === 'invalid-argument');
+  await assert.rejects(owner.connection.request('projects.update', { projectId: planningProject.id, state: 'hidden' as never }), (error: HostRequestError) => error.code === 'invalid-argument');
   assert.deepEqual((await device.connection.request('projects.list', {})).map(project => [project.name, project.position, project.state]), [['Coord platform', 0, 'active'], ['Northwind', 1, 'active'], ['Coord', 2, 'archived']]);
   // A planning folder that appears in the home becomes the last project; one that leaves it is no longer listed.
   cpSync(fixture, path.join(data, 'planning', 'later'), { recursive: true });
@@ -65,7 +65,7 @@ test('projects are the home\'s planning folders: created from the templates, ren
   assert.equal((await owner.connection.request('projects.list', {})).find(project => project.path === path.join(data, 'planning', 'later'))?.position, 3);
   rmSync(path.join(data, 'planning', 'coord-2'), { recursive: true, force: true, maxRetries: 10 });
   assert.deepEqual((await owner.connection.request('projects.list', {})).map(project => project.name), ['Coord platform', 'Northwind', 'Northwind']);
-  await assert.rejects(owner.connection.request('projects.update', { folderId: 'f-' + 'a'.repeat(32), state: 'active' }), (error: HostRequestError) => error.code === 'not-found');
+  await assert.rejects(owner.connection.request('projects.update', { projectId: 'f-' + 'a'.repeat(32), state: 'active' }), (error: HostRequestError) => error.code === 'not-found');
 });
 
 test('a project covers folders: set when it is made and changed later, only by the app on this computer', async t => {
@@ -83,15 +83,15 @@ test('a project covers folders: set when it is made and changed later, only by t
   assert.deepEqual(registry().folders, [workspace]);
   await assert.rejects(owner.connection.request('projects.create', { name: 'Relative', folders: ['relative'] }), (error: HostRequestError) => error.code === 'invalid-argument');
   // Another folder; the list shows the folders.
-  const updated = await owner.connection.request('projects.update', { folderId: web.folderId, folders: [workspace, more] });
+  const updated = await owner.connection.request('projects.update', { projectId: web.id, folders: [workspace, more] });
   assert.deepEqual(updated.folders, [workspace, more]);
   assert.deepEqual(registry().folders, [workspace, more]);
   assert.deepEqual((await projectNamed(owner.connection, 'Web')).folders, [workspace, more]);
   // A refused change changes nothing, not even the name sent with it; a device may not change the folders.
-  await assert.rejects(owner.connection.request('projects.update', { folderId: web.folderId, name: 'Renamed', folders: ['relative'] }), (error: HostRequestError) => error.code === 'invalid-argument');
+  await assert.rejects(owner.connection.request('projects.update', { projectId: web.id, name: 'Renamed', folders: ['relative'] }), (error: HostRequestError) => error.code === 'invalid-argument');
   assert.equal(registry().name, 'Web');
-  await assert.rejects(device.connection.request('projects.update', { folderId: web.folderId, folders: [] }), forbidden);
-  assert.equal((await device.connection.request('projects.update', { folderId: web.folderId, name: 'Web site' })).name, 'Web site', 'the rest it may change');
+  await assert.rejects(device.connection.request('projects.update', { projectId: web.id, folders: [] }), forbidden);
+  assert.equal((await device.connection.request('projects.update', { projectId: web.id, name: 'Web site' })).name, 'Web site', 'the rest it may change');
   assert.deepEqual((await projectNamed(owner.connection)).folders, [], 'a project without folders has none');
 });
 
@@ -123,8 +123,8 @@ test('the project list has each work item\'s step, completion and statistics fro
   assert.equal(work('work-0004').completed, '2026-09-24');
   // A report recorded with nothing else changing reaches clients with the next check, in the list
   // and in the plan's statistics: a session and its subagent, each in full, and the hour at least one worked.
-  const folderId = (await projectNamed(owner.connection)).folderId;
-  await owner.connection.follow(folderId);
+  const projectId = (await projectNamed(owner.connection)).id;
+  await owner.connection.follow(projectId);
   insertReport(host.database, project.id, 'work-0002', createReport({ model: 'claude-opus', session: 's3', stage: 'planning', at: new Date('2026-10-03T10:00:00Z'), measured: {
     ...measured('2026-10-03T09:00:00.000Z', 5_400_000, 100), subagents: { count: 1, agentMs: 1_800_000, tokens: 0, agents: [{ id: 'a1', model: null, agentMs: 1_800_000, tokens: 0 }] },
     intervals: [{ agent: null, start: '2026-10-03T09:00:00.000Z', end: '2026-10-03T10:00:00.000Z' }, { agent: 'a1', start: '2026-10-03T09:30:00.000Z', end: '2026-10-03T10:00:00.000Z' }],
@@ -133,8 +133,8 @@ test('the project list has each work item\'s step, completion and statistics fro
   await until(() => sent()?.lastReport === '2026-10-03T10:00:00.000Z', 5000, () => owner.lists.length);
   assert.deepEqual([sent()?.agentMs, sent()?.activeMs, sent()?.unmergedMs], [5_400_000, 3_600_000, 0]);
   // A change of the statistics alone: the files were not read again, and the work items alone tell it.
-  const shown = async () => (await owner.connection.request('folder.work', { folderId })).find(item => item.id === 'work-0002')?.statistics;
-  await until(() => owner.events.some(event => event.folderId === folderId && event.revision > event.files), 5000);
+  const shown = async () => (await owner.connection.request('project.work', { projectId })).find(item => item.id === 'work-0002')?.statistics;
+  await until(() => owner.events.some(event => event.projectId === projectId && event.revision > event.files), 5000);
   assert.deepEqual([(await shown())?.activeMs, (await shown())?.agents], [3_600_000, [{ session: 's3', subagent: null, model: 'claude-opus', effort: null, agentMs: 3_600_000 }, { session: 's3', subagent: 'a1', model: null, effort: null, agentMs: 1_800_000 }]]);
 });
 
@@ -159,26 +159,26 @@ test('the search covers every active project of the home, best first', async t =
   const listed = await owner.connection.request('projects.list', {});
   assert.ok(!listed.some(project => project.path === realpathSync.native(outside)), 'a folder outside the home is not listed');
   const northwind = listed.find(project => project.path === planning)!, coord = listed.find(project => project.name === 'Coord')!;
-  await owner.connection.request('projects.update', { folderId: listed.find(project => project.path === archived)!.folderId, state: 'archived' });
+  await owner.connection.request('projects.update', { projectId: listed.find(project => project.path === archived)!.id, state: 'archived' });
   const search = (query: string, limit?: number) => device.connection.request('search.query', limit === undefined ? { query } : { query, limit });
   // Each kind, where it opens (the two projects have the same plans: Northwind's best).
-  const first = async (query: string, project = 'Northwind') => (await search(query)).find(hit => hit.project === project)!;
-  assert.deepEqual(await first('Saved payment methods'), { kind: 'plan', title: 'Saved payment methods', snippet: null, folderId: northwind.folderId, project: 'Northwind', work: 'work-0001', path: 'active/0001-saved-payment-methods/plan.md', anchor: null, element: null });
+  const first = async (query: string, project = 'Northwind') => (await search(query)).find(hit => hit.projectName === project)!;
+  assert.deepEqual(await first('Saved payment methods'), { kind: 'plan', title: 'Saved payment methods', snippet: null, projectId: northwind.id, projectName: 'Northwind', work: 'work-0001', path: 'active/0001-saved-payment-methods/plan.md', anchor: null, element: null });
   assert.deepEqual(await first('#0002').then(hit => [hit.kind, hit.work]), ['plan', 'work-0002']);
   assert.deepEqual(await first('Sandbox run forced').then(hit => [hit.kind, hit.work, hit.path]), ['step', 'work-0001', 'active/0001-saved-payment-methods/plan.md']);
   assert.deepEqual(await first('Order status').then(hit => [hit.kind, hit.path, hit.anchor]), ['heading', 'active/0002-order-fulfilment-model/plan.md', 'order-status']);
-  assert.deepEqual((await search('carrier')).filter(hit => hit.kind === 'term' && hit.project === 'Northwind').map(hit => [hit.title, hit.path, hit.anchor]), [['Carrier', 'active/0002-order-fulfilment-model/CONTEXT.md', 'shipments']]);
-  assert.deepEqual((await search('conceptual model')).filter(hit => hit.kind === 'diagram' && hit.project === 'Northwind').map(hit => [hit.title, hit.path, hit.work]), [['Fulfilment · conceptual model', 'active/0002-order-fulfilment-model/diagrams/fulfilment.puml', 'work-0002']]);
+  assert.deepEqual((await search('carrier')).filter(hit => hit.kind === 'term' && hit.projectName === 'Northwind').map(hit => [hit.title, hit.path, hit.anchor]), [['Carrier', 'active/0002-order-fulfilment-model/CONTEXT.md', 'shipments']]);
+  assert.deepEqual((await search('conceptual model')).filter(hit => hit.kind === 'diagram' && hit.projectName === 'Northwind').map(hit => [hit.title, hit.path, hit.work]), [['Fulfilment · conceptual model', 'active/0002-order-fulfilment-model/diagrams/fulfilment.puml', 'work-0002']]);
   assert.deepEqual(await first('savedpaymentmethod').then(hit => [hit.kind, hit.element, hit.work]), ['element', 'SavedPaymentMethod', 'work-0001']);
   assert.deepEqual(await first('Payments constraints').then(hit => [hit.kind, hit.path, hit.work]), ['document', 'notes/shop/payments-constraints.md', null]);
-  assert.deepEqual(await first('Coord', 'Coord').then(hit => [hit.kind, hit.folderId, hit.path]), ['project', coord.folderId, null]);
+  assert.deepEqual(await first('Coord', 'Coord').then(hit => [hit.kind, hit.projectId, hit.path]), ['project', coord.id, null]);
   const text = await first('lives in', 'Coord');
-  assert.deepEqual([text.kind, text.project, text.snippet], ['document', 'Coord', 'A walrus lives in Coord.'], 'text, with its snippet');
+  assert.deepEqual([text.kind, text.projectName, text.snippet], ['document', 'Coord', 'A walrus lives in Coord.'], 'text, with its snippet');
   // Every active project of the home, never an archived one or a folder outside the home; best first, at most the limit.
   const walrus = await search('walrus');
-  assert.deepEqual(walrus.map(hit => [hit.project, hit.title]), [['Coord', 'Coord walrus']], 'an archived project, and a folder outside the home, are not searched');
+  assert.deepEqual(walrus.map(hit => [hit.projectName, hit.title]), [['Coord', 'Coord walrus']], 'an archived project, and a folder outside the home, are not searched');
   const both = await search('saved payment methods');
-  assert.deepEqual([...new Set(both.slice(0, 2).map(hit => hit.kind + ':' + hit.project))].sort(), ['plan:Coord', 'plan:Northwind'], 'both active projects\' plans first');
+  assert.deepEqual([...new Set(both.slice(0, 2).map(hit => hit.kind + ':' + hit.projectName))].sort(), ['plan:Coord', 'plan:Northwind'], 'both active projects\' plans first');
   assert.equal((await search('e')).length, 50, 'at most 50 by default');
   assert.deepEqual(await search('e', 3), (await search('e')).slice(0, 3), 'or the limit given');
   // The request is checked.

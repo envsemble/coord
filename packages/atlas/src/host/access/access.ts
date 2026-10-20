@@ -1,5 +1,5 @@
 // Who may connect to this host, and how it can be reached. Kept in the home database: the host's
-// identity (host.id, host.name), a secret for folder IDs (host.secret) and its remote-access settings
+// identity (host.id, host.name), a secret for project IDs (host.secret) and its remote-access settings
 // (host.network) as settings, and its paired devices (each device's token only as a SHA-256 hash). A
 // paired device gets the whole computer; a pairing link may also grant it Manage access (pair and
 // revoke devices). One process on this computer manages remote access for a home (the desktop app or
@@ -119,7 +119,7 @@ export class AccessStore {
   private restartNeeded: string | null = null;
   /** Why remote access cannot be used at all; null when it can. */
   get problem(): string | null { return this.restartNeeded; }
-  /** The secret this process read first: it names the lock and keys folder IDs, and never changes while the process runs. */
+  /** The secret this process read first: it names the lock and keys project IDs, and never changes while the process runs. */
   private readonly secret: string;
 
   constructor(database: HomeDatabase, log: Logger, owner: string) {
@@ -202,8 +202,8 @@ export class AccessStore {
 
   get hostId() { return this.database.setting('host.id')!; }
   get name() { return this.database.setting('host.name') ?? 'Atlas'; }
-  /** The key that turns a folder's path into its ID, so IDs cannot be guessed from paths. Fixed for the process's life. */
-  get folderKey() { return this.secret; }
+  /** The key that turns a project's planning folder path into the project's ID, so IDs cannot be guessed from paths. Fixed for the process's life. */
+  get projectIdKey() { return this.secret; }
   get settings(): AccessSettings {
     try { return accessSettings({ network: JSON.parse(this.database.setting('host.network') ?? 'null') }); }
     catch { return structuredClone(defaultSettings); }

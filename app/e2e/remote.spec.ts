@@ -41,11 +41,11 @@ const bridge = (page: Page) => ({
     return (new Function('atlas', 'args', `return (${source})(atlas, ...args)`) as (atlas: AtlasBridge, args: string[]) => Promise<T>)(atlas, values);
   }, [run.toString(), args] as const),
 });
-/** A project's folder ID on the window's computer, by its name. */
 /** The projects of the window's computer, by name, with their state when it is not active. */
 const projectNames = (page: Page) => bridge(page).call(async atlas => { const result = await atlas.projects(); return result.ok ? result.value.map(item => item.name + (item.state === 'active' ? '' : ' (' + item.state + ')')) : []; });
 const noProjects = (page: Page) => expect(page.getByRole('heading', { name: 'No projects yet' })).toBeVisible();
-const folderIdOf = (page: Page, name: string) => bridge(page).call(async (atlas, wanted) => { const result = await atlas.projects(); return result.ok ? result.value.find(item => item.name === wanted)?.folderId ?? '' : ''; }, name);
+/** A project's ID on the window's computer, by its name. */
+const projectIdOf = (page: Page, name: string) => bridge(page).call(async (atlas, wanted) => { const result = await atlas.projects(); return result.ok ? result.value.find(item => item.name === wanted)?.id ?? '' : ''; }, name);
 
 /** Turn remote access on for 127.0.0.1 in the open Remote Access dialog; returns the port. */
 async function listen(owner: Page) {
@@ -104,13 +104,13 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await expect.poll(() => windowTitles(reading!.app)).toEqual([`${name} — Atlas`]);
   await openPlan(viewer, 'Customer order notifications');
   // A paired device sees real paths: it is the same person's computer.
-  const northwind = await folderIdOf(viewer, 'Northwind');
+  const northwind = await projectIdOf(viewer, 'Northwind');
   expect(await bridge(viewer).call(async (atlas, id) => { const result = await atlas.snapshot(id); return result.ok ? result.value.root : result.error.message; }, northwind)).toBe(folder);
   // Only revealing a file in a file explorer stays on that computer.
   expect(await bridge(viewer).call(async (atlas, id) => { const result = await atlas.reveal(id, 'README.md'); return result.ok ? 'revealed' : result.error.code; }, northwind)).toBe('forbidden');
   // The link worked once (pairing through the bridge without a press asks first; the person agrees).
   await agree(reading.app);
-  expect(await bridge(viewer).call(async (atlas, target) => { const result = await atlas.pairRemote(target, null); return result.ok ? 'paired' : result.error.code; }, link)).not.toBe('paired');
+  expect(await bridge(viewer).call(async (atlas, target) => { const result = await atlas.pairComputer(target, null); return result.ok ? 'paired' : result.error.code; }, link)).not.toBe('paired');
   await expect(access.locator('.device-list li')).toHaveCount(1);
   await expect(access.locator('.device-list li')).toContainText('Reading laptop');
   await expect(access.locator('.device-list li').getByText('Connected')).toBeVisible();
@@ -196,8 +196,8 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await expect(viewer.locator('.work-header h1')).toHaveText('Customer order notifications');
   // Its files and applications' links do not open here: they are that computer's.
   const refused = await viewer.evaluate(async () => {
-    const bridge = (window as unknown as { atlas: Record<string, (...args: unknown[]) => Promise<{ ok: boolean; value?: { folderId: string }[]; error?: { code: string } }>> }).atlas;
-    const folder = (await bridge.projects()).value![0].folderId;
+    const bridge = (window as unknown as { atlas: Record<string, (...args: unknown[]) => Promise<{ ok: boolean; value?: { id: string }[]; error?: { code: string } }>> }).atlas;
+    const folder = (await bridge.projects()).value![0].id;
     return [await bridge.openReference(folder, { kind: 'path', repository: null, value: 'README.md', line: null }), await bridge.openExternal('t3-thread://thread/abc')].map(result => result.error?.code);
   });
   expect(refused).toEqual(['forbidden', 'forbidden']);
@@ -251,7 +251,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await expect.poll(() => windowTitles(reading!.app)).toEqual(['Atlas']);
   const kept = () => {
     const database = new DatabaseSync(path.join(readerData, 'atlas.db'), { readOnly: true });
-    try { return [database.prepare('SELECT count(*) AS n FROM connection').get(), database.prepare('SELECT count(*) AS n FROM project').get()].map(row => Number((row as { n: number }).n)); }
+    try { return [database.prepare('SELECT count(*) AS n FROM paired_computer').get(), database.prepare('SELECT count(*) AS n FROM project').get()].map(row => Number((row as { n: number }).n)); }
     finally { database.close(); }
   };
   await expect.poll(kept).toEqual([0, 0]);

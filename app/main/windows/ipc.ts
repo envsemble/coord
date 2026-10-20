@@ -12,9 +12,9 @@ import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atla
 import { resolveDocument } from '@envsemble/atlas/planning';
 import { accessSettings, deviceText } from '@envsemble/atlas/host/validate';
 import { defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AccessSettings, type Editor, type ImportPreview, type InvokeChannel, type LoadedUi, type PairingGrant, type Project, type PairingLinkView, type Place, type ProjectPlace, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
-import { argumentsOf, array, boolean, command, diagramPath, editor, folderId, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, place, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, token, uiState, url, workId, type Validator } from '../../shared/validate.ts';
+import { argumentsOf, array, boolean, command, diagramPath, editor, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, place, projectId, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, token, uiState, url, workId, type Validator } from '../../shared/validate.ts';
 import { AtlasError, toErrorValue } from '../errors.ts';
-import type { FolderView } from '../host/folderView.ts';
+import type { ProjectView } from '../computers/projectView.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
 import { placeRow, savedPlace } from '../state.ts';
 import { externalUrl, type AtlasWindow, type WindowManager } from './windows.ts';
@@ -34,20 +34,20 @@ const searchQuery = string({ min: 1, max: 200 });
 const projectChange = object<ProjectChangeRequest>({ name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), folders: optional(folders) });
 
 /** Import previews belong to the window that chose the file. */
-const pendingImports = new Map<string, { window: number; folder: FolderView }>();
-export async function dropImports(matches: (entry: { window: number; folder: FolderView }, key: string) => boolean) {
+const pendingImports = new Map<string, { window: number; view: ProjectView }>();
+export async function dropImports(matches: (entry: { window: number; view: ProjectView }, key: string) => boolean) {
   for (const [key, entry] of [...pendingImports]) {
     if (!matches(entry, key)) continue;
     pendingImports.delete(key);
-    await entry.folder.request('plan.importDrop', { token: key }).catch(() => undefined);
+    await entry.view.request('plan.importDrop', { token: key }).catch(() => undefined);
   }
 }
 
 /** Reveal a file or folder inside a project's folder on this computer (never outside it, never hidden parts). */
-async function revealInside(window: AtlasWindow, project: string, relative: string) {
+async function revealInside(window: AtlasWindow, projectId: string, relative: string) {
   if (window.computer !== null) throw new AtlasError('forbidden', 'Files of a project on another computer cannot be shown in a folder here.');
-  await window.readable(project);
-  const root = (await window.projects()).find(entry => entry.folderId === project)?.path;
+  await window.readable(projectId);
+  const root = (await window.projects()).find(entry => entry.id === projectId)?.path;
   if (!root) throw new AtlasError('not-found', 'This project is not on this computer.');
   try { shell.showItemInFolder(await resolveDocument(root, relative)); return; } catch { /* Perhaps a folder. */ }
   const base = await realpath(root);
@@ -90,18 +90,18 @@ const within = (folder: string, candidate: string) => {
 };
 
 /** Open the file a path reference names, as the host resolves it in the project's folders: never a path the page names itself. */
-async function openReference(manager: WindowManager, window: AtlasWindow, project: string, reference: ReferenceInput) {
+async function openReference(manager: WindowManager, window: AtlasWindow, projectId: string, reference: ReferenceInput) {
   thisComputer(window, 'Files');
   if (reference.kind !== 'path') throw new AtlasError('invalid-argument', 'Only a file reference opens in the editor.');
-  const view = await window.readable(project);
-  const [resolved] = await view.request('references.resolve', { folderId: project, items: [reference] });
+  const view = await window.readable(projectId);
+  const [resolved] = await view.request('references.resolve', { projectId, items: [reference] });
   const file = resolved?.file;
   const missing = () => new AtlasError('not-found', 'This file is not in the project\'s folders on this computer.');
   if (!file || !fullPath.test(file.path)) throw missing();
   // The file itself, not a link a checkout commits to somewhere else: inside one of the project's
   // folders or its planning folder.
   const real = await realpath(file.path).catch(() => null);
-  const listed = (await window.projects()).find(entry => entry.folderId === project);
+  const listed = (await window.projects()).find(entry => entry.id === projectId);
   const folders = (await Promise.all([...listed?.folders ?? [], ...listed ? [listed.path] : []].map(folder => realpath(folder).catch(() => null)))).filter((folder): folder is string => folder !== null);
   if (!real || !folders.some(folder => within(folder, real)) || !(await stat(real)).isFile()) throw missing();
   await openInEditor(manager, window, 'this file', real, file.line);
@@ -118,30 +118,30 @@ async function openShown(manager: WindowManager, window: AtlasWindow, shown: Pla
   thisComputer(window, 'Files');
   const refused = () => new AtlasError('forbidden', 'Only the file the window shows opens this way.');
   if ('page' in shown || !window.shown || 'page' in window.shown || !sameShown(shown, window.shown)) throw refused();
-  const { project, target } = shown;
-  const view = await window.readable(project);
-  if (target.kind === 'file' ? target.path !== relative : !(await view.request('folder.work', { folderId: project })).some(work => work.id === target.work && relative.startsWith(work.path + '/'))) throw refused();
-  const root = (await window.projects()).find(entry => entry.folderId === project)?.path;
+  const { projectId, target } = shown;
+  const view = await window.readable(projectId);
+  if (target.kind === 'file' ? target.path !== relative : !(await view.request('project.work', { projectId })).some(work => work.id === target.work && relative.startsWith(work.path + '/'))) throw refused();
+  const root = (await window.projects()).find(entry => entry.id === projectId)?.path;
   if (!root) throw new AtlasError('not-found', 'This project is not on this computer.');
   const real = await resolveDocument(root, relative).catch(() => { throw new AtlasError('forbidden', 'Only files inside the project\'s folder open in the editor.'); });
   await openInEditor(manager, window, 'this file', real, null, false);
 }
 /** Whether two places of a project show the same thing (where in it aside). */
 function sameShown(a: ProjectPlace, b: ProjectPlace) {
-  const key = ({ project, target }: ProjectPlace) => JSON.stringify([project, target.kind, 'work' in target ? target.work : null, 'path' in target ? target.path : null]);
+  const key = ({ projectId, target }: ProjectPlace) => JSON.stringify([projectId, target.kind, 'work' in target ? target.work : null, 'path' in target ? target.path : null]);
   return key(a) === key(b);
 }
 
 /** Send a plan export on this computer to another computer's host, for its preview there. */
-async function sendImport(folder: FolderView, file: string) {
+async function sendImport(view: ProjectView, file: string) {
   const size = (await stat(file)).size;
   const stream = createReadStream(file);
   let response: Response;
   // The file stays open only while it is sent (or until sending fails, the other computer being offline).
-  try { response = await folder.client.fetch(`/api/folders/${folder.folderId}/imports`, 3600000, { method: 'POST', body: Readable.toWeb(stream) as ReadableStream<Uint8Array>, length: size }); }
+  try { response = await view.client.fetch(`/api/projects/${view.projectId}/imports`, 3600000, { method: 'POST', body: Readable.toWeb(stream) as ReadableStream<Uint8Array>, length: size }); }
   finally { stream.destroy(); }
   const value = await response.json().catch(() => null) as (Omit<ImportPreview, 'file' | 'warnings'> & { code?: string; message?: string }) | null;
-  if (!response.ok || !value || typeof value.token !== 'string') throw new AtlasError('invalid-argument', value?.message ?? 'The plan could not be sent to ' + (folder.remote?.hostName ?? 'the other computer') + ' (HTTP ' + response.status + ').');
+  if (!response.ok || !value || typeof value.token !== 'string') throw new AtlasError('invalid-argument', value?.message ?? 'The plan could not be sent to ' + (view.remote?.hostName ?? 'the other computer') + ' (HTTP ' + response.status + ').');
   return value;
 }
 
@@ -162,8 +162,8 @@ function pairingHost(link: string, code: string | null) {
  * computer answers.
  */
 async function loadUi(manager: WindowManager, window: AtlasWindow): Promise<LoadedUi> {
-  const { state, connections } = manager.context;
-  const connectionId = window.computer === null ? null : connections.idOf(window.computer);
+  const { state, computers } = manager.context;
+  const computerId = window.computer === null ? null : computers.idOf(window.computer);
   // Earlier saves land first, so what loads is what the window last showed.
   await saving.get(window);
   let listed: Project[] | null = null;
@@ -172,13 +172,13 @@ async function loadUi(manager: WindowManager, window: AtlasWindow): Promise<Load
   await (window.computer === null || window.client().status === 'connected' ? listing : Promise.race([listing, new Promise(resolve => setTimeout(resolve, 2000))]));
   // The window now knows the saved places of the projects listed, and saves replace only theirs.
   for (const rowId of window.listedRows()) window.placesLoaded.add(rowId);
-  const saved = state.places(window.rowId, connectionId).find(row => row.active);
-  const project = saved ? window.folderOf(saved.projectId) : null;
-  const place = saved && project ? savedPlace(project, saved) : null;
+  const saved = state.places(window.rowId, computerId).find(row => row.active);
+  const shownProject = saved ? window.projectIdOfRow(saved.projectRowId) : null;
+  const place = saved && shownProject ? savedPlace(shownProject, saved) : null;
   const inspectorWidth = state.inspectorWidth;
   // The window starts from this listing rather than asking for its own.
   const projects = listed as Project[] | null;
-  return { place: place ?? defaultUiState.place, ...inspectorWidth !== null && { inspectorWidth }, ...saved && !project && { pending: true }, ...projects && { projects } };
+  return { place: place ?? defaultUiState.place, ...inspectorWidth !== null && { inspectorWidth }, ...saved && !shownProject && { pending: true }, ...projects && { projects } };
 }
 /** Each window's saves, applied one after another in the order they came. */
 const saving = new WeakMap<AtlasWindow, Promise<void>>();
@@ -189,21 +189,21 @@ function queueSave(manager: WindowManager, window: AtlasWindow, ui: UiState) {
 }
 /** Save a window's layout: its place replaces the saved places of the projects it loaded them for; the others' stay. */
 async function saveUi(manager: WindowManager, window: AtlasWindow, ui: UiState) {
-  const { state, connections } = manager.context;
+  const { state, computers } = manager.context;
   const computer = window.computer;
   state.setInspectorWidth(ui.inspectorWidth ?? null);
   const row = placeRow(ui.place);
-  const projectId = row ? window.listedRow(row.project) : null;
-  const rows = row && projectId !== null ? [{ projectId, kind: row.kind, target: row.target, active: true }] : [];
+  const projectRowId = row ? window.listedRow(row.projectId) : null;
+  const rows = row && projectRowId !== null ? [{ projectRowId, kind: row.kind, target: row.target, active: true }] : [];
   // A project listed since the layout loaded (made meanwhile) has its place replaced from now on too.
-  if (projectId !== null) window.placesLoaded.add(projectId);
+  if (projectRowId !== null) window.placesLoaded.add(projectRowId);
   // The window may have moved to another computer meanwhile: this place is no longer its own.
-  if (window.computer === computer) state.savePlaces(window.rowId, computer === null ? null : connections.idOf(computer), rows, [...window.placesLoaded]);
+  if (window.computer === computer) state.savePlaces(window.rowId, computer === null ? null : computers.idOf(computer), rows, [...window.placesLoaded]);
 }
 
 export function channels(manager: WindowManager, actions: { openLogs(): void; about(): AboutInfo }): Record<InvokeChannel, Channel> {
-  const { connections } = manager.context;
-  const owner = (): HostClient => connections.local;
+  const { computers } = manager.context;
+  const owner = (): HostClient => computers.local;
   return {
     'window:info': { args: [], handle: window => window.info() },
     'projects:list': { args: [], handle: window => remoteErrors(window.projects()) },
@@ -216,7 +216,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         if (computer === null) return results;
         // This app keeps its own archived state for another computer's projects: their results go.
         const active = await window.activeProjects();
-        return results.filter(result => active.has(result.folderId));
+        return results.filter(result => active.has(result.projectId));
       },
     },
     'projects:create': { args: [projectName, folders], handle: (window, name: string, folders: string[]) => remoteErrors(window.createProject(name, folders)) },
@@ -228,27 +228,27 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         return choice.canceled ? null : choice.filePaths[0] ?? null;
       },
     },
-    'projects:update': { args: [folderId, projectChange], handle: (window, project: string, change: ProjectChangeRequest) => remoteErrors(window.updateProject(project, change)) },
-    'project:open': { args: [folderId], handle: async (window, project: string) => (await window.open(project)).change() },
-    'project:close': { args: [folderId], handle: (window, project: string) => { window.closeProject(project); } },
-    'planning:snapshot': { args: [folderId], handle: async (window, project: string) => (await window.readable(project)).request('folder.snapshot', { folderId: project }) },
-    'planning:work': { args: [folderId], handle: async (window, project: string) => (await window.readable(project)).request('folder.work', { folderId: project }) },
-    'planning:document': { args: [folderId, relativePath], handle: async (window, project: string, file: string) => (await window.readable(project)).request('folder.document', { folderId: project, path: file }) },
-    'planning:diagrams': { args: [folderId, workId], handle: async (window, project: string, work: string) => (await window.readable(project)).request('folder.diagrams', { folderId: project, work }) },
-    'planning:diagram': { args: [folderId, workId, diagramPath], handle: async (window, project: string, work: string, file: string) => (await window.readable(project)).request('folder.diagram', { folderId: project, work, path: file }) },
-    'planning:references': { args: [folderId, nullable(workId), relativePath], handle: async (window, project: string, work: string | null, file: string) => (await window.readable(project)).request('folder.references', { folderId: project, work, path: file }) },
-    'planning:diagramIndex': { args: [folderId], handle: async (window, project: string) => (await window.readable(project)).request('folder.diagramIndex', { folderId: project }) },
+    'projects:update': { args: [projectId, projectChange], handle: (window, projectId: string, change: ProjectChangeRequest) => remoteErrors(window.updateProject(projectId, change)) },
+    'project:open': { args: [projectId], handle: async (window, projectId: string) => (await window.open(projectId)).change() },
+    'project:close': { args: [projectId], handle: (window, projectId: string) => { window.closeProject(projectId); } },
+    'project:snapshot': { args: [projectId], handle: async (window, projectId: string) => (await window.readable(projectId)).request('project.snapshot', { projectId }) },
+    'project:work': { args: [projectId], handle: async (window, projectId: string) => (await window.readable(projectId)).request('project.work', { projectId }) },
+    'project:document': { args: [projectId, relativePath], handle: async (window, projectId: string, file: string) => (await window.readable(projectId)).request('project.document', { projectId, path: file }) },
+    'project:diagrams': { args: [projectId, workId], handle: async (window, projectId: string, work: string) => (await window.readable(projectId)).request('project.diagrams', { projectId, work }) },
+    'project:diagram': { args: [projectId, workId, diagramPath], handle: async (window, projectId: string, work: string, file: string) => (await window.readable(projectId)).request('project.diagram', { projectId, work, path: file }) },
+    'project:references': { args: [projectId, nullable(workId), relativePath], handle: async (window, projectId: string, work: string | null, file: string) => (await window.readable(projectId)).request('project.references', { projectId, work, path: file }) },
+    'project:diagramIndex': { args: [projectId], handle: async (window, projectId: string) => (await window.readable(projectId)).request('project.diagramIndex', { projectId }) },
     // What a planning file references, a work item's sessions and its time, from the project's computer.
-    'references:resolve': { args: [folderId, referenceInputs], handle: async (window, project: string, items: ReferenceInput[]) => remoteErrors((await window.readable(project)).request('references.resolve', { folderId: project, items }, { timeout: 30000 })) },
-    'work:sessions': { args: [folderId, workId], handle: async (window, project: string, work: string) => remoteErrors((await window.readable(project)).request('work.sessions', { folderId: project, work })) },
-    'work:timeline': { args: [folderId, workId], handle: async (window, project: string, work: string) => remoteErrors((await window.readable(project)).request('work.timeline', { folderId: project, work })) },
+    'references:resolve': { args: [projectId, referenceInputs], handle: async (window, projectId: string, items: ReferenceInput[]) => remoteErrors((await window.readable(projectId)).request('references.resolve', { projectId, items }, { timeout: 30000 })) },
+    'work:sessions': { args: [projectId, workId], handle: async (window, projectId: string, work: string) => remoteErrors((await window.readable(projectId)).request('work.sessions', { projectId, work })) },
+    'work:timeline': { args: [projectId, workId], handle: async (window, projectId: string, work: string) => remoteErrors((await window.readable(projectId)).request('work.timeline', { projectId, work })) },
     // A project's statistics for a period, from the project's computer.
-    'project:statistics': { args: [folderId, nullable(isoTime), nullable(isoTime), statisticsUnit], handle: async (window, project: string, from: string | null, to: string | null, unit: 'day' | 'week') => remoteErrors((await window.readable(project)).request('project.statistics', { folderId: project, from, to, unit }, { timeout: 30000 })) },
+    'project:statistics': { args: [projectId, nullable(isoTime), nullable(isoTime), statisticsUnit], handle: async (window, projectId: string, from: string | null, to: string | null, unit: 'day' | 'week') => remoteErrors((await window.readable(projectId)).request('project.statistics', { projectId, from, to, unit }, { timeout: 30000 })) },
     // All plans: the projects this window's computer has active, as the app keeps them.
-    'projects:statistics': { args: [nullable(isoTime), nullable(isoTime), statisticsUnit], handle: async (window, from: string | null, to: string | null, unit: 'day' | 'week') => remoteErrors(window.client().request('projects.statistics', { folderIds: [...await window.activeProjects()], from, to, unit }, { timeout: 30000 })) },
+    'projects:statistics': { args: [nullable(isoTime), nullable(isoTime), statisticsUnit], handle: async (window, from: string | null, to: string | null, unit: 'day' | 'week') => remoteErrors(window.client().request('projects.statistics', { projectIds: [...await window.activeProjects()], from, to, unit }, { timeout: 30000 })) },
     'ui:load': { args: [], handle: window => loadUi(manager, window) },
     'ui:save': { args: [uiState], handle: (window, state: UiState) => { window.shown = state.place; return queueSave(manager, window, state); } },
-    'shell:reveal': { args: [folderId, relativePath], handle: (window, project: string, file: string) => revealInside(window, project, file) },
+    'shell:reveal': { args: [projectId, relativePath], handle: (window, projectId: string, file: string) => revealInside(window, projectId, file) },
     'shell:openExternal': {
       args: [url],
       handle: async (window, value: string) => {
@@ -261,7 +261,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         await shell.openExternal(external ?? application!);
       },
     },
-    'shell:openReference': { args: [folderId, referenceInput], handle: (window, project: string, reference: ReferenceInput) => openReference(manager, window, project, reference) },
+    'shell:openReference': { args: [projectId, referenceInput], handle: (window, projectId: string, reference: ReferenceInput) => openReference(manager, window, projectId, reference) },
     'shell:openShown': { args: [place, relativePath], handle: (window, shown: Place, file: string) => openShown(manager, window, shown, file) },
     'shell:copy': { args: [string({ min: 1, max: 10000 })], handle: (_window, text: string) => { clipboard.writeText(text); } },
     'app:theme': { args: [], handle: () => manager.context.state.theme },
@@ -293,10 +293,10 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       },
     },
     'plan:export': {
-      args: [folderId, workId],
-      handle: async (window, project: string, work: string) => {
-        const view = await window.readable(project);
-        const prepared = await view.request('plan.exportPrepare', { folderId: view.folderId, work });
+      args: [projectId, workId],
+      handle: async (window, projectId: string, work: string) => {
+        const view = await window.readable(projectId);
+        const prepared = await view.request('plan.exportPrepare', { projectId: view.projectId, work });
         try {
           if (prepared.warnings.length) {
             const { response } = await window.oneDialog(() => dialog.showMessageBox(window.win, { type: 'warning', title: 'Export plan', message: 'Export this plan anyway?', detail: prepared.warnings.join('\n'), buttons: ['Export', 'Cancel'], defaultId: 0, cancelId: 1 }));
@@ -320,15 +320,15 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       },
     },
     'plan:importChoose': {
-      args: [folderId],
-      handle: async (window, project: string) => {
-        const view = await window.readable(project);
+      args: [projectId],
+      handle: async (window, projectId: string) => {
+        const view = await window.readable(projectId);
         const choice = await window.oneDialog(() => dialog.showOpenDialog(window.win, { title: 'Import plan', buttonLabel: 'Preview', properties: ['openFile'], filters: [{ name: 'Atlas plan export', extensions: ['html'] }] }));
         if (choice.canceled || !choice.filePaths[0]) return null;
         const file = choice.filePaths[0];
         let read;
         // A folder on another computer gets the file sent to it; this computer's host reads it in place.
-        try { read = view.remote ? await sendImport(view, file) : await view.request('plan.importRead', { folderId: view.folderId, file }); } catch (error) {
+        try { read = view.remote ? await sendImport(view, file) : await view.request('plan.importRead', { projectId: view.projectId, file }); } catch (error) {
           // A file that is not a valid export, or a folder it cannot go into, is refused before anything is written.
           if (window.win.isDestroyed()) throw new AtlasError('cancelled', (error as Error).message);
           await dialog.showMessageBox(window.win, { type: 'error', title: 'Import plan', message: 'This file cannot be imported.', detail: (error as Error).message + '\n\nNothing was written.', buttons: ['OK'] });
@@ -338,7 +338,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
         if (window.win.isDestroyed()) { await view.request('plan.importDrop', { token: read.token }).catch(() => undefined); return null; }
         // One preview per window: a newer one replaces (and releases) the window's previous one.
         await dropImports(entry => entry.window === window.id);
-        pendingImports.set(read.token, { window: window.id, folder: view });
+        pendingImports.set(read.token, { window: window.id, view });
         const preview: ImportPreview = { ...read, file: path.basename(file), warnings: [] };
         return preview;
       },
@@ -347,11 +347,11 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       args: [token],
       handle: async (window, key: string) => {
         const pending = pendingImports.get(key);
-        if (!pending || pending.window !== window.id || window.views.get(pending.folder.folderId) !== pending.folder) throw new AtlasError('invalid-argument', 'This import preview expired. Choose the file again.');
-        const view = pending.folder;
+        if (!pending || pending.window !== window.id || window.views.get(pending.view.projectId) !== pending.view) throw new AtlasError('invalid-argument', 'This import preview expired. Choose the file again.');
+        const view = pending.view;
         pendingImports.delete(key);
         // The explicit user action that writes into the planning folder; nothing is committed.
-        try { return await view.request('plan.importConfirm', { folderId: view.folderId, token: key }, { timeout: 600000 }); }
+        try { return await view.request('plan.importConfirm', { projectId: view.projectId, token: key }, { timeout: 600000 }); }
         catch (error) {
           if (/rolled back/i.test((error as Error).message)) await dialog.showMessageBox(window.win, { type: 'error', title: 'Import plan', message: 'The import was rolled back.', detail: (error as Error).message, buttons: ['OK'] });
           throw error;
@@ -362,29 +362,29 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       args: [token],
       handle: async (window, key: string) => { await dropImports((entry, entryKey) => entryKey === key && entry.window === window.id); },
     },
-    'computers:list': { args: [], handle: () => connections.computers() },
+    'computers:list': { args: [], handle: () => computers.computers() },
     'computers:switch': {
       args: [computer, boolean],
       handle: async (window, id: string | null, newWindow: boolean) => {
-        if (id !== null && !connections.has(id)) throw new AtlasError('not-found', 'This computer is not paired. Connect to it again.');
+        if (id !== null && !computers.has(id)) throw new AtlasError('not-found', 'This computer is not paired. Connect to it again.');
         if (newWindow) await confirmed(window, 'Open that computer in a new window?', 'Open');
         void dropImports(entry => entry.window === window.id);
         manager.switchComputer(window, id, newWindow);
       },
     },
-    'remote:pair': {
+    'computers:pair': {
       args: [pairingLink, nullable(pairingCode)],
       handle: async (window, link: string, code: string | null) => {
         await confirmed(window, `Pair with the Atlas at ${pairingHost(link, code)}?`, 'Pair', 'This app can then work on that computer\'s projects.');
-        const paired = await remoteErrors(connections.pair(link, code ?? undefined));
+        const paired = await remoteErrors(computers.pair(link, code ?? undefined));
         // Windows already showing this computer read through the new pairing.
-        manager.rebindRemote(paired.hostId!);
+        manager.rebindComputer(paired.hostId!);
         return paired;
       },
     },
-    'remote:forget': { args: [hostId], handle: (_window, id: string) => manager.forgetComputer(id) },
+    'computers:forget': { args: [hostId], handle: (_window, id: string) => manager.forgetComputer(id) },
     // Remote access of a computer: this one's (settings too), or a paired one's when this app may manage access there.
-    'access:state': { args: [computer], handle: (_window, id: string | null) => remoteErrors(connections.use(id, client => client.request('access.state', {}))) },
+    'access:state': { args: [computer], handle: (_window, id: string | null) => remoteErrors(computers.use(id, client => client.request('access.state', {}))) },
     'access:update': {
       args: [accessSettings],
       handle: async (window, settings: AccessSettings) => {
@@ -403,17 +403,17 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
       args: [computer, nullable(ipAddress), grant],
       handle: async (window, id: string | null, address: string | null, granted: PairingGrant): Promise<PairingLinkView> => {
         // A computer no longer paired fails here, before the question.
-        if (id !== null && !connections.has(id)) throw new AtlasError('not-found', 'This computer is not paired. Connect to it again.');
+        if (id !== null && !computers.has(id)) throw new AtlasError('not-found', 'This computer is not paired. Connect to it again.');
         const detail = granted.manageAccess ? 'A device that uses it can work on the projects and manage who else has access.' : 'A device that uses it can work on the projects.';
-        if (!(await window.ask(`Create a pairing link for ${id === null ? 'this computer' : connections.name(id)}?`, 'Create', detail))) throw new AtlasError('cancelled', 'Cancelled.');
-        const link = await remoteErrors(connections.use(id, client => client.request('access.pairingCreate', { address, ...granted })));
+        if (!(await window.ask(`Create a pairing link for ${id === null ? 'this computer' : computers.name(id)}?`, 'Create', detail))) throw new AtlasError('cancelled', 'Cancelled.');
+        const link = await remoteErrors(computers.use(id, client => client.request('access.pairingCreate', { address, ...granted })));
         const qrSvg = link.url ? await QRCode.toString(link.url, { type: 'svg', errorCorrectionLevel: 'M', margin: 1, color: { dark: '#000000', light: '#ffffff' } }) : null;
         return { ...link, qrSvg };
       },
     },
-    'access:pairingRevoke': { args: [computer, pairingCode], handle: (_window, id: string | null, code: string) => remoteErrors(connections.use(id, client => client.request('access.pairingRevoke', { code }))) },
-    'access:devices': { args: [computer], handle: (_window, id: string | null) => remoteErrors(connections.use(id, client => client.request('access.devices', {}))) },
-    'access:deviceRevoke': { args: [computer, deviceId], handle: (_window, id: string | null, device: string) => remoteErrors(connections.use(id, client => client.request('access.deviceRevoke', { deviceId: device }))) },
+    'access:pairingRevoke': { args: [computer, pairingCode], handle: (_window, id: string | null, code: string) => remoteErrors(computers.use(id, client => client.request('access.pairingRevoke', { code }))) },
+    'access:devices': { args: [computer], handle: (_window, id: string | null) => remoteErrors(computers.use(id, client => client.request('access.devices', {}))) },
+    'access:deviceRevoke': { args: [computer, deviceId], handle: (_window, id: string | null, device: string) => remoteErrors(computers.use(id, client => client.request('access.deviceRevoke', { deviceId: device }))) },
   };
 }
 

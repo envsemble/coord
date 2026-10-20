@@ -60,14 +60,14 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   const entries = useMemo(() => {
     // Every plan of the active projects, in the hub's order; an archived project stays out of the way.
     const all: Entry[] = hubGroups(hubItems(projects, null), 'all').flatMap(group => group.items).map(({ project: owner, work, status }) => ({
-      id: owner.folderId + ':work:' + work.id, kind: 'work' as const, label: work.title, detail: owner.name + ' · ' + workNumber(work.id), snippet: null,
-      destination: { place: { project: owner.folderId, target: workTarget(work.id) } }, key: workKey(owner.folderId, work.id), icon: <StatusIcon status={status} decorative />,
+      id: owner.id + ':work:' + work.id, kind: 'work' as const, label: work.title, detail: owner.name + ' · ' + workNumber(work.id), snippet: null,
+      destination: { place: { projectId: owner.id, target: workTarget(work.id) } }, key: workKey(owner.id, work.id), icon: <StatusIcon status={status} decorative />,
     }));
-    if (open && projects.find(item => item.folderId === open.project)?.state !== 'archived') {
+    if (open && projects.find(item => item.id === open.project)?.state !== 'archived') {
       const { snapshot } = open;
-      const place = (target: Target): { place: Place } => ({ place: { project: open.project, target } });
+      const place = (target: Target): { place: Place } => ({ place: { projectId: open.project, target } });
       const titles = new Map(snapshot.work.map(work => [work.id, work.title]));
-      const name = projects.find(item => item.folderId === open.project)?.name ?? snapshot.name;
+      const name = projects.find(item => item.id === open.project)?.name ?? snapshot.name;
       // A diagram is listed once, by its title; its file is not listed again.
       const paths = new Map(diagrams.map(item => [snapshot.work.find(work => work.id === item.workId)?.path + '/' + item.path, item]));
       all.push(...[...paths].map(([path, item]) => ({

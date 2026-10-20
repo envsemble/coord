@@ -8,7 +8,7 @@ import { Breadcrumbs, Button, EmptyState, Kbd, Notice, Popover, Spinner, Text, T
 import { ThemeMenu } from '../menu/ThemeMenu';
 import { ErrorIcon, FolderOpenIcon, SearchIcon, WarningIcon } from '../ui/icons';
 import type { ImportPreview, MenuCommand } from '../../shared/contract';
-import type { FolderChange, Issue, LoadedUi, Project, ProjectChangeRequest, Snapshot, SnapshotWork, Target, WindowInfo } from '../types';
+import type { Issue, LoadedUi, OpenProjectChange, Project, ProjectChangeRequest, Snapshot, SnapshotWork, Target, WindowInfo } from '../types';
 import { api, AtlasError } from '../api';
 import { documentTarget, hubPlace, isPage, placeId, placeProject, projectsPlace, scrollKey, statisticsPlace, workTarget, type Place, type ProjectPlace } from '../navigation/targets';
 import { samePath, siblingProject } from './links';
@@ -52,9 +52,9 @@ const popupOpen = () => Boolean(document.activeElement?.closest(keepsHistoryButt
 
 /**
  * A project's folder as the window follows it: its state, its snapshot once read, the revision it was
- * read at, and the revision of the files it has (FolderChange.files).
+ * read at, and the revision of the files it has (OpenProjectChange.files).
  */
-interface Folder { change: FolderChange | null; snapshot: Snapshot | null; read: number; files: number; failure: string }
+interface Folder { change: OpenProjectChange | null; snapshot: Snapshot | null; read: number; files: number; failure: string }
 
 /** A listing as text, without the host's clock (`now`), which every listing has anew: listings that read the same are one. */
 const listingText = (projects: Project[]) => JSON.stringify(projects, (key, value) => key === 'now' ? undefined : value);
@@ -123,7 +123,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Lo
     } catch (error) { if (newest()) setFolder(project, folder => ({ ...folder, failure: (error as Error).message })); }
   }, [setFolder]);
   useEffect(() => api.onChanged(change => {
-    if (following.current.has(change.project)) setFolder(change.project, folder => ({ ...folder, change }));
+    if (following.current.has(change.projectId)) setFolder(change.projectId, folder => ({ ...folder, change }));
   }), [setFolder]);
   /** Follow projects' folders: their changes reach the window (and the project list), and the one shown is read. */
   const follow = useCallback((wanted: string[]) => {
@@ -185,13 +185,13 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Lo
   const setInspectorWidth = useCallback((width: number) => setWindowState(current => current.ui.inspectorWidth === width ? current : { ...current, ui: { ...current.ui, inspectorWidth: width } }), []);
 
   /** The project whose folder the window reads: that of a plan, diagram or file, or of the statistics. */
-  const reading = isPage(place) ? (place.page === 'statistics' ? place.project : null) : place.project;
+  const reading = isPage(place) ? (place.page === 'statistics' ? place.projectId : null) : place.projectId;
   const projectPlace = isPage(place) ? null : place;
   const readFolder = reading ? folders[reading] : undefined;
   // The hub filtered to a project follows its folder, so its plans' changes reach it. The hub of
   // every project follows none (each folder followed is a session of its own on the host): it lists
   // the projects again each time it shows and as the window comes forward.
-  const watching = isPage(place) && place.page === 'hub' ? place.project : null;
+  const watching = isPage(place) && place.page === 'hub' ? place.projectId : null;
   const hubShown = isPage(place) && place.page === 'hub';
   const starting = useRef(true);
   useEffect(() => {
@@ -222,8 +222,8 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Lo
     && !readFolder.snapshot.work.some(work => work.id === (projectPlace.target as { work: string }).work) ? projectPlace : null;
   useEffect(() => {
     if (!missing) return;
-    notify(`${workNumber((missing.target as { work: string }).work)} is no longer in ${projects?.find(project => project.folderId === missing.project)?.name ?? 'this project'}.`, 'warning');
-    replace(hubPlace(missing.project));
+    notify(`${workNumber((missing.target as { work: string }).work)} is no longer in ${projects?.find(project => project.id === missing.projectId)?.name ?? 'this project'}.`, 'warning');
+    replace(hubPlace(missing.projectId));
   }, [missing]);
 
   // ---- The open plan's files ----------------------------------------------------------------------
@@ -238,11 +238,11 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Lo
     if (!projectPlace || !node) return;
     const reveal = projectPlace.target.kind === 'file' ? revealIds(projectPlace.target.path) : node.reveal;
     setExpanded(current => {
-      const open = current[projectPlace.project] ?? [];
+      const open = current[projectPlace.projectId] ?? [];
       const missingIds = reveal.filter(id => !open.includes(id));
-      return missingIds.length ? { ...current, [projectPlace.project]: [...open, ...missingIds] } : current;
+      return missingIds.length ? { ...current, [projectPlace.projectId]: [...open, ...missingIds] } : current;
     });
-  }, [projectPlace?.project, node?.id]);
+  }, [projectPlace?.projectId, node?.id]);
 
   // ---- Commands -----------------------------------------------------------------------------------
   // The search popup and its query, which the hub's search field shows and types into too.
@@ -274,7 +274,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Lo
   const [creatingProject, setCreatingProject] = useState(false);
   const [importing, setImporting] = useState<{ preview: ImportPreview; project: string } | null>(null);
   const [hubFilters, setHubFilters] = useState<HubFilters>({ state: 'open' });
-  const projectOf = useCallback((folderId: string | null) => projects?.find(project => project.folderId === folderId), [projects]);
+  const projectOf = useCallback((projectId: string | null) => projects?.find(project => project.id === projectId), [projects]);
 
   const exportWork = useCallback(async (project: string, work: string) => {
     try {
@@ -285,7 +285,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Lo
   /** Import a plan into the project the window shows (a plan of it, its statistics, or the hub filtered to it), or the only one. */
   const startImport = useCallback(async () => {
     const active = (projects ?? []).filter(project => project.state === 'active');
-    const project = placeProject(place) ?? (active.length === 1 ? active[0].folderId : null);
+    const project = placeProject(place) ?? (active.length === 1 ? active[0].id : null);
     if (!project) { notify('Choose the project to import into first: open one of its plans, or choose it in the hub’s project filter.', 'warning'); return; }
     try {
       const preview = await api.chooseImport(project);
@@ -298,9 +298,9 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Lo
   /** Statistics, from the menu: all plans'. */
   const showStatistics = useCallback(() => go(statisticsPlace(null)), [go]);
   const filesState = useMemo<FilesState>(() => ({
-    expanded: projectPlace ? expanded[projectPlace.project] ?? [] : [], selected: node?.id ?? null,
-    setExpanded: next => { if (projectPlace) setExpanded(current => ({ ...current, [projectPlace.project]: next })); },
-  }), [expanded, projectPlace?.project, node?.id]);
+    expanded: projectPlace ? expanded[projectPlace.projectId] ?? [] : [], selected: node?.id ?? null,
+    setExpanded: next => { if (projectPlace) setExpanded(current => ({ ...current, [projectPlace.projectId]: next })); },
+  }), [expanded, projectPlace?.projectId, node?.id]);
 
   // The file the window shows, which Open in opens in the editor: a plan's document, a diagram's source, a file; this computer's only.
   const [editor, chooseEditor, readEditor] = useEditor();
@@ -403,14 +403,14 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Lo
 
   // ---- Projects -----------------------------------------------------------------------------------
   const updateProject = useCallback(async (project: Project, change: ProjectChangeRequest) => {
-    const updated = await api.updateProject(project.folderId, change);
-    setProjects(current => current?.map(item => item.folderId === updated.folderId ? updated : item) ?? current);
+    const updated = await api.updateProject(project.id, change);
+    setProjects(current => current?.map(item => item.id === updated.id ? updated : item) ?? current);
   }, []);
   const projectActions = useMemo<ProjectActions>(() => ({
     update: updateProject,
     change: (project, change) => updateProject(project, change).catch(error => notify((error as Error).message, 'danger')),
     created: project => {
-      setProjects(current => current && !current.some(item => item.folderId === project.folderId) ? [...current, project] : current);
+      setProjects(current => current && !current.some(item => item.id === project.id) ? [...current, project] : current);
       notify(`Created ${project.name} in ${project.path}`);
     },
     go,
@@ -450,7 +450,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Lo
       const work = snapshot.work.find(item => samePath(item.path, path.replace(/\/$/, ''), snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths));
       const target = file ? documentTarget(file, snapshot.work.find(item => item.id === file.workId), anchor) : work ? workTarget(work.id, anchor) : null;
       if (!target) { release(); notify('This document is not in ' + (projectOf(project)?.name ?? 'that project') + ': ' + path, 'warning'); return; }
-      go({ project, target });
+      go({ projectId: project, target });
     } catch (error) { release(); notify((error as Error).message, 'warning'); }
   }, [folders, projectOf, go, notify, follow, unfollow]);
   // What a page of a project works with: the project and the window's ways to show more, which stay
@@ -464,7 +464,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Lo
   const projectName = owner?.name ?? readSnapshot?.name ?? '';
   const scope = useMemo<WorkbenchActions | null>(() => {
     if (!reading) return null;
-    const show = (target: Target, options: OpenOptions = {}) => go({ project: options.project ?? reading, target });
+    const show = (target: Target, options: OpenOptions = {}) => go({ projectId: options.project ?? reading, target });
     return {
       project: reading, projectName, open: show, go, retarget: target => show(target),
       sibling: folder => siblingProject(projectsRef.current ?? [], reading, folder),
@@ -481,7 +481,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Lo
   }, [readSnapshot, readFolder?.change?.revision, readFolder?.files, summary]);
 
   // A plan is open: its page or its diagrams.
-  const planOpen = projectPlace && (projectPlace.target.kind === 'work' || projectPlace.target.kind === 'diagram') ? { project: projectPlace.project, work: projectPlace.target.work } : null;
+  const planOpen = projectPlace && (projectPlace.target.kind === 'work' || projectPlace.target.kind === 'diagram') ? { project: projectPlace.projectId, work: projectPlace.target.work } : null;
   const back = canGoBack(history), forward = canGoForward(history);
   const exportProject = planOpen?.project ?? null, exportItem = planOpen?.work ?? null;
   const menus = useMemo<WorkbenchMenus>(() => ({
@@ -497,25 +497,25 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Lo
   // The sections: a plan, its ledger and its diagrams belong to Plans, with the hub.
   // A project's statistics belong to Projects.
   // All plans' statistics belong to Plans, a project's to Projects.
-  const section: Section = isPage(place) && (place.page === 'projects' || (place.page === 'statistics' && place.project !== null)) ? 'projects' : 'plans';
+  const section: Section = isPage(place) && (place.page === 'projects' || (place.page === 'statistics' && place.projectId !== null)) ? 'projects' : 'plans';
   const goSection = (next: Section) => next === 'plans' ? go(hubPlace()) : runCommand(next);
   // All plans' statistics are read again when the listing's statistics or projects change, not with every listing.
-  const statisticsMark = useMemo(() => JSON.stringify(projects?.map(project => [project.folderId, project.state, project.summary && [...project.summary.active, ...project.summary.closed].map(work => work.statistics)])), [projects]);
+  const statisticsMark = useMemo(() => JSON.stringify(projects?.map(project => [project.id, project.state, project.summary && [...project.summary.active, ...project.summary.closed].map(work => work.statistics)])), [projects]);
   const counts = useMemo(() => projects && { plans: hubItems(projects, null).filter(item => inState(item, 'open')).length, projects: projects.filter(project => project.state === 'active').length }, [projects]);
   /** Open what the search found: a place, or a file of a project at a heading or a diagram's element. */
   const choose = useCallback((destination: SearchDestination) => {
     if ('place' in destination) go(destination.place);
-    else void openPath(destination.project, destination.path, destination.anchor);
+    else void openPath(destination.projectId, destination.path, destination.anchor);
   }, [go, openPath]);
   const fills = projectPlace?.target.kind === 'diagram' && Boolean(readSnapshot);
   /** The project the search lists the documents and diagrams of: the one a plan, diagram or file of shows. */
   const searchScope = useMemo(() => projectPlace && reading && readSnapshot ? { project: reading, snapshot: readSnapshot } : null, [Boolean(projectPlace), reading, readSnapshot]);
 
   let content;
-  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.project} filters={hubFilters} setFilters={setHubFilters} go={go} query={search ?? ''} search={openSearch} left={searchFieldLeft} platform={info.platform} />;
+  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.projectId} filters={hubFilters} setFilters={setHubFilters} go={go} query={search ?? ''} search={openSearch} left={searchFieldLeft} platform={info.platform} />;
   else if (isPage(placed) && placed.page === 'projects') content = <ProjectsPage projects={projects} error={projectsError} computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} />;
   // All plans' statistics: every active project together.
-  else if (isPage(placed) && !placed.project) content = <Suspense fallback={loadingPage}><AllStatistics revision={statisticsMark} trail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: 'Statistics' }]} />} /></Suspense>;
+  else if (isPage(placed) && !placed.projectId) content = <Suspense fallback={loadingPage}><AllStatistics revision={statisticsMark} trail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: 'Statistics' }]} />} /></Suspense>;
   else content = <ProjectContent place={placed} folder={readFolder} project={owner} scope={scope} read={read} files={filesWork && <FilesContext.Provider value={filesState}><PlanFiles work={filesWork} /></FilesContext.Provider>}
     statisticsTrail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Projects', onClick: () => go(projectsPlace()) }, { label: projectOf(reading)?.name ?? 'Project', onClick: projectOf(reading)?.state === 'archived' ? undefined : () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
 
@@ -525,7 +525,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Lo
       {editorFile && <EditorButton platform={info.platform} editor={editor} choose={chooseEditor} read={readEditor} open={openInEditor} />}
       {/* On the hub, its own search field is the search. */}
       {!hubShown && <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />}
-      {scope && read && <Health issues={read.snapshot.issues} open={work => go({ project: scope.project, target: workTarget(work) })} />}
+      {scope && read && <Health issues={read.snapshot.issues} open={work => go({ projectId: scope.project, target: workTarget(work) })} />}
       <ThemeMenu />
     </>} />
     <SectionBar section={section} counts={counts} go={goSection} />
@@ -542,7 +542,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Lo
         const result = await api.confirmImport(importing.preview.token);
         setImporting(null);
         notify(`Imported as ${workNumber(result.workId)} in ${result.path}. ${result.notes.join(' ')}`.trim());
-        go({ project: importing.project, target: workTarget(result.workId) });
+        go({ projectId: importing.project, target: workTarget(result.workId) });
       }} />}
   </WindowFrame>;
 }

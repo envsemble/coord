@@ -5,7 +5,7 @@ import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { readDocument, workStatistics, type HomeDatabase } from '../../planning/index.ts';
 import { PlanningReader } from '../../planning/reading/reader.ts';
-import type { DiagramEntry, DiagramIndexEntry, DiagramReference, FolderState, FolderStatus, Snapshot } from '../contract.ts';
+import type { DiagramEntry, DiagramIndexEntry, DiagramReference, OpenProjectState, ProjectStatus, Snapshot } from '../contract.ts';
 import { HostError, type Logger } from '../errors.ts';
 import { watchFolder, type FolderWatcher } from './folderWatcher.ts';
 
@@ -34,12 +34,12 @@ async function exists(directory: string) {
   try { return (await stat(directory)).isDirectory(); } catch { return false; }
 }
 
-export interface OpenProjectOptions { folderId: string; database: HomeDatabase | null; log: Logger; onChange(state: FolderState): void; watchDelay?: { debounce: number; maxWait: number } }
+export interface OpenProjectOptions { projectId: string; database: HomeDatabase | null; log: Logger; onChange(state: OpenProjectState): void; watchDelay?: { debounce: number; maxWait: number } }
 
 export class OpenProject {
   readonly root: string;
   readonly name: string;
-  status: FolderStatus = 'loading';
+  status: ProjectStatus = 'loading';
   error: string | null = null;
   notice: string | null = null;
   revision = 0;
@@ -63,9 +63,9 @@ export class OpenProject {
     this.options = options;
   }
 
-  get folderId() { return this.options.folderId; }
-  state(): FolderState {
-    return { folderId: this.options.folderId, name: this.name, status: this.status, error: this.error, notice: this.notice, revision: this.revision, files: this.files };
+  get projectId() { return this.options.projectId; }
+  state(): OpenProjectState {
+    return { projectId: this.options.projectId, name: this.name, status: this.status, error: this.error, notice: this.notice, revision: this.revision, files: this.files };
   }
 
   async start() {

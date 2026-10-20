@@ -510,15 +510,15 @@ test("the search shows the host's results grouped by kind with their project, wo
   const { window, app } = launched;
   await expect(hubRows(window).first()).toBeVisible();
   const listed = await listedProjects(window);
-  const folderOf = (name: string) => listed.find(project => project.name === name)!.folderId;
-  const northwind = folderOf('Northwind'), coord = folderOf('Coord');
-  const result = (change: Record<string, unknown>) => ({ kind: 'plan', title: '', snippet: null, folderId: northwind, project: 'Northwind', work: null, path: null, anchor: null, element: null, ...change });
+  const projectIdOf = (name: string) => listed.find(project => project.name === name)!.id;
+  const northwind = projectIdOf('Northwind'), coord = projectIdOf('Coord');
+  const result = (change: Record<string, unknown>) => ({ kind: 'plan', title: '', snippet: null, projectId: northwind, projectName: 'Northwind', work: null, path: null, anchor: null, element: null, ...change });
   const results = [
     result({ kind: 'element', title: 'Shipment', work: 'work-0002', path: 'active/0002-order-fulfilment-model/diagrams/fulfilment.puml', element: 'Shipment' }),
     result({ kind: 'heading', title: 'Current checkout', snippet: 'card details are typed in again on every order', work: 'work-0001', path: 'active/0001-saved-payment-methods/plan.md', anchor: 'current-checkout' }),
     result({ kind: 'document', title: 'Payments constraints', snippet: 'tokens only, never card numbers', path: 'notes/shop/payments-constraints.md' }),
     result({ kind: 'step', title: 'Wire placeOrderWithSavedMethod into checkout', work: 'work-0001', path: 'active/0001-saved-payment-methods/plan.md' }),
-    result({ kind: 'project', title: 'Coord', folderId: coord, project: 'Coord' }),
+    result({ kind: 'project', title: 'Coord', projectId: coord, projectName: 'Coord' }),
   ];
   // The host's search, stubbed: these results for any query, the queries asked and answered noted. A
   // query with "slow" in it answers late with a plan; one starting with "saved" a little late.

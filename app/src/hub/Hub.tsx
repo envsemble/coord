@@ -72,10 +72,10 @@ const HubRow = memo(function HubRow({ item, go }: { item: HubItem; go(place: Pla
   const { work, project, status, activity } = item;
   const facts = hubRowFacts(work, status);
   const waiting = activity?.state === 'waiting' ? activity : null;
-  const open = (event: MouseEvent) => { event.preventDefault(); go({ project: project.folderId, target: workTarget(work.id) }); };
+  const open = (event: MouseEvent) => { event.preventDefault(); go({ projectId: project.id, target: workTarget(work.id) }); };
   const large = facts.size === 'large';
   // Closed work says where it continues, small, under how it ended.
-  const continued = continuation(Boolean(facts.ended), work, project.folderId);
+  const continued = continuation(Boolean(facts.ended), work, project.id);
   return <TableRow interactive className={'hub-row' + (large ? ' hub-row-large' : facts.size === 'closed' ? ' hub-row-closed' : '')} data-work={work.id} data-size={facts.size}
     onClick={event => { if (!event.defaultPrevented && !(event.target as Element).closest('a, button') && !window.getSelection()?.toString()) open(event); }}>
     <TableCell>
@@ -92,7 +92,7 @@ const HubRow = memo(function HubRow({ item, go }: { item: HubItem; go(place: Pla
     </TableCell>
     <TableCell><span className="hub-row-project" title={project.name}>{project.name}</span></TableCell>
     <TableCell>{facts.ended ? <span className="hub-row-ended">{facts.ended.label}{facts.ended.date && <span className="muted" title={absoluteDate(facts.ended.date)}> {relativeDate(facts.ended.date)}</span>}
-      {continued.length > 0 && <small className="cell-note"><ContinuedIn items={continued} open={to => go({ project: to.project, target: workTarget(to.work) })} /></small>}</span>
+      {continued.length > 0 && <small className="cell-note"><ContinuedIn items={continued} open={to => go({ projectId: to.project, target: workTarget(to.work) })} /></small>}</span>
       : facts.progress ? <Progress progress={facts.progress} wide={large} activity={activity} /> : <span className="muted">—</span>}</TableCell>
     <TableCell><Spent item={item} facts={facts} /></TableCell>
     <TableCell numeric nowrap>{facts.changed ? <Changed value={facts.changed} /> : <span className="muted">—</span>}</TableCell>
@@ -103,7 +103,7 @@ const HubRow = memo(function HubRow({ item, go }: { item: HubItem; go(place: Pla
 const rowKeys = new WeakMap<HubItem, string>();
 function rowKey(item: HubItem) {
   let key = rowKeys.get(item);
-  if (key === undefined) rowKeys.set(item, key = JSON.stringify([item.project.folderId, item.project.name, item.work, item.activity, item.status.key]));
+  if (key === undefined) rowKeys.set(item, key = JSON.stringify([item.project.id, item.project.name, item.work, item.activity, item.status.key]));
   return key;
 }
 
@@ -119,11 +119,11 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, q
   platform: string;
 }) {
   // Archived projects are seen only on the Projects page: the hub of one shows every project's plans.
-  const filter = projects?.some(project => project.folderId === asked && project.state === 'active') ? asked : null;
+  const filter = projects?.some(project => project.id === asked && project.state === 'active') ? asked : null;
   const items = useMemo(() => hubItems(projects ?? [], filter), [projects, filter]);
   const groups = useMemo(() => hubGroups(items, filters.state), [items, filters.state]);
   const counts = useMemo(() => ({ open: items.filter(item => inState(item, 'open')).length, closed: items.filter(item => inState(item, 'closed')).length, all: items.length }), [items]);
-  const filtered = projects?.find(project => project.folderId === filter);
+  const filtered = projects?.find(project => project.id === filter);
   // The projects to filter by: the active ones.
   const choices = (projects ?? []).filter(project => project.state === 'active');
   const unread = choices.filter(project => project.summary === null);
@@ -142,7 +142,7 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, q
   return <Page className="hub" heading={<div className="hub-heading">
     <div className="hub-lead">
       <Text as="h1" variant="page-heading" className="hub-title">{filtered?.name ?? 'Plans'}</Text>
-      <Button variant="text" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered?.folderId ?? null))}>Statistics</Button>
+      <Button variant="text" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered?.id ?? null))}>Statistics</Button>
     </div>
     <div className="hub-filters">
       {/* The search opens the search popup with what is typed, and never filters this list. */}
@@ -150,7 +150,7 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, q
         aria-keyshortcuts={platform === 'darwin' ? 'Meta+P' : 'Control+P'} suffix={query ? undefined : <Kbd keys={[modifierKey(platform), 'P']} />}
         onValueChange={search} onFocus={() => search(undefined, true)} onBlur={left} onClick={() => search()} />
       <Select className="hub-project" aria-label="Project" value={filter ?? 'all'} onValueChange={value => go(hubPlace(!value || value === 'all' ? null : value))}
-        options={[{ value: 'all', label: 'All projects' }, ...choices.map(project => ({ value: project.folderId, label: project.name }))]} />
+        options={[{ value: 'all', label: 'All projects' }, ...choices.map(project => ({ value: project.id, label: project.name }))]} />
       <SegmentedControl aria-label="Plan state" value={filters.state} onValueChange={state => setFilters({ ...filters, state: state as HubState })}
         options={[{ value: 'open', label: 'Open', count: counts.open }, { value: 'closed', label: 'Closed', count: counts.closed }, { value: 'all', label: 'All', count: counts.all }]} />
     </div>
@@ -161,7 +161,7 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, q
       <Text as="h2" variant="section-heading" className="hub-group-heading">{group.label} <span className="muted">{group.items.length}</span></Text>
       <Table className="hub-list" aria-label={group.label} columnWidths={columnWidths}>
         <TableHead><TableRow><TableHeaderCell>Plan</TableHeaderCell><TableHeaderCell>Project</TableHeaderCell><TableHeaderCell>{group.id === 'closed' ? 'Ended' : 'Steps'}</TableHeaderCell><TableHeaderCell>Agents</TableHeaderCell><TableHeaderCell numeric>Changed</TableHeaderCell></TableRow></TableHead>
-        <TableBody>{group.items.map(item => <HubRow key={item.project.folderId + ':' + item.work.id} item={item} go={go} />)}</TableBody>
+        <TableBody>{group.items.map(item => <HubRow key={item.project.id + ':' + item.work.id} item={item} go={go} />)}</TableBody>
       </Table>
     </section>)}
     {!groups.length && <EmptyState className="page-empty hub-empty" align="center" icon={<WorkIcon />} title={empty}

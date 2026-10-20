@@ -123,7 +123,7 @@ async function workOf(root: string, entry: { id: string; path: string; current_p
     updated: text(planHeader?.updated) ?? text(planHeader?.completed_at), outcome,
     step: steps && currentStep(steps), completed: text(planHeader?.completed_at), statistics: workStatisticsBrief(reports),
     // As the plan names them; linkHandoffs finds them in the home's projects, and the work continuing this.
-    continues: handoffsOf(planHeader?.continues).references.map((item): HandoffLink => ({ folderId: null, project: item.project ?? '', projectName: '', workId: item.workId, title: null, state: null, outcome: null })),
+    continues: handoffsOf(planHeader?.continues).references.map((item): HandoffLink => ({ projectId: null, project: item.project ?? '', projectName: '', workId: item.workId, title: null, state: null, outcome: null })),
     continuedIn: [],
   };
 }
@@ -133,15 +133,15 @@ async function workOf(root: string, entry: { id: string; path: string; current_p
  * With the home database and the project's row in it, or the project's reports read already, each
  * work item has its statistics; reports that cannot be read count as none.
  */
-export async function projectSummary(root: string, options: { database?: HomeDatabase; projectId?: number; reports?: Map<string, WorkReport[]> } = {}): Promise<ProjectSummary> {
+export async function projectSummary(root: string, options: { database?: HomeDatabase; projectRowId?: number; reports?: Map<string, WorkReport[]> } = {}): Promise<ProjectSummary> {
   const source = await readFile(path.join(root, 'planning.json'), 'utf8');
   const registry = JSON.parse(source.startsWith(BOM) ? source.slice(1) : source) as { work_items?: unknown } | null;
   if (!registry || typeof registry !== 'object' || Array.isArray(registry)) throw new Error('planning.json is not an object.');
   const entries = (Array.isArray(registry.work_items) ? registry.work_items : []).filter(entry => typeof entry?.id === 'string' && typeof entry.path === 'string');
   // Every work item's reports in one query.
   let reports = options.reports ?? new Map<string, WorkReport[]>();
-  if (!options.reports && options.database && options.projectId !== undefined) {
-    try { reports = storedReports(options.database, options.projectId); } catch { /* No statistics then. */ }
+  if (!options.reports && options.database && options.projectRowId !== undefined) {
+    try { reports = storedReports(options.database, options.projectRowId); } catch { /* No statistics then. */ }
   }
   const [active, closed] = await Promise.all(['active/', 'archive/'].map(location =>
     Promise.all(entries.filter(entry => entry.path.startsWith(location)).map(entry => workOf(root, entry, location === 'archive/', reports.get(entry.id) ?? [])))));

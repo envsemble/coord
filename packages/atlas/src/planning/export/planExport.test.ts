@@ -333,7 +333,7 @@ test('clears references to other work so the target stays valid, and rolls back 
   assert.deepEqual(validatePlanning(target).errors, []);
   // The viewer shows the handoffs as they stood at export time: the work it continues, the work continuing it.
   const viewOf = (html: string) => JSON.parse(/<script id="atlas-plan-view" type="application\/json">(.*?)<\/script>/s.exec(html)![1]).work;
-  const handoff = { folderId: null, project: 'source', projectName: 'Planning', state: null };
+  const handoff = { projectId: null, project: 'source', projectName: 'Planning', state: null };
   assert.deepEqual(viewOf((await exportPlan(source, 'work-0001', { now })).html).continues, [{ ...handoff, workId: 'work-0002', title: 'Abandoned', outcome: 'abandoned' }]);
   assert.deepEqual(viewOf((await exportPlan(source, 'work-0002', { now })).html).continuedIn, [{ ...handoff, workId: 'work-0001', title: 'Checkout', outcome: null }]);
 

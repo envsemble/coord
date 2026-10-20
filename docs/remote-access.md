@@ -119,17 +119,17 @@ The desktop app runs the host in a separate utility process and is its first cli
 
 A crashed host restarts, at most three times a minute; after that, Atlas says so and leaves it stopped until Atlas starts again. The app reconnects, follows its windows' projects again, and they carry on.
 
-A paired device connects to the **network listener** that remote access turns on. Clients use a JSON request and event protocol over one WebSocket (`/api/connect`), and HTTP for files in documents, plan exports and plans sent for import.
+A paired device connects to the **network listener** that remote access turns on. Clients use a JSON request and event protocol over one WebSocket (`/api/connect`), and HTTP for files in documents, plan exports and plans sent for import. Requests on the computer's projects are `projects.*` (list, create, update, subscribe); requests on one project are `project.*` and name it by its `projectId`, the `id` the project list gives it; the host tells subscribers of a change with `project.changed`.
 
-| Route                                 | Purpose                                                                        | Credential       |
-| ------------------------------------- | ------------------------------------------------------------------------------ | ---------------- |
-| `GET /api/host`                       | The host's protocol version, ID, name and Atlas version.                       | None             |
-| `GET /pair`                           | A short page saying the link belongs in Atlas, for a link opened in a browser. | None             |
-| `POST /api/pair`                      | Exchange a pairing code for a device token (remote access address only).       | The pairing code |
-| `GET /api/connect`                    | The WebSocket for requests and change events.                                  | Bearer token     |
-| `GET /api/folders/:folderId/files/*`  | A file in a planning folder (images and attachments in documents).             | Bearer token     |
-| `POST /api/folders/:folderId/imports` | A plan export sent from another device, read for an import preview.            | Bearer token     |
-| `GET /api/exports/:token`             | A prepared plan export, once.                                                  | Bearer token     |
+| Route                                   | Purpose                                                                        | Credential       |
+| --------------------------------------- | ------------------------------------------------------------------------------ | ---------------- |
+| `GET /api/host`                         | The host's protocol version, ID, name and Atlas version.                       | None             |
+| `GET /pair`                             | A short page saying the link belongs in Atlas, for a link opened in a browser. | None             |
+| `POST /api/pair`                        | Exchange a pairing code for a device token (remote access address only).       | The pairing code |
+| `GET /api/connect`                      | The WebSocket for requests and change events.                                  | Bearer token     |
+| `GET /api/projects/:projectId/files/*`  | A file in a project's planning folder (images and attachments in documents).   | Bearer token     |
+| `POST /api/projects/:projectId/imports` | A plan export sent from another device, read for an import preview.            | Bearer token     |
+| `GET /api/exports/:token`               | A prepared plan export, once.                                                  | Bearer token     |
 
 Every request has a declared scope, checked before anything else:
 

@@ -344,11 +344,11 @@ export function summarizeReports(reports: WorkReport[]): Omit<WorkStatistics, 'p
 type Row = Record<string, unknown>;
 
 /** Record a report of a work item in the home database, with its measurement's models, subagents and working intervals. */
-export function insertReport(database: HomeDatabase, projectId: number, workId: string, report: WorkReport) {
+export function insertReport(database: HomeDatabase, projectRowId: number, workId: string, report: WorkReport) {
   database.transaction(() => {
     const measured = report.measured;
     const { lastInsertRowid } = database.db.prepare('INSERT INTO work_report (project_id, work_id, at, stage, step, model, session, tokens, measured_since, agent_ms, intervals) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(projectId, workId, report.at, report.stage, report.step, report.model, report.session, report.tokens, measured?.since ?? null, measured?.agentMs ?? null, measured?.intervals ? 1 : 0);
+      .run(projectRowId, workId, report.at, report.stage, report.step, report.model, report.session, report.tokens, measured?.since ?? null, measured?.agentMs ?? null, measured?.intervals ? 1 : 0);
     if (!measured) return;
     insertIntervals(database, Number(lastInsertRowid), measured.intervals ?? []);
     insertEfforts(database, Number(lastInsertRowid), measured.efforts ?? []);
@@ -379,9 +379,9 @@ function listed<K, V>(map: Map<K, V[]>, key: K): V[] {
 }
 
 /** The reports recorded for a project's work items (all of them, or the ones given), by work item, oldest first. */
-export function storedReports(database: HomeDatabase, projectId: number, workIds?: string[]): Map<string, WorkReport[]> {
+export function storedReports(database: HomeDatabase, projectRowId: number, workIds?: string[]): Map<string, WorkReport[]> {
   const scope = workIds ? ' AND work_id IN (' + workIds.map(() => '?').join(',') + ')' : '';
-  const rows = database.db.prepare('SELECT * FROM work_report WHERE project_id = ?' + scope + ' ORDER BY at, id').all(projectId, ...(workIds ?? [])) as Row[];
+  const rows = database.db.prepare('SELECT * FROM work_report WHERE project_id = ?' + scope + ' ORDER BY at, id').all(projectRowId, ...(workIds ?? [])) as Row[];
   const models = new Map<number, MeasuredModel[]>(), agents = new Map<number, MeasuredSubagent[]>(), intervals = new Map<number, MeasuredInterval[]>(), efforts = new Map<number, MeasuredEffort[]>();
   const measuredIds = rows.filter(row => row.measured_since !== null).map(row => Number(row.id));
   if (measuredIds.length) {

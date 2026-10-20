@@ -1,39 +1,39 @@
-// A project's folder as a window follows it, on a host: this computer's own or another one's. The
-// window's requests about it go through the host connection; its state follows the host's folder
+// A project as a window follows it, on a host: this computer's own or another one's. The window's
+// requests about it go through the host connection; its state follows the host's project.changed
 // events and the connection's status. The revision counts up here, in main, so a host that restarted
 // (and counts from zero again) never makes the window ignore fresh data.
-import type { ClientStatus, FolderState, HostClient } from '@envsemble/atlas/host';
-import type { FolderChange, FolderStatus } from '../../shared/contract.ts';
+import type { ClientStatus, HostClient, OpenProjectState } from '@envsemble/atlas/host';
+import type { OpenProjectChange, ProjectStatus } from '../../shared/contract.ts';
 
-export class FolderView {
+export class ProjectView {
   readonly client: HostClient;
-  readonly folderId: string;
+  readonly projectId: string;
   /** Set when the project is on another computer. */
   readonly remote: { hostId: string; hostName: string } | null;
-  status: FolderStatus = 'loading';
+  status: ProjectStatus = 'loading';
   error: string | null = null;
   private hostNotice: string | null = null;
   private connectionNotice: string | null = null;
   revision = 0;
-  /** The revision at which the host last read the folder's files; see FolderChange. */
+  /** The revision at which the host last read the project's files; see OpenProjectChange. */
   files = 0;
   /** The host's own count of its reads of the files, as last told; null when the next state may come from a host that restarted. */
   private hostFiles: number | null = null;
   private closed = false;
 
-  constructor(client: HostClient, folderId: string, remote: FolderView['remote'], revision = 0) {
+  constructor(client: HostClient, projectId: string, remote: ProjectView['remote'], revision = 0) {
     this.client = client;
-    this.folderId = folderId;
+    this.projectId = projectId;
     this.remote = remote;
     this.revision = revision;
     this.files = revision;
   }
 
   get notice() { return this.connectionNotice ?? this.hostNotice; }
-  change(): FolderChange { return { revision: this.revision, files: this.files, status: this.status, error: this.error, notice: this.notice }; }
+  change(): OpenProjectChange { return { revision: this.revision, files: this.files, status: this.status, error: this.error, notice: this.notice }; }
 
-  /** A folder event from the host, or its state when the window started following it. */
-  update(state: FolderState) {
+  /** A project.changed event from the host, or the project's state when the window started following it. */
+  update(state: OpenProjectState) {
     this.status = state.status;
     this.error = state.error;
     this.hostNotice = state.notice;
@@ -61,14 +61,14 @@ export class FolderView {
   }
 
   request: HostClient['request'] = (method, params, options) => this.client.request(method, params, options);
-  /** A file inside the folder (images and attachments in documents), over the host's authenticated HTTP. */
+  /** A file inside the project's planning folder (images and attachments in documents), over the host's authenticated HTTP. */
   file(relative: string) {
-    return this.client.fetch(`/api/folders/${this.folderId}/files/` + relative.split('/').map(encodeURIComponent).join('/'));
+    return this.client.fetch(`/api/projects/${this.projectId}/files/` + relative.split('/').map(encodeURIComponent).join('/'));
   }
 
   close() {
     if (this.closed) return;
     this.closed = true;
-    void this.client.unfollow(this.folderId);
+    void this.client.unfollow(this.projectId);
   }
 }

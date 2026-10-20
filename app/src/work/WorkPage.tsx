@@ -76,7 +76,7 @@ function About({ work, snapshot, found, live, listed, sessions }: {
   // Handoffs: the work this plan continues opens its ledger, the work continuing it ends it.
   const { project, go } = useWorkbench();
   const links = handoffs(work, project);
-  const openHandoff: OpenHandoff = to => go({ project: to.project, target: workTarget(to.work) });
+  const openHandoff: OpenHandoff = to => go({ projectId: to.project, target: workTarget(to.work) });
   const before = links.continues.length > 0 ? <HandoffEntries items={links.continues} kind="continues" open={openHandoff} /> : null;
   const after = links.continuedIn.length > 0 ? <HandoffEntries items={links.continuedIn} kind="continuedIn" open={openHandoff} /> : null;
   const handoffList = (before || after) && <ol className="ledger-steps ledger-handoffs">{before}{after}</ol>;
@@ -120,7 +120,7 @@ function StatusLine({ work, status, live }: { work: Work; status: WorkStatus; li
   return <div className="work-status">
     <StatusBadge status={status} />
     {fact && <span className="work-status-fact">{fact}</span>}
-    {continued.length > 0 && <span className="work-status-fact"><ContinuedIn items={continued} open={to => go({ project: to.project, target: workTarget(to.work) })} /></span>}
+    {continued.length > 0 && <span className="work-status-fact"><ContinuedIn items={continued} open={to => go({ projectId: to.project, target: workTarget(to.work) })} /></span>}
     {work.location === 'archived' && <span className="work-status-fact">archived</span>}
   </div>;
 }

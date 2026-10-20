@@ -41,7 +41,7 @@ export interface HookInput {
  * time the session was on it; and `amended` when it last edited the accepted plan, so a report
  * clears only what it counted.
  */
-interface Link { id: number; projectId: number; planningFolder: string; workId: string; amending: boolean; linked: string; came: string; amended: string | null }
+interface Link { id: number; projectRowId: number; planningFolder: string; workId: string; amending: boolean; linked: string; came: string; amended: string | null }
 /** The session's links, and the one it is on: its focus. */
 interface SessionLinks { session: string; transcriptPath: string | null; work: Link[]; on: Link | null; focus: number | null }
 
@@ -65,7 +65,7 @@ function readLinks(database: HomeDatabase, session: string, transcriptPath: stri
   const saved = database.db.prepare('SELECT transcript_path, focus FROM session WHERE id = ?').get(session) as { transcript_path: string | null; focus: number | null } | undefined;
   const rows = database.db.prepare('SELECT session_work.*, project.folder FROM session_work JOIN project ON project.id = session_work.project_id WHERE session_id = ? ORDER BY touched_at, session_work.id').all(session) as Record<string, unknown>[];
   const work = rows.map((row): Link => ({
-    id: Number(row.id), projectId: Number(row.project_id), planningFolder: String(row.folder), workId: String(row.work_id), amending: Boolean(row.amending),
+    id: Number(row.id), projectRowId: Number(row.project_id), planningFolder: String(row.folder), workId: String(row.work_id), amending: Boolean(row.amending),
     linked: String(row.linked_at), came: String(row.focused_at ?? row.linked_at), amended: (row.amended_at as string | null) ?? null,
   }));
   return { session, transcriptPath: transcriptPath ?? saved?.transcript_path ?? null, work, on: work.find(item => item.id === saved?.focus) ?? null, focus: saved?.focus ?? null };
@@ -89,10 +89,10 @@ async function turnEnd(input: HookInput, transcriptPath: string | null): Promise
  * PostToolUse) each change the links in a transaction of their own, so they never undo each
  * other's changes.
  */
-function link(database: HomeDatabase, session: string, projectId: number, workId: string, amending: boolean, at: string): number {
+function link(database: HomeDatabase, session: string, projectRowId: number, workId: string, amending: boolean, at: string): number {
   database.db.prepare('INSERT INTO session_work (session_id, project_id, work_id, linked_at, amending, amended_at, touched_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (session_id, project_id, work_id) DO UPDATE SET amending = max(amending, excluded.amending), amended_at = ifnull(excluded.amended_at, amended_at), touched_at = excluded.touched_at')
-    .run(session, projectId, workId, at, amending ? 1 : 0, amending ? at : null, at);
-  return Number((database.db.prepare('SELECT id FROM session_work WHERE session_id = ? AND project_id = ? AND work_id = ?').get(session, projectId, workId) as { id: number }).id);
+    .run(session, projectRowId, workId, at, amending ? 1 : 0, amending ? at : null, at);
+  return Number((database.db.prepare('SELECT id FROM session_work WHERE session_id = ? AND project_id = ? AND work_id = ?').get(session, projectRowId, workId) as { id: number }).id);
 }
 /**
  * Measure the report of a work item the session was on, up to `at` and since it came there (or its
@@ -123,8 +123,8 @@ function reported(database: HomeDatabase, session: string, item: Link, at: strin
  */
 function insertOnce(database: HomeDatabase, insert: typeof insertReport, session: string, item: Link, prepared: PreparedReport, until: string): boolean {
   const since = prepared.report.measured?.since ?? latest(item.linked, item.came);
-  if (database.db.prepare("SELECT 1 FROM work_report WHERE project_id = ? AND work_id = ? AND session = ? AND at > ? AND ifnull(measured_since, '') < ? LIMIT 1").get(item.projectId, item.workId, session, since, until)) return false;
-  insert(database, item.projectId, item.workId, prepared.report);
+  if (database.db.prepare("SELECT 1 FROM work_report WHERE project_id = ? AND work_id = ? AND session = ? AND at > ? AND ifnull(measured_since, '') < ? LIMIT 1").get(item.projectRowId, item.workId, session, since, until)) return false;
+  insert(database, item.projectRowId, item.workId, prepared.report);
   return true;
 }
 /** Record a report in the same transaction as what changes with it. */
@@ -140,7 +140,7 @@ function leftWork(database: HomeDatabase, session: string): { leave: number; ite
     FROM session_leave JOIN session_work ON session_work.id = session_leave.link JOIN project ON project.id = session_work.project_id
     WHERE session_work.session_id = ? ORDER BY session_leave.at, session_leave.id`).all(session) as Record<string, unknown>[];
   return rows.map(row => ({ leave: Number(row.leave), at: String(row.at), item: {
-    id: Number(row.id), projectId: Number(row.project_id), planningFolder: String(row.folder), workId: String(row.work_id), amending: Boolean(row.amending),
+    id: Number(row.id), projectRowId: Number(row.project_id), planningFolder: String(row.folder), workId: String(row.work_id), amending: Boolean(row.amending),
     linked: String(row.since), came: String(row.since), amended: null,
   } }));
 }
@@ -333,7 +333,7 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
       const projects = await Promise.all(requests.map(request => projectOf(database!, request.planningFolder)));
       // The session is on the last work item it touched; the one it leaves gets its report up to now, at the turn's end.
       const target = requests.at(-1)!, targetProject = projects.at(-1)!.id;
-      const left = links.on && !(links.on.projectId === targetProject && links.on.workId === target.workId) ? links.on : null;
+      const left = links.on && !(links.on.projectRowId === targetProject && links.on.workId === target.workId) ? links.on : null;
       database.transaction(() => {
         recordSession(database!, session, harnessOf(transcriptPath), transcriptPath, at, typeof input.cwd === 'string' ? input.cwd : null);
         const rows = requests.map((request, index) => link(database!, session, projects[index].id, request.workId, request.amending, at));

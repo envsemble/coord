@@ -60,10 +60,10 @@ function splitFolder(folder: string) {
   const key = (value: string) => windows ? value.toLowerCase() : value;
   return { parent: key(parts.slice(0, -1).join('/')), name: key(parts.at(-1) ?? ''), key };
 }
-/** The folder ID of the project listed in a sibling folder `name` of the given project's folder, if there is one. */
-export function siblingProject(projects: { folderId: string; path: string }[], project: string, name: string): string | null {
-  const own = projects.find(entry => entry.folderId === project);
+/** The ID of the project listed in a sibling folder `name` of the given project's planning folder, if there is one. */
+export function siblingProject(projects: { id: string; path: string }[], projectId: string, name: string): string | null {
+  const own = projects.find(entry => entry.id === projectId);
   if (!own) return null;
   const { parent, key } = splitFolder(own.path);
-  return projects.find(entry => entry.folderId !== project && splitFolder(entry.path).parent === parent && splitFolder(entry.path).name === key(name))?.folderId ?? null;
+  return projects.find(entry => entry.id !== projectId && splitFolder(entry.path).parent === parent && splitFolder(entry.path).name === key(name))?.id ?? null;
 }

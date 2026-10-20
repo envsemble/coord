@@ -12,10 +12,10 @@ export function initials(name: string): string {
 
 /** Hues far enough apart to tell projects apart. */
 const hues = [8, 32, 50, 95, 150, 180, 205, 230, 262, 290, 320, 345];
-/** The hue of a project's avatar, from its folder's ID: the same project keeps its colour, whatever it is named. */
-export function projectHue(folderId: string): number {
+/** The hue of a project's avatar, from its ID: the same project keeps its colour, whatever it is named. */
+export function projectHue(projectId: string): number {
   let hash = 0;
-  for (const character of folderId) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  for (const character of projectId) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
   return hues[hash % hues.length];
 }
 

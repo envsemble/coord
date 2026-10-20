@@ -17,7 +17,7 @@ export interface SessionEntry {
   state: 'working' | 'waiting' | 'ended'; startedAt: string; lastSeen: string; agentMs: number;
   folder: string | null; resume: string | null; message: string | null;
 }
-/** A commit or a PR a session made, as the host's contract describes it (WorkProduct). */
+/** A commit or a PR a session made, as the host's contract describes it (WorkCommit). */
 export interface CommitEntry { kind: 'commit' | 'pull'; session: string; at: string; repository: string | null; id: string; title: string | null; url: string | null; branch: string | null }
 export interface TimelineEntry {
   plannedMs: number | null; implementingMs: number | null; waitedMs: number;
@@ -64,14 +64,14 @@ async function startFolder(database: HomeDatabase, row: Row): Promise<string | n
  * saw): its harness resumes it from there. Without `local` (a paired device asks), the folder and
  * how to resume, which are of this computer, are left out.
  */
-export async function workSessions(database: HomeDatabase, projectId: number, workId: string, options: { local?: boolean; now?: number; logs?: LogOptions } = {}): Promise<{ sessions: SessionEntry[]; products: CommitEntry[] }> {
+export async function workSessions(database: HomeDatabase, projectRowId: number, workId: string, options: { local?: boolean; now?: number; logs?: LogOptions } = {}): Promise<{ sessions: SessionEntry[]; commits: CommitEntry[] }> {
   const { local = true, now = Date.now(), logs = {} } = options;
   const rows = database.db.prepare(`SELECT session.* FROM session_work JOIN session ON session.id = session_work.session_id
-    WHERE session_work.project_id = ? AND session_work.work_id = ? ORDER BY session.updated_at DESC`).all(projectId, workId) as Row[];
-  const agents = summarizeReports(storedReports(database, projectId, [workId]).get(workId) ?? []).agents;
+    WHERE session_work.project_id = ? AND session_work.work_id = ? ORDER BY session.updated_at DESC`).all(projectRowId, workId) as Row[];
+  const agents = summarizeReports(storedReports(database, projectRowId, [workId]).get(workId) ?? []).agents;
   // A session works while its main agent or any of its subagents (`<session>/<subagent>`) does.
   const states = new Map<string, 'working' | 'waiting'>();
-  for (const entry of database.workActivity(now).get(projectId)?.find(item => item.workId === workId)?.sessions ?? []) {
+  for (const entry of database.workActivity(now).get(projectRowId)?.find(item => item.workId === workId)?.sessions ?? []) {
     const session = entry.session.split('/')[0];
     if (states.get(session) !== 'working') states.set(session, entry.state);
   }
@@ -86,11 +86,11 @@ export async function workSessions(database: HomeDatabase, projectId: number, wo
       folder, resume: local ? resumeOf(harness, id) : null, message: state === 'waiting' ? (row.message as string | null) ?? null : null,
     };
   }));
-  const commits = (database.db.prepare('SELECT * FROM session_commit WHERE project_id = ? AND work_id = ? ORDER BY at DESC, id DESC').all(projectId, workId) as Row[]).map((row): CommitEntry => ({
+  const commits = (database.db.prepare('SELECT * FROM session_commit WHERE project_id = ? AND work_id = ? ORDER BY at DESC, id DESC').all(projectRowId, workId) as Row[]).map((row): CommitEntry => ({
     kind: row.kind as 'commit' | 'pull', session: String(row.session_id), at: String(row.at), repository: (row.repository as string | null) ?? null,
     id: String(row.ident), title: (row.title as string | null) ?? null, url: (row.url as string | null) ?? null, branch: (row.branch as string | null) ?? null,
   }));
-  return { sessions, products: commits };
+  return { sessions, commits };
 }
 
 /** A work item's dates from its plan's header: created, accepted and completed (days), null where it has none. */
@@ -111,13 +111,13 @@ export async function workDates(root: string, workId: string): Promise<{ created
  * from the reports' intervals (a session working now, from where its time not yet reported counts),
  * and the session's waits. An open stretch ends now.
  */
-export function workTimeline(database: HomeDatabase, projectId: number, workId: string, dates: { created: string | null; accepted: string | null; completed: string | null }, now = Date.now(), stored?: WorkReport[]): TimelineEntry {
+export function workTimeline(database: HomeDatabase, projectRowId: number, workId: string, dates: { created: string | null; accepted: string | null; completed: string | null }, now = Date.now(), stored?: WorkReport[]): TimelineEntry {
   const moment = (day: string | null) => day === null ? null : Date.parse(day.length === 10 ? day + 'T00:00:00Z' : day);
   const created = moment(dates.created), accepted = moment(dates.accepted), completed = moment(dates.completed);
   const plannedMs = created === null ? null : Math.max(0, (accepted ?? completed ?? now) - created);
   const implementingMs = accepted === null ? null : Math.max(0, (completed ?? now) - accepted);
   const iso = (time: number) => new Date(time).toISOString();
-  const reports = stored ?? storedReports(database, projectId, [workId]).get(workId) ?? [];
+  const reports = stored ?? storedReports(database, projectRowId, [workId]).get(workId) ?? [];
   const agents = summarizeReports(reports).agents;
   const lanes = new Map<string, { session: string; subagent: string | null; working: [number, number][]; waiting: [number, number][] }>();
   const lane = (session: string, subagent: string | null) => {
@@ -130,7 +130,7 @@ export function workTimeline(database: HomeDatabase, projectId: number, workId: 
     if (!report.session) continue;
     for (const interval of report.measured?.intervals ?? []) lane(report.session, interval.agent).working.push([Date.parse(interval.start), Date.parse(interval.end)]);
   }
-  for (const entry of database.workActivity(now).get(projectId)?.find(item => item.workId === workId)?.sessions ?? []) {
+  for (const entry of database.workActivity(now).get(projectRowId)?.find(item => item.workId === workId)?.sessions ?? []) {
     // A subagent at work is listed as `<session>/<subagent>`: its own lane.
     const [session, subagent = null] = entry.session.split('/');
     if (entry.state === 'working' && entry.countsFrom) lane(session, subagent).working.push([Date.parse(entry.countsFrom), now]);
@@ -146,7 +146,7 @@ export function workTimeline(database: HomeDatabase, projectId: number, workId: 
   for (const report of reports) if (report.session) work(report.session).reported.push(Date.parse(report.at));
   for (const item of lanes.values()) work(item.session).spans.push(...item.working);
   const waits: [number, number][] = [];
-  for (const row of database.db.prepare('SELECT session_id, started_at, ended_at FROM session_wait WHERE project_id = ? AND work_id = ? ORDER BY started_at').all(projectId, workId) as Row[]) {
+  for (const row of database.db.prepare('SELECT session_id, started_at, ended_at FROM session_wait WHERE project_id = ? AND work_id = ? ORDER BY started_at').all(projectRowId, workId) as Row[]) {
     const session = String(row.session_id), start = Date.parse(String(row.started_at));
     let end = Math.min(row.ended_at === null ? now : Date.parse(String(row.ended_at)), start + waitingWindowMs);
     for (const [other, entry] of worked) {

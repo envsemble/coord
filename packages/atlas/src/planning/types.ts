@@ -20,14 +20,14 @@ export interface Work {
   continues?: HandoffLink[]; continuedIn?: HandoffLink[];
 }
 /**
- * A work item at the other end of a handoff: its project (`folderId`, the project's folder ID, its own
+ * A work item at the other end of a handoff: its project (`projectId`, the project's ID, its own
  * included; null only when no project of the home has that planning folder, or in a plan export, which
  * opens no other plan; `project` its planning folder's name in the home, `projectName` its name), the
  * work item, and its title, state and outcome as the hub has them (null when the reference names no
  * work item).
  */
 export interface HandoffLink {
-  folderId: string | null; project: string; projectName: string; workId: string;
+  projectId: string | null; project: string; projectName: string; workId: string;
   title: string | null; state: 'blocked' | 'implementing' | 'draft' | 'other' | 'closed' | null; outcome: 'complete' | 'superseded' | 'abandoned' | null;
 }
 /** One agent's working time on a work item: a session's own (subagent null) or one of its subagents'. */

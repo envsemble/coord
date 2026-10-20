@@ -105,14 +105,14 @@ test('import previews in two windows do not replace each other', async () => {
   const { app, window } = launched!;
   const exported = path.join(scratch, 'notifications.html');
   await stubDialogs(app, { save: exported });
-  // The project's folder ID, as the window's bridge names projects.
+  // The project's ID, as the window's bridge names projects.
   const project = (page: typeof window, name: string) => page.evaluate(async wanted => {
-    const result = await (window as unknown as { atlas: { projects(): Promise<{ ok: boolean; value: { folderId: string; name: string }[] }> } }).atlas.projects();
-    return result.value.find(item => item.name === wanted)!.folderId;
+    const result = await (window as unknown as { atlas: { projects(): Promise<{ ok: boolean; value: { id: string; name: string }[] }> } }).atlas.projects();
+    return result.value.find(item => item.name === wanted)!.id;
   }, name);
   const bridge = (page: typeof window, id: string) => ({
-    exportPlan: (work: string) => page.evaluate(([folderId, workId]) => (window as unknown as { atlas: { exportPlan(project: string, id: string): Promise<{ ok: boolean }> } }).atlas.exportPlan(folderId, workId), [id, work]),
-    choose: () => page.evaluate(folderId => (window as unknown as { atlas: { chooseImport(project: string): Promise<{ ok: boolean; value: { token: string; newId: string } }> } }).atlas.chooseImport(folderId), id),
+    exportPlan: (work: string) => page.evaluate(([projectId, workId]) => (window as unknown as { atlas: { exportPlan(projectId: string, id: string): Promise<{ ok: boolean }> } }).atlas.exportPlan(projectId, workId), [id, work]),
+    choose: () => page.evaluate(projectId => (window as unknown as { atlas: { chooseImport(projectId: string): Promise<{ ok: boolean; value: { token: string; newId: string } }> } }).atlas.chooseImport(projectId), id),
     confirm: (token: string) => page.evaluate(key => (window as unknown as { atlas: { confirmImport(token: string): Promise<{ ok: boolean; value?: { workId: string }; error?: { message: string } }> } }).atlas.confirmImport(key), token),
   });
   const northwind = await project(window, 'Northwind');

@@ -22,7 +22,7 @@ const parts = (target: Target) => target.kind === 'work' ? [target.work, target.
 /** Whether two places show the same thing; a part left out is the same as one set to null. */
 export function samePlace(a: Place, b: Place) {
   if (isPage(a) || isPage(b)) return isPage(a) && isPage(b) && a.page === b.page && placeProject(a) === placeProject(b);
-  return a.project === b.project && a.target.kind === b.target.kind && JSON.stringify(parts(a.target)) === JSON.stringify(parts(b.target));
+  return a.projectId === b.projectId && a.target.kind === b.target.kind && JSON.stringify(parts(a.target)) === JSON.stringify(parts(b.target));
 }
 
 /** The window shows something else: it follows the current entry, and what was ahead goes. Showing the same again adds nothing. */

@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Button } from '@envsemble/envui';
 import { Markdown } from '@envsemble/envui/content';
-import type { WorkProduct, WorkSession, WorkTimeline } from '../types';
+import type { WorkCommit, WorkSession, WorkTimeline } from '../types';
 import { api } from '../api';
 import { ModelName } from '../ui/AiModel';
 import { absoluteDate, relativeDate } from '../ui/format';
@@ -20,15 +20,15 @@ import type { LiveActivity } from './agentTime';
 /** What changes when the plan's activity does: the sessions' states and since when. */
 export const activityKey = (activity: LiveActivity | null) => activity ? activity.state + ':' + activity.sessions.map(session => session.session + session.state + session.since + (session.countsFrom ?? '')).join(',') : '';
 
-/** A work item's sessions and products, read again when its activity (`key`) or its folder changes; null until read. */
+/** A work item's sessions and the commits and PRs they made, read again when its activity (`key`) or its folder changes; null until read. */
 export function useWorkSessions(work: string, key: string) {
   const { project, revision } = useWorkbench();
-  const [value, setValue] = useState<{ work: string; sessions: WorkSession[]; products: WorkProduct[] } | null>(null);
+  const [value, setValue] = useState<{ work: string; sessions: WorkSession[]; commits: WorkCommit[] } | null>(null);
   useEffect(() => {
     let current = true;
     // Kept as it was when nothing changed, so the page does not draw it again.
-    const set = (next: { work: string; sessions: WorkSession[]; products: WorkProduct[] }) => setValue(previous => previous && JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
-    api.workSessions(project, work).then(next => { if (current) set({ work, ...next }); }, () => { if (current) set({ work, sessions: [], products: [] }); });
+    const set = (next: { work: string; sessions: WorkSession[]; commits: WorkCommit[] }) => setValue(previous => previous && JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
+    api.workSessions(project, work).then(next => { if (current) set({ work, ...next }); }, () => { if (current) set({ work, sessions: [], commits: [] }); });
     return () => { current = false; };
   }, [project, work, key, revision]);
   return value?.work === work ? value : null;

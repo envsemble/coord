@@ -8,7 +8,7 @@ import path from 'node:path';
 import { app, dialog, Menu, nativeTheme, powerMonitor, protocol, shell } from 'electron';
 import { atlasHome, electronDataDirectory, HomeDatabase, prepareHome } from '@envsemble/atlas/planning';
 import icon from '../build/icon.png?asset';
-import { Connections } from './host/connections.ts';
+import { Computers } from './computers/computers.ts';
 import { dropImports, registerIpc } from './windows/ipc.ts';
 import { LocalHost } from './host/localHost.ts';
 import { RotatingLog } from './log.ts';
@@ -107,14 +107,14 @@ function start(database: HomeDatabase) {
   const localHost = new LocalHost({
     entry: path.join(import.meta.dirname, 'host.js'), dataDirectory, version: app.getVersion(), log,
     // A restarted host has a new owner token; the connection reads it again and reconnects.
-    onRestart: () => connections.local.wake(),
+    onRestart: () => computers.local.wake(),
   });
-  const connections: Connections = new Connections({
+  const computers: Computers = new Computers({
     database, localHost, log,
     onEvent: (client, event, data) => {
-      if (event === 'folder.changed') { manager.folderChanged(client, data as never); return; }
-      const hostId = client === connections.local ? null : connections.hostIdOf(client);
-      if (client !== connections.local && hostId === null) return;
+      if (event === 'project.changed') { manager.projectChanged(client, data as never); return; }
+      const hostId = client === computers.local ? null : computers.hostIdOf(client);
+      if (client !== computers.local && hostId === null) return;
       // A listing that does not read as one (from another computer's host, say) is asked for again instead.
       if (event === 'projects.changed') { const listed = (data as { projects?: unknown } | null)?.projects; manager.projectsChanged(hostId, isProjectListing(listed) ? listed : undefined); }
       else if (event === 'access.changed') manager.accessChanged(hostId, data as never);
@@ -123,7 +123,7 @@ function start(database: HomeDatabase) {
   });
 
   manager = new WindowManager({
-    state, database, log, connections, version: app.getVersion(), icon, devUrl, devTools,
+    state, database, log, computers, version: app.getVersion(), icon, devUrl, devTools,
     preload: path.join(import.meta.dirname, '../preload/index.cjs'),
     rendererDirectory: path.join(import.meta.dirname, '../renderer'),
   });
@@ -151,7 +151,7 @@ function start(database: HomeDatabase) {
     if (hostStopped) return;
     event.preventDefault();
     hostStopped = true;
-    connections.closeAll();
+    computers.closeAll();
     void Promise.race([localHost.stop(), new Promise(resolve => setTimeout(resolve, 3000))]).finally(() => app.quit());
   });
   app.on('will-quit', () => database.close());
@@ -166,11 +166,11 @@ function start(database: HomeDatabase) {
       log.error('Host could not start', error);
       await dialog.showMessageBox({ type: 'error', title: 'Atlas', message: 'Atlas could not start reading projects.', detail: (error as Error).message + '\n\nDetails are in the log (Open Logs, in the menu).', buttons: ['OK'] });
     });
-    connections.local.start();
+    computers.local.start();
     // The window buttons in each title bar follow the theme.
     nativeTheme.on('updated', () => { for (const window of manager.all()) window.updateTitleBar(); });
     // After sleep, connections may be dead without either side knowing: try them all again now.
-    powerMonitor.on('resume', () => connections.wakeAll());
+    powerMonitor.on('resume', () => computers.wakeAll());
     manager.restore();
     await hostStarted;
   });

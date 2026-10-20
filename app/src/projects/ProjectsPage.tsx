@@ -141,7 +141,7 @@ function ProjectMenu({ project, actions, local, rename, details, busy, change }:
   return <Menu aria-label={'Actions for ' + project.name} align="end" density="compact"
     trigger={<IconButton variant="quiet" icon={<MoreIcon />} aria-label={'Actions for ' + project.name} disabled={busy} />}>
     <MenuItem onClick={details}>Folders…</MenuItem>
-    {local && <MenuItem onClick={() => { api.reveal(project.folderId, 'planning.json').catch(failed); }}>Show in Folder</MenuItem>}
+    {local && <MenuItem onClick={() => { api.reveal(project.id, 'planning.json').catch(failed); }}>Show in Folder</MenuItem>}
     <MenuItem onClick={() => { api.copy(project.path).catch(failed); }}>Copy Path</MenuItem>
     <MenuSeparator />
     <MenuItem onClick={rename}>Rename…</MenuItem>
@@ -202,13 +202,13 @@ function ProjectRow({ project, local, actions, rename, details }: { project: Pro
   const change = (request: ProjectChangeRequest) => { setBusy(true); void actions.change(project, request).finally(() => setBusy(false)); };
   const facts = projectFacts(project);
   const live = project.state === 'active' ? facts : null;
-  return <Row className="project-row" data-project={project.folderId} data-state={project.state} data-group={project.state === 'active' ? 'active' : 'archived'} aria-busy={busy || undefined}
+  return <Row className="project-row" data-project={project.id} data-state={project.state} data-group={project.state === 'active' ? 'active' : 'archived'} aria-busy={busy || undefined}
     interactive={project.state === 'active'}
     title={<span className="project-cell">
-        <span className="project-avatar" aria-hidden="true" style={{ '--project-hue': projectHue(project.folderId) } as CSSProperties}>{initials(project.name)}</span>
+        <span className="project-avatar" aria-hidden="true" style={{ '--project-hue': projectHue(project.id) } as CSSProperties}>{initials(project.name)}</span>
         <span className="project-name">
           {/* An archived project's plans are seen nowhere, so its name leads nowhere. */}
-          {project.state === 'active' ? <button type="button" className="row-link" data-row-target title={'Plans of ' + project.name} onClick={() => actions.go(hubPlace(project.folderId))}><span className="row-link-title">{project.name}</span></button>
+          {project.state === 'active' ? <button type="button" className="row-link" data-row-target title={'Plans of ' + project.name} onClick={() => actions.go(hubPlace(project.id))}><span className="row-link-title">{project.name}</span></button>
             : <span className="row-link-title project-name-plain">{project.name}</span>}
           <small className="cell-note project-meta">
             {live && live.waiting > 0 && <span className="project-fact" data-live="waiting"><StatusIcon status={statuses.waiting} decorative />{live.waiting} {live.waiting === 1 ? 'needs' : 'need'} you</span>}
@@ -224,7 +224,7 @@ function ProjectRow({ project, local, actions, rename, details }: { project: Pro
         {project.folders.length > shownFolders && <Badge className="project-folder-badge" title={project.folders.slice(shownFolders).join('\n')}>+{project.folders.length - shownFolders}</Badge>}
       </span>}
       <span className="project-actions">
-        <Tooltip content="Statistics"><IconButton variant="quiet" icon={<StatisticsIcon />} aria-label={'Statistics of ' + project.name} onClick={() => actions.go(statisticsPlace(project.folderId))} /></Tooltip>
+        <Tooltip content="Statistics"><IconButton variant="quiet" icon={<StatisticsIcon />} aria-label={'Statistics of ' + project.name} onClick={() => actions.go(statisticsPlace(project.id))} /></Tooltip>
         <ProjectMenu project={project} actions={actions} local={local} rename={rename} details={details} busy={busy} change={change} />
       </span>
     </span>} />;
@@ -238,8 +238,8 @@ export function ProjectsPage({ projects, error, computer, local, actions }: { pr
   const active = (projects ?? []).filter(project => project.state === 'active');
   const aside = (projects ?? []).filter(project => project.state !== 'active');
   // The project whose folders show, as last listed: its folders may have changed meanwhile.
-  const details = projects?.find(project => project.folderId === detailed);
-  const row = (project: Project) => <ProjectRow key={project.folderId} project={project} local={local} actions={actions} rename={() => setRenaming(project)} details={() => setDetailed(project.folderId)} />;
+  const details = projects?.find(project => project.id === detailed);
+  const row = (project: Project) => <ProjectRow key={project.id} project={project} local={local} actions={actions} rename={() => setRenaming(project)} details={() => setDetailed(project.id)} />;
   return <Page className="projects-page" heading={<div className="page-heading-row">
     <Text as="h1" variant="page-heading">Projects</Text>
     <span className="spacer" />

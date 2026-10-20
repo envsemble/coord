@@ -73,7 +73,7 @@ export function ComputersDialog({ current, onClose }: { current: ComputerRef; on
   // forgotten row, moves to the first action left in the list.
   const forget = (computer: Computer) => {
     setForgetting(computer.hostId);
-    api.forgetRemote(computer.hostId!).then(() => {
+    api.forgetComputer(computer.hostId!).then(() => {
       if (computer.hostId === current.hostId) onClose();
       else { refocus.current = true; reload(); }
     }, failure => { setForgetting(null); setError((failure as Error).message); });
