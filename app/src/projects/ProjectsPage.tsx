@@ -45,7 +45,7 @@ async function pickFolder(): Promise<string | null> {
 
 /**
  * The folders of this computer a new project covers, chosen in the system's folder dialog, never
- * typed: their rows, each by its name (its full path on hover) with a way to remove it, then a card to
+ * typed: their rows, each by its full path with a way to remove it, then a card to
  * add one.
  */
 function FolderList({ value, onChange, disabled, computer }: { value: string[]; onChange(folders: string[]): void; disabled: boolean; computer: string }) {
@@ -61,7 +61,7 @@ function FolderList({ value, onChange, disabled, computer }: { value: string[]; 
       <span className="folder-list-computer"><ComputerIcon /> {computer}</span>
     </div>
     {value.length > 0 && <GroupedRows aria-label="Folders">{value.map(folder => <Row key={folder}
-      title={<span className="folder-list-name"><FolderIcon className="folder-list-icon" /><bdi title={folder}>{folderName(folder) || folder}</bdi></span>}
+      title={<span className="folder-list-name"><FolderIcon className="folder-list-icon" /><bdi title={folder}>{folder}</bdi></span>}
       action={<Tooltip content="Remove"><IconButton variant="quiet" icon={<CloseIcon />} aria-label={'Remove ' + (folderName(folder) || folder)} disabled={disabled} onClick={() => onChange(value.filter(item => item !== folder))} /></Tooltip>} />)}
     </GroupedRows>}
     <ClickableCard className="folder-list-add" disabled={disabled} onClick={add}>
