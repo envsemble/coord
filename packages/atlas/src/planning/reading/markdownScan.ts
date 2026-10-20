@@ -5,8 +5,9 @@
 // markers or by indentation. A document is parsed only when an estimate of its cost, made in one
 // pass over its lines, stays within a budget; the estimate is calibrated against those inputs to
 // over-estimate, so the parse takes at most about 100 ms where it is allowed. Larger or costlier
-// documents are read line by line, in time linear in their size, their headings' own parsing kept
-// within a budget: close to the parser, not exact.
+// documents are read line by line, in time linear in their size (about 50 ms a megabyte of prose,
+// some 600 ms at the 4 MB limit for the worst inputs), their headings' own parsing kept within a
+// budget: close to the parser, not exact.
 // Node only; the readers' own parsing (headings.ts) is shared with the browser.
 import type { Nodes } from 'mdast';
 import { headingAnchors, parseMarkdown } from './headings.ts';
