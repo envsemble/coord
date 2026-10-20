@@ -24,7 +24,7 @@ When resuming, read the plan as it is now and its history since implementation s
 
 ## Execute
 
-- **Keep the steps true:** `step_set` to `doing` and `done` as they move; `step_add` when agreed scope gains a step, recording the amendment in the plan; `step_remove` when a step is transferred or dropped, telling the user why; `work_block` while genuinely blocked.
+- **Keep the steps true:** `step` (action `set`) to `doing` and `done` as they move; action `add` when agreed scope gains a step, recording the amendment in the plan; action `remove` when a step is transferred or dropped, telling the user why; `work_block` while genuinely blocked.
 - **Keep the `summary` current** at milestones: a group of steps done, a PR opened or merged, a blocker.
 - **Follow the agreed design** through ordinary uncertainty; tell the user your concerns and keep going. A material departure needs the user's agreement first, with the evidence and the proposal, while independent work continues.
 - **Commit** recoverable steps as the repository's conventions say, and planning changes separately with pathspecs.

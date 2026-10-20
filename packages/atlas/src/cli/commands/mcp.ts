@@ -31,10 +31,32 @@ const instructions = "Atlas keeps plans in projects: planning folders in the Atl
 const planningFolder = { type: 'string', description: "The project's planning folder, an absolute path; needed only when several projects or none cover your folder." };
 const cwd = { type: 'string', description: "Your folder, when it isn't the session's." };
 const work = { type: 'string', pattern: '^work-[0-9]{4,}$' };
-const title = { type: 'string', description: 'As the ledger has it.' };
 const titles = (description?: string) => ({ type: 'array', items: { type: 'string' }, ...description && { description } });
 const continues = titles("Work items it continues: work-0023, or project:work-0023 in another project (its planning folder's name).");
 const object = (properties: Record<string, unknown>, required: string[] = []) => ({ type: 'object', properties: { ...properties, planningFolder, cwd }, required, additionalProperties: false });
+
+/** What each action of the step tool takes, and how to say so when a call gets it wrong. */
+const stepFields = {
+  add: { fields: ['steps'], needs: 'steps, a non-empty list of titles' },
+  set: { fields: ['step', 'status'], needs: 'step (its title) and status (todo, doing or done)' },
+  rename: { fields: ['step', 'to'], needs: 'step (its title) and to (the new title)' },
+  remove: { fields: ['step'], needs: 'step (its title)' },
+} as const;
+type StepAction = keyof typeof stepFields;
+const filled = (value: unknown) => typeof value === 'string' && value.trim() !== '';
+const stepValid: Record<string, (value: unknown) => boolean> = {
+  steps: value => Array.isArray(value) && value.length > 0 && value.every(filled), step: filled, to: filled, status: value => ['todo', 'doing', 'done'].includes(value as string),
+};
+
+/** The step tool's action, refused unless the call gives exactly that action's fields, each well formed. */
+function stepAction(input: Arguments): StepAction {
+  const action = input.action as StepAction;
+  if (typeof action !== 'string' || !Object.hasOwn(stepFields, action)) throw new WorkError('Give the step tool an action: add, set, rename or remove.');
+  const { fields, needs } = stepFields[action];
+  const others = Object.keys(stepValid).filter(field => input[field] !== undefined && !(fields as readonly string[]).includes(field));
+  if (others.length || fields.some(field => !stepValid[field](input[field]))) throw new WorkError(`The step action ${action} needs ${needs}` + (others.length ? `, and not ${others.join(' or ')}.` : '.'));
+  return action;
+}
 
 interface Arguments { planningFolder?: string; cwd?: string; work?: string; [key: string]: unknown }
 interface Tool { name: string; description: string; inputSchema: Record<string, unknown>; run(root: string, input: Arguments): Promise<unknown> }
@@ -80,23 +102,16 @@ const tools: Tool[] = [
     inputSchema: object({ work, steps: { ...titles(), minItems: 1 } }, ['work', 'steps']), run: (root, input) => startWork(root, input.work!, { steps: input.steps as string[] }),
   },
   {
-    name: 'step_add', description: 'Add todo steps when agreed scope grows: planning steps before work_start, implementation steps after.',
-    inputSchema: object({ work, steps: titles() }, ['work', 'steps']), run: (root, input) => addSteps(root, input.work!, input.steps as string[]),
-  },
-  {
-    name: 'step_set', description: 'Set a step to todo, doing or done as work on it starts or finishes.',
-    inputSchema: object({ work, step: title, status: { type: 'string', enum: ['todo', 'doing', 'done'] } }, ['work', 'step', 'status']),
-    run: (root, input) => setStepStatus(root, input.work!, input.step as string, input.status as LedgerStepStatus),
-  },
-  {
-    name: 'step_rename', description: 'Rename a step, keeping its place and status.',
-    inputSchema: object({ work, step: title, to: { type: 'string' } }, ['work', 'step', 'to']),
-    run: (root, input) => renameStep(root, input.work!, input.step as string, input.to as string),
-  },
-  {
-    name: 'step_remove', description: 'Remove a step that was transferred or dropped; tell the user why.',
-    inputSchema: object({ work, step: title }, ['work', 'step']),
-    run: (root, input) => removeStep(root, input.work!, input.step as string),
+    name: 'step',
+    description: "Change the ledger's steps. add: append todo steps when agreed scope grows (planning steps before work_start, implementation steps after). set: move a step to todo, doing or done as work on it starts or finishes. rename: retitle a step, keeping its place and status. remove: drop a step that was transferred or dropped; tell the user why.",
+    inputSchema: object({ work, action: { type: 'string', enum: Object.keys(stepFields) }, steps: { ...titles('For add.'), minItems: 1 }, step: { type: 'string', description: 'For set, rename and remove: the title as the ledger has it.' }, status: { type: 'string', enum: ['todo', 'doing', 'done'], description: 'For set.' }, to: { type: 'string', description: 'For rename: the new title.' } }, ['work', 'action']),
+    run: (root, input) => {
+      const action = stepAction(input);
+      if (action === 'add') return addSteps(root, input.work!, input.steps as string[]);
+      if (action === 'set') return setStepStatus(root, input.work!, input.step as string, input.status as LedgerStepStatus);
+      if (action === 'rename') return renameStep(root, input.work!, input.step as string, input.to as string);
+      return removeStep(root, input.work!, input.step as string);
+    },
   },
   {
     name: 'work_block', description: 'Set blocked to the reason the work cannot go on; without a reason, clear it.',
@@ -136,7 +151,7 @@ function leanWhere(where: Whereabouts) {
 }
 
 /** Tools that change only a work item's steps or blocked: their result is the ledger's state. */
-const ledgerTools = new Set(['step_add', 'step_set', 'step_rename', 'step_remove', 'work_block']);
+const ledgerTools = new Set(['step', 'work_block']);
 
 /** What the agent needs after a call: the ledger's state after a step change, the status without statistics after a lifecycle change. */
 function shaped(name: string, value: unknown) {

@@ -29,7 +29,7 @@ steps:
 ---
 ```
 
-Each step is `todo`, `doing` or `done`; a planning step has `phase: planning`, and a step without a phase is an implementation step. Progress counts all of them. The agent changes them through the step tools (`step_set`, `step_add`, `step_rename`, `step_remove`) when a step starts or finishes and at handoff, and sets `blocked` with `work_block`; `work_close` refuses while any step is open or the work is blocked. The ledger has no body except, during implementation, a short `## Final review` list of the minor findings deferred to the final review.
+Each step is `todo`, `doing` or `done`; a planning step has `phase: planning`, and a step without a phase is an implementation step. Progress counts all of them. The agent changes them through the `step` tool (actions `set`, `add`, `rename` and `remove`) when a step starts or finishes and at handoff, and sets `blocked` with `work_block`; `work_close` refuses while any step is open or the work is blocked. The ledger has no body except, during implementation, a short `## Final review` list of the minor findings deferred to the final review.
 
 In the app:
 

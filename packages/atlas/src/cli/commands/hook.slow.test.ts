@@ -15,7 +15,7 @@ test('hooks of one session running at once keep each other\'s links', async t =>
   await Promise.all(ids.map(work => new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [command, 'hook', 'PostToolUse'], { env, windowsHide: true, stdio: ['pipe', 'ignore', 'ignore'] });
     child.on('error', reject).on('exit', resolve);
-    child.stdin.end(JSON.stringify({ session_id: session, cwd: checkout, tool_name: 'mcp__atlas__step_add', tool_input: { work, planningFolder: root } }));
+    child.stdin.end(JSON.stringify({ session_id: session, cwd: checkout, tool_name: 'mcp__atlas__step', tool_input: { work, planningFolder: root } }));
   })));
   const linked = withDatabase(env.ATLAS_HOME!, database => (database.db.prepare('SELECT work_id FROM session_work WHERE session_id = ?').all(session) as { work_id: string }[]).map(row => row.work_id));
   assert.deepEqual(linked.sort(), ids);

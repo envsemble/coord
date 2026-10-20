@@ -91,7 +91,7 @@ steps:
 
 `work_id` is the registered work; `updated` is an ISO date or null; `blocked` is a nonempty string or null. Each step has a `title`, unique within the ledger, a `status` of `todo`, `doing` or `done` (several may be `doing`), and optionally `phase: planning`; a step without one is an implementation step. Write each entry exactly as shown: entries in one column, `status` and `phase` under `title`, spaces only, the title in double quotes. Progress is done steps over all steps; the work left is an estimate by count, not by time.
 
-The tools write this header; do not edit it by hand. `work_create` writes the planning steps "Understand the request" (doing), "Settle the design", "Write the plan" and "Accepted", which agents keep true while designing. `work_accept` marks every planning step done. `work_start` adds the implementation steps, one per meaningful deliverable or milestone. `step_set` moves a step when it starts or finishes, `step_add` adds agreed scope (record the amendment in the plan), and `step_remove` drops or transfers a step, telling the user why. `work_block` sets or clears `blocked`.
+The tools write this header; do not edit it by hand. `work_create` writes the planning steps "Understand the request" (doing), "Settle the design", "Write the plan" and "Accepted", which agents keep true while designing. `work_accept` marks every planning step done. `work_start` adds the implementation steps, one per meaningful deliverable or milestone. The `step` tool moves a step when it starts or finishes (action `set`), adds agreed scope (`add`; record the amendment in the plan), renames a step (`rename`), and drops or transfers one (`remove`), telling the user why. `work_block` sets or clears `blocked`.
 
 ## Work statistics
 

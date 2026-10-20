@@ -63,7 +63,7 @@ function idle(text) {
   try {
     const input = JSON.parse(text || "{}");
     if (typeof input.session_id !== "string" || !name.test(input.session_id)) return true;
-    if (/^mcp__.*atlas.*__(?:work|step)_(?!status$)/.test(input.tool_name ?? "")) return false;
+    if (/^mcp__.*atlas.*__(?:step$|work_(?!status$))/.test(input.tool_name ?? "")) return false;
     let base;
     try { base = realpathSync.native(path.join(atlasHome(), "planning")); } catch { return true; }
     const files = [], toolInput = input.tool_input;

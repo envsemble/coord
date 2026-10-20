@@ -322,7 +322,7 @@ export async function startWork(root: string, workId: string, request: { steps: 
   if (loaded.planMetadata.implementation_status === 'complete') throw new WorkError('The implementation is already complete; reopen the work instead.');
   // Started once already: the ledger has its implementation steps.
   if (loaded.ledgerSteps.some(step => step.phase !== 'planning')) {
-    throw new WorkError('The implementation has started already; add steps with step_add instead.');
+    throw new WorkError('The implementation has started already; add steps with step add instead.');
   }
   const taken = titles.filter(title => loaded.ledgerSteps.some(step => step.title === title));
   if (taken.length) throw new WorkError('The ledger already has these steps: ' + taken.join(', ') + '. Give new titles.');
@@ -549,7 +549,7 @@ export async function closeWork(root: string, workId: string, options: Operation
   if (locationOf(loaded.entry.path) !== 'active') throw new WorkError(`${workId} is not in active/ (${loaded.entry.path}).`);
   if (!loaded.ledgerSteps.some(step => step.phase !== 'planning')) throw new WorkError(`${workId}'s ledger has no implementation steps: start it with the agreed steps and finish them before closing.`);
   const open = openItems(loaded);
-  if (open.length) throw new WorkError(`${workId} cannot close while items are open. Finish them, or remove a dropped one with step_remove.`, open);
+  if (open.length) throw new WorkError(`${workId} cannot close while items are open. Finish them, or remove a dropped one with step remove.`, open);
   const moved = await move(loaded, 'archive');
   return result(loaded.root, workId, [...moved, await writePlan(loaded, { implementation_status: 'complete', completed_at: today }, today)]);
 }

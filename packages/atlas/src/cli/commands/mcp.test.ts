@@ -22,7 +22,7 @@ test('the MCP server serves the planning-state tools, resolving the planning fol
     try {
       assert.match(client.getInstructions() ?? '', /only through these tools/);
       const { tools } = await client.listTools();
-      assert.deepEqual(tools.map(tool => tool.name), ['where', 'project_create', 'work_status', 'work_create', 'work_accept', 'work_start', 'step_add', 'step_set', 'step_rename', 'step_remove', 'work_block', 'work_continue', 'work_close', 'work_archive', 'work_reopen']);
+      assert.deepEqual(tools.map(tool => tool.name), ['where', 'project_create', 'work_status', 'work_create', 'work_accept', 'work_start', 'step', 'work_block', 'work_continue', 'work_close', 'work_archive', 'work_reopen']);
       assert.ok(tools.every(tool => (tool.description ?? '').length > 40), 'every tool says what it is for');
 
       const call = (name: string, args: object) => client.callTool({ name, arguments: args as Record<string, unknown> }) as Promise<Result>;
@@ -41,7 +41,17 @@ test('the MCP server serves the planning-state tools, resolving the planning fol
       assert.deepEqual((started.structuredContent!.steps as { title: string }[]).map(step => step.title), ['Build', 'Review']);
       assert.ok(!('statistics' in started.structuredContent!) && 'changed' in started.structuredContent!, 'a lifecycle result is the status without statistics');
       // A step change returns the ledger's state only.
-      assert.deepEqual(Object.keys((await inRoot('step_set', { work: 'work-0001', step: 'Build', status: 'done' })).structuredContent!), ['planningFolder', 'workId', 'steps', 'progress', 'blocked'], 'the planning folder stays: the hook links the session to the work item through it');
+      assert.deepEqual(Object.keys((await inRoot('step', { work: 'work-0001', action: 'set', step: 'Build', status: 'done' })).structuredContent!), ['planningFolder', 'workId', 'steps', 'progress', 'blocked'], 'the planning folder stays: the hook links the session to the work item through it');
+      // The step tool's other actions; a call missing its action's fields, or carrying another's, is refused with what the action needs.
+      const titled = async (args: object) => ((await inRoot('step', { work: 'work-0001', ...args })).structuredContent!.steps as { title: string }[]).map(step => step.title);
+      assert.deepEqual(await titled({ action: 'add', steps: ['Docs', 'Spare'] }), ['Build', 'Review', 'Docs', 'Spare']);
+      assert.deepEqual(await titled({ action: 'rename', step: 'Docs', to: 'Write docs' }), ['Build', 'Review', 'Write docs', 'Spare']);
+      assert.deepEqual(await titled({ action: 'remove', step: 'Spare' }), ['Build', 'Review', 'Write docs']);
+      assert.match((await inRoot('step', { work: 'work-0001', action: 'set', step: 'Review' })).content![0].text, /^The step action set needs step \(its title\) and status \(todo, doing or done\)\.$/);
+      assert.match((await inRoot('step', { work: 'work-0001', action: 'remove', step: 'Review', status: 'done' })).content![0].text, /needs step \(its title\), and not status\.$/);
+      assert.match((await inRoot('step', { work: 'work-0001', action: 'add', steps: [] })).content![0].text, /needs steps, a non-empty list of titles/);
+      assert.match((await inRoot('step', { work: 'work-0001', action: 'move' })).content![0].text, /action: add, set, rename or remove/);
+      await inRoot('step', { work: 'work-0001', action: 'set', step: 'Write docs', status: 'done' });
       await inRoot('work_block', { work: 'work-0001', reason: 'Waiting' });
       const closing = await inRoot('work_close', { work: 'work-0001' });
       assert.equal(closing.isError, true);

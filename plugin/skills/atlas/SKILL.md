@@ -31,7 +31,7 @@ Record as understanding settles, not only at the end:
 
 - **The plan's `summary`:** keep it saying what the work is and where it stands, when the design settles, at acceptance and as the work moves. The body does not repeat the header.
 - **`plan.md`:** the outcome, scope, decisions with their reasons, dependencies, edge cases and completion checks, in whatever shape the work needs. Label proposals and open questions; never present your recommendation as the user's decision.
-- **The ledger's steps:** the planning steps exist from creation; keep them true with the step tools. The ledger holds nothing else but, during implementation, its final-review list.
+- **The ledger's steps:** the planning steps exist from creation; keep them true with the `step` tool. The ledger holds nothing else but, during implementation, its final-review list.
 - **`CONTEXT.md`:** the work's glossary, updated the moment a term resolves ([format](../atlas-grill/references/CONTEXT-FORMAT.md)).
 
 Write PRs, issues and commits in full, naming the repository from the checkout you work in: `owner/repo#12`, `owner/repo@4ab195a`, or their URLs. Atlas links these; `#12` and a bare hash stay plain text.
@@ -68,4 +68,4 @@ When the work settles domain concepts, boundaries or data structure and a diagra
 
 ## Close
 
-Close with `work_close` once the agreed completion criteria are verified and the outcome is in the plan; for PR delivery that means the required PRs merged, unless agreed otherwise. Acceptance, implementation, PR readiness, merge and release are separate facts: state pending ones accurately. Unfinished scope stays active, or is transferred or dropped with `step_remove`, telling the user why. Closing never grants merge or deployment.
+Close with `work_close` once the agreed completion criteria are verified and the outcome is in the plan; for PR delivery that means the required PRs merged, unless agreed otherwise. Acceptance, implementation, PR readiness, merge and release are separate facts: state pending ones accurately. Unfinished scope stays active, or is transferred or dropped with `step` (action `remove`), telling the user why. Closing never grants merge or deployment.

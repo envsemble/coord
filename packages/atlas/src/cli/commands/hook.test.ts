@@ -106,7 +106,7 @@ test('hooks give the session its planning context, check and link planning edits
   const about = { tool_input: { work: 'work-0003' }, tool_response: [{ type: 'text', text: JSON.stringify({ workId: 'work-0003', planningFolder: root }) }] };
   await hook('PostToolUse', { tool_name: 'mcp__plugin_atlas_atlas__work_status', ...about });
   assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002']);
-  await hook('PostToolUse', { tool_name: 'mcp__plugin_atlas_atlas__step_add', ...about });
+  await hook('PostToolUse', { tool_name: 'mcp__plugin_atlas_atlas__step', ...about });
   assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002', 'work-0003']);
   // A session on several work items counts as working on the one it touched last.
   const activity = () => withDatabase(base.ATLAS_HOME!, database => [...database.workActivity().values()].flat().map(item => [item.workId, item.state]));
@@ -254,7 +254,7 @@ test('a work item the session left is reported at its end when no turn end measu
   const hook = (event: string, input: object) => hookIn(env, event, { session_id: session, transcript_path: transcript, cwd: checkout, hook_event_name: event, ...input });
   assert.equal((await run(['work', 'create', '--title', 'Payments', '--planning-dir', root], { env })).status, 0);
   await hook('PostToolUse', { tool_name: 'Write', tool_input: { file_path: path.join(root, 'active', '0001-cart', 'plan.md') } });
-  await hook('PostToolUse', { tool_name: 'mcp__plugin_atlas_atlas__step_add', tool_input: { work: 'work-0002', planningFolder: root } });
+  await hook('PostToolUse', { tool_name: 'mcp__plugin_atlas_atlas__step', tool_input: { work: 'work-0002', planningFolder: root } });
   const leaves = () => withDatabase(base.ATLAS_HOME!, database => Number((database.db.prepare('SELECT count(*) AS n FROM session_leave').get() as { n: number }).n));
   // A turn end that cannot read the log keeps the leave for later.
   await hook('StopFailure', { transcript_path: path.join(directory, 'missing.jsonl') });

@@ -80,7 +80,7 @@ test('new work has its planning steps from the start: added to while designing, 
   assert.deepEqual(started.steps.map(step => [step.title, step.status, step.phase]), [['Understand the request', 'done', 'planning'], ['Settle the refund rules', 'done', 'planning'], ['Accepted', 'done', 'planning'], ['Ask finance', 'done', 'planning'], ['Build', 'todo', undefined], ['Ship', 'todo', undefined]]);
   assert.deepEqual([started.implementationStatus, started.progress, started.warnings], ['in_progress', '4 of 6 steps done · 2 left', []]);
   assert.match(ledger(), /\n  - title: "Ship"\n    status: todo\n---\n$/, 'the ledger is only its header: no prose');
-  await assert.rejects(startWork(root, 'work-0004', { steps: ['Again'] }, today), /implementation has started already; add steps with step_add/);
+  await assert.rejects(startWork(root, 'work-0004', { steps: ['Again'] }, today), /implementation has started already; add steps with step add/);
   // From then on, added steps are implementation steps; closing needs every step done.
   assert.deepEqual((await addSteps(root, 'work-0004', ['Announce'], today)).steps.at(-1), { title: 'Announce', status: 'todo' });
   await assert.rejects(closeWork(root, 'work-0004', today), /cannot close while items are open/);

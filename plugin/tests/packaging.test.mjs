@@ -100,7 +100,7 @@ const TOOLS = [
   ).matchAll(/name: '([a-z_]+)'/g),
 ].map((match) => match[1]);
 const TOOL_MENTION =
-  /`(?!work_(?:items|id)`)((?:work|step|project)_[a-z_]+|where)`/g; // Registry and ledger fields are not tools.
+  /`(?!work_(?:items|id)`)((?:work|step|project)_[a-z_]+|where|step)`/g; // Registry and ledger fields are not tools.
 
 /** Whether `atlas <words>` names a command: it and a usage line agree for as long as both have words. */
 function knownCommand(words) {
@@ -274,9 +274,10 @@ test("every atlas command and Atlas tool the skills and docs name exists in the 
     "read the command's usage lines",
   );
   assert.ok(
-    TOOLS.length >= 13 &&
+    TOOLS.length >= 12 &&
       TOOLS.includes("where") &&
-      TOOLS.includes("work_close"),
+      TOOLS.includes("work_close") &&
+      TOOLS.includes("step"),
     "read the MCP tool names",
   );
   const docs = [
