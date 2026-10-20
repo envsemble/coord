@@ -26,7 +26,7 @@ import type { Whereabouts } from '../../planning/projects/findProject.ts';
 import type { insertReport } from '../../planning/reports/reports.ts';
 import type { PreparedReport } from '../../planning/reports/recordReport.ts';
 import type { Output } from '../args.ts';
-import { logFailure, pruneStamps, recordActivity, recordAgent, recordSession, sessionPattern, stateEvents, stateHook, stopAgent, type Activity, type ActivityDetails } from './sessionState.ts';
+import { logFailure, pruneStamps, runsAtlasWork, recordActivity, recordAgent, recordSession, sessionPattern, stateEvents, stateHook, stopAgent, type Activity, type ActivityDetails } from './sessionState.ts';
 
 export interface HookInput {
   session_id?: string; transcript_path?: string; cwd?: string; hook_event_name?: string;
@@ -231,6 +231,25 @@ export function editedFiles(input: HookInput): string[] {
   return [...new Set(files.map(file => path.resolve(base, file)))];
 }
 
+/**
+ * The work items a shell command changed through the atlas command (runsAtlasWork): each `atlas
+ * work <operation> <work-id>` in its input, and for `atlas work create` the work item its output
+ * names; with the planning folder its `--planning-dir` names, when that is a full path.
+ */
+export function shellWork(input: HookInput): { workId: string; planningFolder: string | null }[] {
+  if (!runsAtlasWork(input)) return [];
+  const command = strings(input.tool_input).join('\n');
+  const found: { workId: string; planningFolder: string | null }[] = [];
+  const folder = /--planning-dir\s+(?:"([^"]+)"|'([^']+)'|(\S+))/.exec(command);
+  const given = folder ? folder[1] ?? folder[2] ?? folder[3] : null;
+  const planningFolder = given && path.isAbsolute(given) ? given : null;
+  for (const match of command.matchAll(/\batlas(?:\.js|\.cmd)?["']?\s+work\s+(?!(?:status|search|report)\b)(?:step\s+\w+\s+|\w+\s+)(work-[0-9]{4,})\b/g)) found.push({ workId: match[1], planningFolder });
+  if (/\batlas(?:\.js|\.cmd)?["']?\s+work\s+create\b/.test(command)) {
+    for (const text of strings(input.tool_response)) for (const match of text.matchAll(/"workId"\s*:\s*"(work-[0-9]{4,})"/g)) found.push({ workId: match[1], planningFolder });
+  }
+  return found;
+}
+
 /** The work item an Atlas tool call was about: from its input, else from its result. */
 function toolWork(input: HookInput): { workId: string; planningFolder: string | null } | null {
   const toolInput = (input.tool_input ?? {}) as Record<string, unknown>;
@@ -261,12 +280,24 @@ interface LinkRequest { planningFolder: string; workId: string; amending: boolea
 async function postToolUse(input: HookInput, home: string, links: SessionLinks): Promise<{ output: object | null; requests: LinkRequest[] }> {
   const requests: LinkRequest[] = [];
   // Tools that change a work item link it; reading (work_status, work_search) leaves the session where it is.
-  if (/^mcp__.*atlas.*__(?:step$|work_(?!(?:status|search)$))/.test(input.tool_name ?? '')) {
-    const about = toolWork(input);
-    if (about) {
-      const { resolvePlanningFolder } = await import('../../planning/projects/findProject.ts');
-      const root = about.planningFolder ?? await resolvePlanningFolder({ cwd: input.cwd ?? process.cwd(), home, work: about.workId }).catch(() => null);
-      if (root) requests.push({ planningFolder: root, workId: about.workId, amending: false });
+  // So does the atlas command run in a shell (shellWork), the last work item it names last.
+  const tool = /^mcp__.*atlas.*__(?:step$|work_(?!(?:status|search)$))/.test(input.tool_name ?? '');
+  const changed = tool ? [toolWork(input)].filter(about => about !== null) : shellWork(input);
+  if (changed.length) {
+    const { resolvePlanningFolder } = await import('../../planning/projects/findProject.ts');
+    const registers = async (root: string | null, workId: string) => root !== null && (await registered(root).catch(() => [])).some(item => item.id === workId);
+    for (const about of changed) {
+      // A tool's result names the work it changed and where.
+      if (tool) {
+        const root = about.planningFolder ?? await resolvePlanningFolder({ cwd: input.cwd ?? process.cwd(), home, work: about.workId }).catch(() => null);
+        if (root) requests.push({ planningFolder: root, workId: about.workId, amending: false });
+        continue;
+      }
+      // The planning folder named, if it registers the work (a shell's path may not be this system's, as Git Bash's /c/…), else the session's.
+      const named = about.planningFolder !== null && await registers(about.planningFolder, about.workId) ? about.planningFolder : null;
+      const root = named ?? await resolvePlanningFolder({ cwd: input.cwd ?? process.cwd(), home, work: about.workId }).catch(() => null);
+      // A work item the planning folder does not register (a mistyped command) links nothing.
+      if (root && (named !== null || await registers(root, about.workId))) requests.push({ planningFolder: root, workId: about.workId, amending: false });
     }
   }
   const base = await realpath(homePlanningDirectory(home)).catch(() => null);

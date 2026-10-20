@@ -11,3 +11,5 @@ f75ead27090adf668527bc743b68feaba3a37457:packages/planning/src/work.test.ts:gene
 # Made-up remotes with credentials in tests that check Atlas never records or shows them.
 62073f58640e6f1db19a7d4e62b5702585b8a6b5:packages/planning/src/work.slow.test.ts:generic-credential-uri:22
 d72f4794f867d4105b64a8a135d687ad952452d8:packages/planning/src/workspaces.test.ts:generic-credential-uri:41
+# A made-up credential URL in the test of what Now leaves out of commands.
+de77b5d514ecf6386da0aa8d22d02e006ae47789:packages/atlas/src/planning/reports/sessionNow.test.ts:generic-credential-uri:35

@@ -441,6 +441,28 @@ body { margin: 0; }
 .pull-mark-state[data-state='merged'] { color: var(--color-tone-done); }
 .pull-mark-state[data-state='closed'], .pull-mark-checks[data-checks='failing'] { color: var(--color-tone-danger); }
 /* Why a plan needs you: the waiting session's message under its status, with a way to open the session. */
+/* Now: what the sessions on a plan in progress are doing, above the folded plan. */
+.now { display: grid; gap: var(--space-3); max-inline-size: 48rem; margin-block-end: var(--space-2); }
+.now-stopped { margin: 0; font-size: var(--font-size-body-small); }
+.now-session { display: grid; gap: var(--space-1); }
+.now-head { display: flex; align-items: center; gap: var(--space-1); min-inline-size: 0; font-size: var(--font-size-body-small); }
+.now-head .status-icon { inline-size: 1rem; block-size: 1rem; flex: none; }
+.now-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.now-message { overflow-wrap: anywhere; }
+.now-message :is(p, ul, ol, pre):first-child { margin-block-start: 0; }
+.now-message :is(p, ul, ol, pre):last-child { margin-block-end: 0; }
+.now-message[data-clamped] > * > :first-child, .now-message[data-clamped] > :first-child { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+.now-more { justify-self: start; }
+.now-actions { display: grid; gap: 0.125rem; margin: 0; padding: 0; list-style: none; color: var(--color-text-muted); font-size: var(--font-size-body-small); }
+.now-actions li { display: flex; align-items: center; gap: var(--space-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.now-actions li::before { content: '·'; }
+.now-actions li[data-failed] { color: var(--color-tone-danger); }
+.now-actions li[data-failed]::before { content: none; }
+.now-failed { inline-size: 1rem; block-size: 1rem; flex: none; }
+.plan-fold-toggle { display: inline-flex; align-items: center; gap: var(--space-1); justify-self: start; padding: 0; border: 0; background: none; color: var(--color-text); font: inherit; font-weight: 500; cursor: pointer; }
+.plan-fold-toggle:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; border-radius: 0.25rem; }
+.plan-fold-icon { inline-size: 1.25rem; block-size: 1.25rem; transition: transform var(--motion-duration-medium) var(--motion-ease); }
+.plan-fold-toggle[aria-expanded='true'] .plan-fold-icon { transform: rotate(90deg); }
 .needs-you { display: grid; gap: var(--space-2); max-inline-size: 48rem; padding: var(--space-3) var(--space-4); border-inline-start: 0.1875rem solid var(--color-tone-warning); border-radius: var(--radius-standard); background: color-mix(in srgb, var(--color-tone-warning) 8%, transparent); }
 .needs-you-message { overflow-wrap: anywhere; }
 .needs-you-message :is(p, ul, ol, pre):first-child { margin-block-start: 0; }

@@ -189,6 +189,17 @@ test('hooks give the session its planning context, check and link planning edits
   // the first turn's end, without asking, was no wait for anyone.
   const timeline = withDatabase(base.ATLAS_HOME!, database => workTimeline(database, project, 'work-0003', { created: null, accepted: null, completed: null }));
   assert.deepEqual([timeline.lanes.map(lane => [lane.session, lane.subagent, lane.waiting.length]), timeline.waitedMs > 0], [[[session, null, 2]], true]);
+  // The atlas command in a shell links the work item it changes, as the tools do; reading a work item with it does not.
+  await run(['work', 'create', '--title', 'Fees', '--planning-dir', root], { env });
+  // A shell command reaches the hooks as ToolUse only (the plugin runs PostToolUse for edits and the tools).
+  const shell = (command: string) => hook('ToolUse', { tool_name: 'Bash', tool_input: { command, description: 'Plan' }, tool_response: { stdout: '', stderr: '' } });
+  await shell(`atlas work status work-0004 --planning-dir "${root}"`);
+  await shell(`atlas work step set work-0099 "Nothing" done --planning-dir "${root}"`);
+  // An edit whose text only shows such a command (a test, a doc) is no use of it.
+  await hook('PostToolUse', { tool_name: 'Edit', tool_input: { file_path: path.join(checkout, 'notes.md'), new_string: 'atlas work accept work-0004' } });
+  assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002', 'work-0003'], 'reads, unregistered work and edits link nothing');
+  await shell(`cd somewhere && atlas work step set work-0004 "Understand the request" done --planning-dir "${root}"`);
+  assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002', 'work-0003', 'work-0004']);
   assert.ok(!existsSync(path.join(root, 'active', '0001-cart', '.atlas')), 'nothing is written into the planning folder');
   assert.equal((await run(['check', root], { env })).status, 0);
 });

@@ -1,7 +1,7 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, EmptyState, Notice, Text } from '@envsemble/envui';
 import { stepCounts } from '@envsemble/atlas/planning/ledger';
-import { DownloadIcon } from '../ui/icons';
+import { ChevronRightIcon, DownloadIcon } from '../ui/icons';
 import type { Document, LedgerStep, ProjectWork, Snapshot, Target, Work, WorkSession } from '../types';
 import { defaultDocument, planDocument, stepPhase } from './work';
 import { workStatisticsTarget, workTarget } from '../navigation/targets';
@@ -15,7 +15,7 @@ import { ContinuedIn, HandoffEntries, type OpenHandoff } from './HandoffLinks';
 import { WorkStatisticsSummary } from '../statistics/WorkStatisticsSummary';
 import { Waited } from './LiveAgentTime';
 import { unreported, type LiveActivity } from './agentTime';
-import { activityKey, NeedsYou, SessionsList, useWorkSessions } from './WorkSessions';
+import { activityKey, NeedsYou, NowSection, SessionsList, useWorkSessions } from './WorkSessions';
 import { waitingSession } from './sessions';
 import { TargetLink, useWindow } from '../window/windowContext';
 import { Trail } from '../ui/Trail';
@@ -120,6 +120,22 @@ function StatusLine({ work, status, live }: { work: Work; status: StatusLook; li
   </div>;
 }
 
+/** How often Now is read again while a session works on the plan. */
+const nowRefreshMs = 10_000;
+/** A count that goes up every `ms` (none while null) while the window shows, to read something again on a timer. */
+function useTick(ms: number | null) {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (ms === null) return;
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') setTick(value => value + 1); }, ms);
+    // Shown again: read at once.
+    const shown = () => { if (document.visibilityState === 'visible') setTick(value => value + 1); };
+    document.addEventListener('visibilitychange', shown);
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', shown); };
+  }, [ms]);
+  return ms === null ? 0 : tick;
+}
+
 /**
  * A work item: its plan (or, without one, its README or first document). The breadcrumb names its
  * project and number, with Export Plan… beside it; then the title, the status line, why it needs you
@@ -136,8 +152,15 @@ export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Sna
   const live = status.key === 'working' || status.key === 'waiting' ? agents : null;
   const listing = listed(work.id), summary = listing?.summary;
   const references = useReferences(reading, work.id, reading?.format === 'markdown');
-  // The plan's sessions, read again as its activity changes.
-  const sessions = useWorkSessions(work.id, activityKey(agents));
+  // The plan's sessions, read again as its activity changes, and every few seconds while one works
+  // (Now follows what it does).
+  const tick = useTick(status.key === 'working' ? nowRefreshMs : null);
+  const sessions = useWorkSessions(work.id, activityKey(agents) + ':' + tick);
+  // While it is implemented, Now leads and the plan folds below it (open when a heading was asked for).
+  const implementing = work.implementation === 'in_progress';
+  const [planOpen, setPlanOpen] = useState(Boolean(target.anchor));
+  // Each plan starts folded, unless a heading of it was asked for.
+  useEffect(() => { setPlanOpen(Boolean(target.anchor)); }, [work.id, target.anchor]);
   const waiting = status.key === 'waiting' && sessions ? waitingSession(sessions.sessions) : null;
   return <div className="work-page">
     <div className="work-layout">
@@ -153,7 +176,9 @@ export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Sna
           {waiting && <NeedsYou work={work.id} session={waiting} />}
           {summary && <p className="work-summary">{summary}</p>}
         </header>
-        {reading ? <Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} plan={reading === plan} />
+        {implementing && sessions && <NowSection sessions={sessions.sessions} />}
+        {implementing && reading && <button type="button" className="plan-fold-toggle" aria-expanded={planOpen} aria-controls="plan-reading" onClick={() => setPlanOpen(!planOpen)}><ChevronRightIcon className="plan-fold-icon" />{reading === plan ? 'Plan' : reading.name}</button>}
+        {reading ? (!implementing || planOpen) && <div id="plan-reading"><Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} plan={reading === plan} /></div>
           : <EmptyState className="page-empty" title="Nothing to read here" description="This work item has no plan." />}
       </div>
       <PlanAside work={work} snapshot={snapshot} found={target.step ?? null} live={live} listed={listing} sessions={sessions?.sessions ?? []} />

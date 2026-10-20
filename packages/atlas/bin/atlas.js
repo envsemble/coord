@@ -34,6 +34,8 @@ function settled(text) {
     const stamp = path.join(atlasHome(), "session-state", agent ? session + "~" + agent : session);
     const state = readFileSync(stamp, "utf8");
     if (state === "none" && !agent) return true;
+    // The atlas command run in a shell to change a work item links the session (sessionState.ts's runsAtlasWork).
+    if (event === "ToolUse" && ["Bash", "PowerShell", "shell", "exec_command", "local_shell", "exec"].includes(input.tool_name) && /\batlas(?:\.js|\.cmd)?["']?\s+work\s+(?!(?:status|search|report)\b)\w+\b/.test(text)) return false;
     // The agent asking for the person (needs_you) is always recorded.
     if (event === "ToolUse" && typeof input.tool_name === "string" && /^mcp__.*atlas.*__needs_you$/.test(input.tool_name)) return false;
     // A tool call that may have made a commit or a PR is looked at (sessionState.ts's mayCommit).
