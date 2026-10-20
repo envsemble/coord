@@ -20,7 +20,7 @@ test('the MCP server serves the planning-state tools, resolving the planning fol
     const client = new Client({ name: 'atlas-cli-test', version: '1' });
     await client.connect(clientSide);
     try {
-      assert.match(client.getInstructions() ?? '', /Change planning state only through these tools/);
+      assert.match(client.getInstructions() ?? '', /only through these tools/);
       const { tools } = await client.listTools();
       assert.deepEqual(tools.map(tool => tool.name), ['where', 'project_create', 'work_status', 'work_create', 'work_accept', 'work_start', 'step_add', 'step_set', 'step_rename', 'step_remove', 'work_block', 'work_continue', 'work_close', 'work_archive', 'work_reopen']);
       assert.ok(tools.every(tool => (tool.description ?? '').length > 40), 'every tool says what it is for');
@@ -31,6 +31,7 @@ test('the MCP server serves the planning-state tools, resolving the planning fol
       assert.equal((where.structuredContent as { matches: { planningFolder: string }[] }).matches[0].planningFolder, root);
       const status = await call('work_status', { work: 'work-0001' });
       assert.equal(status.isError, undefined);
+      assert.ok('statistics' in status.structuredContent!, 'work_status keeps the statistics');
       assert.deepEqual([status.structuredContent!.workId, status.structuredContent!.planningFolder, status.structuredContent!.designStatus], ['work-0001', root, 'draft']);
       const refused = await inRoot('work_start', { work: 'work-0001', steps: ['Build'] });
       assert.equal(refused.isError, true);
@@ -38,7 +39,9 @@ test('the MCP server serves the planning-state tools, resolving the planning fol
       await call('work_accept', { work: 'work-0001', planningFolder: root });
       const started = await call('work_start', { work: 'work-0001', steps: ['Build', 'Review'], cwd: checkout });
       assert.deepEqual((started.structuredContent!.steps as { title: string }[]).map(step => step.title), ['Build', 'Review']);
-      await inRoot('step_set', { work: 'work-0001', step: 'Build', status: 'done' });
+      assert.ok(!('statistics' in started.structuredContent!) && 'changed' in started.structuredContent!, 'a lifecycle result is the status without statistics');
+      // A step change returns the ledger's state only.
+      assert.deepEqual(Object.keys((await inRoot('step_set', { work: 'work-0001', step: 'Build', status: 'done' })).structuredContent!), ['workId', 'steps', 'progress', 'blocked']);
       await inRoot('work_block', { work: 'work-0001', reason: 'Waiting' });
       const closing = await inRoot('work_close', { work: 'work-0001' });
       assert.equal(closing.isError, true);

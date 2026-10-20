@@ -179,31 +179,32 @@ function contextOutsideProjects(where: Whereabouts): string {
   const folder = where.cwd;
   if (!where.projects.length) return `Atlas: no project covers this folder (${folder}), and the Atlas home (${where.home}) has no projects yet; when the user wants to plan, make one with their agreement (the Atlas tool project_create, or atlas project create), or the user makes one in the app.`;
   const lines = [`Atlas: no project covers this folder (${folder}). Active projects in the Atlas home:`];
-  for (const project of where.projects.slice(0, 15)) lines.push(`- "${project.project}": ${project.planningFolder} (${project.work.length} active work ${project.work.length === 1 ? 'item' : 'items'})`);
+  for (const project of where.projects.slice(0, 15)) lines.push(`- "${project.project}": ${project.planningFolder} (${project.work?.length ?? 0} active work ${project.work?.length === 1 ? 'item' : 'items'})`);
   if (where.projects.length > 15) lines.push(`- …and ${where.projects.length - 15} more.`);
   lines.push("When the work involves Atlas (planning, recording, reviewing), ask the user which project it belongs to, or work across them; the Atlas tool where lists each project's folders and active work.");
   return lines.join('\n');
 }
 
-/** The context a session starts with: its projects, their active work, and how to plan; outside them, the home's projects. */
+/**
+ * The context a session starts with: its projects, their planning folders and active work (plans
+ * relative to the planning folder); outside them, the home's projects. How to plan is the Atlas
+ * tools' instructions, so it is not repeated here.
+ */
 export function sessionContext(where: Whereabouts): string {
   if (!where.matches.length) return contextOutsideProjects(where);
   const lines: string[] = [];
   for (const match of where.matches) {
     lines.push(`Atlas project "${match.project}" for this folder: planning folder ${match.planningFolder}.`);
     if (!match.work.length) lines.push('No active work in this project.');
-    else lines.push('Active work:');
+    else lines.push('Active work (plans relative to the planning folder):');
     for (const item of match.work.slice(0, 10)) {
       const doing = item.steps.filter(step => step.status === 'doing').map(step => step.title);
       const state = [item.designStatus, item.implementationStatus].filter(Boolean).join(', ');
-      lines.push(`- ${item.workId} "${item.title}"${state ? ' (' + state + ')' : ''}: ${item.progress}${doing.length ? '; doing: ' + doing.join('; ') : ''}${item.blocked ? '; BLOCKED: ' + item.blocked : ''}. Plan: ${path.join(match.planningFolder, ...(item.plan ?? item.path).split('/'))}`);
+      lines.push(`- ${item.workId} "${item.title}"${state ? ' (' + state + ')' : ''}: ${item.progress}${doing.length ? '; doing: ' + doing.join('; ') : ''}${item.blocked ? '; BLOCKED: ' + item.blocked : ''}. Plan: ${item.plan ?? item.path}`);
     }
     if (match.work.length > 10) lines.push(`- …and ${match.work.length - 10} more (Atlas tool where).`);
   }
   if (where.matches.length > 1) lines.push(`Several projects cover this folder (${where.matches.map(match => match.project).join(', ')}): before planning, ask the user which project to plan in, and give its planning folder to the Atlas tools.`);
-  lines.push('Planning: when the user designs something or asks for work big enough to plan, ask before opening a work item; small tasks stay plain coding. Change planning state (work items, steps, blocked, closing, archiving) through the Atlas tools; edit plan prose, glossaries and diagrams directly as files in the planning folder.');
-  lines.push('In planning files, write PRs and issues as owner/repo#N and commits as owner/repo@hash (or their URLs), naming the repository yourself, so Atlas links them; when you stop to wait for the user, begin your message with the question or decision you need.');
-  lines.push('When you open work that continues other work (follow-ups moved off work that is closing, a next phase), record the handoff: work_create with continues, or work_continue.');
   return lines.join('\n');
 }
 

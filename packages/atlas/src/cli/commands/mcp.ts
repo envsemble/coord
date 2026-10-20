@@ -1,6 +1,8 @@
 // `atlas mcp`: the planning-state operations for an agent harness, over stdio. The same operations
 // as the work commands, called in-process. Prose (plans, glossaries, the final-review list) and diagrams are
 // files agents edit directly, so there are no tools for them.
+// Every definition and result lands in the agent's context, so both stay lean: the rules are stated
+// once in the instructions, and a result carries what the agent needs after the call (see `shaped`).
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -10,24 +12,28 @@ import {
   acceptWork, addSteps, archiveWork, closeWork, createWork, findPlanning, DatabaseVersionError, PlanningNotFoundError, removeStep, renameStep, reopenWork, setContinues,
   resolvePlanningFolder, setBlocked, setStepStatus, startWork, WorkError, workStatus, type LedgerStepStatus,
 } from '../../planning/index.ts';
+import type { Whereabouts } from '../../planning/projects/findProject.ts';
+import type { WorkResult } from '../../planning/work/work.ts';
 import { parseOptions, UsageError, wantsHelp, type Output } from '../args.ts';
 import { createHomeProject } from './planning.ts';
 
 const require = createRequire(import.meta.url);
 const { version } = require('../../../package.json') as { version: string };
 
-const instructions = 'Atlas keeps plans in projects: planning folders in the Atlas home (~/.atlas/planning). Find the projects and active work for your folder with where, which also lists every active project in the home; '
-  + "a session in one of a project's folders belongs to that project. When several projects match, ask the user which one to plan in and pass its planningFolder; when none does, ask which project the work belongs to. "
-  + 'Create a project with project_create only when the user asks for one or agrees to it. '
-  + 'Change planning state only through these tools: create a work item (ask the user first, and only for work big enough to plan), accept its design, start implementation with its steps, '
-  + 'update steps and blocked as work moves, and close it when every step is done. Edit plan prose, glossaries and diagrams directly as files in the planning folder; '
-  + 'write PRs and issues as owner/repo#N and commits as owner/repo@hash (or their URLs), so Atlas links them. The tools never commit; commit planning changes yourself.';
+const instructions = "Atlas keeps plans in projects: planning folders in the Atlas home (~/.atlas/planning). A session in one of a project's folders (the deepest wins when they nest), or in its planning folder, belongs to that project; where lists the projects and their active work. "
+  + 'When several projects match, ask the user which one to plan in and pass its planningFolder; when none does, ask which project the work belongs to. '
+  + 'Ask the user before project_create or work_create, and open work items only for work big enough to plan; small tasks stay plain coding. '
+  + 'Change planning state (work items, steps, blocked, closing, archiving) only through these tools; edit plan prose, glossaries and diagrams directly as files in the planning folder. '
+  + 'When work continues other work (follow-ups moved off work that is closing, a next phase), record the handoff with continues. '
+  + 'In planning files, write PRs and issues as owner/repo#N and commits as owner/repo@hash (or their URLs), naming the repository yourself, so Atlas links them. '
+  + 'When you stop to wait for the user, begin your message with the question or decision you need. The tools never commit; commit planning changes yourself.';
 
-const planningFolder = { type: 'string', description: "Absolute path of the project's planning folder. Omit it to use the one your folder belongs to; give it when several projects cover your folder, or none does." };
-const cwd = { type: 'string', description: 'Absolute path of the folder you work in, to find its planning folder. Defaults to the folder the session started in.' };
-const work = { type: 'string', description: 'The work item ID, such as work-0012.', pattern: '^work-[0-9]{4,}$' };
-const title = { type: 'string', description: 'A step title, exactly as the ledger has it.' };
-const titles = (description: string) => ({ type: 'array', items: { type: 'string' }, description });
+const planningFolder = { type: 'string', description: "The project's planning folder; needed only when several projects or none cover your folder." };
+const cwd = { type: 'string', description: "Your folder, when it isn't the session's." };
+const work = { type: 'string', pattern: '^work-[0-9]{4,}$' };
+const title = { type: 'string', description: 'As the ledger has it.' };
+const titles = (description?: string) => ({ type: 'array', items: { type: 'string' }, ...description && { description } });
+const continues = titles("Work items it continues: work-0023, or project:work-0023 in another project (its planning folder's name).");
 const object = (properties: Record<string, unknown>, required: string[] = []) => ({ type: 'object', properties: { ...properties, planningFolder, cwd }, required, additionalProperties: false });
 
 interface Arguments { planningFolder?: string; cwd?: string; work?: string; [key: string]: unknown }
@@ -36,17 +42,17 @@ interface Tool { name: string; description: string; inputSchema: Record<string, 
 const tools: Tool[] = [
   {
     name: 'where',
-    description: "List every active project in the Atlas home (projects: each planning folder, an absolute path, with its name, folders, active work as titles, summaries and states, and match: whether your folder belongs to it), and in matches the projects your folder belongs to, with their active work, its steps and blocked. A folder in one of a project's folders belongs to that project (the deepest folder wins when they nest), and so does a folder inside its planning folder; any other folder belongs to no project. Call it first when you need the plan or ledger of your work; when several projects match, ask the user which one to plan in; when none does, ask which project the work belongs to, or work across them.",
+    description: 'The projects your folder belongs to (matches: planning folder and active work with steps and blocked), and every active project in the home (projects: planning folder, folders, and the active work of the others in brief). Call it when you need your work\'s plan or ledger and have no Atlas session context.',
     inputSchema: { type: 'object', properties: { cwd }, additionalProperties: false },
-    run: (_, input) => findPlanning(input.cwd!),
+    run: async (_, input) => leanWhere(await findPlanning(input.cwd!)),
   },
   {
     name: 'project_create',
-    description: "Create a project in the Atlas home: a planning folder made from Atlas's templates, as its own Git repository, covering the folders given (a session in one of them, or inside one, belongs to the project). Ask the user before creating one, and check with where that no project already covers the work. Returns its name, planning folder and folders.",
+    description: 'Create a project in the Atlas home: a planning folder, its own Git repository, covering the folders given. Check with where that none covers them yet.',
     inputSchema: {
       type: 'object', additionalProperties: false, required: ['name', 'folders'], properties: {
-        name: { type: 'string', description: "The project's name." },
-        folders: { type: 'array', items: { type: 'string' }, description: 'Absolute paths of the folders on this computer the project covers; it may be empty.' },
+        name: { type: 'string' },
+        folders: { type: 'array', items: { type: 'string' }, description: 'Absolute paths of the folders it covers; may be empty.' },
       },
     },
     run: (_, input) => {
@@ -55,72 +61,91 @@ const tools: Tool[] = [
     },
   },
   {
-    name: 'work_status', description: 'A work item\'s plan statuses and dates, ledger steps, blocked, and a summary of its statistics.',
+    name: 'work_status', description: 'A work item\'s plan statuses and dates, steps, blocked and statistics.',
     inputSchema: object({ work }, ['work']), run: (root, input) => workStatus(root, input.work!),
   },
   {
     name: 'work_create',
-    description: 'Create and register a work item: the next free number, active/NNNN-slug/plan.md with a draft plan header (with its summary), a ledger with the planning steps (Understand the request, doing; Settle the design; Write the plan; Accepted), and its planning.json entry. Ask the user before creating one: only work big enough to plan needs it. Then write the plan body in plan.md directly, keep the summary in its header current as the work moves, and keep the planning steps true while designing (rename, add or remove them to fit the work).',
-    inputSchema: object({ title: { type: 'string', description: 'The work\'s title.' }, summary: { type: 'string', description: 'Two or three plain sentences, on one line: what the work is, why, and where it stands.' }, slug: { type: 'string', description: 'Folder name after the number (lowercase, hyphens); derived from the title when omitted.' }, continues: titles('The work items it continues (a handoff): work-0023 in this project, or project:work-0023 in another project of the home, by its planning folder\'s name. Give it when the work picks up where other work left off: follow-ups moved off work that is closing, a next phase, deferred review findings.') }, ['title']),
+    description: 'Create a work item: active/NNNN-slug/ with a draft plan.md (its header holds the summary) and a ledger with the planning steps (Understand the request, doing; Settle the design; Write the plan; Accepted). Then write the plan body directly, and keep the summary and planning steps true as the design settles.',
+    inputSchema: object({ title: { type: 'string' }, summary: { type: 'string', description: 'Two or three plain sentences, on one line: what the work is, why, and where it stands.' }, slug: { type: 'string', description: 'Folder name after the number; derived from the title by default.' }, continues }, ['title']),
     run: (root, input) => createWork(root, { title: input.title as string, slug: (input.slug as string | undefined) ?? null, summary: (input.summary as string | undefined) ?? null, continues: (input.continues as string[] | undefined) ?? null }),
   },
   {
-    name: 'work_accept', description: 'Record that the user accepted the design: design_status accepted, accepted_at today, and every planning step done. Only when the user has agreed to the plan.',
+    name: 'work_accept', description: 'Record that the user agreed to the plan: design accepted today, planning steps done.',
     inputSchema: object({ work }, ['work']), run: (root, input) => acceptWork(root, input.work!),
   },
   {
     name: 'work_start',
-    description: 'Start implementing an accepted plan: implementation in progress, these steps (one per meaningful deliverable or milestone, all todo) after the planning steps in the ledger. Commit the plan first.',
-    inputSchema: object({ work, steps: { ...titles('The agreed steps, in order.'), minItems: 1 } }, ['work', 'steps']), run: (root, input) => startWork(root, input.work!, { steps: input.steps as string[] }),
+    description: 'Start implementing an accepted plan: its agreed steps (one per meaningful deliverable) go after the planning steps as todo. Commit the plan first.',
+    inputSchema: object({ work, steps: { ...titles(), minItems: 1 } }, ['work', 'steps']), run: (root, input) => startWork(root, input.work!, { steps: input.steps as string[] }),
   },
   {
-    name: 'step_add', description: 'Add steps (todo) when agreed scope gains them: before implementation starts they are planning steps, after work_start implementation steps.',
-    inputSchema: object({ work, steps: titles('New step titles.') }, ['work', 'steps']), run: (root, input) => addSteps(root, input.work!, input.steps as string[]),
+    name: 'step_add', description: 'Add todo steps when agreed scope grows: planning steps before work_start, implementation steps after.',
+    inputSchema: object({ work, steps: titles() }, ['work', 'steps']), run: (root, input) => addSteps(root, input.work!, input.steps as string[]),
   },
   {
-    name: 'step_set', description: 'Set a ledger step to todo, doing or done, as work starts or finishes it.',
+    name: 'step_set', description: 'Set a step to todo, doing or done as work on it starts or finishes.',
     inputSchema: object({ work, step: title, status: { type: 'string', enum: ['todo', 'doing', 'done'] } }, ['work', 'step', 'status']),
     run: (root, input) => setStepStatus(root, input.work!, input.step as string, input.status as LedgerStepStatus),
   },
   {
-    name: 'step_rename', description: 'Rename a ledger step, keeping its place and status.',
-    inputSchema: object({ work, step: title, to: { type: 'string', description: 'The new title.' } }, ['work', 'step', 'to']),
+    name: 'step_rename', description: 'Rename a step, keeping its place and status.',
+    inputSchema: object({ work, step: title, to: { type: 'string' } }, ['work', 'step', 'to']),
     run: (root, input) => renameStep(root, input.work!, input.step as string, input.to as string),
   },
   {
-    name: 'step_remove', description: 'Remove a ledger step that was transferred or dropped. Never drop an agreed step silently: tell the user why.',
+    name: 'step_remove', description: 'Remove a step that was transferred or dropped; tell the user why.',
     inputSchema: object({ work, step: title }, ['work', 'step']),
     run: (root, input) => removeStep(root, input.work!, input.step as string),
   },
   {
-    name: 'work_block', description: 'Set the ledger\'s blocked to the reason the work cannot go on; call it without a reason to clear blocked once it can.',
-    inputSchema: object({ work, reason: { type: 'string', description: 'What blocks the work. Omit it to clear blocked.' } }, ['work']),
+    name: 'work_block', description: 'Set blocked to the reason the work cannot go on; without a reason, clear it.',
+    inputSchema: object({ work, reason: { type: 'string' } }, ['work']),
     run: (root, input) => setBlocked(root, input.work!, (input.reason as string | undefined) || null),
   },
   {
     name: 'work_continue',
-    description: 'Record which work a work item continues (the handoff in its plan\'s header, continues): the earlier plan then shows it as continued in this one, and both ledgers link the handoff. Replaces what was recorded; an empty list records none. work_create takes continues too, for new work.',
-    inputSchema: object({ work, continues: titles('The work items it continues (a handoff): work-0023 in this project, or project:work-0023 in another project of the home, by its planning folder\'s name. Give it when the work picks up where other work left off: follow-ups moved off work that is closing, a next phase, deferred review findings.') }, ['work', 'continues']),
+    description: 'Record the work a work item continues (the handoff), replacing what was recorded; an empty list records none. Both plans and ledgers then link it.',
+    inputSchema: object({ work, continues }, ['work', 'continues']),
     run: (root, input) => setContinues(root, input.work!, input.continues as string[]),
   },
   {
-    name: 'work_close', description: 'Close finished work: refused with the open items unless its ledger has steps, every one done, and nothing is blocked; then implementation complete, completed_at today, and the folder moves to archive/. Follow-ups that move to new work go into a work item created with continues naming this one, which records the handoff; closing records nothing more.',
+    name: 'work_close', description: 'Close finished work: refused with the open items unless every step is done and nothing is blocked; then complete today and moved to archive/.',
     inputSchema: object({ work }, ['work']), run: (root, input) => closeWork(root, input.work!),
   },
   {
     name: 'work_archive',
-    description: 'Move a work folder from active/ to archive/ without closing it, repairing links. Work that is not complete needs a disposition: superseded (name the work that replaces it) or abandoned (give the reason); it becomes the plan\'s design_status, and the reason goes into the plan\'s Outcome. Finished work is closed with work_close instead.',
-    inputSchema: object({
-      work, disposition: { type: 'string', enum: ['superseded', 'abandoned'], description: 'Why the work stops: replaced by other work, or dropped.' },
-      supersededBy: { ...work, description: 'For superseded work: the work item that replaces it. Naming it implies superseded.' }, reason: { type: 'string', description: 'Why; required for abandoned work, and only given with a disposition.' },
-    }, ['work']),
+    description: 'Move work to archive/ without closing it. Unfinished work needs a disposition: superseded (supersededBy names the replacement) or abandoned (the reason goes into the plan\'s Outcome). Close finished work with work_close.',
+    inputSchema: object({ work, disposition: { type: 'string', enum: ['superseded', 'abandoned'] }, supersededBy: work, reason: { type: 'string' } }, ['work']),
     run: (root, input) => archiveWork(root, input.work!, { disposition: (input.disposition as 'superseded' | 'abandoned' | undefined) ?? null, supersededBy: (input.supersededBy as string | undefined) ?? null, reason: (input.reason as string | undefined) ?? null }),
   },
   {
-    name: 'work_reopen', description: 'Reopen archived work: back to active/, implementation in progress, with the new steps as todo.',
-    inputSchema: object({ work, steps: titles('The steps that reopen it.') }, ['work', 'steps']), run: (root, input) => reopenWork(root, input.work!, { steps: input.steps as string[] }),
+    name: 'work_reopen', description: 'Reopen archived work: back to active/, in progress, with the new steps as todo.',
+    inputSchema: object({ work, steps: titles() }, ['work', 'steps']), run: (root, input) => reopenWork(root, input.work!, { steps: input.steps as string[] }),
   },
 ];
+
+/**
+ * `where` for the agent: the work's folder only when its plan does not name it, and the other
+ * projects' summaries only when no project matches, as the agent then chooses among them.
+ */
+function leanWhere(where: Whereabouts) {
+  const matches = where.matches.map(match => ({ ...match, work: match.work.map(({ path: folder, ...item }) => item.plan?.startsWith(folder + '/') ? item : { path: folder, ...item }) }));
+  const projects = matches.length ? where.projects.map(({ work, ...project }) => work ? { ...project, work: work.map(({ summary: _, ...item }) => item) } : project) : where.projects;
+  return { ...where, matches, projects };
+}
+
+/** Tools that change only a work item's steps or blocked: their result is the ledger's state. */
+const ledgerTools = new Set(['step_add', 'step_set', 'step_rename', 'step_remove', 'work_block']);
+
+/** What the agent needs after a call: the ledger's state after a step change, the status without statistics after a lifecycle change. */
+function shaped(name: string, value: unknown) {
+  if (name === 'work_status' || !value || typeof value !== 'object' || !('statistics' in value)) return value;
+  const { statistics: _, changed, warnings, ...status } = value as WorkResult;
+  const notes = warnings.length ? { warnings } : {};
+  if (ledgerTools.has(name)) return { workId: status.workId, steps: status.steps, progress: status.progress, blocked: status.blocked, ...notes };
+  return { ...status, changed, ...notes };
+}
 
 /** Tools about the home rather than one planning folder. */
 const homeTools = new Set(['where', 'project_create']);
@@ -132,7 +157,7 @@ export async function callTool(name: string, input: Arguments) {
   try {
     const base = input.cwd && path.isAbsolute(input.cwd) ? input.cwd : process.cwd();
     const root = homeTools.has(name) ? '' : await resolvePlanningFolder({ planningFolder: input.planningFolder, cwd: base, work: input.work ?? null });
-    const value = await tool.run(root, { ...input, cwd: base });
+    const value = shaped(name, await tool.run(root, { ...input, cwd: base }));
     return { content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: value as Record<string, unknown> };
   } catch (error) {
     if (!(error instanceof WorkError || error instanceof PlanningNotFoundError || error instanceof DatabaseVersionError)) throw error;

@@ -28,7 +28,7 @@ test('atlas mcp serves the planning-state tools over stdio, resolving the planni
       child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
     });
     const initialized = await request('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'atlas-cli-test', version: '1' } });
-    assert.match(JSON.stringify(initialized.result), /Change planning state only through these tools/);
+    assert.match(JSON.stringify(initialized.result), /only through these tools/);
     child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
     const { result: listed } = await request('tools/list', {});
     assert.ok(listed!.tools!.some(tool => tool.name === 'work_status'));

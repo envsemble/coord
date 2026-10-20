@@ -3,7 +3,8 @@
 // deepest folder winning when they nest; inside a planning folder, to that project. Outside every
 // folder it belongs to none. Atlas knows no repositories: the agent links to them itself.
 // Only active projects match: archived ones (such as a folder split into others) do not.
-// `where` also lists every active project of the home in brief, so an agent outside them can ask.
+// `where` also lists every active project of the home in brief, so an agent outside them can ask;
+// a matching project's work is listed once, in full, in `matches`.
 import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { parseFrontmatter } from '../check/check.ts';
@@ -42,10 +43,10 @@ export interface ProjectBrief {
   project: string;
   /** The folders it covers (planning.json's `folders`). */
   folders: string[];
-  /** Whether the folder belongs to it (it is then in `matches` too, with its work in full). */
+  /** Whether the folder belongs to it (it is then in `matches`, with its work in full, and has no `work` here). */
   match: boolean;
-  /** All of its active work. */
-  work: WorkBrief[];
+  /** All of its active work, when the folder does not belong to it. */
+  work?: WorkBrief[];
 }
 export interface Whereabouts {
   cwd: string; home: string;
@@ -132,7 +133,10 @@ export async function findPlanning(cwd: string, options: { home?: string } = {})
   // The deepest folder (or the planning folder itself) decides: only the projects with the deepest one the session is in match.
   const deepest = Math.max(0, ...candidates.map(candidate => candidate.depth));
   const matches = candidates.filter(candidate => candidate.depth === deepest).map(({ depth: _, ...match }) => match);
-  for (const project of projects) project.match = matches.some(match => match.planningFolder === project.planningFolder);
+  for (const project of projects) {
+    project.match = matches.some(match => match.planningFolder === project.planningFolder);
+    if (project.match) delete project.work;
+  }
   return { cwd: resolvedCwd, home, matches, projects };
 }
 

@@ -37,12 +37,12 @@ test('a folder finds its planning folders in the home: in one of their folders, 
   // Elsewhere, no project; every active project is listed in brief, wherever where is asked.
   const outside = await findPlanning(directory, { home });
   assert.deepEqual(outside.matches, []);
-  assert.deepEqual(outside.projects.map(project => [project.project, project.planningFolder, project.folders, project.match, project.work.map(item => [item.workId, item.title, item.designStatus, item.implementationStatus, item.progress])]), [
+  assert.deepEqual(outside.projects.map(project => [project.project, project.planningFolder, project.folders, project.match, project.work!.map(item => [item.workId, item.title, item.designStatus, item.implementationStatus, item.progress])]), [
     ['Planning', root, [shop], false, [['work-0001', 'Existing work', 'accepted', 'in_progress', '0 of 1 step done · 1 left'], ['work-0002', 'Existing work', 'draft', 'not_started', 'No steps agreed yet']]],
     ['unrelated', unrelated, [path.join(directory, 'other')], false, []],
   ]);
-  assert.ok(!('steps' in outside.projects[0].work[0]), 'the list stays compact: no steps');
-  assert.deepEqual(where.projects.map(project => [project.project, project.match]), [['Planning', true], ['unrelated', false]]);
+  assert.ok(!('steps' in outside.projects[0].work![0]), 'the list stays compact: no steps');
+  assert.deepEqual(where.projects.map(project => [project.project, project.match, 'work' in project]), [['Planning', true, false], ['unrelated', false, true]], "a matching project's work is listed once, in matches");
   assert.equal(await resolvePlanningFolder({ cwd: shop, home }), root);
   assert.equal(await resolvePlanningFolder({ planningFolder: root, home }), root);
   await assert.rejects(resolvePlanningFolder({ cwd: directory, home }), /No project in the Atlas home .* covers/);
@@ -102,7 +102,7 @@ test('a folder in a project\'s folder belongs to that project, the deepest folde
   // where's briefs carry each plan's summary.
   const outside = await findPlanning(directory, { home });
   assert.deepEqual(outside.matches, []);
-  assert.deepEqual(outside.projects.find(item => item.project === 'Planning')!.work.map(item => [item.workId, item.summary]), [['work-0001', 'Carts that last. Planned, not started.'], ['work-0002', null]]);
+  assert.deepEqual(outside.projects.find(item => item.project === 'Planning')!.work!.map(item => [item.workId, item.summary]), [['work-0001', 'Carts that last. Planned, not started.'], ['work-0002', null]]);
   // A broad folder around the home does not take a session inside another project's planning folder.
   project('Broad', [directory]);
   assert.deepEqual(matched(await findPlanning(path.join(root, 'active'), { home })), [['Planning', ['inside']]]);

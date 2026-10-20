@@ -7,11 +7,11 @@ description: "Records projects and their work items in Atlas: plans, steps, glos
 
 Atlas keeps plans in projects. A project is a planning folder, its own Git repository in the Atlas home (`~/.atlas/planning/<name>`), and the folders on this computer where its work happens. Atlas records projects and their work items, nothing else. This skill finds the project, decides when to plan, records the work and keeps it current. Two workflows build on it, each run only when the user asks for it by name: [atlas-grill](../atlas-grill/SKILL.md) questions the user in rounds until a design is settled, and [atlas-implement](../atlas-implement/SKILL.md) implements an accepted plan.
 
-Every planning folder has its own `AGENTS.md` (what is true, what to keep) and `PLANS.md` (the plan, registry and ledger formats); they govern, so read them before changing anything there. This skill says what to do and when.
+Every planning folder has its own `AGENTS.md` (what is true, what to keep), which governs it: read it before changing anything there. Its `PLANS.md` defines the plan, registry and ledger formats; the tools write headers and ledgers and Atlas checks every edit, so consult it only when you edit a header or ledger by hand. This skill says what to do and when.
 
 ## Find the project
 
-- At session start Atlas names the session's project, its planning folder (an absolute path) and its active work. Without that context, call `where`: it lists every active project in the home with its folders and active work, and marks the ones the session belongs to.
+- At session start Atlas names the session's project, its planning folder and its active work. Without that context, call `where`: it lists every active project in the home and marks the ones the session belongs to.
 - A session belongs to the project whose folder it is in (the deepest folder wins when they nest), or whose planning folder it is in. A location the user gives wins.
 - **Several match:** ask the user which project to plan in, and pass its planning folder to the tools (`planningFolder`).
 - **None matches:** ask which project the work belongs to. For a listed project, offer to add this folder to it (in the app's Projects page, or in its `planning.json`); otherwise offer to [set up a project](#set-up-a-project). A request about Atlas itself or several projects is [work across projects](#work-across-projects).
@@ -42,20 +42,13 @@ When the user agrees to the plan, record it with `work_accept` and update the su
 
 ## The Atlas tools
 
-The tools change planning state; each validates, refuses with the reason, and never commits.
+The tools change planning state; each validates, refuses with the reason, and never commits:
 
-| Tool                                                 | Use it to                                                                            |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `where`, `work_status`                               | find the projects and active work; read a work item's steps and statistics           |
-| `project_create`                                     | create a project from a name and folders, once the user agreed                       |
-| `work_create`                                        | open a work item with its summary and planning steps, once the user agreed           |
-| `work_accept`                                        | record that the user accepted the design; its planning steps are done                |
-| `work_start`                                         | start implementation, adding the agreed steps after the planning steps               |
-| `step_add`, `step_set`, `step_rename`, `step_remove` | keep the ledger's steps current; tell the user why a step is removed                 |
-| `work_block`                                         | set or clear what blocks the work                                                    |
-| `work_close`                                         | close verified work; refused while steps are open                                    |
-| `work_archive`, `work_reopen`                        | archive superseded (by which work) or abandoned (why) work; bring archived work back |
-| `work_continue`                                      | record that a work item continues other work, in any project                         |
+- `where`, `work_status`: find the projects and active work; read a work item's steps and statistics.
+- `project_create`, `work_create`: create a project, or a work item with its summary and planning steps, once the user agreed.
+- `work_accept`: record that the user accepted the design. `work_start`: start implementation with the agreed steps.
+- `step_add`, `step_set`, `step_rename`, `step_remove`: keep the ledger's steps current; tell the user why a step is removed. `work_block`: set or clear what blocks the work.
+- `work_close`: close verified work. `work_archive`: archive superseded or abandoned work. `work_reopen`: bring archived work back. `work_continue`: record that a work item continues other work, in any project.
 
 Everything else is an ordinary file: plan bodies, the final-review list, glossaries, diagrams and whatever else a work folder holds. Edit them directly at their absolute paths, from any folder; after each edit, Atlas checks the file and hands back what to fix. Do not hand-edit what the tools own: the registry's work items, the header statuses and dates, the ledger header, and moves between `active/` and `archive/`.
 

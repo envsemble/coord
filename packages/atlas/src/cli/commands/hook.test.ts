@@ -48,15 +48,13 @@ test('hooks give the session its planning context, check and link planning edits
   /** Whether the database has the session's agent in a turn (the app's Working). */
   const working = () => withDatabase(base.ATLAS_HOME!, database => Number((database.db.prepare('SELECT working FROM session WHERE id = ?').get(session) as { working: number }).working));
 
-  // SessionStart: the project, its planning folder and active work, and how to plan; outside every project's folders, the home's projects.
+  // SessionStart: the project, its planning folder once and active work (how to plan is in the Atlas tools' instructions); outside every project's folders, the home's projects.
   const started = await hook('SessionStart', { source: 'startup' });
   assert.equal(started.hookSpecificOutput.hookEventName, 'SessionStart');
   const context: string = started.hookSpecificOutput.additionalContext;
   assert.ok(context.includes(`Atlas project "shop-planning" for this folder: planning folder ${root}.`), context);
-  assert.match(context, /write PRs and issues as owner\/repo#N and commits as owner\/repo@hash/);
   assert.ok(!context.includes('Several projects'), context);
-  assert.ok(context.includes('- work-0001 "Cart" (draft, not_started): No steps agreed yet. Plan: ' + path.join(root, 'active', '0001-cart', 'plan.md')), context);
-  assert.match(context, /ask before opening a work item/);
+  assert.ok(context.endsWith('\n- work-0001 "Cart" (draft, not_started): No steps agreed yet. Plan: active/0001-cart/plan.md'), context);
   const elsewhere = temporary(t);
   assert.equal(await contextIn(env, elsewhere), [
     `Atlas: no project covers this folder (${realpathSync.native(elsewhere)}). Active projects in the Atlas home:`,
@@ -282,8 +280,8 @@ test('a session in a folder that several projects cover is told to ask which one
   assert.deepEqual(where.matches.map((match: { project: string }) => match.project), ['Coord', 'shop-planning']);
   // Once Coord covers only the folder around the checkout, the deeper folder decides.
   write(path.join(other, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Coord', folders: [path.dirname(checkout)], work_items: [] }));
-  assert.match(await contextIn(env, checkout), /^Atlas project "shop-planning" for this folder: planning folder .*\.\nActive work:\n/);
-  assert.match(await contextIn(env, path.dirname(checkout)), /^Atlas project "Coord" for this folder: planning folder .*\.\nNo active work in this project\.\nPlanning: /);
+  assert.match(await contextIn(env, checkout), /^Atlas project "shop-planning" for this folder: planning folder .*\.\nActive work \(plans relative to the planning folder\):\n/);
+  assert.equal(await contextIn(env, path.dirname(checkout)), `Atlas project "Coord" for this folder: planning folder ${realpathSync.native(other)}.\nNo active work in this project.`);
 });
 
 test('a session in an empty Atlas home is told there are no projects and how to make one', async t => {

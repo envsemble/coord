@@ -56,6 +56,6 @@ Treat bot and human findings alike: validate, grade, batch the fixes, push, and 
 
 ## Close
 
-Confirm the outcome against the plan, the validation and the reviews, and write it into the plan's `summary`, naming PRs and commits in full. Once every step is done and the completion criteria are verified (for PR delivery, the required PRs merged unless agreed otherwise), close with `work_close`. Follow-ups (deferred findings, ideas, later fixes) do not keep the work open: with the user's agreement, open a work item for them with `work_create` and `continues`, and remove any step it takes over. Until then the work stays active, with its pending milestones stated accurately.
+Confirm the outcome against the plan, the validation and the reviews, and write it into the plan's `summary`, naming PRs and commits in full; then close as the atlas skill says. Follow-ups (deferred findings, ideas, later fixes) do not keep the work open: with the user's agreement, open a work item for them with `work_create` and `continues`, and remove any step it takes over. Until then the work stays active, with its pending milestones stated accurately.
 
 End with links to the work item and its PRs, what changed, the validation and review evidence, any limitation, and which branch, in which folder, holds the latest work. Code written, a PR opened or CI started is not readiness, and readiness is not completion.
