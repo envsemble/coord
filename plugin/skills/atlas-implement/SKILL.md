@@ -18,7 +18,7 @@ When resuming, read the plan as it is now: a later edit must not silently redefi
 
 ## Work
 
-- **Keep the steps true** with the `step` tool as they move; add a step when agreed scope grows (record the amendment in the plan), remove one only with the user told why. Use `work_block` while genuinely blocked, and keep the `summary` current at milestones.
+- **Keep the steps true** with the `step` tool as they move; add a step when agreed scope grows (record the amendment in the plan), remove one only with the user told why. Use `work_block` while genuinely blocked, and keep the `summary` and tags current at milestones.
 - **Follow the agreed design.** Tell the user your concerns and keep going; a material departure needs their agreement first, with the evidence and a proposal.
 - **Test** what changed with the quickest checks likely to catch a mistake; run slow suites at milestones and once before handing off, unless the repository says otherwise.
 - **Commit** in recoverable steps as the repository does, and planning changes separately with pathspecs.
@@ -39,6 +39,6 @@ Check the final diff for unrelated or accidental files, then deliver as the plan
 
 ## Finish
 
-Write the outcome into the plan's `summary`, naming commits and PRs in full (`owner/repo#12`, `owner/repo@4ab195a`). When every step is done and the plan's completion checks pass, ask the user whether the work is finished, and close it with `work_close` only on their yes; a PR still awaiting merge means the work stays open, its summary saying so. Follow-ups go to a new work item that continues this one, with the user's agreement.
+Write the outcome into the plan's `summary`, naming commits and PRs in full (`owner/repo#12`, `owner/repo@4ab195a`). When every step is done and the plan's completion checks pass, check the tags fit what was done, then ask the user whether the work is finished, and close it with `work_close` only on their yes; a PR still awaiting merge means the work stays open, its summary saying so. Follow-ups go to a new work item that continues this one, with the user's agreement.
 
 End with links to the work item and its PRs or commits, what changed, how it was tested and reviewed, any limitation, and exactly where the work is: the repository, its folder and the branch to check out, with nothing left in other worktrees.

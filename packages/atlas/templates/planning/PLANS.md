@@ -48,9 +48,10 @@ A plan starts with a YAML block delimited by `---`; [plan-frontmatter.md](plan-f
 | `completed_at`          | ISO date string of the implementation's completion, otherwise null; it requires `implementation_status: complete`. Completion is not merge or release.                                                                                           |
 | `supersedes`            | Array of the work IDs this work replaces, possibly empty.                                                                                                                                                                                        |
 | `superseded_by`         | The work ID that replaces this work, or null.                                                                                                                                                                                                    |
+| `tags`                  | Optional list of tags, each lowercase letters, digits, dots and hyphens: the release the work ships in and the areas it touches, such as `["0.8.0", "search"]`. Set them with `work_create` and `work_tag`; `tag:0.8.0` in the app's search and `work_search` find work by them. |
 | `continues`             | Optional: the work this work continues (follow-ups of work that closed, a next phase), one reference or a list: `work-0023` here, or `folder:work-0023` in another project of the home, by its planning folder's name. Set it with `work_create` or `work_continue`. |
 
-Every field but `summary` and `continues` is present. Write dates as quoted strings and unknown values as null, and quote strings that look like YAML booleans, nulls, numbers or timestamps: the checker rejects ambiguous ones.
+Every field but `summary`, `tags` and `continues` is present. Write dates as quoted strings and unknown values as null, and quote strings that look like YAML booleans, nulls, numbers or timestamps: the checker rejects ambiguous ones.
 
 `superseded` and `abandoned` are design dispositions; they do not erase what was implemented. `partial` means some scope is implemented without claiming completion; say in the plan what is left or transferred. Replacement links work IDs, not paths: update both plans. A plan's revisions keep its ID and are tracked by Git.
 
