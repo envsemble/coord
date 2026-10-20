@@ -28,7 +28,7 @@ const instructions = "Atlas keeps plans in projects: planning folders in the Atl
   + 'In planning files, write PRs and issues as owner/repo#N and commits as owner/repo@hash (or their URLs), naming the repository yourself, so Atlas links them. '
   + 'When you stop to wait for the user, begin your message with the question or decision you need. The tools never commit; commit planning changes yourself.';
 
-const planningFolder = { type: 'string', description: "The project's planning folder; needed only when several projects or none cover your folder." };
+const planningFolder = { type: 'string', description: "The project's planning folder, an absolute path; needed only when several projects or none cover your folder." };
 const cwd = { type: 'string', description: "Your folder, when it isn't the session's." };
 const work = { type: 'string', pattern: '^work-[0-9]{4,}$' };
 const title = { type: 'string', description: 'As the ledger has it.' };
@@ -116,7 +116,7 @@ const tools: Tool[] = [
   {
     name: 'work_archive',
     description: 'Move work to archive/ without closing it. Unfinished work needs a disposition: superseded (supersededBy names the replacement) or abandoned (the reason goes into the plan\'s Outcome). Close finished work with work_close.',
-    inputSchema: object({ work, disposition: { type: 'string', enum: ['superseded', 'abandoned'] }, supersededBy: work, reason: { type: 'string' } }, ['work']),
+    inputSchema: object({ work, disposition: { type: 'string', enum: ['superseded', 'abandoned'] }, supersededBy: { ...work, description: 'The work item that replaces it; naming it implies superseded.' }, reason: { type: 'string' } }, ['work']),
     run: (root, input) => archiveWork(root, input.work!, { disposition: (input.disposition as 'superseded' | 'abandoned' | undefined) ?? null, supersededBy: (input.supersededBy as string | undefined) ?? null, reason: (input.reason as string | undefined) ?? null }),
   },
   {

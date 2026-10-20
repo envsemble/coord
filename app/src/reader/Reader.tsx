@@ -105,10 +105,10 @@ export function Reader({ file, snapshot, anchor, references = noReferences, show
 }) {
   const { projectId, open, notify, remote, sibling, openPath } = useWindowActions();
   // The links read the snapshot as they draw; they are drawn again only when what they link to
-  // changes (the documents and work items by path), not when the work's statistics do.
+  // changes (the documents and work items by path, and the work's plans), not when the work's statistics do.
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
-  const linkKey = useMemo(() => JSON.stringify([snapshot.documents.map(document => [document.path, document.workId]), snapshot.work.map(work => [work.id, work.path])]), [snapshot.documents, snapshot.work]);
+  const linkKey = useMemo(() => JSON.stringify([snapshot.documents.map(document => [document.path, document.workId]), snapshot.work.map(work => [work.id, work.path, work.currentPlan])]), [snapshot.documents, snapshot.work]);
   const article = useRef<HTMLElement>(null);
   const [content, setContent] = useState<DocumentContent | null>(null);
   const [openFolds, setOpenFolds] = useState<ReadonlySet<string>>(new Set());

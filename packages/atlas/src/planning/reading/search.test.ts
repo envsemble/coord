@@ -154,9 +154,9 @@ test('larger documents read line by line have the readers\' anchors in these cas
     const expected = [...documentAnchors(parseMarkdown(markdownBody(source))).values()];
     assert.deepEqual(scanMarkdown(name, markdownBody(source), null).headings!.map(heading => heading.anchor), expected, name);
   }
-  // A document over the limit is read line by line.
-  const large = synthetic['comment.md'] + 'Filler text.\n'.repeat(6000);
-  assert.deepEqual(readMarkdown('large.md', large, null).headings!.map(heading => heading.anchor), ['steps', 'steps-1']);
+  // A document over the limit is read line by line, to its end.
+  const large = synthetic['comment.md'] + 'Filler text.\n'.repeat(30_000) + '## Late\n';
+  assert.deepEqual(readMarkdown('large.md', large, null).headings!.map(heading => heading.anchor), ['steps', 'steps-1', 'late']);
 });
 
 test('indexing takes time linear in a file\'s size and gives the thread back between files', async t => {

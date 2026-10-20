@@ -5,8 +5,8 @@
 // markers or by indentation. A document is parsed only when an estimate of its cost, made in one
 // pass over its lines, stays within a budget; the estimate is calibrated against those inputs to
 // over-estimate, so the parse takes at most about 100 ms where it is allowed. Larger or costlier
-// documents are read line by line, in time linear in their size, up to a limit that keeps that under
-// about 100 ms too: close to the parser, not exact.
+// documents are read line by line, in time linear in their size, their headings' own parsing kept
+// within a budget: close to the parser, not exact.
 // Node only; the readers' own parsing (headings.ts) is shared with the browser.
 import type { Nodes } from 'mdast';
 import { headingAnchors, parseMarkdown } from './headings.ts';
@@ -23,8 +23,8 @@ const headingBudget = 40;
 const headingLimit = 1000;
 /** What parsing a heading alone costs besides its text, in the estimate's milliseconds. */
 const headingParse = 0.1;
-/** A document read line by line is read up to this size and this many lines; what follows is left out. */
-const scanLimit = { size: 1024 * 1024, lines: 20_000 };
+/** A document read line by line is read up to this size, the readers' own limit (readableLimit in planningIndex.ts); what follows is left out. */
+const scanLimit = 4 * 1024 * 1024;
 
 /**
  * The weight of a line's containers: its quote and list markers, and for a list item its indentation
@@ -204,13 +204,7 @@ export interface MarkdownScan {
  * the parser, not exact: headings inside footnotes, for one, are not read.
  */
 export function scanLines(body: string, options: { glossary?: boolean; links?: boolean } = {}): MarkdownScan {
-  let end = Math.min(body.length, scanLimit.size);
-  for (let count = 0, at = -1; count < scanLimit.lines; count++) {
-    at = body.indexOf('\n', at + 1);
-    if (at < 0 || at >= end) break;
-    if (count === scanLimit.lines - 1) end = at;
-  }
-  const lines = body.slice(0, end).split(/\r?\n/);
+  const lines = body.slice(0, scanLimit).split(/\r?\n/);
   const definitionLines = lines.filter(line => definition.test(line));
   // A heading's own parsing is given the document's definitions (the first hundred short ones) for its references.
   const definitions = definitionLines.filter(line => line.length <= 300).slice(0, 100);
@@ -222,8 +216,8 @@ export function scanLines(body: string, options: { glossary?: boolean; links?: b
   }
   const footnotes = new Set(lines.flatMap(line => { const match = footnoteDefinition.exec(line); return match ? [match[1].toUpperCase()] : []; }));
   // Footnotes are numbered by their first reference.
-  const order: string[] = [];
-  const footnote: FootnoteNumber = label => { const index = order.indexOf(label.toUpperCase()); return index < 0 ? null : String(index + 1); };
+  const order = new Map<string, number>();
+  const footnote: FootnoteNumber = label => { const index = order.get(label.toUpperCase()); return index === undefined ? null : String(index); };
   const anchor = headingAnchors();
   const headings: MarkdownScan['headings'] = [];
   const terms: MarkdownScan['terms'] = [];
@@ -277,7 +271,7 @@ export function scanLines(body: string, options: { glossary?: boolean; links?: b
     if (html === 'block') { text.push(lineText(content)); continue; }
     if (!definition.test(content)) for (const match of content.matchAll(footnoteReference)) {
       const label = match[1].toUpperCase();
-      if (footnotes.has(label) && !order.includes(label)) order.push(label);
+      if (footnotes.has(label) && !order.has(label)) order.set(label, order.size + 1);
     }
     // A list item's content, or a line within one.
     const item = listItem.exec(content);

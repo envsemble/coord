@@ -450,7 +450,7 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
       const file = snapshot.documents.find(document => samePath(document.path, path, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths));
       const work = snapshot.work.find(item => samePath(item.path, path.replace(/\/$/, ''), snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths));
       const target = file ? documentTarget(file, snapshot.work.find(item => item.id === file.workId), anchor) : work ? workTarget(work.id, anchor) : null;
-      if (!target) { release(); notify('This document is not in ' + (projectOf(projectId)?.name ?? 'that projectId') + ': ' + path, 'warning'); return; }
+      if (!target) { release(); notify('This document is not in ' + (projectOf(projectId)?.name ?? 'that project') + ': ' + path, 'warning'); return; }
       go({ projectId, target });
     } catch (error) { release(); notify((error as Error).message, 'warning'); }
   }, [folders, projectOf, go, notify, follow, unfollow]);

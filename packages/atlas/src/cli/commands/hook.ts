@@ -118,12 +118,13 @@ function reported(database: HomeDatabase, session: string, item: Link, at: strin
 /**
  * Record a report up to `until`, unless another hook of the session (a Stop and a SubagentStop at
  * once) reported the work item for time this one measured too: that time counts once. A later report
- * there (the session came back to it before a leave was measured) is not this time. Returns whether
+ * there (the session came back to it before a leave was measured) is not this time, nor is a report
+ * without measured time (one made with `atlas work report` in the session). Returns whether
  * it was recorded; run in a transaction, which reads what the other hook wrote.
  */
 function insertOnce(database: HomeDatabase, insert: typeof insertReport, session: string, item: Link, prepared: PreparedReport, until: string): boolean {
   const since = prepared.report.measured?.since ?? latest(item.linked, item.came);
-  if (database.db.prepare("SELECT 1 FROM work_report WHERE project_id = ? AND work_id = ? AND session = ? AND at > ? AND ifnull(measured_since, '') < ? LIMIT 1").get(item.projectRowId, item.workId, session, since, until)) return false;
+  if (database.db.prepare("SELECT 1 FROM work_report WHERE project_id = ? AND work_id = ? AND session = ? AND at > ? AND measured_since IS NOT NULL AND measured_since < ? LIMIT 1").get(item.projectRowId, item.workId, session, since, until)) return false;
   insert(database, item.projectRowId, item.workId, prepared.report);
   return true;
 }
@@ -341,7 +342,7 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
         const focus = (database!.db.prepare('SELECT focus FROM session WHERE id = ?').get(session) as { focus: number | null }).focus;
         if (focus !== rows.at(-1)) {
           database!.db.prepare('UPDATE session SET focus = ? WHERE id = ?').run(rows.at(-1)!, session);
-          if (left || !links.on) database!.db.prepare('UPDATE session_work SET focused_at = ? WHERE id = ?').run(at, rows.at(-1)!);
+          if (left || !links.on || focus !== links.focus) database!.db.prepare('UPDATE session_work SET focused_at = ? WHERE id = ?').run(at, rows.at(-1)!);
         }
         // The work item it left is measured up to now by the session's next hook that measures (its
         // session_leave row keeps that time until then), and its time not yet reported counts from now

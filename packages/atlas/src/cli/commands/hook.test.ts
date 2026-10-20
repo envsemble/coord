@@ -259,9 +259,11 @@ test('a work item the session left is reported at its end when no turn end measu
   // A turn end that cannot read the log keeps the leave for later.
   await hook('StopFailure', { transcript_path: path.join(directory, 'missing.jsonl') });
   assert.deepEqual([leaves(), reportsIn(root, 'work-0001', base.ATLAS_HOME!).length], [1, 0]);
+  // A report without measured time, made in the session, does not take the leave's place.
+  assert.equal((await run(['work', 'report', root, '--work', 'work-0001', '--model', 'model-a', '--session', session], { env })).status, 0);
   // Interrupted, then exited: no Stop, and the session's end reports the work item it left.
   await hook('SessionEnd', { reason: 'prompt_input_exit' });
-  assert.deepEqual([leaves(), reportsIn(root, 'work-0001', base.ATLAS_HOME!).map(report => report.session)], [0, [session]]);
+  assert.deepEqual([leaves(), reportsIn(root, 'work-0001', base.ATLAS_HOME!).filter(report => report.measured).map(report => report.session)], [0, [session]]);
 });
 
 test('a session in a folder that several projects cover is told to ask which one to plan in', async t => {

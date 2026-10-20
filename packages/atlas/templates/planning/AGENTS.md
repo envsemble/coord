@@ -4,7 +4,7 @@ This repository is an Atlas project's planning folder: its work items, each a pl
 
 ## Scope
 
-A session in one of the folders `planning.json` lists, or inside one, belongs to this project (the deepest folder wins when projects' folders nest), and so does a session in this planning folder. Reach this folder by its absolute path from any checkout; do not search the machine for others.
+A session in one of the folders `planning.json` lists, or inside one, belongs to this project (the deepest folder wins when projects' folders nest), and so does a session in this planning folder. Atlas names the project at session start, and the Atlas tool `where` finds it on request. Reach this folder by its absolute path from any checkout; do not search the machine for others.
 
 Atlas keeps no repositories: one repository may be checked out in several folders. Confirm which repository a change is about from the checkout itself, and name it in every reference: `owner/repo#12`, `owner/repo@4ab195a`, or their URLs. A shared planning folder does not make one product's constraints apply to another.
 
@@ -12,7 +12,7 @@ Atlas keeps no repositories: one repository may be checked out in several folder
 
 Current code, tests and canonical product documentation establish present behavior. Plans describe intent; archived plans are history. Surface contradictions instead of picking the newest document. Old instructions, approvals and permissions authorize nothing new.
 
-Select work by the user's choice or the registry's `current_plan`; numbers, dates and filenames confer no authority. Read other work only when it helps the current decision. Link canonical product documentation in its own repository; do not copy it here.
+Select work by the user's choice or the registry's `current_plan`; numbers, dates and filenames confer no authority. Read the selected work, and other work only when it helps the current decision. Link canonical product documentation in its own repository; do not copy it here.
 
 ## What to record
 
