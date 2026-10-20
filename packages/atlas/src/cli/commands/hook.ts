@@ -26,7 +26,7 @@ import type { Whereabouts } from '../../planning/projects/findProject.ts';
 import type { insertReport } from '../../planning/reports/reports.ts';
 import type { PreparedReport } from '../../planning/reports/recordReport.ts';
 import type { Output } from '../args.ts';
-import { logFailure, pruneStamps, recordActivity, recordAgent, recordSession, sessionPattern, stateEvents, stateHook, stopAgent, type Activity, type ActivityDetails } from './sessionState.ts';
+import { logFailure, pruneStamps, runsAtlasWork, recordActivity, recordAgent, recordSession, sessionPattern, stateEvents, stateHook, stopAgent, type Activity, type ActivityDetails } from './sessionState.ts';
 
 export interface HookInput {
   session_id?: string; transcript_path?: string; cwd?: string; hook_event_name?: string;
@@ -232,18 +232,13 @@ export function editedFiles(input: HookInput): string[] {
 }
 
 /**
- * `atlas work <operation> …` in a shell command that changes a work item (not `status`, `search`
- * or `report`): the agent used the command instead of the tools. bin/atlas.js asks the same.
- */
-export const shellWorkPattern = /\batlas(?:\.js|\.cmd)?["']?\s+work\s+(?!(?:status|search|report)\b)(\w+)\b/;
-/**
- * The work items a shell command changed through the atlas command: each `atlas work <operation>
- * <work-id>` in its input, and for `atlas work create` the work item its output names; with the
- * planning folder its `--planning-dir` names, when that is a full path.
+ * The work items a shell command changed through the atlas command (runsAtlasWork): each `atlas
+ * work <operation> <work-id>` in its input, and for `atlas work create` the work item its output
+ * names; with the planning folder its `--planning-dir` names, when that is a full path.
  */
 export function shellWork(input: HookInput): { workId: string; planningFolder: string | null }[] {
+  if (!runsAtlasWork(input)) return [];
   const command = strings(input.tool_input).join('\n');
-  if (!shellWorkPattern.test(command)) return [];
   const found: { workId: string; planningFolder: string | null }[] = [];
   const folder = /--planning-dir\s+(?:"([^"]+)"|'([^']+)'|(\S+))/.exec(command);
   const given = folder ? folder[1] ?? folder[2] ?? folder[3] : null;
@@ -291,7 +286,8 @@ async function postToolUse(input: HookInput, home: string, links: SessionLinks):
     const { resolvePlanningFolder } = await import('../../planning/projects/findProject.ts');
     for (const about of changed) {
       const root = about.planningFolder ?? await resolvePlanningFolder({ cwd: input.cwd ?? process.cwd(), home, work: about.workId }).catch(() => null);
-      if (root) requests.push({ planningFolder: root, workId: about.workId, amending: false });
+      // A work item the planning folder does not register (a mistyped command) links nothing.
+      if (root && (await registered(root).catch(() => [])).some(item => item.id === about.workId)) requests.push({ planningFolder: root, workId: about.workId, amending: false });
     }
   }
   const base = await realpath(homePlanningDirectory(home)).catch(() => null);

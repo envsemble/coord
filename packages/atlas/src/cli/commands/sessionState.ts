@@ -32,6 +32,18 @@ export const stateEvents = new Set(['UserPromptSubmit', 'ToolUse', 'Notification
 const asking = new Set(['permission_prompt', 'elicitation_dialog']);
 /** The Atlas tool an agent calls when it stops for the person to act. */
 export const needsYouTool = /^mcp__.*atlas.*__needs_you$/;
+/** The harnesses' shell tools: Claude Code's Bash and PowerShell, Codex's shell and its exec scripts. */
+const shellTools = new Set(['Bash', 'PowerShell', 'shell', 'exec_command', 'local_shell', 'exec']);
+/** `atlas work <operation> …` that changes a work item (not `status`, `search` or `report`). bin/atlas.js asks the same. */
+const atlasWork = /\batlas(?:\.js|\.cmd)?["']?\s+work\s+(?!(?:status|search|report)\b)\w+\b/;
+/** Whether a tool call ran the atlas command in a shell to change a work item: then it links the session, as the tools do (hook.ts's shellWork). */
+export function runsAtlasWork(input: { tool_name?: unknown; tool_input?: unknown }) {
+  if (typeof input.tool_name !== 'string' || !shellTools.has(input.tool_name)) return false;
+  const value = input.tool_input as Record<string, unknown> | string | undefined;
+  const parts = typeof value === 'string' ? [value] : value && typeof value === 'object' ? [value.command, value.cmd, value.input].map(item => Array.isArray(item) ? item.join(' ') : item) : [];
+  const text = parts.filter(item => typeof item === 'string').join('\n');
+  return atlasWork.test(text);
+}
 export const sessionPattern = /^[A-Za-z0-9._:-]{1,128}$/;
 /**
  * Whether a tool call may have made a commit (it ran `git … commit`, which prints `[branch hash]
@@ -255,9 +267,12 @@ export async function stateHook(event: string, text: string | null, at: number, 
     const made = event === 'ToolUse' && mayCommit(text);
     // The agent asks for the person: recorded whoever made the call, the session or a subagent.
     const asks = event === 'ToolUse' && typeof input.tool_name === 'string' && needsYouTool.test(input.tool_name);
+    // The atlas command run in a shell to change a work item links the session to it, as the tools
+    // do: the PostToolUse hook runs for the tools and edits only, so this hook hands it over.
+    const shell = event === 'ToolUse' && runsAtlasWork(input);
     const stamp = readStamp(home, agent ? agentStamp(session, agent) : session);
     const fresh = stamp !== null && at - stamp.at < heartbeatMs;
-    if (!asks && (agent ? event === 'ToolUse' && !made && fresh && (stamp.state === 'working' || stamp.state === 'none') : stamp?.state === 'none' || (activity === 'tool' && !made && stamp?.state === 'working' && fresh))) return;
+    if (!asks && !shell && (agent ? event === 'ToolUse' && !made && fresh && (stamp.state === 'working' || stamp.state === 'none') : stamp?.state === 'none' || (activity === 'tool' && !made && stamp?.state === 'working' && fresh))) return;
     const { HomeDatabase, liveWindowMs } = await import('../../home/database.ts');
     const database = HomeDatabase.open(home);
     try {
@@ -275,5 +290,6 @@ export async function stateHook(event: string, text: string | null, at: number, 
         await (await import('./hook.ts')).reportLeft(database, home, session, typeof input.transcript_path === 'string' ? input.transcript_path : null, event, when);
       }
     } finally { database.close(); }
+    if (shell) await (await import('./hook.ts')).runHook('PostToolUse', text, environment, new Date(at).toISOString());
   } catch (error) { logFailure(home, event, error); }
 }
