@@ -151,7 +151,7 @@ Only Reveal in File Explorer stays on that computer. See [remote access](../docs
 
 ## Records and progress
 
-The reader uses planning.json schema version 2 and the planning workflow's [metadata contract](../plugin/skills/atlas/assets/planning/PLANS.md). It follows each registered current_plan pointer, always the work folder's `plan.md`; filename order never selects a plan.
+The reader uses planning.json schema version 2 and the planning workflow's [metadata contract](../packages/atlas/templates/planning/PLANS.md). It follows each registered current_plan pointer, always the work folder's `plan.md`; filename order never selects a plan.
 
 Registry locations use POSIX-relative paths. Safe aliases such as ./ prefixes and trailing slashes normalize in memory without rewriting records. Parent segments, absolute paths, backslashes, and duplicate retained work locations produce a clear registry error.
 
@@ -184,7 +184,7 @@ A plan shows one status, styled like a GitHub issue: Not started, In progress, P
 
 A work item's page has a GitHub-repository layout: the plan, with an About column, scrolling on its own, holding the ledger progress (a bar, done and remaining steps, and the agreed steps with their status), any blocker, known dates, recent commits and any record-health notes for that work. Other files in the work folder, its ledger too, open from Files.
 
-The root ledger's optional status header follows the shared [contract](../plugin/skills/atlas/assets/planning/PLANS.md#ledger-status-version-2). Version 2 lists the agreed steps, each todo, doing or done, plus any blocker; the app shows the work left as the steps not yet done, an estimate by count, not by time. The viewer never infers current activity from historical narrative. Agents update the header through the Atlas tools at meaningful transitions; it is reported status, not continuous live telemetry. Missing or invalid status remains unknown and the original body stays readable.
+The root ledger's optional status header follows the shared [contract](../packages/atlas/templates/planning/PLANS.md#ledger-status-version-2). Version 2 lists the agreed steps, each todo, doing or done, plus any blocker; the app shows the work left as the steps not yet done, an estimate by count, not by time. The viewer never infers current activity from historical narrative. Agents update the header through the Atlas tools at meaningful transitions; it is reported status, not continuous live telemetry. Missing or invalid status remains unknown and the original body stays readable.
 
 ## Atlas diagrams
 

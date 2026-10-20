@@ -1,5 +1,5 @@
 // New projects: a planning folder in the home (`<home>/planning/<slug>`) made from the bundled
-// templates (plugin/skills/atlas/assets/planning), with a planning.json naming it and listing the
+// templates (packages/atlas/templates/planning), with a planning.json naming it and listing the
 // folders it covers, as its own Git repository with an initial commit. A project's folders change
 // later too.
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
@@ -18,7 +18,7 @@ export type ProjectTemplates = Record<string, string>;
 export const folderLimit = 20;
 const unprintable = /[\u0000-\u001f\u007f-\u009f]/;
 
-/** The bundled templates in a folder (plugin/skills/atlas/assets/planning). */
+/** The bundled templates in a folder (packages/atlas/templates/planning). */
 export async function readTemplates(folder: string): Promise<ProjectTemplates> {
   const templates: ProjectTemplates = {};
   for (const entry of await readdir(folder, { withFileTypes: true })) if (entry.isFile()) templates[entry.name] = await readFile(path.join(folder, entry.name), 'utf8');

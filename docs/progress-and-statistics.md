@@ -37,7 +37,7 @@ In the app:
 - a work item's **About** sidebar shows the bar, the steps done and left, each step with its status, and any blocker;
 - [plan exports](plan-export.md) show the same.
 
-**The work left is the steps not yet done.** It is an estimate by count, not by time: steps differ in size, and Atlas does not predict dates. `atlas check` validates the header. The exact format is in the planning contract, [`PLANS.md`](../plugin/skills/atlas/assets/planning/PLANS.md#ledger-status-version-2).
+**The work left is the steps not yet done.** It is an estimate by count, not by time: steps differ in size, and Atlas does not predict dates. `atlas check` validates the header. The exact format is in the planning contract, [`PLANS.md`](../packages/atlas/templates/planning/PLANS.md#ledger-status-version-2).
 
 ## Work statistics
 

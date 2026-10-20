@@ -34,7 +34,7 @@ export async function serve(options: ServeOptions, out: ServeOutput): Promise<{ 
     createPlanWorker: () => new Worker(new URL('./export/planWorker.ts', import.meta.url)) as unknown as WorkerLike,
     networkOverride: { address, port: options.port ?? defaultPort },
     // The planning templates the atlas skill bundles, in this checkout.
-    templates: () => readTemplates(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../plugin/skills/atlas/assets/planning')),
+    templates: () => readTemplates(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../templates/planning')),
   });
   await host.start();
   if (host.access.managedBy !== null) {

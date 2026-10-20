@@ -52,7 +52,7 @@ export interface CreatedProject { name: string; planningFolder: string; folders:
  * this checkout (as `atlas serve` reads them), with its first commit and its row in the home database.
  */
 export async function createHomeProject(request: { name: string; folders: string[] }): Promise<CreatedProject> {
-  const templates = await readTemplates(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../../plugin/skills/atlas/assets/planning'));
+  const templates = await readTemplates(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../templates/planning'));
   const row = await withDatabaseAsync(atlasHome(), database => createProject(database, request, templates));
   return { name: row.name, planningFolder: row.folder, folders: (await readRegistry(row.folder)).folders };
 }

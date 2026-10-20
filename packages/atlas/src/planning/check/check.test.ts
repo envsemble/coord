@@ -418,7 +418,7 @@ test('the planning folder keeps files byte for byte through Git, whatever core.a
   run('init');
   // Exercise the supplied raw capture policy against inherited conversion.
   run('config', 'core.autocrlf', 'true');
-  const attributes = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../../plugin/skills/atlas/assets/planning/.gitattributes');
+  const attributes = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../templates/planning/.gitattributes');
   assert.ok(statSync(attributes, { throwIfNoEntry: false }), 'the atlas skill ships the planning .gitattributes');
   writeFileSync(path.join(setup.root, '.gitattributes'), readFileSync(attributes));
   run('add', '.');

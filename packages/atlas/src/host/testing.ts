@@ -17,7 +17,7 @@ import type { WorkerLike } from './export/planWorkerClient.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const fixture = path.resolve(here, '../../../../app/e2e/fixtures/planning');
-const templates = path.resolve(here, '../../../../plugin/skills/atlas/assets/planning');
+const templates = path.resolve(here, '../../templates/planning');
 const started = Date.now();
 /** Quiet, unless ATLAS_TEST_LOG is set to follow what the host does while a test runs. */
 const print = (level: string) => (message: string, detail?: unknown) => { if (process.env.ATLAS_TEST_LOG) console.log(Date.now() - started, level, message, JSON.stringify(detail ?? '')); };

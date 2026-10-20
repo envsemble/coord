@@ -7,7 +7,7 @@ description: "Records projects and their work items in Atlas: plans, steps, glos
 
 Atlas keeps plans in projects. A project is a planning folder, its own Git repository in the Atlas home (`~/.atlas/planning/<name>`), and the folders on this computer where its work happens. Atlas records projects and their work items, nothing else. This skill finds the project, decides when to plan, records the work and keeps it current. Two workflows build on it, each run only when the user asks for it by name: [atlas-grill](../atlas-grill/SKILL.md) questions the user in rounds until a design is settled, and [atlas-implement](../atlas-implement/SKILL.md) implements an accepted plan.
 
-The planning folder's own [AGENTS.md](assets/planning/AGENTS.md) (what is true, what to keep) and [PLANS.md](assets/planning/PLANS.md) (the plan, registry and ledger formats) govern; read them before changing anything there. This skill says what to do and when.
+Every planning folder has its own `AGENTS.md` (what is true, what to keep) and `PLANS.md` (the plan, registry and ledger formats); they govern, so read them before changing anything there. This skill says what to do and when.
 
 ## Find the project
 

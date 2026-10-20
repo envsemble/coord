@@ -7,12 +7,12 @@ import { Host } from '@envsemble/atlas/host';
 import createPlanWorker from './planWorker.ts?nodeWorker';
 import { RotatingLog } from '../log.ts';
 // The planning templates new projects are made from, as the atlas skill bundles them.
-import agents from '../../../plugin/skills/atlas/assets/planning/AGENTS.md?raw';
-import plans from '../../../plugin/skills/atlas/assets/planning/PLANS.md?raw';
-import readme from '../../../plugin/skills/atlas/assets/planning/README.md?raw';
-import frontmatter from '../../../plugin/skills/atlas/assets/planning/plan-frontmatter.md?raw';
-import registry from '../../../plugin/skills/atlas/assets/planning/planning.json?raw';
-import attributes from '../../../plugin/skills/atlas/assets/planning/.gitattributes?raw';
+import agents from '../../../packages/atlas/templates/planning/AGENTS.md?raw';
+import plans from '../../../packages/atlas/templates/planning/PLANS.md?raw';
+import readme from '../../../packages/atlas/templates/planning/README.md?raw';
+import frontmatter from '../../../packages/atlas/templates/planning/plan-frontmatter.md?raw';
+import registry from '../../../packages/atlas/templates/planning/planning.json?raw';
+import attributes from '../../../packages/atlas/templates/planning/.gitattributes?raw';
 
 const templates = { 'AGENTS.md': agents, 'PLANS.md': plans, 'README.md': readme, 'plan-frontmatter.md': frontmatter, 'planning.json': registry, '.gitattributes': attributes };
 

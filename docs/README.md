@@ -12,7 +12,7 @@
 - [Agent interface](agent-interface.md): the Atlas plugin, its MCP tools, skills and hooks, the Atlas home, and how a checkout finds its planning folder.
 - [The atlas command](command.md): every command, its exit codes, `atlas setup` and the Atlas home.
 - [The atlas skill](../plugin/skills/atlas/SKILL.md), [atlas-grill](../plugin/skills/atlas-grill/SKILL.md) and [atlas-implement](../plugin/skills/atlas-implement/SKILL.md): planning, the questioning in rounds, and implementing with Atlas.
-- [Planning contract](../plugin/skills/atlas/assets/planning/PLANS.md): plan and ledger headers, work statistics, diagrams and the planning folder's layout.
+- [Planning contract](../packages/atlas/templates/planning/PLANS.md): plan and ledger headers, work statistics, diagrams and the planning folder's layout.
 
 ## Diagrams
 

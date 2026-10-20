@@ -11,7 +11,7 @@ import { validatePlanning } from '../check/check.ts';
 import { HomeDatabase } from '../home/database.ts';
 import { createProject, readTemplates, setProjectFolders } from './project.ts';
 
-const templates = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../../plugin/skills/atlas/assets/planning');
+const templates = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../templates/planning');
 
 function temporary(t: TestContext) {
   const directory = realpathSync.native(mkdtempSync(path.join(tmpdir(), 'atlas-project-')));

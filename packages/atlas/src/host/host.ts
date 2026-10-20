@@ -51,7 +51,7 @@ export interface HostOptions {
   owner: string;
   watchDelay?: { debounce: number; maxWait: number };
   idleClose?: number;
-  /** The templates new projects are made from (plugin/skills/atlas/assets/planning); without them, projects are not created here. */
+  /** The templates new projects are made from (packages/atlas/templates/planning); without them, projects are not created here. */
   templates?: () => Promise<ProjectTemplates>;
   /** Remote access settings for this process only (`atlas serve --address/--port`), instead of the saved ones. */
   networkOverride?: { address: string; port: number };
