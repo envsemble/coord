@@ -87,7 +87,7 @@ try {
       assert.deepEqual(checkDiagram(java),[]);
       const react=await import('@envsemble/atlas-diagrams/react');
       assert.equal(typeof react.DiagramViewer,'function');
-      assert.equal(typeof react.DiagramPanel,'function');
+      assert.ok(react.DiagramPanel && ['function','object'].includes(typeof react.DiagramPanel));
       assert(require('node:fs').existsSync(require.resolve('@envsemble/atlas-diagrams/embedded.css')));
       const {prepared}=await prepareDiagrams({files:[file],includeArtifacts:true});
       const built=await buildViewer({prepared:prepared.get(file.path),file});

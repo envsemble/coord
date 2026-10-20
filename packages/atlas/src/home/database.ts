@@ -96,7 +96,7 @@ export const liveWindowMs = 15 * 60_000;
 /** How long a session waiting for the person counts as waiting: after a day it was most likely left. */
 export const waitingWindowMs = 24 * 60 * 60_000;
 /** The schema version this Atlas writes and reads. */
-export const schemaVersion = 10;
+export const schemaVersion = 11;
 
 /**
  * Put the database in WAL mode once; later openings find it there and leave it. Switching takes the

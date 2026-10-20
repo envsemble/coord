@@ -41,10 +41,10 @@ async function check() {
       assert(html.includes('<script id="atlas-diagram"'), name);
       const data = html.match(/^\s*(const MODEL=.*)\r?$/m)[1];
       return new (require("node:vm").Script)(
-        `${data}\n;({LEARNING,COMPARISON})`,
+        `${data}\n;({SCENARIOS,COMPARISON})`,
       ).runInNewContext({});
     };
-    assert.equal(embedded("enrollment.html").LEARNING.scenarios.length, 4);
+    assert.equal(embedded("enrollment.html").SCENARIOS.scenarios.length, 4);
     assert(embedded("shop.html").COMPARISON.changes.changes.length);
     assert(
       Object.keys(files).some((name) =>

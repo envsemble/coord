@@ -8,7 +8,7 @@ import type { DiagramEntry, DiagramIndexEntry, DiagramReference } from '../plann
 export type { DiagramEntry, DiagramIndexEntry, DiagramReference, HandoffLink, ProjectState, ProjectWork, ProjectWorkState, ProjectWorkStatistics };
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
-export const protocolVersion = 13;
+export const protocolVersion = 14;
 
 /**
  * Every paired device belongs to the person who owns this computer, so pairing grants the whole
