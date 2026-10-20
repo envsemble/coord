@@ -73,25 +73,27 @@ export interface SearchResult {
  */
 export interface SessionActivity {
   session: string; harness: 'claude-code' | 'codex' | 'unknown';
-  state: 'working' | 'waiting';
-  /** working: when its turn started; waiting: when it began to wait. */
+  /** In a turn; waiting for the person, who was asked (Needs you); or out of its turn without asking (idle: waiting on CI, say). */
+  state: 'working' | 'waiting' | 'idle';
+  /** working: when its turn started; waiting and idle: when its turn ended or it asked. */
   since: string;
   /**
    * working: where its agent time not yet reported begins (the later of its turn's start and its last
    * report on this work item), so a client counts `now - countsFrom` on top of the reported time.
-   * waiting: null.
+   * waiting and idle: until it began to wait, while its report is not in; else null.
    */
   countsFrom: string | null;
 }
 /**
- * What agents are doing on a work item now: `working` while any linked session works, else `waiting`
- * while one waits for the person (Needs you). Work nobody is on has no entry.
+ * What agents are doing on a work item now: `waiting` while a linked session asked for the person and
+ * none works (Needs you), else `working` while one works or is idle (its agent waits on something
+ * else). Work nobody is on has no entry.
  */
 export interface WorkActivity {
   workId: string; state: 'working' | 'waiting';
-  /** working: the earliest working session's turn start; waiting: when the latest session began to wait. */
+  /** working: the earliest working session's turn start (or, with none in a turn, when the latest went idle); waiting: when the latest session began to wait. */
   since: string;
-  /** Working sessions first, then waiting ones; latest first within each. */
+  /** Working sessions first, then waiting and idle ones; latest first within each. */
   sessions: SessionActivity[];
 }
 /**
@@ -131,7 +133,7 @@ export interface WorkSession {
   /** The session's own title, as its harness names it (Claude Code's latest `ai-title`, Codex's thread name); null when it has none. */
   title: string | null;
   model: string | null; effort: string | null;
-  state: 'working' | 'waiting' | 'ended';
+  state: 'working' | 'waiting' | 'idle' | 'ended';
   startedAt: string; lastSeen: string; agentMs: number;
   folder: string | null; resume: string | null;
   message: string | null;

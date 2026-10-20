@@ -1,5 +1,7 @@
 // What a session's agent is doing, as the hooks record it for the app's statuses and live agent
-// time: in a turn (working), waiting for the person, or neither. The hooks that only record it run
+// time: in a turn (working), waiting for the person, or neither. A session waits for the person
+// only when it asks: a permission prompt, or the agent's `needs_you` call; a turn that ends without
+// asking (an agent waiting on CI or a background task) is out of its turn without needing anyone. The hooks that only record it run
 // on every tool call (and harnesses such as Codex wait for them), so they load only this file and,
 // when the state is to change, the home database: a stamp file per session says what the database
 // holds, so a tool use while the session works, or one of a session no work is linked to, is
@@ -23,8 +25,13 @@ export type Activity = 'prompt' | 'tool' | 'ask' | 'stop' | 'end' | 'gone' | nul
  * (its own or a subagent's), and SubagentStart when a subagent begins.
  */
 export const stateEvents = new Set(['UserPromptSubmit', 'ToolUse', 'Notification', 'PermissionRequest', 'SessionEnd', 'SubagentStart']);
-/** Notifications that wait for the person (Claude Code's); one without a type is taken as one. */
-const asking = new Set(['permission_prompt', 'idle_prompt', 'elicitation_dialog']);
+/**
+ * Notifications that wait for the person (Claude Code's); one without a type is taken as one. Its
+ * idle prompt, sent a minute after any turn ends, says nothing about whether the person is needed.
+ */
+const asking = new Set(['permission_prompt', 'elicitation_dialog']);
+/** The Atlas tool an agent calls when it stops for the person to act. */
+export const needsYouTool = /^mcp__.*atlas.*__needs_you$/;
 export const sessionPattern = /^[A-Za-z0-9._:-]{1,128}$/;
 /**
  * Whether a tool call may have made a commit (it ran `git … commit`, which prints `[branch hash]
@@ -153,21 +160,44 @@ export function recordActivity(database: HomeDatabase, home: string, session: st
     const now = { ...row, ...next };
     if (next) {
       const columns = Object.keys(next) as (keyof SessionRow)[];
-      // A wait begins with its message, if the hook knows one; it ends without.
-      const message = now.waiting_at === null ? null : details.message?.trim() ? details.message.trim().slice(0, messageLimit) : undefined;
+      // A wait begins with its message, if the hook knows one, and ends without. A turn that ends
+      // after the agent gave its reason (needs_you) keeps the reason.
+      const given = details.message?.trim() ? details.message.trim().slice(0, messageLimit) : undefined;
+      const reasoned = activity === 'stop' && asked(database, session) && (database.db.prepare('SELECT message FROM session WHERE id = ?').get(session) as { message: string | null }).message !== null;
+      const message = row.waiting_at === now.waiting_at ? undefined : now.waiting_at === null ? null : reasoned ? undefined : given;
       database.db.prepare(`UPDATE session SET ${columns.map(column => column + ' = ?').join(', ')}, transcript_path = ifnull(?, transcript_path), cwd = ifnull(cwd, ?)${message === undefined ? '' : ', message = ?'} WHERE id = ?`)
         .run(...columns.map(column => next[column] ?? null), transcriptPath, details.cwd ?? null, ...message === undefined ? [] : [message], session);
       if (row.waiting_at !== now.waiting_at) {
+        // A wait for the person (an open session_wait) is opened by asking; a turn's end only starts
+        // the one the agent asked for during the turn (needs_you), else none.
         if (row.waiting_at !== null) database.db.prepare('UPDATE session_wait SET ended_at = ? WHERE session_id = ? AND ended_at IS NULL').run(at, session);
-        if (now.waiting_at !== null) {
-          const on = database.db.prepare(`SELECT session_work.project_id, session_work.work_id FROM session JOIN session_work ON session_work.session_id = session.id
-            WHERE session.id = ? ORDER BY session_work.id = ifnull(session.focus, -1) DESC, session_work.touched_at DESC, session_work.id DESC LIMIT 1`).get(session) as { project_id: number; work_id: string } | undefined;
-          database.db.prepare('INSERT INTO session_wait (session_id, project_id, work_id, started_at) VALUES (?, ?, ?, ?)').run(session, on?.project_id ?? null, on?.work_id ?? null, now.waiting_at);
-        }
+        if (now.waiting_at !== null && activity === 'ask') openWait(database, session, now.waiting_at);
+        else if (now.waiting_at !== null) database.db.prepare('UPDATE session_wait SET started_at = ? WHERE session_id = ? AND ended_at IS NULL').run(now.waiting_at, session);
       }
     }
     return now.working ? 'working' : now.waiting_at !== null ? 'waiting' : 'ended';
   })()));
+}
+
+/** Whether the session asked for the person and has not heard back: its wait is open. */
+const asked = (database: HomeDatabase, session: string) => Boolean(database.db.prepare('SELECT 1 FROM session_wait WHERE session_id = ? AND ended_at IS NULL LIMIT 1').get(session));
+/** Open a wait for the person, on the work item the session is on. */
+function openWait(database: HomeDatabase, session: string, at: string) {
+  const on = database.db.prepare(`SELECT session_work.project_id, session_work.work_id FROM session JOIN session_work ON session_work.session_id = session.id
+    WHERE session.id = ? ORDER BY session_work.id = ifnull(session.focus, -1) DESC, session_work.touched_at DESC, session_work.id DESC LIMIT 1`).get(session) as { project_id: number; work_id: string } | undefined;
+  database.db.prepare('INSERT INTO session_wait (session_id, project_id, work_id, started_at) VALUES (?, ?, ?, ?)').run(session, on?.project_id ?? null, on?.work_id ?? null, at);
+}
+/**
+ * Record that the agent asked for the person (`needs_you`, with its reason): its wait opens now and
+ * starts when the turn ends; the reason is the message it waits with. Nothing for a session that
+ * has linked no work.
+ */
+export function recordAsk(database: HomeDatabase, session: string, reason: string | null, at: string) {
+  database.transaction(() => {
+    if (!database.db.prepare('SELECT 1 FROM session WHERE id = ?').get(session)) return;
+    if (!asked(database, session)) openWait(database, session, at);
+    if (reason?.trim()) database.db.prepare('UPDATE session SET message = ? WHERE id = ?').run(reason.trim().slice(0, messageLimit), session);
+  });
 }
 
 /**
@@ -215,7 +245,7 @@ export async function stateHook(event: string, text: string | null, at: number, 
   const home = atlasHome(undefined, environment);
   try {
     if (text === null) { text = ''; if (!process.stdin.isTTY) for await (const chunk of process.stdin) text += chunk; }
-    const input = JSON.parse(text || '{}') as { session_id?: unknown; transcript_path?: unknown; notification_type?: unknown; reason?: unknown; message?: unknown; cwd?: unknown; agent_id?: unknown; agent_type?: unknown };
+    const input = JSON.parse(text || '{}') as { session_id?: unknown; transcript_path?: unknown; notification_type?: unknown; reason?: unknown; message?: unknown; cwd?: unknown; agent_id?: unknown; agent_type?: unknown; tool_name?: unknown; tool_input?: { reason?: unknown } };
     const session = typeof input.session_id === 'string' && sessionPattern.test(input.session_id) ? input.session_id : null;
     // A subagent's tool use (Claude Code names the subagent in its hooks), or its start.
     const agent = (event === 'ToolUse' || event === 'SubagentStart') && typeof input.agent_id === 'string' && sessionPattern.test(input.agent_id) ? input.agent_id : null;
@@ -223,9 +253,11 @@ export async function stateHook(event: string, text: string | null, at: number, 
     if (!session || (!activity && !agent)) return;
     // A commit or a PR the tool call made is recorded however recently the session was seen.
     const made = event === 'ToolUse' && mayCommit(text);
+    // The agent asks for the person: recorded whoever made the call, the session or a subagent.
+    const asks = event === 'ToolUse' && typeof input.tool_name === 'string' && needsYouTool.test(input.tool_name);
     const stamp = readStamp(home, agent ? agentStamp(session, agent) : session);
     const fresh = stamp !== null && at - stamp.at < heartbeatMs;
-    if (agent ? event === 'ToolUse' && !made && fresh && (stamp.state === 'working' || stamp.state === 'none') : stamp?.state === 'none' || (activity === 'tool' && !made && stamp?.state === 'working' && fresh)) return;
+    if (!asks && (agent ? event === 'ToolUse' && !made && fresh && (stamp.state === 'working' || stamp.state === 'none') : stamp?.state === 'none' || (activity === 'tool' && !made && stamp?.state === 'working' && fresh))) return;
     const { HomeDatabase, liveWindowMs } = await import('../../home/database.ts');
     const database = HomeDatabase.open(home);
     try {
@@ -235,6 +267,7 @@ export async function stateHook(event: string, text: string | null, at: number, 
         const details: ActivityDetails = { cwd: typeof input.cwd === 'string' ? input.cwd : null, message: activity === 'ask' && typeof input.message === 'string' ? input.message : null };
         recordActivity(database, home, session, typeof input.transcript_path === 'string' ? input.transcript_path : null, activity, when, liveWindowMs, details);
       }
+      if (asks) recordAsk(database, session, typeof input.tool_input?.reason === 'string' ? input.tool_input.reason : null, when);
       if (made) await (await import('./sessionCommits.ts')).recordCommits(database, session, input, when);
       // The session's end (after an interruption no turn's end comes) and its next prompt (which runs in
       // the background) report the work items it left whose reports are not measured yet (hook.ts).

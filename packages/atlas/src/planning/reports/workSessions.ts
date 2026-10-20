@@ -14,7 +14,7 @@ type Harness = 'claude-code' | 'codex' | 'unknown';
 /** A work item's session as the host's contract describes it (WorkSession). */
 export interface SessionEntry {
   session: string; harness: Harness; title: string | null; model: string | null; effort: string | null;
-  state: 'working' | 'waiting' | 'ended'; startedAt: string; lastSeen: string; agentMs: number;
+  state: 'working' | 'waiting' | 'idle' | 'ended'; startedAt: string; lastSeen: string; agentMs: number;
   folder: string | null; resume: string | null; message: string | null;
 }
 /** A commit or a PR a session made, as the host's contract describes it (WorkCommit). */
@@ -70,7 +70,7 @@ export async function workSessions(database: HomeDatabase, projectRowId: number,
     WHERE session_work.project_id = ? AND session_work.work_id = ? ORDER BY session.updated_at DESC`).all(projectRowId, workId) as Row[];
   const agents = summarizeReports(storedReports(database, projectRowId, [workId]).get(workId) ?? []).agents;
   // A session works while its main agent or any of its subagents (`<session>/<subagent>`) does.
-  const states = new Map<string, 'working' | 'waiting'>();
+  const states = new Map<string, 'working' | 'waiting' | 'idle'>();
   for (const entry of database.workActivity(now).get(projectRowId)?.find(item => item.workId === workId)?.sessions ?? []) {
     const session = entry.session.split('/')[0];
     if (states.get(session) !== 'working') states.set(session, entry.state);

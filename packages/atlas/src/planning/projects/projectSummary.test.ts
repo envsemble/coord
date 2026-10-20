@@ -172,6 +172,10 @@ test('what agents do now: sessions in a turn, seen lately, and those waiting for
     session('gone', 20, { turn: 30 }, [[coord.id, 'work-0005', 30]]);
     session('left', 25 * 60, { waiting: 25 * 60 }, [[coord.id, 'work-0006', 25 * 60]]);
     session('ended', 1, null, [[coord.id, 'work-0007', 1]]);
+    // Out of its turn without asking for the person (waiting on CI): the plan still works, its time stopped.
+    session('held', 1, { waiting: 3, counts: 9 }, [[coord.id, 'work-0008', 9]]);
+    // The others asked: a permission prompt or needs_you left their wait open.
+    for (const id of ['c', 'stopped', 'answered', 'left']) database.db.prepare('INSERT INTO session_wait (session_id, started_at) VALUES (?, ?)').run(id, ago(1));
     const activity = database.workActivity(now);
     assert.deepEqual(activity.get(shop.id), [
       { workId: 'work-0001', state: 'working', since: ago(8), sessions: [
@@ -180,8 +184,10 @@ test('what agents do now: sessions in a turn, seen lately, and those waiting for
       ] },
       { workId: 'work-0004', state: 'waiting', since: ago(40), sessions: [{ session: 'stopped', harness: 'claude-code', state: 'waiting', since: ago(40), countsFrom: ago(45) }] },
     ], 'working while any session works, its time counting from its last report; else waiting');
-    assert.deepEqual(activity.get(coord.id), [{ workId: 'work-0003', state: 'working', since: ago(10), sessions: [{ session: 'a', harness: 'claude-code', state: 'working', since: ago(10), countsFrom: ago(10) }] }],
-      'a session not seen for 15 minutes, one waiting for a day and one that ended are not listed');
+    assert.deepEqual(activity.get(coord.id), [
+      { workId: 'work-0008', state: 'working', since: ago(3), sessions: [{ session: 'held', harness: 'claude-code', state: 'idle', since: ago(3), countsFrom: ago(9) }] },
+      { workId: 'work-0003', state: 'working', since: ago(10), sessions: [{ session: 'a', harness: 'claude-code', state: 'working', since: ago(10), countsFrom: ago(10) }] },
+    ], 'a session not seen for 15 minutes, one waiting for a day and one that ended are not listed; one idle works on, its time stopped');
   } finally { database.close(); }
 });
 

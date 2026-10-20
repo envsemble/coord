@@ -132,7 +132,7 @@ export const folderKey = (value: string, platform: NodeJS.Platform = process.pla
 
 type Row = Record<string, unknown>;
 /** A session on a work item now, as the host's contract describes it (SessionActivity). */
-export interface SessionActivityRow { session: string; harness: 'claude-code' | 'codex' | 'unknown'; state: 'working' | 'waiting'; since: string; countsFrom: string | null }
+export interface SessionActivityRow { session: string; harness: 'claude-code' | 'codex' | 'unknown'; state: 'working' | 'waiting' | 'idle'; since: string; countsFrom: string | null }
 /** What agents do on a work item now, as the host's contract describes it (WorkActivity). */
 export interface WorkActivityRow { workId: string; state: 'working' | 'waiting'; since: string; sessions: SessionActivityRow[] }
 
@@ -274,6 +274,8 @@ export class HomeDatabase {
     }
     const on = new Map<string, Row>();
     for (const row of rows) if (Number(row.link) === Number(row.focus)) on.set(String(row.id), row);
+    // Sessions that asked for the person and have not heard back (needs_you, a permission prompt).
+    const asked = new Set((this.db.prepare('SELECT DISTINCT session_id FROM session_wait WHERE ended_at IS NULL').all() as Row[]).map(row => String(row.session_id)));
     // Another session's touch, report or turn on the work item since a session began to wait.
     const later = this.db.prepare(`SELECT 1 FROM session_work WHERE project_id = ? AND work_id = ? AND session_id != ? AND max(ifnull(focused_at, ''), touched_at) > ?
       UNION ALL SELECT 1 FROM work_report WHERE project_id = ? AND work_id = ? AND ifnull(session, '') != ? AND at > ? LIMIT 1`);
@@ -303,15 +305,18 @@ export class HomeDatabase {
       const turn = String(row.turn_at ?? row.updated_at);
       const counted = latest(row.counts_at as string | null ?? (working ? turn : null), row.came as string, row.reported as string | null);
       sessions().push(working ? { session: id, harness, state: 'working', since: turn, countsFrom: counted }
-        : { session: id, harness, state: 'waiting', since: waiting!, countsFrom: row.counts_at !== null && counted! < waiting! ? counted : null });
+        : { session: id, harness, state: asked.has(id) ? 'waiting' : 'idle', since: waiting!, countsFrom: row.counts_at !== null && counted! < waiting! ? counted : null });
     }
     const order = (a: { state: string; since: string }, b: { state: string; since: string }) => Number(b.state === 'working') - Number(a.state === 'working') || b.since.localeCompare(a.since);
     const activity = new Map<number, WorkActivityRow[]>();
     for (const { projectRowId, workId, sessions } of work.values()) {
       sessions.sort(order);
       const working = sessions.filter(session => session.state === 'working');
-      // Working: since the earliest working session's turn began; waiting: since the latest began to wait.
-      const item: WorkActivityRow = working.length ? { workId, state: 'working', since: working.map(session => session.since).sort()[0], sessions } : { workId, state: 'waiting', since: sessions[0].since, sessions };
+      // Working: since the earliest working session's turn began; waiting (a session asked for the
+      // person): since the latest began to wait; else working, idle, since the latest went idle.
+      const waiting = sessions.filter(session => session.state === 'waiting');
+      const item: WorkActivityRow = working.length ? { workId, state: 'working', since: working.map(session => session.since).sort()[0], sessions }
+        : waiting.length ? { workId, state: 'waiting', since: waiting[0].since, sessions } : { workId, state: 'working', since: sessions[0].since, sessions };
       activity.set(projectRowId, [...activity.get(projectRowId) ?? [], item].sort(order));
     }
     return activity;

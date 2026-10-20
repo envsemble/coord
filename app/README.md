@@ -65,7 +65,7 @@ Alt opens the menus from the keyboard (Alt+F, Alt+V, Alt+H). Empty space in the 
 
 ## The hub
 
-The hub lists every plan of the computer's active projects, grouped by status, in this order: **Needs you** (an agent waits for your answer), **Working** (an agent is in a turn on it now), **Blocked**, **Paused** (implementation started, nobody on it), **Drafts**, **Ready** (accepted, not started) and, when asked for, **Closed**. Each group lists the latest change first; only groups with plans show.
+The hub lists every plan of the computer's active projects, grouped by status, in this order: **Needs you** (an agent asked for you: a question, a decision or work to review), **Working** (an agent is on it: in a turn, or waiting on something else, such as CI), **Blocked**, **Paused** (implementation started, nobody on it), **Drafts**, **Ready** (accepted, not started) and, when asked for, **Closed**. Each group lists the latest change first; only groups with plans show.
 
 Its heading line holds the title (**Plans**, or the project's name when filtered), **Statistics** (all plans', or the project's), the search field, which opens the search with what you type and never filters the list, the project filter (**All projects**, or one active project) and the state filter (**Open**, **Closed** or **All**, each with its count). The project filter is part of the place, so back and forward and a plan's breadcrumb set it.
 

@@ -152,6 +152,8 @@ test('hooks give the session its planning context, check and link planning edits
   await commit('git add -A && git commit -m "Add the cart"', '[main 0f0f0f0] Add a cart\n 1 file changed, 1 insertion(+)\n');
   await commit('git commit --amend -m "Add the cart"', '[main 1a2b3c4] Add the cart\n Date: Mon Oct 19 12:00:00 2026 +0200\n');
   await commit('git -C "' + checkout + '" commit -m "Try it"', '[detached HEAD 9e8d7c6] Try it\n');
+  // The agent asks for the person (needs_you) before its turn ends: the plan needs you.
+  await hook('ToolUse', { tool_name: 'mcp__plugin_atlas_atlas__needs_you', tool_input: {}, tool_response: [{ type: 'text', text: '{"noted":true}' }] });
   await hook('Stop', { stop_hook_active: false, last_assistant_message: '**Needs your decision:** keep the cart for a week?' });
   const { waiting } = state();
   const project = withDatabase(base.ATLAS_HOME!, database => database.projectByFolder(realpathSync.native(root))!.id);
@@ -183,9 +185,10 @@ test('hooks give the session its planning context, check and link planning edits
   assert.deepEqual([state(), activity()], [{ working: 0, turn: null, waiting: null }, []]);
   const [ended] = (await sessions()).sessions;
   assert.deepEqual([ended.state, ended.message], ['ended', null]);
-  // Its waits on the work item it is on (work-0003): both turns' ends and the permission prompt between them.
+  // Its waits for the person on the work item it is on (work-0003): the permission prompt and the turn end it asked at;
+  // the first turn's end, without asking, was no wait for anyone.
   const timeline = withDatabase(base.ATLAS_HOME!, database => workTimeline(database, project, 'work-0003', { created: null, accepted: null, completed: null }));
-  assert.deepEqual([timeline.lanes.map(lane => [lane.session, lane.subagent, lane.waiting.length]), timeline.waitedMs > 0], [[[session, null, 3]], true]);
+  assert.deepEqual([timeline.lanes.map(lane => [lane.session, lane.subagent, lane.waiting.length]), timeline.waitedMs > 0], [[[session, null, 2]], true]);
   assert.ok(!existsSync(path.join(root, 'active', '0001-cart', '.atlas')), 'nothing is written into the planning folder');
   assert.equal((await run(['check', root], { env })).status, 0);
 });

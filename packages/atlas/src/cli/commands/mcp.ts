@@ -28,7 +28,7 @@ const instructions = "Atlas keeps plans in projects: planning folders in the Atl
   + "Tag work with what it will be searched for later: the release it ships in and the areas it touches, reusing the project's tags (where and work_tag count them). "
   + 'Answer questions about past work with work_search. '
   + 'In planning files, write PRs and issues as owner/repo#N and commits as owner/repo@hash (or their URLs), naming the repository yourself, so Atlas links them. '
-  + 'When you stop to wait for the user, begin your message with the question or decision you need. The tools never commit; commit planning changes yourself.';
+  + 'When you stop for the user to act (a question, a decision, finished work to review), call needs_you and begin your message with what you need; a turn that ends without it, as one waiting on CI or a background task, shows as still working. The tools never commit; commit planning changes yourself.';
 
 const planningFolder = { type: 'string', description: "The project's planning folder, an absolute path; needed only when several projects or none cover your folder." };
 const cwd = { type: 'string', description: "Your folder, when it isn't the session's." };
@@ -71,6 +71,11 @@ const tools: Tool[] = [
     description: 'The projects your folder belongs to (matches: planning folder and active work with steps and blocked), and every active project in the home (projects: planning folder, folders, and the active work of the others in brief). Call it when you need your work\'s plan or ledger and have no Atlas session context.',
     inputSchema: { type: 'object', properties: { cwd }, additionalProperties: false },
     run: async (_, input) => leanWhere(await findPlanning(input.cwd!)),
+  },
+  {
+    name: 'needs_you', description: 'Call when you stop for the user to act; Atlas shows Needs you, with the reason, until they answer.',
+    inputSchema: { type: 'object', properties: { reason: { type: 'string', description: 'What you need, in a few words: "review PR #24".' } }, additionalProperties: false },
+    run: async () => ({ noted: true }),
   },
   {
     name: 'project_create',
@@ -182,7 +187,7 @@ function shaped(name: string, value: unknown) {
 }
 
 /** Tools about the home rather than one planning folder. */
-const homeTools = new Set(['where', 'project_create']);
+const homeTools = new Set(['where', 'project_create', 'needs_you']);
 
 /** Run a tool call; a refusal is a tool error the agent can read and act on. */
 export async function callTool(name: string, input: Arguments) {
