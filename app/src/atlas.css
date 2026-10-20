@@ -138,17 +138,16 @@ body { margin: 0; }
 .project-fact + .project-fact::before { content: '·'; margin-inline: var(--space-2); }
 .project-fact .status-icon { inline-size: 1rem; block-size: 1rem; }
 .project-fact[data-live='waiting'] { color: var(--color-tone-warning); }
-.project-folder-summary { display: inline-flex; align-items: center; gap: var(--space-2); max-inline-size: 100%; color: var(--color-text-muted); }
-.project-folder-summary > svg { flex: none; inline-size: 1rem; block-size: 1rem; color: var(--color-icon); }
-.project-folder-summary > bdi { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.project-folder-more { flex: none; color: var(--color-text-quiet, var(--color-text-muted)); font-variant-numeric: tabular-nums; }
 .project-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--space-1); --control-height: var(--control-height-compact); --icon-button-size: var(--control-height-compact); }
 /* The rows: a project's folder and actions at the end of its row; archived ones quieter. */
 .project-list { display: grid; gap: var(--space-5); }
 .project-list .project-row { flex-wrap: nowrap; }
 .project-list .project-row > :first-child { flex: 1; }
-.project-side { display: inline-flex; align-items: center; gap: var(--space-4); min-inline-size: 0; }
-.project-side > .project-folder-summary { max-inline-size: 16rem; }
+.project-side { display: inline-flex; align-items: flex-start; gap: var(--space-4); min-inline-size: 0; }
+/* The folders' badges take a range of their own at the row's end and wrap there, the row growing taller. */
+.project-folders-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1); inline-size: 24rem; max-inline-size: 40vw; }
+.project-folder-badge { max-inline-size: 12rem; }
+.project-folder-badge bdi { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-row[data-group='archived'] > :first-child { opacity: 0.6; }
 .projects-aside { display: grid; gap: var(--space-2); }
 /* The fold: a quiet line across the table, its count after it. */

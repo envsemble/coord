@@ -6,7 +6,7 @@
 // name and its folders. Folders are paths on the project's own computer, so they are only chosen in
 // Atlas there.
 import { useId, useState, type CSSProperties } from 'react';
-import { Button, ClickableCard, Dialog, EmptyState, GroupedRows, IconButton, Input, Menu, MenuItem, MenuSeparator, Notice, Row, Spinner, Text, Tooltip } from '@envsemble/envui';
+import { Badge, Button, ClickableCard, Dialog, EmptyState, GroupedRows, IconButton, Input, Menu, MenuItem, MenuSeparator, Notice, Row, Spinner, Text, Tooltip } from '@envsemble/envui';
 import { AddFolderIcon, AddIcon, ChevronRightIcon, CloseIcon, ComputerIcon, FolderIcon, MoreIcon, NewProjectIcon, StatisticsIcon } from '../ui/icons';
 import { StatusIcon } from '../ui/ui';
 import { statuses } from '../ui/status';
@@ -178,18 +178,20 @@ function FoldersDialog({ project, computer, local, onClose, onChange }: { projec
 
 /** A folder's own name, for a column too narrow for its path. */
 const shortFolder = (folder: string) => folderName(folder) || folder;
+/** The most folders a row shows as badges; one more says how many others there are. */
+const shownFolders = 5;
 
 /**
- * One project, a row of the list: its avatar and name (leading to its plans, as the whole row does) over what agents do on
- * it now, its open plans and when it changed; its folder by its name (the full paths on hover); and
- * its statistics and menu, which wait while a change of it is on its way.
+ * One project, a row of the list: its avatar and name (leading to its plans, as the whole row does)
+ * over what agents do on it now, its open plans and when it changed; its folders as badges by their
+ * names (each one's path on hover), at most five and how many more; and its statistics and menu,
+ * which wait while a change of it is on its way.
  */
 function ProjectRow({ project, local, actions, rename, details }: { project: Project; local: boolean; actions: ProjectActions; rename(): void; details(): void }) {
   const [busy, setBusy] = useState(false);
   const change = (request: ProjectChangeRequest) => { setBusy(true); void actions.change(project, request).finally(() => setBusy(false)); };
   const facts = projectFacts(project);
   const live = project.state === 'active' ? facts : null;
-  const [first, ...more] = project.folders;
   return <Row className="project-row" data-project={project.folderId} data-state={project.state} data-group={project.state === 'active' ? 'active' : 'archived'} aria-busy={busy || undefined}
     interactive={project.state === 'active'}
     title={<span className="project-cell">
@@ -207,7 +209,10 @@ function ProjectRow({ project, local, actions, rename, details }: { project: Pro
         </span>
     </span>}
     action={<span className="project-side">
-      {first && <span className="project-folder-summary" title={project.folders.join('\n')}><FolderIcon /><bdi>{shortFolder(first)}</bdi>{more.length > 0 && <span className="project-folder-more">+{more.length}</span>}</span>}
+      {project.folders.length > 0 && <span className="project-folders-badges">
+        {project.folders.slice(0, shownFolders).map(folder => <Badge key={folder} className="project-folder-badge" title={folder}><bdi>{shortFolder(folder)}</bdi></Badge>)}
+        {project.folders.length > shownFolders && <Badge className="project-folder-badge" title={project.folders.slice(shownFolders).join('\n')}>+{project.folders.length - shownFolders}</Badge>}
+      </span>}
       <span className="project-actions">
         <Tooltip content="Statistics"><IconButton variant="quiet" icon={<StatisticsIcon />} aria-label={'Statistics of ' + project.name} onClick={() => actions.go(statisticsPlace(project.folderId))} /></Tooltip>
         <ProjectMenu project={project} actions={actions} local={local} rename={rename} details={details} busy={busy} change={change} />
