@@ -25,7 +25,7 @@ Select work by the user's choice or the registry's `current_plan`; numbers, date
 
 The Atlas tools change structured state: work items, design acceptance, implementation, steps, `blocked`, closing, archiving and reopening. Everything else is an ordinary file edited directly; Atlas checks each edit, and `atlas check` runs the same checks on request.
 
-Design acceptance, implementation completion, PR readiness, merge and release are separate facts; do not guess dates or turn an uncertain status into completion. Commit the plan before implementation starts, and record later amendments in it. Close work once its agreed completion criteria are verified and the outcome is recorded (for PR delivery, the required PRs merged unless agreed otherwise); closing grants no merge or deployment. Unfinished scope stays active unless explicitly transferred, superseded or dropped.
+Design acceptance, implementation completion, PR readiness, merge and release are separate facts; do not guess dates or turn an uncertain status into completion. Commit the plan before implementation starts, and record later amendments in it. Close work once its agreed completion criteria are verified, the outcome is recorded (for PR delivery, the required PRs merged unless agreed otherwise) and the user confirms it is finished; when work looks finished, ask them. Closing grants no merge or deployment. Unfinished scope stays active unless explicitly transferred, superseded or dropped.
 
 ## Git
 

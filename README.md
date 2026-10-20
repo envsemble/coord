@@ -28,7 +28,7 @@ Atlas fixes that without changing how you work with your agent:
 ## How it works
 
 1. **Plan.** Tell your agent what you want. When it is big enough to plan, it asks to open a work item, interviews you ("grill me" for a thorough round), and writes the plan as the answers settle. You accept it.
-2. **Implement.** Say "atlas implement". The agent starts the accepted plan with its steps, marks each one as it goes, and delivers through pull requests with review and CI.
+2. **Implement.** Say "atlas implement". The agent starts the accepted plan with its steps, marks each one as it goes, reviews its work, and delivers it the way the plan says: commits, a branch, or a pull request that passes CI. When the work looks finished, it asks you before closing it.
 3. **Follow along.** Atlas shows the plan with its summary, its steps and what is left, the diagrams under the headings they explain, the sessions that worked on it, and what it cost.
 
 ![A plan in Atlas: Saved payment methods, Working, with its outcome and scope; beside it its progress (planning steps done in their own colour, the step being worked on, the steps left), the work it continues, the session working on it and its statistics by model; and its files](assets/plan.png)

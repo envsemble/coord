@@ -125,7 +125,7 @@ const tools: Tool[] = [
     run: (root, input) => setContinues(root, input.work!, input.continues as string[]),
   },
   {
-    name: 'work_close', description: 'Close finished work: refused with the open items unless every step is done and nothing is blocked; then complete today and moved to archive/.',
+    name: 'work_close', description: 'Close finished work, once the user confirms it is finished: refused with the open items unless every step is done and nothing is blocked; then complete today and moved to archive/.',
     inputSchema: object({ work }, ['work']), run: (root, input) => closeWork(root, input.work!),
   },
   {

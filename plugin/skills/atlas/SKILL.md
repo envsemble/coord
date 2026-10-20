@@ -68,4 +68,4 @@ When the work settles domain concepts, boundaries or data structure and a diagra
 
 ## Close
 
-Close with `work_close` once the agreed completion criteria are verified and the outcome is in the plan; for PR delivery that means the required PRs merged, unless agreed otherwise. Acceptance, implementation, PR readiness, merge and release are separate facts: state pending ones accurately. Unfinished scope stays active, or is transferred or dropped with `step` (action `remove`), telling the user why. Closing never grants merge or deployment.
+When the agreed completion checks pass and the outcome is in the plan (for PR delivery, the PR merged unless agreed otherwise), ask the user whether the work is finished, and close it with `work_close` only on their yes. Don't wait for them to remember: when work looks finished, say so and ask. Acceptance, implementation, PR readiness, merge and release are separate facts: state pending ones accurately. Unfinished scope stays active, or is transferred or dropped with `step` (action `remove`), telling the user why. Closing never grants merge or deployment.
