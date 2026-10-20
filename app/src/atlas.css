@@ -126,7 +126,6 @@ body { margin: 0; }
    what agents do on a project is on its muted line. Every row has the same height: the avatar (its
    initials on a quiet square), its name over that line, its folder, then its actions, quiet and at the
    end. The archived projects follow under a fold of their own in the same table, dimmed. */
-.project-row > td { block-size: 3.5rem; }
 .project-cell { display: flex; align-items: flex-start; gap: var(--space-3); min-inline-size: 0; }
 /* A project's avatar: its initials on a small square in the project's own hue (`--project-hue`), legible in both themes. */
 .project-avatar { flex: none; display: grid; place-content: center; inline-size: 1.5rem; block-size: 1.5rem; margin-block-start: 0.0625rem; border-radius: 0.375rem; background: light-dark(hsl(var(--project-hue) 70% 90%), hsl(var(--project-hue) 45% 26%)); color: light-dark(hsl(var(--project-hue) 60% 32%), hsl(var(--project-hue) 75% 80%)); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.02em; }
@@ -144,17 +143,22 @@ body { margin: 0; }
 .project-folder-summary > bdi { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-folder-more { flex: none; color: var(--color-text-quiet, var(--color-text-muted)); font-variant-numeric: tabular-nums; }
 .project-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--space-1); --control-height: var(--control-height-compact); --icon-button-size: var(--control-height-compact); }
+/* The rows: a project's folder and actions at the end of its row; archived ones quieter. */
+.project-list { display: grid; gap: var(--space-5); }
+.project-list .project-row { flex-wrap: nowrap; }
+.project-list .project-row > :first-child { flex: 1; }
+.project-side { display: inline-flex; align-items: center; gap: var(--space-4); min-inline-size: 0; }
+.project-side > .project-folder-summary { max-inline-size: 16rem; }
+.project-row[data-group='archived'] > :first-child { opacity: 0.6; }
+.projects-aside { display: grid; gap: var(--space-2); }
 /* The fold: a quiet line across the table, its count after it. */
-.projects-aside-row > td { padding-block: var(--space-2); }
 /* After the active projects, the fold takes the line between rows too. */
-.project-list tbody + .projects-aside > .projects-aside-row > td { border-block-start: 0.0625rem solid var(--color-border-strong); }
 .projects-aside-toggle { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) 0; border: 0; background: none; color: var(--color-text-muted); font: inherit; font-weight: 500; cursor: pointer; }
 .projects-aside-toggle:hover { color: var(--color-text-primary); }
 .projects-aside-toggle:focus-visible { outline: 0.125rem solid var(--color-focus-ring); outline-offset: 0.125rem; border-radius: 0.25rem; }
 .projects-aside-count { color: var(--color-text-muted); font-weight: 400; font-variant-numeric: tabular-nums; }
 .projects-aside-icon { inline-size: 1rem; block-size: 1rem; transition: transform var(--motion-duration-fast) var(--motion-ease); }
 .projects-aside-toggle[aria-expanded='true'] .projects-aside-icon { transform: rotate(90deg); }
-.project-row[data-group='archived'] > td:not(:last-child) { opacity: 0.6; }
 /* A project's folders, in its dialog. */
 .project-details section { display: grid; gap: var(--space-1); }
 .project-details-heading { margin: 0; color: var(--color-text-muted); }

@@ -6,7 +6,7 @@
 // name and its folders. Folders are paths on the project's own computer, so they are only chosen in
 // Atlas there.
 import { useId, useState, type CSSProperties } from 'react';
-import { Button, ClickableCard, Dialog, EmptyState, GroupedRows, IconButton, Input, Menu, MenuItem, MenuSeparator, Notice, Row, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text, Tooltip } from '@envsemble/envui';
+import { Button, ClickableCard, Dialog, EmptyState, GroupedRows, IconButton, Input, Menu, MenuItem, MenuSeparator, Notice, Row, Spinner, Text, Tooltip } from '@envsemble/envui';
 import { AddFolderIcon, AddIcon, ChevronRightIcon, CloseIcon, ComputerIcon, FolderIcon, MoreIcon, NewProjectIcon, StatisticsIcon } from '../ui/icons';
 import { StatusIcon } from '../ui/ui';
 import { statuses } from '../ui/status';
@@ -180,7 +180,7 @@ function FoldersDialog({ project, computer, local, onClose, onChange }: { projec
 const shortFolder = (folder: string) => folderName(folder) || folder;
 
 /**
- * One project, a row of the table: its avatar and name (leading to its plans) over what agents do on
+ * One project, a row of the list: its avatar and name (leading to its plans, as the whole row does) over what agents do on
  * it now, its open plans and when it changed; its folder by its name (the full paths on hover); and
  * its statistics and menu, which wait while a change of it is on its way.
  */
@@ -190,13 +190,13 @@ function ProjectRow({ project, local, actions, rename, details }: { project: Pro
   const facts = projectFacts(project);
   const live = project.state === 'active' ? facts : null;
   const [first, ...more] = project.folders;
-  return <TableRow className="project-row" data-project={project.folderId} data-state={project.state} data-group={project.state === 'active' ? 'active' : 'archived'} aria-busy={busy || undefined}>
-    <TableCell>
-      <span className="project-cell">
+  return <Row className="project-row" data-project={project.folderId} data-state={project.state} data-group={project.state === 'active' ? 'active' : 'archived'} aria-busy={busy || undefined}
+    interactive={project.state === 'active'}
+    title={<span className="project-cell">
         <span className="project-avatar" aria-hidden="true" style={{ '--project-hue': projectHue(project.folderId) } as CSSProperties}>{initials(project.name)}</span>
         <span className="project-name">
           {/* An archived project's plans are seen nowhere, so its name leads nowhere. */}
-          {project.state === 'active' ? <button type="button" className="row-link" title={'Plans of ' + project.name} onClick={() => actions.go(hubPlace(project.folderId))}><span className="row-link-title">{project.name}</span></button>
+          {project.state === 'active' ? <button type="button" className="row-link" data-row-target title={'Plans of ' + project.name} onClick={() => actions.go(hubPlace(project.folderId))}><span className="row-link-title">{project.name}</span></button>
             : <span className="row-link-title project-name-plain">{project.name}</span>}
           <small className="cell-note project-meta">
             {live && live.waiting > 0 && <span className="project-fact" data-live="waiting"><StatusIcon status={statuses.waiting} decorative />{live.waiting} {live.waiting === 1 ? 'needs' : 'need'} you</span>}
@@ -205,20 +205,15 @@ function ProjectRow({ project, local, actions, rename, details }: { project: Pro
               : <span className="project-fact">Its planning folder could not be read</span>}
           </small>
         </span>
-      </span>
-    </TableCell>
-    <TableCell>{first ? <span className="project-folder-summary" title={project.folders.join('\n')}><FolderIcon /><bdi>{shortFolder(first)}</bdi>{more.length > 0 && <span className="project-folder-more">+{more.length}</span>}</span> : <span className="muted">—</span>}</TableCell>
-    <TableCell align="end" nowrap>
+    </span>}
+    action={<span className="project-side">
+      {first && <span className="project-folder-summary" title={project.folders.join('\n')}><FolderIcon /><bdi>{shortFolder(first)}</bdi>{more.length > 0 && <span className="project-folder-more">+{more.length}</span>}</span>}
       <span className="project-actions">
         <Tooltip content="Statistics"><IconButton variant="quiet" icon={<StatisticsIcon />} aria-label={'Statistics of ' + project.name} onClick={() => actions.go(statisticsPlace(project.folderId))} /></Tooltip>
         <ProjectMenu project={project} actions={actions} local={local} rename={rename} details={details} busy={busy} change={change} />
       </span>
-    </TableCell>
-  </TableRow>;
+    </span>} />;
 }
-
-/** Project, folder, actions. */
-const columnWidths = [62, 26, 12];
 
 export function ProjectsPage({ projects, error, computer, local, actions }: { projects: Project[] | null; error: string; computer: string; local: boolean; actions: ProjectActions }) {
   const [creating, setCreating] = useState(false);
@@ -236,23 +231,18 @@ export function ProjectsPage({ projects, error, computer, local, actions }: { pr
     <Button variant="secondary" startIcon={<NewProjectIcon />} onClick={() => setCreating(true)}>New project</Button>
   </div>}>
     {error && <Notice tone="warning">{error}</Notice>}
-    {/* One table under one header: the active projects, then the archived under a fold of their own. */}
+    {/* The active projects as rows, then the archived under a fold of their own. */}
     {projects === null ? <Spinner label="Loading projects" />
       : !projects.length ? <EmptyState className="page-empty" align="center" icon={<NewProjectIcon />} title="No projects yet" description="Plans live in projects. Make one here, or ask an agent to." />
-      : <Table className="project-list" aria-label="Projects" columnWidths={columnWidths}>
-        <TableHead><TableRow><TableHeaderCell>Project</TableHeaderCell><TableHeaderCell>Folder</TableHeaderCell><TableHeaderCell align="end" aria-label="Actions" /></TableRow></TableHead>
-        {active.length > 0 && <TableBody>{active.map(row)}</TableBody>}
-        {aside.length > 0 && <TableBody className="projects-aside">
-          <TableRow className="projects-aside-row">
-            <TableCell colSpan={3}>
-              <button type="button" className="projects-aside-toggle" aria-expanded={archivedShown} onClick={() => setArchivedShown(!archivedShown)}>
-                <ChevronRightIcon className="projects-aside-icon" />Archived <span className="projects-aside-count">{aside.length}</span>
-              </button>
-            </TableCell>
-          </TableRow>
-          {archivedShown && aside.map(row)}
-        </TableBody>}
-      </Table>}
+      : <div className="project-list">
+        {active.length > 0 && <GroupedRows aria-label="Projects">{active.map(row)}</GroupedRows>}
+        {aside.length > 0 && <section className="projects-aside" aria-label="Archived projects">
+          <button type="button" className="projects-aside-toggle" aria-expanded={archivedShown} onClick={() => setArchivedShown(!archivedShown)}>
+            <ChevronRightIcon className="projects-aside-icon" />Archived <span className="projects-aside-count">{aside.length}</span>
+          </button>
+          {archivedShown && <GroupedRows aria-label="Archived projects">{aside.map(row)}</GroupedRows>}
+        </section>}
+      </div>}
     {creating && <NewProjectDialog computer={computer} local={local} onClose={() => setCreating(false)} onCreated={actions.created} />}
     {renaming && <RenameProjectDialog project={renaming} onClose={() => setRenaming(null)} onRename={name => actions.update(renaming, { name })} />}
     {details && <FoldersDialog project={details} computer={computer} local={local} onClose={() => setDetailed(null)} onChange={folders => actions.update(details, { folders })} />}
