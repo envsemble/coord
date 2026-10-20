@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8.0 — The plans hub — unreleased
+## 0.8.0 — The plans hub — 2026-10-20
 
 **The app**
 
