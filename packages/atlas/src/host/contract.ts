@@ -63,6 +63,8 @@ export type SearchKind = 'plan' | 'step' | 'document' | 'heading' | 'diagram' | 
 export interface SearchResult {
   kind: SearchKind; title: string; snippet: string | null;
   projectId: string; projectName: string; work: string | null; path: string | null; anchor: string | null; element: string | null;
+  /** A plan's tags. */
+  tags?: string[];
 }
 /**
  * An agent session linked to a work item, as the hooks record it. `working`: in a turn (seen within

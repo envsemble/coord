@@ -10,6 +10,7 @@ import { parseFrontmatter } from '../check/check.ts';
 import type { HomeDatabase } from '../../home/database.ts';
 import type { HandoffLink } from '../types.ts';
 import { handoffsOf } from '../handoffs/handoffs.ts';
+import { tagsOf } from '../work/tags.ts';
 import { runProgram } from '../../platform/run.ts';
 import { storedReports, summarizeReports, type WorkReport } from '../reports/reports.ts';
 
@@ -25,6 +26,8 @@ export interface ProjectWork {
   blocked: string | null;
   /** The plan's `summary` header: a few plain sentences on what the work is and where it stands. */
   summary: string | null;
+  /** The plan's `tags`. */
+  tags: string[];
   /** The ledger's steps, done and in all, and among them the planning steps (`phase: planning`); null without a ledger that lists steps. */
   steps: { done: number; total: number; planning: { done: number; total: number } } | null;
   /** When the plan last changed: its `updated` header, else its `completed_at` (a date, YYYY-MM-DD). */
@@ -120,7 +123,7 @@ async function workOf(root: string, entry: { id: string; path: string; current_p
   const counted = (list: Step[]) => ({ done: list.filter(step => step?.status === 'done').length, total: list.length });
   return {
     id: entry.id, title: text(planHeader?.title) ?? entry.path.split('/').at(-1)!, state, blocked,
-    summary: text(planHeader?.summary), steps: steps && { ...counted(steps), planning: counted(steps.filter(step => step?.phase === 'planning')) },
+    summary: text(planHeader?.summary), tags: tagsOf(planHeader?.tags), steps: steps && { ...counted(steps), planning: counted(steps.filter(step => step?.phase === 'planning')) },
     updated: text(planHeader?.updated) ?? text(planHeader?.completed_at), outcome,
     step: steps && currentStep(steps), completed: text(planHeader?.completed_at), statistics: workStatisticsBrief(reports),
     // As the plan names them; linkHandoffs finds them in the home's projects, and the work continuing this.

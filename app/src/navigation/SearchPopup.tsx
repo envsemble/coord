@@ -9,6 +9,7 @@ import { diagramTarget, fileTarget, workTarget, type Place } from './targets';
 import { workNumber } from '../ui/format';
 import { hostEntries, listEntries, pathKey, workKey, type SearchDestination, type SearchEntry } from './search';
 import { StatusIcon } from '../ui/badges';
+import { TagList } from '../plan/TagList';
 
 interface Entry extends QuickItem, Omit<SearchEntry, 'kind'> { icon: ReactNode }
 const localKinds: Record<QuickItem['kind'], SearchKind> = { work: 'plan', diagram: 'diagram', file: 'document' };
@@ -60,7 +61,7 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   const entries = useMemo(() => {
     // Every plan of the active projects, in the hub's order; an archived project stays out of the way.
     const all: Entry[] = hubGroups(hubItems(projects, null), 'all').flatMap(group => group.items).map(({ project: owner, work, status }) => ({
-      id: owner.id + ':work:' + work.id, kind: 'work' as const, label: work.title, detail: owner.name + ' · ' + workNumber(work.id), snippet: null,
+      id: owner.id + ':work:' + work.id, kind: 'work' as const, label: work.title, detail: owner.name + ' · ' + workNumber(work.id), snippet: null, tags: work.tags,
       destination: { place: { projectId: owner.id, target: workTarget(work.id) } }, key: workKey(owner.id, work.id), icon: <StatusIcon status={status} decorative />,
     }));
     if (open && projects.find(item => item.id === open.projectId)?.state !== 'archived') {
@@ -91,8 +92,8 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   const byId = useMemo(() => new Map(results.map(entry => [entry.id, entry])), [results]);
   // The name read out includes where it is, so many plan.md files stay apart.
   const items: CommandPaletteItem[] = results.map(entry => ({
-    id: entry.id, label: entry.label, textValue: [entry.label, entry.detail, entry.snippet].filter(Boolean).join(', '), icon: icons.get(entry.id) ?? kindIcons[entry.kind], group: entry.group,
-    detail: entry.snippet ? <><span className="search-where">{entry.detail}</span><span className="search-snippet">{entry.snippet}</span></> : entry.detail,
+    id: entry.id, label: entry.label, textValue: [entry.label, entry.detail, entry.snippet, ...entry.tags ?? []].filter(Boolean).join(', '), icon: icons.get(entry.id) ?? kindIcons[entry.kind], group: entry.group,
+    detail: entry.snippet || entry.tags?.length ? <><span className="search-where">{entry.detail}</span>{entry.snippet && <span className="search-snippet">{entry.snippet}</span>}{entry.tags && <TagList tags={entry.tags} className="search-tags" />}</> : entry.detail,
   }));
 
   return <CommandPalette open onOpenChange={value => { if (!value) onClose(); }} className="search-popup" aria-label="Search"

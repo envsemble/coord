@@ -52,14 +52,14 @@ function planningFolder(root: string) {
 test('a project\'s summary lists its active work with where each item stands', async t => {
   const root = path.join(temporary(t), 'shop');
   planningFolder(root);
-  const none = { summary: null, steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null, continues: [], continuedIn: [] };
+  const none = { summary: null, tags: [], steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null, continues: [], continuedIn: [] };
   // The work a plan continues, as its header names it: linked to its project and title by the host's listing.
   const handoff = (project: string, workId: string) => ({ projectId: null, project, projectName: '', workId, title: null, state: null, outcome: null });
   const unstepped = { steps: { done: 0, total: 0, planning: { done: 0, total: 0 } } };
   const other = (id: string, title = id.slice(-4), more = {}) => ({ id, title, state: 'other', blocked: null, ...none, ...more });
   assert.deepEqual(await projectSummary(root), {
     active: [
-      { id: 'work-0001', title: 'Saved cards', state: 'implementing', blocked: null, summary: 'Cards saved at checkout. Half done.', steps: { done: 2, total: 3, planning: { done: 1, total: 1 } }, updated: '2026-10-03', outcome: null, step: { title: 'Show', status: 'doing', phase: 'implementation' }, completed: null, statistics: null, continues: [], continuedIn: [] },
+      { id: 'work-0001', title: 'Saved cards', state: 'implementing', blocked: null, summary: 'Cards saved at checkout. Half done.', tags: [], steps: { done: 2, total: 3, planning: { done: 1, total: 1 } }, updated: '2026-10-03', outcome: null, step: { title: 'Show', status: 'doing', phase: 'implementation' }, completed: null, statistics: null, continues: [], continuedIn: [] },
       { id: 'work-0002', title: '0002', state: 'blocked', blocked: 'Waiting for the acquirer', ...none, ...unstepped },
       { id: 'work-0003', title: '0003', state: 'blocked', blocked: 'Waiting for review', ...none, ...unstepped },
       other('work-0004', '0004', unstepped), other('work-0005'), other('work-0006'),
@@ -93,7 +93,7 @@ test('a folder without a readable registry has no summary, and odd entries in on
   write(path.join(root, 'list', 'planning.json'), '[]');
   await assert.rejects(projectSummary(path.join(root, 'list')), /not an object/);
   write(path.join(root, 'odd', 'planning.json'), JSON.stringify({ folders: 'shop', work_items: [null, { path: 7 }, { path: 'active/0001' }, { id: 'work-0001', path: 'active/0001', current_plan: 'C:\\plan.md' }] }));
-  assert.deepEqual(await projectSummary(path.join(root, 'odd')), { active: [{ id: 'work-0001', title: '0001', state: 'other', blocked: null, summary: null, steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null, continues: [], continuedIn: [] }], closed: [], updated: null });
+  assert.deepEqual(await projectSummary(path.join(root, 'odd')), { active: [{ id: 'work-0001', title: '0001', state: 'other', blocked: null, summary: null, tags: [], steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null, continues: [], continuedIn: [] }], closed: [], updated: null });
 });
 
 test('each work item has the step being worked on or next, and what agents spent on it, from all the project\'s reports at once', async t => {

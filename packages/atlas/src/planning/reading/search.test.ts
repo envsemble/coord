@@ -23,7 +23,7 @@ function planningFolder(root: string) {
   write(path.join(root, 'active/0012-saved-cards/CONTEXT.md'), '# Saved cards\n\n## Language\n\n**Payment token**:\nWhat the acquirer gives back for a card.\n_Avoid_: card number\n\n### Risk\n\n**Step-up:**\nAn extra challenge.\n');
   write(path.join(root, 'active/0012-saved-cards/docs/adr/0001-tokens.md'), '# Keep acquirer tokens only\n\nWe never store card numbers.\n');
   write(path.join(root, 'active/0012-saved-cards/diagrams/checkout.puml'), '@startuml\ntitle Checkout model\nclass "Saved Card" as SavedCard\nclass Order\nSavedCard --> Order\n@enduml\n');
-  write(path.join(root, 'archive/0007-coupons/plan.md'), '---\nkind: plan\ntitle: Coupons\n---\n\n# Coupons\n\nDiscount codes at checkout.\n');
+  write(path.join(root, 'archive/0007-coupons/plan.md'), '---\nkind: plan\ntitle: Coupons\ntags: ["0.8.0", "discounts"]\n---\n\n# Coupons\n\nDiscount codes at checkout.\n');
   write(path.join(root, 'notes/payments.md'), '# Payments constraints\n\nTokens belong to one acquirer; a saved card cannot move between them.\n');
   write(path.join(root, 'active/0012-saved-cards/evidence/run.md'), '# Evidence of zebra\n');
   write(path.join(root, '.git/notes.md'), '# zebra\n');
@@ -65,6 +65,12 @@ test('the search finds plans, steps, documents, headings, terms, diagrams, eleme
   assert.deepEqual(await search('saved zzz'), [], 'every word must match');
   assert.deepEqual(titles(await search('stored token')), [['document', 'Saved cards']], 'a plan\'s text is found as a document, in any order of the words');
   assert.ok(!(await search('saved cards')).some(hit => hit.kind === 'document' && hit.path === plan), 'a plan found by its title is not found again as its file');
+  // tag: keeps the plans with that tag, exactly; tags alone list them; a plan's tags match as words.
+  assert.deepEqual((await search('tag:0.8.0')).map(hit => [hit.kind, hit.title, hit.tags]), [['plan', 'Coupons', ['0.8.0', 'discounts']]]);
+  assert.deepEqual(titles(await search('Tag:0.8.0 coupons')), [['plan', 'Coupons']]);
+  assert.deepEqual(await search('tag:0.8.0 saved'), []);
+  assert.deepEqual(await search('tag:0.8'), []);
+  assert.deepEqual(titles(await search('discounts')), [['plan', 'Coupons']]);
 });
 
 test('exact and prefix titles first, then titles with every word, then other fields, then text; plans and projects first, then the latest changed', async t => {
@@ -108,8 +114,8 @@ test('the index reads again only what changed once told, and knows large files b
 test('matching folds case and accents in place, and snippets are short passages on one line', () => {
   assert.equal(fold('Café ÉLAN Straße'), 'cafe elan straße');
   assert.equal(fold('İstanbul').length, 'İstanbul'.length);
-  assert.deepEqual(searchQuery('  #0023  Hub '), { text: '0023 hub', words: ['0023', 'hub'], number: null });
-  assert.deepEqual(searchQuery('#0023'), { text: '0023', words: ['0023'], number: 23 });
+  assert.deepEqual(searchQuery('  #0023  Hub '), { text: '0023 hub', words: ['0023', 'hub'], number: null, tags: [] });
+  assert.deepEqual(searchQuery('#0023'), { text: '0023', words: ['0023'], number: 23, tags: [] });
   assert.equal(searchQuery(' # '), null);
   const long = 'Lorem ipsum dolor sit amet. '.repeat(10) + 'The flamingo stands on one leg.\n\nAnother line. ' + 'Consectetur adipiscing elit. '.repeat(10);
   const snippet = snippetOf({ text: long, folded: fold(long), minimum: 1 }, ['flamingo'])!;

@@ -11,7 +11,9 @@
 // their size (see markdownScan.ts). Indexing runs on the host's main thread, which it gives back
 // between files.
 //
-// Matching ignores case and accents, and every word of the query must match, in any order. Exact and
+// Matching ignores case and accents, and every word of the query must match, in any order; a plan's
+// tags match as its words do. `tag:0.8.0` in a query keeps only the plans with that tag, exactly; a
+// query of tags alone lists them all. Exact and
 // prefix title matches rank first, then titles with every word, then other fields (a path, a summary),
 // then text. Within each, plans and projects come first, then steps, documents, headings, diagrams,
 // elements and terms, an exact title before a prefix, then the latest changed.
@@ -22,6 +24,7 @@ import atlas from '@envsemble/atlas-diagrams';
 import { parseFrontmatter } from '../check/check.ts';
 import { documentAnchors, markdownBody, parseMarkdown } from './headings.ts';
 import { headingText, parseable, scanLines } from './markdownScan.ts';
+import { normalTag, tagsOf } from '../work/tags.ts';
 
 export type SearchKind = 'plan' | 'step' | 'document' | 'heading' | 'diagram' | 'element' | 'term' | 'project';
 /**
@@ -29,11 +32,11 @@ export type SearchKind = 'plan' | 'step' | 'document' | 'heading' | 'diagram' | 
  * a title matched), and where it opens: the work item, the file (POSIX-relative), a heading's anchor
  * as the readers give it, or a diagram element by its identity.
  */
-export interface SearchHit { kind: SearchKind; title: string; snippet: string | null; work: string | null; path: string | null; anchor: string | null; element: string | null }
+export interface SearchHit { kind: SearchKind; title: string; snippet: string | null; work: string | null; path: string | null; anchor: string | null; element: string | null; tags?: string[] }
 /** A hit with what orders it among others (see compareHits). */
 export interface RankedHit extends SearchHit { tier: number; order: number; changed: number }
-/** A query: its words, folded, and the whole of it. */
-export interface SearchQuery { text: string; words: string[]; number: number | null }
+/** A query: its words, folded, and the whole of them; the tags it asks for (`tag:search`). */
+export interface SearchQuery { text: string; words: string[]; number: number | null; tags: string[] }
 
 /** Markdown and diagram files larger than this are known by their name only. */
 export const searchFileLimit = 2 * 1024 * 1024;
@@ -61,13 +64,22 @@ export function fold(text: string): string {
   });
 }
 
-/** A query's words (a `#` before a word ignored) and, for one like `0023`, `#23` or `work-0023`, the plan number; null without words. */
+/**
+ * A query's words (a `#` before a word ignored), its tags (`tag:0.8.0`) and, for one like `0023`,
+ * `#23` or `work-0023`, the plan number; null without words or tags.
+ */
 export function searchQuery(text: string): SearchQuery | null {
-  const whole = fold(text.trim().replace(/\s+/g, ' '));
-  const words = [...new Set(whole.split(' ').map(word => word.replace(/^#+/, '')).filter(Boolean))];
-  if (!words.length) return null;
+  const tags: string[] = [];
+  const rest = fold(text.trim().replace(/\s+/g, ' ')).split(' ').filter(word => {
+    const tag = /^tags?:(.+)$/.exec(word);
+    if (tag) tags.push(normalTag(tag[1]) ?? tag[1]);
+    return !tag;
+  });
+  const whole = rest.join(' ');
+  const words = [...new Set(rest.map(word => word.replace(/^#+/, '')).filter(Boolean))];
+  if (!words.length && !tags.length) return null;
   const number = /^#?(?:work-)?(\d{1,9})$/.exec(whole);
-  return { text: whole.replace(/^#+/, ''), words, number: number ? Number(number[1]) : null };
+  return { text: whole.replace(/^#+/, ''), words, number: number ? Number(number[1]) : null, tags: [...new Set(tags)] };
 }
 
 /**
@@ -85,7 +97,7 @@ interface Field { text: string; folded: string; minimum: number }
 const field = (text: string, minimum = 1): Field => { const composed = text.normalize('NFC'); return { text: composed, folded: fold(composed), minimum }; };
 /** Something the index can find: its titles (any can match), other fields, and text; `elsewhere`: found by its titles as something else (a plan's file as its work item). */
 interface Entry {
-  kind: SearchKind; title: string; names: string[]; fields: Field[]; body: Field | null; number: number | null; elsewhere?: boolean;
+  kind: SearchKind; title: string; names: string[]; fields: Field[]; body: Field | null; number: number | null; elsewhere?: boolean; tags?: string[];
   work: string | null; path: string | null; anchor: string | null; element: string | null; changed: number;
 }
 
@@ -126,8 +138,11 @@ export function snippetOf(source: Field, words: string[], width = 120): string |
 function matchEntry(entry: Entry, query: SearchQuery): RankedHit | null {
   const hit = (tier: number, snippet: string | null): RankedHit => ({
     kind: entry.kind, title: entry.title.normalize('NFC'), snippet, work: entry.work, path: entry.path, anchor: entry.anchor, element: entry.element,
-    tier, order: kindOrder[entry.kind], changed: entry.changed,
+    ...entry.tags?.length && { tags: entry.tags }, tier, order: kindOrder[entry.kind], changed: entry.changed,
   });
+  // Asked for tags: only the plans with every one of them; tags alone list them all.
+  if (query.tags.length && !query.tags.every(tag => entry.tags?.includes(tag))) return null;
+  if (!query.words.length) return hit(4, null);
   if (entry.number !== null && entry.number === query.number) return hit(0, null);
   let best: number | null = null;
   for (const name of entry.names) { const tier = titleTier(name, query); if (tier !== null && (best === null || tier < best)) best = tier; }
@@ -376,10 +391,10 @@ function gather(files: Map<string, FileRecord>, registry: { work_items?: unknown
     const metadata = plan?.parsed.metadata;
     const title = text(metadata?.title) ?? plan?.parsed.title ?? item.path.split('/').at(-1)!;
     const number = /(\d+)$/.exec(item.id)?.[1] ?? null;
-    const summary = text(metadata?.summary);
+    const summary = text(metadata?.summary), tags = tagsOf(metadata?.tags);
     entries.push({
-      ...base, kind: 'plan', title, names: [fold(title)], fields: [...summary ? [field(summary)] : [], ...number === null ? [] : [field(number, 2)]], number: number === null ? null : Number(number),
-      work: item.id, path: item.plan, changed: plan?.mtime ?? 0,
+      ...base, kind: 'plan', title, names: [fold(title)], fields: [...summary ? [field(summary)] : [], ...tags.length ? [field(tags.join(' '))] : [], ...number === null ? [] : [field(number, 2)]], number: number === null ? null : Number(number),
+      work: item.id, path: item.plan, changed: plan?.mtime ?? 0, tags,
     });
     const steps = ledger?.parsed.metadata?.steps;
     for (const step of Array.isArray(steps) ? steps as { title?: unknown }[] : []) {

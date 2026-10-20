@@ -121,6 +121,10 @@ body { margin: 0; }
 /* The search: where a result is, then the words it was found in. */
 .search-where, .search-snippet { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .search-snippet { font-style: italic; }
+/* A work item's tags: small read-only labels under its title and on its search results. */
+.tag-list { display: flex; flex-wrap: wrap; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+.tag { padding-inline: var(--space-2); border-radius: var(--radius-standard); background: var(--color-surface-muted); color: var(--color-text-muted); font-size: var(--font-size-label); line-height: 1.6; }
+.search-tags { margin-block-start: var(--space-1); }
 
 /* The Projects page: one table under one header, like the hub's, with no column left mostly empty:
    what agents do on a project is on its muted line. Every row has the same height: the avatar (its

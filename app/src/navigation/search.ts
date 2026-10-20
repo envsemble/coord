@@ -20,6 +20,8 @@ export interface SearchEntry {
   label: string;
   detail: string;
   snippet: string | null;
+  /** A plan's tags. */
+  tags?: readonly string[];
   destination: SearchDestination;
   /** What else finds the same thing: a plan, or a file by its path, in a project. */
   key: string | null;
@@ -64,7 +66,7 @@ export function hostEntries(results: SearchResult[], projects: Project[]): Searc
     return {
       id: 'search:' + index + ':' + result.kind + ':' + result.projectId + ':' + (result.work ?? '') + ':' + (result.path ?? '') + '#' + (result.anchor ?? result.element ?? ''),
       kind: result.kind, label: result.title, detail: [result.kind === 'project' ? null : result.projectName, work].filter(Boolean).join(' · '),
-      snippet: result.snippet, destination: resultDestination(result), key,
+      snippet: result.snippet, ...result.tags?.length && { tags: result.tags }, destination: resultDestination(result), key,
     };
   });
 }

@@ -19,6 +19,7 @@ import { activityKey, NeedsYou, SessionsList, useWorkSessions } from './WorkSess
 import { waitingSession } from './sessions';
 import { TargetLink, useWindow } from '../window/windowContext';
 import { Trail } from '../ui/Trail';
+import { TagList } from './TagList';
 
 type WorkTarget = Extract<Target, { kind: 'work' }>;
 
@@ -148,6 +149,7 @@ export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Sna
         <header className="work-header">
           <Text as="h1" variant="page-heading">{work.title}</Text>
           <StatusLine work={work} status={status} live={live} />
+          {listing && <TagList tags={listing.tags} className="work-tags" />}
           {waiting && <NeedsYou work={work.id} session={waiting} />}
           {summary && <p className="work-summary">{summary}</p>}
         </header>

@@ -748,7 +748,7 @@ export class Host {
       return (await index.search(query, row.name, this.options.searchWait ?? 5000)).map(hit => ({ hit, project }));
     }));
     return found.flat().sort((a, b) => compareHits(a.hit, b.hit)).slice(0, limit).map(({ hit, project }): SearchResult => ({
-      kind: hit.kind, title: hit.title, snippet: hit.snippet, projectId: project.id, projectName: project.name, work: hit.work, path: hit.path, anchor: hit.anchor, element: hit.element,
+      kind: hit.kind, title: hit.title, snippet: hit.snippet, projectId: project.id, projectName: project.name, work: hit.work, path: hit.path, anchor: hit.anchor, element: hit.element, ...hit.tags && { tags: hit.tags },
     }));
   }
   /** Something changed in a project's planning folder (null: in any): its search index looks again. */
