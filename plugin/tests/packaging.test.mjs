@@ -299,12 +299,6 @@ test("every atlas command and Atlas tool the skills and docs name exists in the 
         `${rel(file)}: unknown Atlas tool ${tool}`,
       );
   }
-  const atlas = read(path.join(SKILLS, "atlas", "SKILL.md"));
-  for (const tool of TOOLS)
-    assert.ok(
-      atlas.includes("`" + tool + "`"),
-      `the atlas skill names the tool ${tool}`,
-    );
 });
 
 test("relative links resolve and stay inside their skill set", () => {

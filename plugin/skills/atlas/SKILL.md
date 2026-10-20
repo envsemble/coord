@@ -40,17 +40,9 @@ Keep one record per thing, and update it rather than adding summaries. Skip tran
 
 When the user agrees to the plan, record it with `work_accept` and update the summary. Accepting a plan does not start it.
 
-## The Atlas tools
+## State and files
 
-The tools change planning state; each validates, refuses with the reason, and never commits:
-
-- `where`, `work_status`: find the projects and active work; read a work item's steps and statistics.
-- `project_create`, `work_create`: create a project, or a work item with its summary and planning steps, once the user agreed.
-- `work_accept`: record that the user accepted the design. `work_start`: start implementation with the agreed steps.
-- `step_add`, `step_set`, `step_rename`, `step_remove`: keep the ledger's steps current; tell the user why a step is removed. `work_block`: set or clear what blocks the work.
-- `work_close`: close verified work. `work_archive`: archive superseded or abandoned work. `work_reopen`: bring archived work back. `work_continue`: record that a work item continues other work, in any project.
-
-Everything else is an ordinary file: plan bodies, the final-review list, glossaries, diagrams and whatever else a work folder holds. Edit them directly at their absolute paths, from any folder; after each edit, Atlas checks the file and hands back what to fix. Do not hand-edit what the tools own: the registry's work items, the header statuses and dates, the ledger header, and moves between `active/` and `archive/`.
+Planning state (work items, steps, `blocked`, closing, archiving) changes only through the Atlas tools; their descriptions say what each does. Everything else is an ordinary file: plan bodies, the final-review list, glossaries, diagrams and whatever else a work folder holds. Edit them directly at their absolute paths, from any folder; after each edit, Atlas checks the file and hands back what to fix. Do not hand-edit what the tools own: the registry's work items, the header statuses and dates, the ledger header, and moves between `active/` and `archive/`.
 
 Commit planning changes yourself, in the planning folder's Git with explicit pathspecs (`git -C <planning-folder> add -- <paths>`), at coherent points. Keep planning and product commits apart.
 
