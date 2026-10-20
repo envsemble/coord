@@ -198,15 +198,21 @@ body { margin: 0; }
 /* The diagram's details take that place when they open. */
 .plan-frame.is-filled:has(.inspector.open) > .plan-frame-files { display: none; }
 /* Create project: its folders as rows, then a card to add one. */
-.folder-list-section { display: grid; gap: var(--space-2); }
+.folder-list-section { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); min-inline-size: 0; }
 .folder-list-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .folder-list-title { margin: 0; font-weight: 600; }
 .folder-list-computer { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--font-size-body-small); }
 .folder-list-computer svg { inline-size: 1.125rem; block-size: 1.125rem; }
 .folder-list-name { display: flex; align-items: center; gap: var(--space-3); min-inline-size: 0; }
 .folder-list-name > bdi { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-list-path { display: block; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .folder-list-icon { flex: none; inline-size: 1.125rem; block-size: 1.125rem; color: var(--color-icon); }
-.env-clickable-card.folder-list-add { display: flex; align-items: center; justify-content: center; gap: var(--space-2); text-align: center; }
+.folder-list-add-label { display: flex; align-items: center; justify-content: center; gap: var(--space-2); }
+/* A row keeps its remove button beside the folder, whose name and path end in an ellipsis; the path under the name. */
+.folder-list { grid-template-columns: minmax(0, 1fr); }
+.folder-list > .env-row { flex-wrap: nowrap; min-inline-size: 0; }
+.folder-list > .env-row > :first-child { flex: 1; }
+.folder-list .folder-list-path { padding-inline-start: calc(1.125rem + var(--space-3)); }
 .computer-trigger-label { flex: 1; min-inline-size: 0; overflow: hidden; text-align: start; text-overflow: ellipsis; white-space: nowrap; }
 .explorer-folder, .explorer-file { color: var(--color-icon); }
 .explorer-diagram { color: var(--color-tone-accent); }

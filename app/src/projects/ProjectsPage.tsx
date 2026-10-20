@@ -45,7 +45,7 @@ async function pickFolder(): Promise<string | null> {
 
 /**
  * The folders of this computer a new project covers, chosen in the system's folder dialog, never
- * typed: their rows, each by its full path with a way to remove it, then a card to
+ * typed: their rows, each by its name over its path, with a way to remove it, then a card to
  * add one.
  */
 function FolderList({ value, onChange, disabled, computer }: { value: string[]; onChange(folders: string[]): void; disabled: boolean; computer: string }) {
@@ -60,12 +60,13 @@ function FolderList({ value, onChange, disabled, computer }: { value: string[]; 
       <Text as="h3" variant="body" id={id} className="folder-list-title">Folders</Text>
       <span className="folder-list-computer"><ComputerIcon /> {computer}</span>
     </div>
-    {value.length > 0 && <GroupedRows aria-label="Folders">{value.map(folder => <Row key={folder}
-      title={<span className="folder-list-name"><FolderIcon className="folder-list-icon" /><bdi title={folder}>{folder}</bdi></span>}
+    {value.length > 0 && <GroupedRows className="folder-list" aria-label="Folders">{value.map(folder => <Row key={folder}
+      title={<span className="folder-list-name"><FolderIcon className="folder-list-icon" /><bdi>{folderName(folder) || folder}</bdi></span>}
+      detail={<bdi className="folder-list-path" title={folder}>{folder}</bdi>}
       action={<Tooltip content="Remove"><IconButton variant="quiet" icon={<CloseIcon />} aria-label={'Remove ' + (folderName(folder) || folder)} disabled={disabled} onClick={() => onChange(value.filter(item => item !== folder))} /></Tooltip>} />)}
     </GroupedRows>}
     <ClickableCard className="folder-list-add" disabled={disabled} onClick={add}>
-      <AddFolderIcon className="folder-list-icon" />Add folder
+      <span className="folder-list-add-label"><AddFolderIcon className="folder-list-icon" />Add folder</span>
     </ClickableCard>
     {error && <Notice tone="error" announce>{error}</Notice>}
   </section>;
