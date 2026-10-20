@@ -18,10 +18,14 @@ Before the first round, read what exists: the plan, its glossary and diagrams, t
 Map the design as a tree: every decision branches into the decisions that depend on it. The **frontier** is every open decision whose prerequisites are settled. Each round, ask the whole frontier, then wait for the answers:
 
 ```
-❓ **Q1 — <question title>**: <the question, with the options when there are several>
+❓ **Q1 — <question title>**: <the question>
+(a) <first option>
+(b) <second option>
 
 ➡️ <your recommendation, and why>
 ```
+
+Put each option on its own line; a question without alternatives has none.
 
 - **One decision per question.** A question whose answer depends on another still open waits for a later round; never invent questions to fill a round.
 - **Facts are yours, decisions are the user's.** Look up what the code, documentation, history and tools can tell you, before and between rounds; an exploration still running holds back only the questions that depend on it. Do not go on with an assumption. When the user leaves a choice to you, record your recommendation as delegated to you, not as their decision.
