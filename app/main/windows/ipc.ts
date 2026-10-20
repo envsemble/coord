@@ -11,7 +11,7 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell, typ
 import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atlas/host';
 import { resolveDocument } from '@envsemble/atlas/planning';
 import { accessSettings, deviceText } from '@envsemble/atlas/host/validate';
-import { defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AccessSettings, type Editor, type ImportPreview, type InvokeChannel, type PairingGrant, type PairingLinkView, type Place, type ProjectPlace, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
+import { defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AccessSettings, type Editor, type ImportPreview, type InvokeChannel, type LoadedUi, type PairingGrant, type Project, type PairingLinkView, type Place, type ProjectPlace, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
 import { argumentsOf, array, boolean, command, diagramPath, editor, folderId, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, place, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, token, uiState, url, workId, type Validator } from '../../shared/validate.ts';
 import { AtlasError, toErrorValue } from '../errors.ts';
 import type { FolderView } from '../host/folderView.ts';
@@ -83,10 +83,10 @@ async function openInEditor(manager: WindowManager, window: AtlasWindow, what: s
   await shell.openExternal(link);
 }
 
-/** Whether a path is a folder or inside it (both real paths). */
+/** Whether a path is a folder or inside it (both real paths): the way there starts with no `..` segment (a folder named `..cache` is inside). */
 const within = (folder: string, candidate: string) => {
   const inside = path.relative(folder, candidate);
-  return inside !== '..' && !inside.startsWith('..' + path.sep) && !path.isAbsolute(inside);
+  return !path.isAbsolute(inside) && inside.split(path.sep)[0] !== '..';
 };
 
 /** Open the file a path reference names, as the host resolves it in the project's folders: never a path the page names itself. */
@@ -120,7 +120,7 @@ async function openShown(manager: WindowManager, window: AtlasWindow, shown: Pla
   if ('page' in shown || !window.shown || 'page' in window.shown || !sameShown(shown, window.shown)) throw refused();
   const { project, target } = shown;
   const view = await window.readable(project);
-  if (target.kind === 'file' ? target.path !== relative : !(await view.request('folder.snapshot', { folderId: project })).work.some(work => work.id === target.work && relative.startsWith(work.path + '/'))) throw refused();
+  if (target.kind === 'file' ? target.path !== relative : !(await view.request('folder.work', { folderId: project })).some(work => work.id === target.work && relative.startsWith(work.path + '/'))) throw refused();
   const root = (await window.projects()).find(entry => entry.folderId === project)?.path;
   if (!root) throw new AtlasError('not-found', 'This project is not on this computer.');
   const real = await resolveDocument(root, relative).catch(() => { throw new AtlasError('forbidden', 'Only files inside the project\'s folder open in the editor.'); });
@@ -161,12 +161,13 @@ function pairingHost(link: string, code: string | null) {
  * project not listed yet waits in the database (`pending`), and the window asks again once the
  * computer answers.
  */
-async function loadUi(manager: WindowManager, window: AtlasWindow): Promise<UiState> {
+async function loadUi(manager: WindowManager, window: AtlasWindow): Promise<LoadedUi> {
   const { state, connections } = manager.context;
   const connectionId = window.computer === null ? null : connections.idOf(window.computer);
   // Earlier saves land first, so what loads is what the window last showed.
   await saving.get(window);
-  const listing = window.projects().catch(() => []);
+  let listed: Project[] | null = null;
+  const listing = window.projects().then(projects => { listed = projects; }, () => undefined);
   // A paired computer that does not answer at once is not waited for.
   await (window.computer === null || window.client().status === 'connected' ? listing : Promise.race([listing, new Promise(resolve => setTimeout(resolve, 2000))]));
   // The window now knows the saved places of the projects listed, and saves replace only theirs.
@@ -175,7 +176,9 @@ async function loadUi(manager: WindowManager, window: AtlasWindow): Promise<UiSt
   const project = saved ? window.folderOf(saved.projectId) : null;
   const place = saved && project ? savedPlace(project, saved) : null;
   const inspectorWidth = state.inspectorWidth;
-  return { place: place ?? defaultUiState.place, ...inspectorWidth !== null && { inspectorWidth }, ...saved && !project && { pending: true } };
+  // The window starts from this listing rather than asking for its own.
+  const projects = listed as Project[] | null;
+  return { place: place ?? defaultUiState.place, ...inspectorWidth !== null && { inspectorWidth }, ...saved && !project && { pending: true }, ...projects && { projects } };
 }
 /** Each window's saves, applied one after another in the order they came. */
 const saving = new WeakMap<AtlasWindow, Promise<void>>();
@@ -229,6 +232,7 @@ export function channels(manager: WindowManager, actions: { openLogs(): void; ab
     'project:open': { args: [folderId], handle: async (window, project: string) => (await window.open(project)).change() },
     'project:close': { args: [folderId], handle: (window, project: string) => { window.closeProject(project); } },
     'planning:snapshot': { args: [folderId], handle: async (window, project: string) => (await window.readable(project)).request('folder.snapshot', { folderId: project }) },
+    'planning:work': { args: [folderId], handle: async (window, project: string) => (await window.readable(project)).request('folder.work', { folderId: project }) },
     'planning:document': { args: [folderId, relativePath], handle: async (window, project: string, file: string) => (await window.readable(project)).request('folder.document', { folderId: project, path: file }) },
     'planning:diagrams': { args: [folderId, workId], handle: async (window, project: string, work: string) => (await window.readable(project)).request('folder.diagrams', { folderId: project, work }) },
     'planning:diagram': { args: [folderId, workId, diagramPath], handle: async (window, project: string, work: string, file: string) => (await window.readable(project)).request('folder.diagram', { folderId: project, work, path: file }) },

@@ -7,20 +7,20 @@
 import type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, PairedDevice, PairingGrant, PairingLink, Project,
   ProjectState, ProjectStatistics, ProjectSummary, ProjectWork, ProjectWorkState, ReferenceInput, ResolvedReference, SearchKind, SearchResult, SessionActivity, Snapshot,
-  WorkActivity, WorkProduct, WorkSession, WorkTimeline,
+  SnapshotValue, SnapshotWork, WorkActivity, WorkProduct, WorkSession, WorkTimeline,
 } from '@envsemble/atlas/host/contract';
 import type { DocumentContent } from '@envsemble/atlas/planning/types';
 
 export type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, DocumentContent, PairedDevice, PairingGrant, Project,
   ProjectState, ProjectStatistics, ProjectSummary, ProjectWork, ProjectWorkState, ReferenceInput, ResolvedReference, SearchKind, SearchResult, SessionActivity, Snapshot,
-  WorkActivity, WorkProduct, WorkSession, WorkTimeline,
+  SnapshotValue, SnapshotWork, WorkActivity, WorkProduct, WorkSession, WorkTimeline,
 };
 
 export const invokeChannels = [
   'window:info',
   'projects:list', 'projects:create', 'search:query', 'projects:chooseFolder', 'projects:update', 'project:open', 'project:close',
-  'planning:snapshot', 'planning:document', 'planning:diagrams', 'planning:diagram', 'planning:references', 'planning:diagramIndex',
+  'planning:snapshot', 'planning:work', 'planning:document', 'planning:diagrams', 'planning:diagram', 'planning:references', 'planning:diagramIndex',
   'project:statistics', 'projects:statistics', 'ui:load', 'ui:save',
   'references:resolve', 'work:sessions', 'work:timeline',
   'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:openShown', 'shell:copy',
@@ -96,7 +96,12 @@ export interface WindowInfo {
  * A project's folder as a window follows it. `notice`: the folder is readable but cannot be watched,
  * or its computer is not reachable right now. `revision` counts up with every change.
  */
-export interface FolderChange { revision: number; status: FolderStatus; error: string | null; notice: string | null }
+/**
+ * A project's folder as a window follows it. `revision` increases whenever its snapshot changes;
+ * `files` is the revision at which its files were last read: a later revision changed only its
+ * work's statistics or handoffs, which `work` reads without the documents.
+ */
+export interface FolderChange { revision: number; files: number; status: FolderStatus; error: string | null; notice: string | null }
 /** What a window changes of a project: its name, its state, its place in the order or its folders. */
 export interface ProjectChangeRequest { name?: string; state?: ProjectState; position?: number; folders?: string[] }
 /** A change of one project's folder, named by its folder ID. */
@@ -136,6 +141,8 @@ export interface UiState {
   pending?: boolean;
 }
 export const defaultUiState: UiState = { place: { page: 'hub', project: null } };
+/** A window's layout as it loads, with its computer's projects as listed for it when the computer answered: the window starts from them. */
+export interface LoadedUi extends UiState { projects?: Project[] }
 export const limits = { path: 2048, folders: 20, inspectorMin: 240, inspectorMax: 1200 } as const;
 /** A folder's full path: from a drive or a share on Windows, from the root elsewhere. */
 export const fullPath = /^(?:[a-zA-Z]:[\\/]|\\\\[^\\/]|\/)/;
@@ -192,7 +199,10 @@ export interface AtlasBridge {
   openProject(project: string): Promise<Result<FolderChange>>;
   /** Stop following a project's folder (the window no longer shows it). */
   closeProject(project: string): Promise<Result<void>>;
-  snapshot(project: string): Promise<Result<Snapshot>>;
+  /** The project's snapshot as its host sends it: each document once (withWorkDocuments gives the work items theirs). */
+  snapshot(project: string): Promise<Result<SnapshotValue>>;
+  /** The project's work items alone, without their documents: for a change of their statistics or handoffs. */
+  work(project: string): Promise<Result<SnapshotWork[]>>;
   document(project: string, path: string): Promise<Result<DocumentContent>>;
   /** A work item's diagram files. */
   diagrams(project: string, work: string): Promise<Result<DiagramEntry[]>>;
@@ -206,7 +216,7 @@ export interface AtlasBridge {
   projectStatistics(project: string, from: string | null, to: string | null, unit: 'day' | 'week'): Promise<Result<ProjectStatistics>>;
   /** The statistics of every active project together (all plans), for a period as projectStatistics has it. */
   allStatistics(from: string | null, to: string | null, unit: 'day' | 'week'): Promise<Result<ProjectStatistics>>;
-  loadUi(): Promise<Result<UiState>>;
+  loadUi(): Promise<Result<LoadedUi>>;
   saveUi(state: UiState): Promise<Result<void>>;
   /** Resolve what a planning file references: PRs, commits, files in the project's folders (each in order; null leads nowhere). */
   resolveReferences(project: string, items: ReferenceInput[]): Promise<Result<(ResolvedReference | null)[]>>;

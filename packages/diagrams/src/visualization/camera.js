@@ -8,6 +8,10 @@ const clampScale = (scale) => Math.max(0.08, Math.min(3.5, scale));
 const MAX_FIT_SCALE = 1.5;
 const FIT_PADDING = 24;
 const NO_INSETS = { top: 0, right: 0, bottom: 0, left: 0 };
+// How far the grid layer extends past the canvas on each side (its stylesheet
+// inset), and how many raster sizes it has per doubling of the zoom.
+const GRID_OVERHANG = 64;
+const GRID_LEVELS = 8;
 
 // The SVG camera updates outside React's render cycle. Only its rounded zoom
 // readout becomes React state; every animation frame can stay inexpensive.
@@ -29,7 +33,7 @@ export function createCamera({
   let easing = PAN_EASING_MS;
   let reducedMotion = false;
   let grid = null;
-  let gridScale = null;
+  let gridLevel = null;
   let zoomReadout = null;
   let drag = null;
   let moved = false;
@@ -46,26 +50,34 @@ export function createCamera({
   function paint() {
     worldRef.current.style.transform = `translate(${camera.x}px,${camera.y}px) scale(${camera.scale})`;
     if (grid) {
+      // The dot pattern is rasterized at a zoom rounded down to one of eight
+      // levels per doubling, and the grid layer is scaled the rest of the way
+      // (by under 9%). Zooming within a level then only transforms the layer
+      // instead of repainting its background every frame.
+      const level =
+        2 ** (Math.floor(Math.log2(camera.scale) * GRID_LEVELS) / GRID_LEVELS);
       // Thin out world-grid points at distant zoom levels. The retained points
       // stay anchored to world coordinates rather than sliding during a zoom.
-      const step = 20 * 2 ** Math.ceil(Math.log2(16 / (20 * camera.scale)));
+      const step = 20 * 2 ** Math.ceil(Math.log2(16 / (20 * level)));
+      const raster = step * level;
       const spacing = step * camera.scale;
       const phase = (n) => ((n % spacing) + spacing) % spacing;
       // Blend neighboring densities so crossing a zoom threshold does not
-      // suddenly replace the dot pattern. Both layers share the same origin.
-      if (gridScale !== camera.scale) {
-        gridScale = camera.scale;
-        const fine = Math.max(0, Math.min(1, spacing / 16 - 1));
+      // suddenly replace the dot pattern. Both layers share the same origin,
+      // which is also the layer's transform origin.
+      if (gridLevel !== level) {
+        gridLevel = level;
+        const fine = Math.max(0, Math.min(1, raster / 16 - 1));
         grid.style.backgroundImage = [fine, 1 - fine]
           .map(
             (opacity) =>
               `radial-gradient(color-mix(in srgb,var(--grid) ${opacity * 100}%,transparent) 0.7px,transparent 0.7px)`,
           )
           .join(",");
-        grid.style.backgroundSize = `${spacing / 2}px ${spacing / 2}px,${spacing}px ${spacing}px`;
-        grid.style.backgroundPosition = `${64 - spacing / 4}px ${64 - spacing / 4}px,${64 - spacing / 2}px ${64 - spacing / 2}px`;
+        grid.style.backgroundSize = `${raster / 2}px ${raster / 2}px,${raster}px ${raster}px`;
+        grid.style.backgroundPosition = `${GRID_OVERHANG - raster / 4}px ${GRID_OVERHANG - raster / 4}px,${GRID_OVERHANG - raster / 2}px ${GRID_OVERHANG - raster / 2}px`;
       }
-      grid.style.transform = `translate3d(${phase(camera.x)}px,${phase(camera.y)}px,0)`;
+      grid.style.transform = `translate3d(${phase(camera.x)}px,${phase(camera.y)}px,0) scale(${camera.scale / level})`;
     }
     const value = Math.round(camera.scale * 100);
     if (value !== zoomReadout) {
@@ -399,7 +411,10 @@ export function createCamera({
     const canvas = canvasRef.current;
     const world = worldRef.current;
     grid = canvas.querySelector(".canvas-grid");
-    gridScale = null;
+    gridLevel = null;
+    // The layer scales about the canvas's origin, where its dots are anchored.
+    if (grid)
+      grid.style.transformOrigin = `${GRID_OVERHANG}px ${GRID_OVERHANG}px`;
     const cleanup = [];
     const listen = (target, type, handler, options) => {
       target.addEventListener(type, handler, options);
@@ -578,7 +593,7 @@ export function createCamera({
       cancelMotion();
       clearPointers(canvas);
       grid = null;
-      gridScale = null;
+      gridLevel = null;
     };
   }
 

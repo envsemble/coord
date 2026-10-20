@@ -2,13 +2,13 @@
 // folders) and its clients (the desktop app's windows, another computer's Atlas, later a phone).
 // Only types and constants live here, so every client can import it. Every method declares the
 // scope it requires; the host checks it before any handler runs.
-import type { DocumentContent, HandoffLink, PlanImportResult, PlanningIndex } from '../planning/index.ts';
+import type { DocumentContent, HandoffLink, PlanImportResult, PlanningIndex, Work } from '../planning/index.ts';
 import type { DiagramEntry, DiagramIndexEntry, DiagramReference } from '../planning/reading/diagrams.ts';
 
 export type { DiagramEntry, DiagramIndexEntry, DiagramReference, HandoffLink };
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
-export const protocolVersion = 12;
+export const protocolVersion = 13;
 
 /**
  * Every paired device belongs to the person who owns this computer, so pairing grants the whole
@@ -29,7 +29,12 @@ export interface HostErrorValue { code: ErrorCode; message: string }
 export interface HostDescriptor { protocol: number; hostId: string; name: string; version: string }
 
 export type FolderStatus = 'loading' | 'ready' | 'missing' | 'invalid';
-export interface FolderState { folderId: string; name: string; status: FolderStatus; error: string | null; notice: string | null; revision: number }
+/**
+ * A folder's state. `revision` increases whenever its snapshot changes; `files` is the revision at
+ * which its files were last read, so a change that leaves `files` as it was changed only its work's
+ * statistics or handoffs (folder.work has them, without the documents).
+ */
+export interface FolderState { folderId: string; name: string; status: FolderStatus; error: string | null; notice: string | null; revision: number; files: number }
 export type ProjectState = 'active' | 'archived';
 /**
  * A project of this computer: a planning folder in its Atlas home, with its name (from its
@@ -232,6 +237,23 @@ export interface Snapshot extends PlanningIndex {
   /** Every visible folder below the planning root (POSIX-relative), including empty ones. */
   folders: string[];
 }
+/** A work item as folder.snapshot and folder.work send it: without its documents, which the snapshot lists once. */
+export type SnapshotWork = Omit<Work, 'documents'>;
+/** A snapshot as folder.snapshot sends it: each document once, in `documents`; withWorkDocuments gives the work items theirs again. */
+export interface SnapshotValue extends Omit<Snapshot, 'work'> { work: SnapshotWork[] }
+/** A snapshot to send: its work items without their documents. */
+export function snapshotValue(snapshot: Snapshot): SnapshotValue {
+  return { ...snapshot, work: snapshot.work.map(({ documents: _documents, ...item }) => item) };
+}
+/**
+ * A snapshot as sent, with each work item's documents again: those of the snapshot it owns (`workId`),
+ * its plan first, then by path, as the reader orders them.
+ */
+export function withWorkDocuments(value: SnapshotValue): Snapshot {
+  const owned = new Map<string, Snapshot['documents']>();
+  for (const document of value.documents) if (document.workId !== null) owned.set(document.workId, [...owned.get(document.workId) ?? [], document]);
+  return { ...value, work: value.work.map(item => ({ ...item, documents: (owned.get(item.id) ?? []).sort((a, b) => Number(b.category === 'plan') - Number(a.category === 'plan') || a.path.localeCompare(b.path)) })) };
+}
 
 export interface PreparedExport { token: string; bytes: number; warnings: string[]; fileName: string }
 export interface ImportPreviewValue {
@@ -285,7 +307,9 @@ export interface Methods {
   'projects.update': { params: { folderId: string; name?: string; state?: ProjectState; position?: number; folders?: string[] }; result: Project };
   'folders.subscribe': { params: { folderId: string }; result: FolderState };
   'folders.unsubscribe': { params: { folderId: string }; result: null };
-  'folder.snapshot': { params: { folderId: string }; result: Snapshot };
+  'folder.snapshot': { params: { folderId: string }; result: SnapshotValue };
+  /** The work items alone, for a change of their statistics or handoffs only (FolderState.files unchanged). */
+  'folder.work': { params: { folderId: string }; result: SnapshotWork[] };
   'folder.document': { params: { folderId: string; path: string }; result: DocumentContent };
   /** A work item's diagrams: its `.puml` files, by their paths in the work folder. */
   'folder.diagrams': { params: { folderId: string; work: string }; result: DiagramEntry[] };
@@ -323,6 +347,7 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'folders.subscribe': 'computer',
   'folders.unsubscribe': 'computer',
   'folder.snapshot': 'computer',
+  'folder.work': 'computer',
   'folder.document': 'computer',
   'folder.diagrams': 'computer',
   'folder.diagram': 'computer',

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AtlasPanel, ViewerErrorBoundary, changeCount } from '@envsemble/atlas-diagrams/react';
 import type { ViewerPayload } from '@envsemble/atlas-diagrams';
 import '@envsemble/atlas-diagrams/embedded.css';
@@ -78,6 +78,9 @@ function loadedFrom(path: string, answer: Answer, revisions: string): Loaded {
   return { payloads: new Map<string, ViewerPayload>([[path, payload], ...siblings.map(item => [item.path, item.payload] as [string, ViewerPayload])]), revisions };
 }
 
+const noPayloads = new Map<string, ViewerPayload>();
+const noDiagrams: DiagramEntry[] = [];
+
 /** What is wrong with a diagram that cannot be drawn, line by line. */
 function Problems({ diagram }: { diagram: DiagramEntry }) {
   return <EmptyState icon={<DiagramIcon />} title="This diagram has problems" description={<>
@@ -93,7 +96,7 @@ function Problems({ diagram }: { diagram: DiagramEntry }) {
  * back to the plan is the tab's history or the plan's own tab.
  */
 export function AtlasWorkPanel({ work, target }: { work: Work; target: DiagramTarget }) {
-  const { project, retarget, revision, inspectorWidth, setInspectorWidth } = useWorkbench();
+  const { project, retarget, files, inspectorWidth, setInspectorWidth } = useWorkbench();
   const { theme } = useThemePreference();
   const [diagrams, setDiagrams] = useState<DiagramEntry[] | null>(null);
   const [listError, setListError] = useState('');
@@ -102,7 +105,7 @@ export function AtlasWorkPanel({ work, target }: { work: Work; target: DiagramTa
   const [fullscreen, setFullscreen] = useState(false);
   const [shown, setShown] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
-  const listed = diagrams ?? [];
+  const listed = diagrams ?? noDiagrams;
   const selected = selectDiagram(listed, shown, target.path || '');
   const entry = listed.find(diagram => diagram.path === selected);
   // The files drawn with this one, at the revisions listed now: its family, and the scenarios a class diagram shows.
@@ -110,18 +113,18 @@ export function AtlasWorkPanel({ work, target }: { work: Work; target: DiagramTa
   const drawn = [...family, ...listed.filter(diagram => family.some(member => member.path === diagram.scenarioOf))];
   const expected = drawn.map(diagram => diagram.path + '@' + diagram.revision).sort().join(' ');
 
-  // The list is read again whenever the folder changes on disk.
+  // The list is read again whenever the folder's files change, and kept when it reads the same.
   useEffect(() => {
     let current = true;
     api.diagrams(project, work.id).then(next => {
       if (!current) return;
-      setDiagrams(next); setShown(previous => selectDiagram(next, previous)); setListError('');
+      setDiagrams(previous => previous && JSON.stringify(previous) === JSON.stringify(next) ? previous : next); setShown(previous => selectDiagram(next, previous)); setListError('');
     }).catch(error => {
       if (!current) return;
       setListError((error as Error).message); setDiagrams(previous => previous ?? []);
     });
     return () => { current = false; };
-  }, [project, work.id, revision]);
+  }, [project, work.id, files]);
   useEffect(() => {
     // A diagram with problems is not drawn; its problems are shown instead.
     if (!selected || !diagrams || entry?.valid === false) { if (!selected) setLoaded(null); setDiagramError(null); return; }
@@ -143,17 +146,22 @@ export function AtlasWorkPanel({ work, target }: { work: Work; target: DiagramTa
     return () => { window.removeEventListener('keydown', key); document.body.classList.remove('has-fullscreen'); };
   }, [fullscreen]);
 
-  const select = (next: string) => retarget(diagramTarget(work.id, next));
-  const picker = listed.length > 0 || selected ? <DiagramPicker diagrams={listed} selected={selected} payloads={loaded?.payloads ?? new Map()} open={pickerOpen} onOpenChange={setPickerOpen} onSelect={select} /> : null;
+  // The viewer draws again only when what it is given changes: the picker and the element in focus
+  // stay the same objects while nothing of theirs does.
+  const select = useCallback((next: string) => retarget(diagramTarget(work.id, next)), [retarget, work.id]);
+  const payloads = loaded?.payloads ?? noPayloads;
+  const picker = useMemo(() => listed.length > 0 || selected ? <DiagramPicker diagrams={listed} selected={selected} payloads={payloads} open={pickerOpen} onOpenChange={setPickerOpen} onSelect={select} /> : null,
+    [listed, selected, payloads, pickerOpen, select]);
   const error = diagramError?.path === selected ? diagramError.message : '';
   const notices = [listError, error].filter(Boolean);
   const payload = entry?.valid === false ? undefined : loaded?.payloads.get(selected);
+  const focus = useMemo(() => payload && target.element ? { kind: 'node' as const, id: elementId(payload.model, target.element) } : null, [payload, target.element]);
   const empty = diagrams && !listed.length && !selected;
 
   return <section className={'diagrams' + (fullscreen ? ' fullscreen' : '')} aria-label="Work diagrams">
     <div className="diagrams-canvas">
       {payload ? <ViewerErrorBoundary key={payload.family ?? selected} resetKey={payload.model.document?.revision.id}>
-        <AtlasPanel payload={payload} theme={theme} focus={target.element ? { kind: 'node', id: elementId(payload.model, target.element) } : null}
+        <AtlasPanel payload={payload} theme={theme} focus={focus}
           leading={picker} fullscreen={fullscreen} onFullscreenChange={setFullscreen}
           inspectorWidth={inspectorWidth} onInspectorWidthChange={setInspectorWidth} />
       </ViewerErrorBoundary>

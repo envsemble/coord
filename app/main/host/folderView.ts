@@ -15,6 +15,10 @@ export class FolderView {
   private hostNotice: string | null = null;
   private connectionNotice: string | null = null;
   revision = 0;
+  /** The revision at which the host last read the folder's files; see FolderChange. */
+  files = 0;
+  /** The host's own count of its reads of the files, as last told; null when the next state may come from a host that restarted. */
+  private hostFiles: number | null = null;
   private closed = false;
 
   constructor(client: HostClient, folderId: string, remote: FolderView['remote'], revision = 0) {
@@ -22,10 +26,11 @@ export class FolderView {
     this.folderId = folderId;
     this.remote = remote;
     this.revision = revision;
+    this.files = revision;
   }
 
   get notice() { return this.connectionNotice ?? this.hostNotice; }
-  change(): FolderChange { return { revision: this.revision, status: this.status, error: this.error, notice: this.notice }; }
+  change(): FolderChange { return { revision: this.revision, files: this.files, status: this.status, error: this.error, notice: this.notice }; }
 
   /** A folder event from the host, or its state when the window started following it. */
   update(state: FolderState) {
@@ -33,12 +38,13 @@ export class FolderView {
     this.error = state.error;
     this.hostNotice = state.notice;
     this.revision++;
+    if (state.files !== this.hostFiles) { this.hostFiles = state.files; this.files = this.revision; }
   }
   /** It could not be followed: unreadable here until its computer answers again. */
   failed(message: string) {
     this.status = 'invalid';
     this.error = message;
-    this.revision++;
+    this.files = ++this.revision;
   }
   /** The connection's status: an unreachable host keeps the last good view with a notice; a refused one closes it. */
   connection(status: ClientStatus, detail: string | null) {
@@ -49,7 +55,9 @@ export class FolderView {
       this.error = detail ?? 'The host refused the connection.';
       this.connectionNotice = null;
     }
-    this.revision++;
+    // A host that comes back may have restarted, or missed nothing: its next state says.
+    if (status !== 'connected') this.hostFiles = null;
+    this.files = ++this.revision;
   }
 
   request: HostClient['request'] = (method, params, options) => this.client.request(method, params, options);

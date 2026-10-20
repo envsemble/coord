@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { UiState, WindowInfo } from './types';
+import type { LoadedUi, WindowInfo } from './types';
 import { defaultUiState } from '../shared/contract';
 import { api } from './api';
 import { EmptyState, Spinner, TitleBar, useToast, WindowFrame } from '@envsemble/envui';
-import { AtlasMark } from '@envsemble/atlas-diagrams/react';
+import { AtlasMark } from '@envsemble/atlas-diagrams/mark';
 import { ErrorIcon } from './ui/icons';
 import { Workbench } from './workbench/Workbench';
 import { ConnectDialog } from './remote/ConnectDialog';
@@ -21,7 +21,7 @@ type OpenDialog = { kind: 'connect' } | { kind: 'access' } | { kind: 'computers'
  */
 export default function App() {
   const [info, setInfo] = useState<WindowInfo | null>(null);
-  const [ui, setUi] = useState<UiState | null>(null);
+  const [ui, setUi] = useState<LoadedUi | null>(null);
   const [failure, setFailure] = useState('');
   const [dialog, setDialog] = useState<OpenDialog>(null);
   const toast = useToast();

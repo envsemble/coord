@@ -31,10 +31,19 @@ export interface ProjectActions {
 
 /** The last part of a folder's path, for a name. */
 export const folderName = (folder: string) => folder.split(/[\\/]+/).filter(Boolean).at(-1) ?? '';
-/** A folder's path as compared with another: on Windows without case, and either separator; without trailing separators. */
+/** Whether this computer's folders are told apart without case, as on Windows and macOS (folders are chosen on this computer only). */
+const caseInsensitive = /^(?:win|mac)/i.test(navigator.platform);
+/**
+ * A folder's path as compared with another, without trailing separators: a Windows path (a drive's,
+ * or a share's, also written `//server/share`) with either separator, and without case where this
+ * computer ignores it.
+ */
 const folderKey = (folder: string) => {
-  const trimmed = folder.trim().replace(/(?<=.)[\\/]+$/, '');
-  return /^(?:[a-z]:|\\\\)/i.test(trimmed) ? trimmed.replace(/\//g, '\\').toLowerCase() : trimmed;
+  let key = folder.trim();
+  const windows = /^(?:[a-z]:|[\\/]{2}[^\\/])/i.test(key);
+  if (windows) key = key.replace(/\//g, '\\');
+  key = key.replace(/(?<=.)[\\/]+$/, '');
+  return windows || caseInsensitive ? key.toLowerCase() : key;
 };
 
 /** A folder chosen in the system's folder dialog (Explorer, Finder): its path, or null when the person cancelled. */
@@ -83,7 +92,8 @@ export function NewProjectDialog({ computer, local, onClose, onCreated }: { comp
   const [folders, setFolders] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const ready = Boolean(name.trim() && (folders.length || !local));
+  // A project may cover no folders yet: agents then find it in its planning folder only.
+  const ready = Boolean(name.trim());
   const create = async () => {
     setBusy(true); setError('');
     try {

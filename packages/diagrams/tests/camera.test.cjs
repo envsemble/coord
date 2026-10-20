@@ -201,17 +201,19 @@ test("the grid follows world coordinates across negative pans and zoom threshold
     const sizes = values(h.grid.style.backgroundSize);
     const positions = values(h.grid.style.backgroundPosition);
     const offset = values(h.grid.style.transform);
-    // translate3d includes the 3 in its name; parse its arguments only.
-    const translation = offset.slice(1);
-    const spacing = sizes[2];
-    assert(spacing >= 16 - 1e-9 && spacing <= 32 + 1e-9);
+    // translate3d includes the 3 in its name; parse its arguments only. The
+    // layer then scales the rasterized pattern about its canvas origin.
+    const translation = offset.slice(1, 3);
+    const scale = offset[4];
+    const raster = sizes[2];
+    assert(raster >= 16 - 1e-9 && raster <= 32 + 1e-9);
+    assert(scale >= 1 - 1e-9 && scale < 2 ** (1 / 8) + 1e-9);
     for (const [i, coordinate] of [camera.x, camera.y].entries()) {
-      assert(translation[i] >= 0 && translation[i] < spacing);
+      assert(translation[i] >= 0 && translation[i] < raster * scale);
       for (const layer of [0, 1]) {
         const period = sizes[layer * 2];
-        const origin =
-          -64 + positions[layer * 2 + i] + period / 2 + translation[i];
-        const steps = (coordinate - origin) / period;
+        const origin = positions[layer * 2 + i] + period / 2 - 64;
+        const steps = ((coordinate - translation[i]) / scale - origin) / period;
         close(steps, Math.round(steps));
       }
     }

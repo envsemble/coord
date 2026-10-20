@@ -29,6 +29,7 @@ const api: AtlasBridge = {
   openProject: project => call('project:open', project),
   closeProject: project => call('project:close', project),
   snapshot: project => call('planning:snapshot', project),
+  work: project => call('planning:work', project),
   document: (project, path) => call('planning:document', project, path),
   diagrams: (project, work) => call('planning:diagrams', project, work),
   diagram: (project, work, path) => call('planning:diagram', project, work, path),

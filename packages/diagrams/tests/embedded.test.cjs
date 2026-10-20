@@ -111,8 +111,9 @@ test("A proposal opens its change view in both viewers, with the focus and the r
     DiagramViewer({ ...payload }).props.review,
   );
   // Both viewers render it directly, with no wrapper to remount when a host
-  // switches between a capture and its proposals.
-  const panel = AtlasPanel({ payload, focus: target });
+  // switches between a capture and its proposals. The panel is memoized; its
+  // render function is the memo's type.
+  const panel = AtlasPanel.type({ payload, focus: target });
   assert.equal(panel.props.payload.model, changeView.model);
   assert.equal(panel.props.review.comparison, comparison);
   assert.equal(panel.props.focus, target);

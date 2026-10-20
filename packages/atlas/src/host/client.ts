@@ -307,7 +307,7 @@ export class HostClient {
         this.options.onEvent?.('folder.changed', await this.request('folders.subscribe', { folderId }));
       } catch (error) {
         if (!this.folders.has(folderId)) return;
-        this.options.onEvent?.('folder.changed', { folderId, name: '', status: 'missing', error: (error as Error).message, notice: null, revision: Date.now() });
+        this.options.onEvent?.('folder.changed', { folderId, name: '', status: 'missing', error: (error as Error).message, notice: null, revision: Date.now(), files: Date.now() });
       }
     }));
   }

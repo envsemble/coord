@@ -4,6 +4,7 @@ import { useInspectorWidth } from "./useInspectorWidth";
 import { useOverlayInsets } from "./useOverlayInsets";
 import { useToolbarDensity } from "./useToolbarDensity";
 import {
+  memo,
   useCallback,
   useEffect,
   useId,
@@ -46,8 +47,9 @@ function overlayClass(sections, density = 0) {
 // out together) render in the same mounted panel, so switching among them
 // keeps the camera, the view, the selection and the details. The panel's root
 // is an envUI Theme, so the host's `theme` drives envUI's tokens inside it
-// (and in the popups envUI portals out of it).
-export function AtlasPanel(props) {
+// (and in the popups envUI portals out of it). Memoized, so a host
+// re-rendering with the same props leaves the viewer alone.
+export const AtlasPanel = memo(function AtlasPanel(props) {
   const { payload, review } = reviewedPayload(props.payload);
   if (!payload.views.length) {
     const theme = props.theme || "dark";
@@ -87,7 +89,7 @@ export function AtlasPanel(props) {
       identity={props.payload.family || payload.model.id}
     />
   );
-}
+});
 function AtlasPanelContent({
   payload,
   theme = "dark",

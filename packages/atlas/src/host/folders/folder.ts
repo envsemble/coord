@@ -43,6 +43,8 @@ export class FolderSession {
   error: string | null = null;
   notice: string | null = null;
   revision = 0;
+  /** The revision at which the folder's files were last read; a later revision changed only statistics or handoffs. */
+  files = 0;
   private watchFailures: number[] = [];
   private rescanTimer: ReturnType<typeof setInterval> | null = null;
   private current: Snapshot | null = null;
@@ -63,7 +65,7 @@ export class FolderSession {
 
   get folderId() { return this.options.folderId; }
   state(): FolderState {
-    return { folderId: this.options.folderId, name: this.name, status: this.status, error: this.error, notice: this.notice, revision: this.revision };
+    return { folderId: this.options.folderId, name: this.name, status: this.status, error: this.error, notice: this.notice, revision: this.revision, files: this.files };
   }
 
   async start() {
@@ -86,10 +88,12 @@ export class FolderSession {
     if (!planning || this.closed) return;
     const started = performance.now();
     try {
+      // The folders are listed while the index is read: they are the same through the root's real path.
+      const listing = listFolders(this.root);
       const index = await planning.index(true);
       let counts: Record<string, number> = {};
       try { counts = planning.diagrams.counts(index); } catch { /* Counts are an indicator only. */ }
-      const folders = await listFolders(index.root);
+      const folders = await listing;
       this.current = { ...index, work: index.work.map(item => ({ ...item, diagrams: counts[item.id] ?? 0 })), folders };
       this.status = 'ready';
       this.error = null;
@@ -108,7 +112,7 @@ export class FolderSession {
       }
       this.options.log.warn('Planning folder unreadable', { root: this.root, status: this.status, error: this.error });
     }
-    this.revision++;
+    this.files = ++this.revision;
     this.diagramIndexCache = null;
     this.emit();
   }
@@ -123,6 +127,8 @@ export class FolderSession {
     try {
       const statistics = await workStatistics(this.root, current.work, { database });
       if (this.current !== current || this.closed) return;
+      // Reports of other projects change nothing here: no event.
+      if (JSON.stringify(current.work.map(item => statistics[item.id])) === JSON.stringify(current.work.map(item => item.statistics))) return;
       this.current = { ...current, work: current.work.map(item => ({ ...item, statistics: statistics[item.id] })) };
       this.revision++;
       this.emit();
@@ -199,9 +205,9 @@ export class FolderSession {
 
   /** Every diagram in the folder, for quick open. Computed on demand and reused until the folder changes. */
   diagramIndex(): Promise<DiagramIndexEntry[]> {
-    if (this.diagramIndexCache?.revision === this.revision) return this.diagramIndexCache.entries;
+    if (this.diagramIndexCache?.revision === this.files) return this.diagramIndexCache.entries;
     const entries = this.session().diagrams.index(this.snapshot());
-    this.diagramIndexCache = { revision: this.revision, entries };
+    this.diagramIndexCache = { revision: this.files, entries };
     return entries;
   }
 

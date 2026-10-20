@@ -94,7 +94,8 @@ export default defineConfig({
   renderer: {
     root: import.meta.dirname,
     publicDir: resolve(import.meta.dirname, '../packages/diagrams/assets'),
-    build: { rolldownOptions: { input: resolve(import.meta.dirname, 'index.html') } },
+    // Minified: the window parses less as it starts (electron-vite leaves the renderer unminified).
+    build: { minify: true, rolldownOptions: { input: resolve(import.meta.dirname, 'index.html') } },
     resolve: { dedupe: ['react', 'react-dom'], ...(envUISource && { conditions: ['envui-source', ...defaultClientConditions] }) },
     ...(envUISource && { optimizeDeps: { exclude: ['@envsemble/envui'] } }),
     ...(envUIRoot && { server: { fs: { allow: [searchForWorkspaceRoot(import.meta.dirname), envUIRoot] } } }),

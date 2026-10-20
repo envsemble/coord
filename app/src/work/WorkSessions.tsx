@@ -26,7 +26,9 @@ export function useWorkSessions(work: string, key: string) {
   const [value, setValue] = useState<{ work: string; sessions: WorkSession[]; products: WorkProduct[] } | null>(null);
   useEffect(() => {
     let current = true;
-    api.workSessions(project, work).then(next => { if (current) setValue({ work, ...next }); }, () => { if (current) setValue({ work, sessions: [], products: [] }); });
+    // Kept as it was when nothing changed, so the page does not draw it again.
+    const set = (next: { work: string; sessions: WorkSession[]; products: WorkProduct[] }) => setValue(previous => previous && JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
+    api.workSessions(project, work).then(next => { if (current) set({ work, ...next }); }, () => { if (current) set({ work, sessions: [], products: [] }); });
     return () => { current = false; };
   }, [project, work, key, revision]);
   return value?.work === work ? value : null;
@@ -38,7 +40,7 @@ export function useWorkTimeline(work: string, key: string) {
   const [value, setValue] = useState<{ work: string; timeline: WorkTimeline } | null>(null);
   useEffect(() => {
     let current = true;
-    api.workTimeline(project, work).then(timeline => { if (current) setValue({ work, timeline }); }, () => { if (current) setValue(null); });
+    api.workTimeline(project, work).then(timeline => { if (current) setValue(previous => previous?.work === work && JSON.stringify(previous.timeline) === JSON.stringify(timeline) ? previous : { work, timeline }); }, () => { if (current) setValue(null); });
     return () => { current = false; };
   }, [project, work, key, revision]);
   return value?.work === work ? value.timeline : null;

@@ -161,16 +161,17 @@ function start(database: HomeDatabase) {
     Menu.setApplicationMenu(null);
     registerIpc(manager, { openLogs, about });
     buildMenu(manager, { openLogs, devTools });
-    try { await localHost.start(); }
-    catch (error) {
+    // The host starts while the windows open: the connection waits for its owner token.
+    const hostStarted = localHost.start().catch(async error => {
       log.error('Host could not start', error);
       await dialog.showMessageBox({ type: 'error', title: 'Atlas', message: 'Atlas could not start reading projects.', detail: (error as Error).message + '\n\nDetails are in the log (Open Logs, in the menu).', buttons: ['OK'] });
-    }
+    });
     connections.local.start();
     // The window buttons in each title bar follow the theme.
     nativeTheme.on('updated', () => { for (const window of manager.all()) window.updateTitleBar(); });
     // After sleep, connections may be dead without either side knowing: try them all again now.
     powerMonitor.on('resume', () => connections.wakeAll());
     manager.restore();
+    await hostStarted;
   });
 }

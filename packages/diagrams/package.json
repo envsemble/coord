@@ -67,6 +67,10 @@
       "types": "./src/index.d.ts",
       "default": "./dist/react.mjs"
     },
+    "./mark": {
+      "types": "./src/ui/AtlasMark.d.ts",
+      "default": "./dist/mark.mjs"
+    },
     "./viewer.css": "./src/ui/styles.css",
     "./diagram.css": "./src/visualization/styles.css",
     "./embedded.css": "./dist/embedded.css",

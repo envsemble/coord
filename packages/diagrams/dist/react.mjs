@@ -83,7 +83,7 @@ function inspectionTarget(model, index2, views, viewKey, id) {
 // src/viewer/DiagramViewer.jsx
 import {
   useCallback as useCallback5,
-  useEffect as useEffect9,
+  useEffect as useEffect10,
   useLayoutEffect as useLayoutEffect11,
   useMemo as useMemo9,
   useRef as useRef11,
@@ -899,18 +899,20 @@ function rollupChanges(comparison, model, views) {
     names
   };
 }
-var counted = /* @__PURE__ */ new WeakMap();
+var rollups = /* @__PURE__ */ new WeakMap();
+function cachedRollup(comparison, model, views) {
+  const cached = rollups.get(comparison);
+  if (cached && cached.model === model && cached.views === views)
+    return cached.rollup;
+  const rollup = rollupChanges(comparison, model, views);
+  rollups.set(comparison, { model, views, rollup });
+  return rollup;
+}
 function changeCount(payload) {
   const comparison = payload?.comparison;
   if (!comparison?.changes) return null;
-  if (!counted.has(payload)) {
-    const view = comparison.changeView || payload;
-    counted.set(
-      payload,
-      rollupChanges(comparison, view.model, view.views)?.count ?? 0
-    );
-  }
-  return counted.get(payload);
+  const view = comparison.changeView || payload;
+  return cachedRollup(comparison, view.model, view.views)?.count ?? 0;
 }
 var SINGULAR = {
   foreignKeys: "foreign key",
@@ -1758,6 +1760,8 @@ var clampScale = (scale) => Math.max(0.08, Math.min(3.5, scale));
 var MAX_FIT_SCALE = 1.5;
 var FIT_PADDING = 24;
 var NO_INSETS = { top: 0, right: 0, bottom: 0, left: 0 };
+var GRID_OVERHANG = 64;
+var GRID_LEVELS = 8;
 function createCamera({
   canvasRef,
   worldRef,
@@ -1774,7 +1778,7 @@ function createCamera({
   let easing = PAN_EASING_MS;
   let reducedMotion = false;
   let grid = null;
-  let gridScale = null;
+  let gridLevel = null;
   let zoomReadout = null;
   let drag = null;
   let moved = false;
@@ -1789,19 +1793,21 @@ function createCamera({
   function paint() {
     worldRef.current.style.transform = `translate(${camera.x}px,${camera.y}px) scale(${camera.scale})`;
     if (grid) {
-      const step = 20 * 2 ** Math.ceil(Math.log2(16 / (20 * camera.scale)));
+      const level = 2 ** (Math.floor(Math.log2(camera.scale) * GRID_LEVELS) / GRID_LEVELS);
+      const step = 20 * 2 ** Math.ceil(Math.log2(16 / (20 * level)));
+      const raster = step * level;
       const spacing = step * camera.scale;
       const phase = (n) => (n % spacing + spacing) % spacing;
-      if (gridScale !== camera.scale) {
-        gridScale = camera.scale;
-        const fine = Math.max(0, Math.min(1, spacing / 16 - 1));
+      if (gridLevel !== level) {
+        gridLevel = level;
+        const fine = Math.max(0, Math.min(1, raster / 16 - 1));
         grid.style.backgroundImage = [fine, 1 - fine].map(
           (opacity) => `radial-gradient(color-mix(in srgb,var(--grid) ${opacity * 100}%,transparent) 0.7px,transparent 0.7px)`
         ).join(",");
-        grid.style.backgroundSize = `${spacing / 2}px ${spacing / 2}px,${spacing}px ${spacing}px`;
-        grid.style.backgroundPosition = `${64 - spacing / 4}px ${64 - spacing / 4}px,${64 - spacing / 2}px ${64 - spacing / 2}px`;
+        grid.style.backgroundSize = `${raster / 2}px ${raster / 2}px,${raster}px ${raster}px`;
+        grid.style.backgroundPosition = `${GRID_OVERHANG - raster / 4}px ${GRID_OVERHANG - raster / 4}px,${GRID_OVERHANG - raster / 2}px ${GRID_OVERHANG - raster / 2}px`;
       }
-      grid.style.transform = `translate3d(${phase(camera.x)}px,${phase(camera.y)}px,0)`;
+      grid.style.transform = `translate3d(${phase(camera.x)}px,${phase(camera.y)}px,0) scale(${camera.scale / level})`;
     }
     const value = Math.round(camera.scale * 100);
     if (value !== zoomReadout) {
@@ -2060,7 +2066,9 @@ function createCamera({
     const canvas = canvasRef.current;
     const world = worldRef.current;
     grid = canvas.querySelector(".canvas-grid");
-    gridScale = null;
+    gridLevel = null;
+    if (grid)
+      grid.style.transformOrigin = `${GRID_OVERHANG}px ${GRID_OVERHANG}px`;
     const cleanup = [];
     const listen = (target, type, handler, options) => {
       target.addEventListener(type, handler, options);
@@ -2233,7 +2241,7 @@ function createCamera({
       cancelMotion();
       clearPointers(canvas);
       grid = null;
-      gridScale = null;
+      gridLevel = null;
     };
   }
   return {
@@ -4847,7 +4855,7 @@ function reviewedPayload(payload) {
 }
 
 // src/viewer/useInspectorWidth.jsx
-import { useLayoutEffect as useLayoutEffect7, useRef as useRef7, useState as useState8 } from "react";
+import { useEffect as useEffect8, useLayoutEffect as useLayoutEffect7, useRef as useRef7, useState as useState8 } from "react";
 import { jsx as jsx25 } from "react/jsx-runtime";
 var MIN = 288;
 var MAX = 1200;
@@ -4885,6 +4893,29 @@ function useInspectorWidth({
   const clamp = (value) => Math.round(Math.min(max, Math.max(MIN, value)));
   const chosen = onChange ? width ?? null : own;
   const shown2 = dragged ?? (chosen === null ? null : clamp(chosen));
+  const resizing = dragged !== null;
+  useLayoutEffect7(() => {
+    const style = viewerRef.current?.style;
+    if (!style || resizing) return;
+    if (shown2 === null) style.removeProperty("--inspector-width");
+    else style.setProperty("--inspector-width", `${shown2}px`);
+  }, [viewerRef, shown2, resizing]);
+  useEffect8(() => () => cancelAnimationFrame(drag.current?.frame), []);
+  const follow = (d, clientX) => {
+    d.width = clamp(d.startWidth + d.startX - clientX);
+    if (d.frame) return;
+    d.frame = requestAnimationFrame(() => {
+      d.frame = 0;
+      viewerRef.current?.style.setProperty("--inspector-width", `${d.width}px`);
+      d.separator.setAttribute("aria-valuenow", String(d.width));
+    });
+  };
+  const end = (d) => {
+    cancelAnimationFrame(d.frame);
+    d.separator.setAttribute("aria-valuenow", String(clamp(d.startWidth)));
+    drag.current = null;
+    setDragged(null);
+  };
   const commit = (next) => {
     const value = clamp(next);
     if (onChange) {
@@ -4907,29 +4938,32 @@ function useInspectorWidth({
         if (event.button !== 0) return;
         event.preventDefault();
         event.currentTarget.setPointerCapture(event.pointerId);
+        const startWidth = current();
         drag.current = {
           pointerId: event.pointerId,
           startX: event.clientX,
-          startWidth: current()
+          startWidth,
+          width: clamp(startWidth),
+          frame: 0,
+          separator: event.currentTarget
         };
-        setDragged(clamp(drag.current.startWidth));
+        setDragged(drag.current.width);
       },
       onPointerMove: (event) => {
         const d = drag.current;
         if (!d || d.pointerId !== event.pointerId) return;
-        setDragged(clamp(d.startWidth + d.startX - event.clientX));
+        follow(d, event.clientX);
       },
       onPointerUp: (event) => {
         const d = drag.current;
         if (!d || d.pointerId !== event.pointerId) return;
-        drag.current = null;
-        setDragged(null);
+        end(d);
         commit(d.startWidth + d.startX - event.clientX);
       },
       onPointerCancel: (event) => {
-        if (drag.current?.pointerId !== event.pointerId) return;
-        drag.current = null;
-        setDragged(null);
+        const d = drag.current;
+        if (d?.pointerId !== event.pointerId) return;
+        end(d);
       },
       onKeyDown: (event) => {
         if (event.altKey || event.ctrlKey || event.metaKey) return;
@@ -4948,7 +4982,7 @@ function useInspectorWidth({
   return {
     width: shown2,
     style: shown2 === null ? void 0 : { "--inspector-width": `${shown2}px` },
-    resizing: dragged !== null,
+    resizing,
     separator
   };
 }
@@ -5054,7 +5088,7 @@ import { useCallback as useCallback4, useMemo as useMemo8, useRef as useRef10, u
 import { Button as Button8, Counter as Counter2, Tooltip as Tooltip4 } from "@envsemble/envui";
 
 // src/review/ChangesOverview.jsx
-import { useEffect as useEffect8, useLayoutEffect as useLayoutEffect10, useRef as useRef9, useState as useState10 } from "react";
+import { memo as memo6, useEffect as useEffect9, useLayoutEffect as useLayoutEffect10, useRef as useRef9, useState as useState10 } from "react";
 import { Button as Button7, Counter, DisclosureNote as DisclosureNote5, Stack as Stack5, Text as Text9 } from "@envsemble/envui";
 import { Fragment as Fragment9, jsx as jsx26, jsxs as jsxs17 } from "react/jsx-runtime";
 function Summary({ row }) {
@@ -5185,7 +5219,7 @@ function moveFocus(event) {
   event.preventDefault();
   buttons[next]?.focus();
 }
-function ChangesOverview({
+var ChangesOverview = memo6(function ChangesOverview2({
   rollup,
   baselineDate,
   profile,
@@ -5195,7 +5229,7 @@ function ChangesOverview({
   onHover
 }) {
   const list = useRef9(null);
-  useEffect8(() => {
+  useEffect9(() => {
     const request = handoff?.current;
     if (request?.to !== "overview") return;
     handoff.current = null;
@@ -5274,7 +5308,7 @@ function ChangesOverview({
       group.status
     )) })
   ] });
-}
+});
 function ChangeNavigation({
   position,
   total,
@@ -5357,7 +5391,7 @@ function useChangeReview({
   onShowPanel
 }) {
   const rollup = useMemo8(
-    () => review ? rollupChanges(review.comparison, model, views) : null,
+    () => review ? cachedRollup(review.comparison, model, views) : null,
     [review, model, views]
   );
   const details = useMemo8(() => rollup ? { rollup } : null, [rollup]);
@@ -5397,6 +5431,24 @@ function useChangeReview({
     handoff.current = { to: "overview", key: current?.key };
     back();
   }, [back, current]);
+  const baselineDate = review?.baselineDate;
+  const profile = model.document?.profile;
+  const activeKey = current?.key;
+  const content = useMemo8(
+    () => rollup ? /* @__PURE__ */ jsx27(
+      ChangesOverview,
+      {
+        rollup,
+        baselineDate,
+        profile,
+        active: activeKey,
+        handoff,
+        onSelect: openRow,
+        onHover: hover
+      }
+    ) : null,
+    [rollup, baselineDate, profile, activeKey, openRow, hover]
+  );
   if (!rollup) return null;
   return {
     rollup,
@@ -5464,18 +5516,7 @@ function useChangeReview({
       }
     ),
     /** The overview list for the inspector. */
-    content: /* @__PURE__ */ jsx27(
-      ChangesOverview,
-      {
-        rollup,
-        baselineDate: review.baselineDate,
-        profile: model.document?.profile,
-        active: current?.key,
-        handoff,
-        onSelect: openRow,
-        onHover: hover
-      }
-    )
+    content
   };
 }
 
@@ -5625,7 +5666,7 @@ function ViewerContent({
   const element = index2.getElement(inspected);
   const showOverview = !!changes && overview && !element && !learningOpen;
   const sidebarOpen = !sidebarHidden && (!!element || learningOpen || showOverview);
-  useEffect9(() => {
+  useEffect10(() => {
     setSelected(null);
     setFocusRequest(null);
     setViewKey(views[0].key);
@@ -5640,7 +5681,7 @@ function ViewerContent({
   );
   const latestChanges = useRef11(null);
   latestChanges.current = changes;
-  useEffect9(() => {
+  useEffect10(() => {
     const escape = (e) => {
       if (e.key !== "Escape") return;
       if (e.target.closest?.(".inspector"))
@@ -5651,7 +5692,7 @@ function ViewerContent({
     return () => document.removeEventListener("keydown", escape);
   }, [clear]);
   const lastExternalFocus = useRef11(null);
-  useEffect9(() => {
+  useEffect10(() => {
     if (focus && focus !== lastExternalFocus.current) {
       lastExternalFocus.current = focus;
       if (focus.kind === "view" && views.some((v) => v.key === focus.id))
@@ -5659,7 +5700,7 @@ function ViewerContent({
       else choose(focus.id);
     }
   }, [focus, choose, views]);
-  useEffect9(() => {
+  useEffect10(() => {
     if (selected && !index2.getElement(selected)) select(null);
   }, [index2, selected, select]);
   const inspector = useRef11(null);
@@ -5822,8 +5863,9 @@ function ViewerContent({
 
 // src/viewer/AtlasPanel.jsx
 import {
+  memo as memo7,
   useCallback as useCallback6,
-  useEffect as useEffect10,
+  useEffect as useEffect11,
   useId as useId3,
   useLayoutEffect as useLayoutEffect12,
   useMemo as useMemo10,
@@ -5835,7 +5877,7 @@ import { jsx as jsx29, jsxs as jsxs20 } from "react/jsx-runtime";
 function overlayClass(sections, density = 0) {
   return `atlas-overlay-top${sections ? " stacked" : ""}${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`;
 }
-function AtlasPanel(props) {
+var AtlasPanel = memo7(function AtlasPanel2(props) {
   const { payload, review } = reviewedPayload(props.payload);
   if (!payload.views.length) {
     const theme = props.theme || "dark";
@@ -5871,7 +5913,7 @@ function AtlasPanel(props) {
       identity: props.payload.family || payload.model.id
     }
   );
-}
+});
 function AtlasPanelContent({
   payload,
   theme = "dark",
@@ -5950,20 +5992,20 @@ function AtlasPanelContent({
   const inspected = inspectedTarget(preview, selected), element = index2.getElement(inspected);
   const showOverview = !!changes && overview && !element && !learning;
   const open = !hidden && (!!element || learning || showOverview);
-  useEffect10(() => {
+  useEffect11(() => {
     select(null);
     setViewKey(views[0].key);
     setFocusRequest(null);
     lastFocus.current = null;
   }, [identity, select]);
-  useEffect10(() => {
+  useEffect11(() => {
     const visible = selected?.kind === "node" ? diagram.nodes : selected?.kind === "edge" ? diagram.edges : diagram.generalizationGroups || [];
     if (selected && (!index2.getElement(selected) || !visible.some((item) => item.id === selected.id) && !(selected.kind === "edge" && diagram.generalizationGroups?.some(
       (g) => g.memberIds.includes(selected.id)
     ))))
       select(null);
   }, [index2, diagram, selected, select]);
-  useEffect10(() => {
+  useEffect11(() => {
     if (sameTarget(lastFocus.current, focus)) return;
     lastFocus.current = focus;
     if (!focus) return;
@@ -5989,7 +6031,7 @@ function AtlasPanelContent({
   }, [open, settledWidth]);
   const latestChanges = useRef12(null);
   latestChanges.current = changes;
-  useEffect10(() => {
+  useEffect11(() => {
     const escape = (e) => {
       if (e.key !== "Escape" || !e.target.closest?.(".atlas-panel")) return;
       if (e.target.closest(".inspector")) latestChanges.current?.returnFocus();
@@ -5999,7 +6041,7 @@ function AtlasPanelContent({
     return () => document.removeEventListener("keydown", escape);
   }, [select]);
   const guided = !!guide;
-  useEffect10(() => {
+  useEffect11(() => {
     if (!guided) setLearning(false);
   }, [guided]);
   const showTabs = views.length > 1;

@@ -26,9 +26,9 @@ import { compareHits, PlanningSearch, searchQuery } from '../planning/reading/se
 import { AccessStore, newToken } from './access/access.ts';
 import { hostAddresses } from './access/addresses.ts';
 import {
-  closeCodes, methodScopes, pairingUrl, protocolVersion, routes,
+  closeCodes, methodScopes, pairingUrl, protocolVersion, routes, snapshotValue,
   type AccessState, type EventName, type Events, type FolderState, type HostDescriptor, type ImportPreviewValue, type MethodName, type Methods,
-  type NetworkStatus, type PairResponse, type Project, type ProjectSummary, type Scope, type SearchResult, type Snapshot, type HandoffLink,
+  type NetworkStatus, type PairResponse, type Project, type ProjectSummary, type Scope, type SearchResult, type SnapshotValue, type HandoffLink,
 } from './contract.ts';
 import { HostError, toErrorValue, type Logger } from './errors.ts';
 import type { FolderSession } from './folders/folder.ts';
@@ -552,9 +552,11 @@ export class Host {
   private event<E extends EventName>(connection: Connection, event: E, data: Events[E]) { connection.send({ event, data }); }
   private folderChanged(state: FolderState) {
     for (const connection of this.connections) if (connection.subscriptions.has(state.folderId)) this.event(connection, 'folder.changed', state);
+    // Only a read of its files changes what the project list shows (its name lives in its
+    // planning.json); its statistics and handoffs come from the listing's own reading.
+    if (state.revision !== state.files) return;
     const folder = this.folders.pathOf(state.folderId);
     if (folder) this.searchTouched(folder);
-    // A project's name lives in its planning.json.
     this.projectsChanged();
   }
   /** Remote access changed: tell the connections that may manage it. */
@@ -671,9 +673,12 @@ export class Host {
       this.folders.get(project.folderId).touch();
     }
   }
-  /** A folder's snapshot, with its work's handoffs across the home's projects (listed first, when nothing was listed yet). */
-  private snapshotOf(folder: FolderSession): Snapshot {
-    const snapshot = folder.snapshot();
+  /**
+   * A folder's snapshot as clients get it (each document once), with its work's handoffs across the
+   * home's projects (listed first, when nothing was listed yet).
+   */
+  private snapshotOf(folder: FolderSession): SnapshotValue {
+    const snapshot = snapshotValue(folder.snapshot());
     if (!this.handoffsListed) { this.handoffsListed = true; void this.projects(true).catch(() => undefined); }
     const handoffs = this.handoffs.get(folderKey(folder.root));
     return handoffs ? { ...snapshot, work: snapshot.work.map(item => ({ ...item, ...handoffs.get(item.id) })) } : snapshot;
@@ -891,6 +896,7 @@ export class Host {
         return null as never;
       }
       case 'folder.snapshot': return this.snapshotOf(this.subscribed(connection, (p as { folderId: string }).folderId)) as never;
+      case 'folder.work': return this.snapshotOf(this.subscribed(connection, (p as { folderId: string }).folderId)).work as never;
       case 'folder.document': { const { folderId, path: file } = p as { folderId: string; path: string }; return this.subscribed(connection, folderId).document(file) as never; }
       case 'folder.diagrams': { const { folderId, work } = p as { folderId: string; work: string }; return this.subscribed(connection, folderId).diagrams(work) as never; }
       case 'folder.diagram': { const { folderId, work, path: file } = p as { folderId: string; work: string; path: string }; return this.subscribed(connection, folderId).diagram(work, file) as never; }

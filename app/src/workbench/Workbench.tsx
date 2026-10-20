@@ -3,12 +3,12 @@
 // (Plans, Projects), above one place at a time: the hub, where it starts and returns when nothing else
 // is open, a plan, a diagram or a file of a project, the Projects page or a project's statistics.
 // A plan and its pages have the plan's own files in a card beside them.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Breadcrumbs, Button, EmptyState, Kbd, Notice, Popover, Spinner, Text, TitleBar, useToast, WindowFrame } from '@envsemble/envui';
 import { ThemeMenu } from '../menu/ThemeMenu';
 import { ErrorIcon, FolderOpenIcon, SearchIcon, WarningIcon } from '../ui/icons';
 import type { ImportPreview, MenuCommand } from '../../shared/contract';
-import type { FolderChange, Issue, Project, ProjectChangeRequest, Snapshot, Target, UiState, WindowInfo } from '../types';
+import type { FolderChange, Issue, LoadedUi, Project, ProjectChangeRequest, Snapshot, SnapshotWork, Target, WindowInfo } from '../types';
 import { api, AtlasError } from '../api';
 import { documentTarget, hubPlace, isPage, placeId, placeProject, projectsPlace, scrollKey, statisticsPlace, workTarget, type Place, type ProjectPlace } from '../navigation/targets';
 import { samePath, siblingProject } from './links';
@@ -19,19 +19,24 @@ import { SearchPopup } from '../navigation/SearchPopup';
 import type { SearchDestination } from '../navigation/search';
 import { ImportDialog } from './ImportDialog';
 import { FileView, WorkPage } from '../work/WorkPage';
-import { AtlasWorkPanel } from '../work/AtlasWorkPanel';
-import { WorkStatisticsPage } from '../work/WorkStatisticsPage';
 import { Hub, type HubFilters } from '../hub/Hub';
 import { NewProjectDialog, ProjectsPage, type ProjectActions } from '../projects/ProjectsPage';
 import { hubItems, inState } from '../hub/hubPlans';
-import { AllStatistics, Statistics } from '../statistics/StatisticsPage';
 import { Gone, Page } from '../ui/Pages';
 import { modifierKey, SectionBar, TitleBarStart, type Section, type WorkbenchMenus } from '../menu/AppMenu';
 import { revealIds } from './explorerModel';
-import { WorkbenchContext, type Notify, type WorkbenchApi } from './workbenchContext';
+import { ReadingContext, WorkbenchContext, type Notify, type OpenOptions, type WorkbenchActions, type WorkbenchReading } from './workbenchContext';
 import { arrived, liveActivity } from '../work/agentTime';
 import { EditorButton, useEditor } from '../menu/EditorButton';
 import { shownFile } from './shownFile';
+
+// The diagrams and the statistics pages load when they are first shown, so a window starts lighter.
+const AtlasWorkPanel = lazy(() => import('../work/AtlasWorkPanel').then(module => ({ default: module.AtlasWorkPanel })));
+const WorkStatisticsPage = lazy(() => import('../work/WorkStatisticsPage').then(module => ({ default: module.WorkStatisticsPage })));
+const Statistics = lazy(() => import('../statistics/StatisticsPage').then(module => ({ default: module.Statistics })));
+const AllStatistics = lazy(() => import('../statistics/StatisticsPage').then(module => ({ default: module.AllStatistics })));
+/** What shows while a page that loads when first shown arrives. */
+const loadingPage = <div className="page-state" aria-busy="true"><Spinner size="large" label="Loading" /></div>;
 
 const toastVariants = { info: 'neutral', warning: 'info', danger: 'error' } as const;
 
@@ -45,29 +50,54 @@ const keepsHistoryButtons = '[role="menu"], [role="listbox"], [role="dialog"], [
 const inSearchField = () => Boolean(document.activeElement?.closest('.hub-search'));
 const popupOpen = () => Boolean(document.activeElement?.closest(keepsHistoryButtons)) || [...document.querySelectorAll(keepsHistoryButtons)].some(element => element.checkVisibility());
 
-/** A project's folder as the window follows it: its state, its snapshot once read, and the revision it was read at. */
-interface Folder { change: FolderChange | null; snapshot: Snapshot | null; read: number; failure: string }
+/**
+ * A project's folder as the window follows it: its state, its snapshot once read, the revision it was
+ * read at, and the revision of the files it has (FolderChange.files).
+ */
+interface Folder { change: FolderChange | null; snapshot: Snapshot | null; read: number; files: number; failure: string }
 
-export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: UiState }) {
+/** A listing as text, without the host's clock (`now`), which every listing has anew: listings that read the same are one. */
+const listingText = (projects: Project[]) => JSON.stringify(projects, (key, value) => key === 'now' ? undefined : value);
+/**
+ * The snapshot with its work items as read again (their statistics or handoffs changed): each keeps
+ * its documents, and one that reads the same stays as it was, as does the snapshot when all do.
+ */
+function withWork(snapshot: Snapshot, work: SnapshotWork[]): Snapshot {
+  const before = new Map(snapshot.work.map(item => [item.id, item]));
+  let changed = work.length !== snapshot.work.length;
+  const next = work.map((item, index) => {
+    const known = before.get(item.id);
+    if (!known) { changed = true; return { ...item, documents: [] }; }
+    const { documents, ...rest } = known;
+    if (snapshot.work[index] === known && JSON.stringify(rest) === JSON.stringify(item)) return known;
+    changed = true;
+    return { ...item, documents };
+  });
+  return changed ? { ...snapshot, work: next } : snapshot;
+}
+
+export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: LoadedUi }) {
   const toast = useToast();
   const notify = useCallback<Notify>((message, tone = 'info') => { toast.show({ message, variant: toastVariants[tone] }); }, [toast]);
   const warn = useCallback((message: string) => notify(message, 'warning'), [notify]);
 
   // ---- The computer's projects, and the folders the window follows ------------------------------
-  const [projects, setProjects] = useState<Project[] | null>(null);
+  // The window starts from the listing its layout loaded with, when it has one.
+  const [projects, setProjects] = useState<Project[] | null>(initialUi.projects ?? null);
   const [projectsError, setProjectsError] = useState('');
   /** List the projects again; the latest listing wins. */
   const listProjects = useRef(() => {});
   useEffect(() => {
     let current = true;
     let asked = 0;
-    const listed = (next: Project[]) => { setProjects(next); setProjectsError(''); };
+    // A listing that reads as the one shown changes nothing, so nothing that shows it draws again.
+    const listed = (next: Project[]) => { setProjects(previous => previous && listingText(previous) === listingText(next) ? previous : next); setProjectsError(''); };
     const load = () => {
       const ask = ++asked;
       api.projects().then(next => { if (current && ask === asked) listed(next); }, error => { if (current && ask === asked) { setProjects(previous => previous ?? []); setProjectsError((error as Error).message); } });
     };
     listProjects.current = load;
-    load();
+    if (!initialUi.projects) load();
     // The host's own listing comes with the change, when it has one; a listing on its way is older.
     const off = api.onProjectsChanged(change => { if (change.projects) { asked++; listed(change.projects); } else load(); });
     return () => { current = false; off(); };
@@ -77,13 +107,20 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   const [folders, setFolders] = useState<Record<string, Folder>>({});
   const following = useRef(new Set<string>());
   const latest = useRef(new Map<string, number>());
-  const setFolder = useCallback((project: string, change: (folder: Folder) => Folder) => setFolders(current => ({ ...current, [project]: change(current[project] ?? { change: null, snapshot: null, read: 0, failure: '' }) })), []);
-  const refresh = useCallback(async (project: string, revision: number) => {
+  const setFolder = useCallback((project: string, change: (folder: Folder) => Folder) => setFolders(current => ({ ...current, [project]: change(current[project] ?? { change: null, snapshot: null, read: 0, files: 0, failure: '' }) })), []);
+  /** Read a project's folder again at a revision: all of it when its files changed (`whole`), else only its work items. */
+  const refresh = useCallback(async (project: string, revision: number, files: number, whole: boolean) => {
     latest.current.set(project, Math.max(latest.current.get(project) ?? 0, revision));
+    const newest = () => revision >= (latest.current.get(project) ?? 0);
     try {
-      const snapshot = await api.snapshot(project);
-      if (revision >= (latest.current.get(project) ?? 0)) setFolder(project, folder => ({ ...folder, snapshot, read: revision, failure: '' }));
-    } catch (error) { if (revision >= (latest.current.get(project) ?? 0)) setFolder(project, folder => ({ ...folder, failure: (error as Error).message })); }
+      if (whole) {
+        const snapshot = await api.snapshot(project);
+        if (newest()) setFolder(project, folder => ({ ...folder, snapshot, read: revision, files, failure: '' }));
+      } else {
+        const work = await api.work(project);
+        if (newest()) setFolder(project, folder => folder.snapshot ? { ...folder, snapshot: withWork(folder.snapshot, work), read: revision, failure: '' } : folder);
+      }
+    } catch (error) { if (newest()) setFolder(project, folder => ({ ...folder, failure: (error as Error).message })); }
   }, [setFolder]);
   useEffect(() => api.onChanged(change => {
     if (following.current.has(change.project)) setFolder(change.project, folder => ({ ...folder, change }));
@@ -108,7 +145,10 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
   // ---- What the window shows, and the history of what it showed -----------------------------------
   // The place and the history (back and forward) change together: each change of place is recorded,
   // except a step back or forward.
-  const [{ ui, history }, setWindowState] = useState(() => ({ ui: initialUi, history: startHistory(initialUi.place) }));
+  const [{ ui, history }, setWindowState] = useState(() => {
+    const { projects: _listed, ...ui } = initialUi;
+    return { ui, history: startHistory(ui.place) };
+  });
   const place = ui.place;
   const go = useCallback((next: Place) => setWindowState(current => ({ ui: { ...current.ui, place: next }, history: record(current.history, next) })), []);
   /** Show another place instead of the current one, which history forgets (a plan that is gone). */
@@ -172,9 +212,10 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
     const timer = window.setTimeout(() => { for (const project of [...following.current]) if (!wantedRef.current.includes(project)) unfollow(project); }, 1000);
     return () => window.clearTimeout(timer);
   }, [wanted, unfollow]);
-  // The folder shown is read again whenever it changes.
+  // The folder shown is read again whenever it changes: all of it when its files did, else its work items.
   useEffect(() => {
-    if (reading && readFolder?.change?.status === 'ready' && readFolder.read < readFolder.change.revision) void refresh(reading, readFolder.change.revision);
+    const change = readFolder?.change;
+    if (reading && readFolder && change?.status === 'ready' && readFolder.read < change.revision) void refresh(reading, change.revision, change.files, !readFolder.snapshot || readFolder.files < change.files);
   }, [reading, readFolder?.change?.revision, readFolder?.change?.status, refresh]);
   // A plan no longer in its project falls back to the project's plans in the hub.
   const missing = projectPlace && projectPlace.target.kind !== 'file' && readFolder?.snapshot && readFolder.change && readFolder.read >= readFolder.change.revision
@@ -412,40 +453,54 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
       go({ project, target });
     } catch (error) { release(); notify((error as Error).message, 'warning'); }
   }, [folders, projectOf, go, notify, follow, unfollow]);
-  /** What a page of a project works with. */
-  const scope = useMemo<WorkbenchApi | null>(() => {
-    if (!reading || !readSnapshot) return null;
-    const owner = projectOf(reading);
-    const show = (target: Target, options: { project?: string } = {}) => go({ project: options.project ?? reading, target });
+  // What a page of a project works with: the project and the window's ways to show more, which stay
+  // the same while the project is read and listed again (they use the latest folders and projects as
+  // they run), and what changes with each reading and listing.
+  const openPathRef = useRef(openPath);
+  openPathRef.current = openPath;
+  const projectsRef = useRef(projects);
+  projectsRef.current = projects;
+  const owner = projectOf(reading);
+  const projectName = owner?.name ?? readSnapshot?.name ?? '';
+  const scope = useMemo<WorkbenchActions | null>(() => {
+    if (!reading) return null;
+    const show = (target: Target, options: OpenOptions = {}) => go({ project: options.project ?? reading, target });
     return {
-      project: reading, projectName: owner?.name ?? readSnapshot.name, snapshot: readSnapshot, revision: readFolder?.change?.revision ?? 0,
-      open: show, go, retarget: target => show(target),
-      listed: work => owner?.summary ? [...owner.summary.active, ...owner.summary.closed].find(item => item.id === work) : undefined,
-      activity: work => liveActivity(owner?.summary, work),
-      sibling: folder => siblingProject(projects ?? [], reading, folder),
-      openPath: (other, path, anchor) => { void openPath(other, path, anchor); },
+      project: reading, projectName, open: show, go, retarget: target => show(target),
+      sibling: folder => siblingProject(projectsRef.current ?? [], reading, folder),
+      openPath: (other, path, anchor) => { void openPathRef.current(other, path, anchor); },
       notify, remote: info.computer.hostId === null ? null : { hostId: info.computer.hostId, hostName: info.computer.name },
       inspectorWidth: ui.inspectorWidth ?? null, setInspectorWidth, exportPlan: work => { void exportWork(reading, work); },
     };
-  }, [reading, readSnapshot, readFolder?.change?.revision, projects, projectOf, go, openPath, notify, info.computer, ui.inspectorWidth, setInspectorWidth, exportWork]);
+  }, [reading, projectName, go, notify, info.computer, ui.inspectorWidth, setInspectorWidth, exportWork]);
+  const summary = owner?.summary;
+  const read = useMemo<WorkbenchReading | null>(() => readSnapshot && {
+    snapshot: readSnapshot, revision: readFolder?.change?.revision ?? 0, files: readFolder?.files ?? 0,
+    listed: work => summary ? [...summary.active, ...summary.closed].find(item => item.id === work) : undefined,
+    activity: work => liveActivity(summary, work),
+  }, [readSnapshot, readFolder?.change?.revision, readFolder?.files, summary]);
 
   // A plan is open: its page or its diagrams.
   const planOpen = projectPlace && (projectPlace.target.kind === 'work' || projectPlace.target.kind === 'diagram') ? { project: projectPlace.project, work: projectPlace.target.work } : null;
-  const menus: WorkbenchMenus = {
+  const back = canGoBack(history), forward = canGoForward(history);
+  const exportProject = planOpen?.project ?? null, exportItem = planOpen?.work ?? null;
+  const menus = useMemo<WorkbenchMenus>(() => ({
     goBack: () => navigate(-1),
     goForward: () => navigate(1),
-    canGoBack: canGoBack(history),
-    canGoForward: canGoForward(history),
+    canGoBack: back,
+    canGoForward: forward,
     newProject: () => runCommand('newProject'),
     importPlan: () => runCommand('importPlan'),
-    exportPlan: planOpen && (() => { void exportWork(planOpen.project, planOpen.work); }),
+    exportPlan: exportProject && exportItem ? () => { void exportWork(exportProject, exportItem); } : null,
     openInEditor: editorFile ? openInEditor : null,
-  };
+  }), [navigate, back, forward, runCommand, exportProject, exportItem, exportWork, editorFile, openInEditor]);
   // The sections: a plan, its ledger and its diagrams belong to Plans, with the hub.
   // A project's statistics belong to Projects.
   // All plans' statistics belong to Plans, a project's to Projects.
   const section: Section = isPage(place) && (place.page === 'projects' || (place.page === 'statistics' && place.project !== null)) ? 'projects' : 'plans';
   const goSection = (next: Section) => next === 'plans' ? go(hubPlace()) : runCommand(next);
+  // All plans' statistics are read again when the listing's statistics or projects change, not with every listing.
+  const statisticsMark = useMemo(() => JSON.stringify(projects?.map(project => [project.folderId, project.state, project.summary && [...project.summary.active, ...project.summary.closed].map(work => work.statistics)])), [projects]);
   const counts = useMemo(() => projects && { plans: hubItems(projects, null).filter(item => inState(item, 'open')).length, projects: projects.filter(project => project.state === 'active').length }, [projects]);
   /** Open what the search found: a place, or a file of a project at a heading or a diagram's element. */
   const choose = useCallback((destination: SearchDestination) => {
@@ -453,13 +508,15 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
     else void openPath(destination.project, destination.path, destination.anchor);
   }, [go, openPath]);
   const fills = projectPlace?.target.kind === 'diagram' && Boolean(readSnapshot);
+  /** The project the search lists the documents and diagrams of: the one a plan, diagram or file of shows. */
+  const searchScope = useMemo(() => projectPlace && reading && readSnapshot ? { project: reading, snapshot: readSnapshot } : null, [Boolean(projectPlace), reading, readSnapshot]);
 
   let content;
   if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.project} filters={hubFilters} setFilters={setHubFilters} go={go} query={search ?? ''} search={openSearch} left={searchFieldLeft} platform={info.platform} />;
   else if (isPage(placed) && placed.page === 'projects') content = <ProjectsPage projects={projects} error={projectsError} computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} />;
   // All plans' statistics: every active project together.
-  else if (isPage(placed) && !placed.project) content = <AllStatistics revision={projects} trail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: 'Statistics' }]} />} />;
-  else content = <ProjectContent place={placed} folder={readFolder} project={projectOf(reading)} scope={scope} files={filesWork && <FilesContext.Provider value={filesState}><PlanFiles work={filesWork} /></FilesContext.Provider>}
+  else if (isPage(placed) && !placed.project) content = <Suspense fallback={loadingPage}><AllStatistics revision={statisticsMark} trail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: 'Statistics' }]} />} /></Suspense>;
+  else content = <ProjectContent place={placed} folder={readFolder} project={owner} scope={scope} read={read} files={filesWork && <FilesContext.Provider value={filesState}><PlanFiles work={filesWork} /></FilesContext.Provider>}
     statisticsTrail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Projects', onClick: () => go(projectsPlace()) }, { label: projectOf(reading)?.name ?? 'Project', onClick: projectOf(reading)?.state === 'archived' ? undefined : () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
 
   return <WindowFrame className="workbench" scrollRef={setScroller} titleBar={<div className="workbench-top"><TitleBar className="workbench-title-bar"
@@ -468,7 +525,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
       {editorFile && <EditorButton platform={info.platform} editor={editor} choose={chooseEditor} read={readEditor} open={openInEditor} />}
       {/* On the hub, its own search field is the search. */}
       {!hubShown && <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />}
-      {scope && <Health issues={scope.snapshot.issues} open={work => go({ project: scope.project, target: workTarget(work) })} />}
+      {scope && read && <Health issues={read.snapshot.issues} open={work => go({ project: scope.project, target: workTarget(work) })} />}
       <ThemeMenu />
     </>} />
     <SectionBar section={section} counts={counts} go={goSection} />
@@ -477,7 +534,7 @@ export function Workbench({ info, initialUi }: { info: WindowInfo; initialUi: Ui
       <div ref={page} className="workbench-page">{content}</div>
       <ScrollMemory scroller={scroller} scrollKey={scrollKey(placed)} shown={placeId(placed)} anchored={anchored} entry={currentEntry(history)} content={page} positions={scrollPositions} entryPositions={entryPositions} />
     </div>
-    {search !== null && projects && <SearchPopup projects={projects} open={projectPlace && scope ? { project: scope.project, snapshot: scope.snapshot } : null} query={search} setQuery={setSearch} onChoose={choose} onClose={closeSearch} />}
+    {search !== null && projects && <SearchPopup projects={projects} open={searchScope} query={search} setQuery={setSearch} onChoose={choose} onClose={closeSearch} />}
     {creatingProject && <NewProjectDialog computer={info.computer.name} local={info.computer.hostId === null} onClose={() => setCreatingProject(false)} onCreated={projectActions.created} />}
     {importing && <ImportDialog preview={importing.preview} project={projectOf(importing.project)?.name ?? 'this project'}
       onCancel={() => { void api.cancelImport(importing.preview.token).catch(() => undefined); setImporting(null); }}
@@ -548,7 +605,9 @@ function ScrollMemory({ scroller: element, shown, scrollKey: key, anchored, entr
 
 /** What the window shows of a project, in its scope: a plan, a diagram, a file or its statistics; or why it cannot. */
 /** `files`: the open plan's Files card, for a plan and its pages, at the top right beside each of them. */
-function ProjectContent({ place, folder, project, scope, statisticsTrail, files }: { place: Place; folder: Folder | undefined; project: Project | undefined; scope: WorkbenchApi | null; statisticsTrail: ReactNode; files: ReactNode }) {
+function ProjectContent({ place, folder, project, scope, read, statisticsTrail, files }: {
+  place: Place; folder: Folder | undefined; project: Project | undefined; scope: WorkbenchActions | null; read: WorkbenchReading | null; statisticsTrail: ReactNode; files: ReactNode;
+}) {
   const change = folder?.change;
   // A project's statistics keep their breadcrumb and heading above why they show nothing yet.
   const frame = (state: ReactNode) => isPage(place) ? <Page className="statistics-page" heading={<div className="page-heading-stack">{statisticsTrail}<Text as="h1" variant="page-heading">Statistics</Text></div>}>{state}</Page> : state;
@@ -556,30 +615,30 @@ function ProjectContent({ place, folder, project, scope, statisticsTrail, files 
     return frame(<EmptyState className="page-empty" icon={<ErrorIcon />} title={change?.status === 'missing' ? 'This project’s folder was moved or deleted' : 'This project can’t be read'}
       description={<>{(project?.path ?? folder?.snapshot?.root) && <bdi className="folder-problem-path">{project?.path ?? folder?.snapshot?.root}</bdi>} {change?.error ?? folder?.failure} Atlas reads it again as soon as it can.</>} />);
   }
-  if (!scope || !folder?.snapshot) return frame(<div className="page-state" aria-busy="true"><Spinner size="large" label={'Reading ' + (project?.name ?? 'the project')} /></div>);
+  if (!scope || !read || !folder?.snapshot) return frame(<div className="page-state" aria-busy="true"><Spinner size="large" label={'Reading ' + (project?.name ?? 'the project')} /></div>);
   const snapshot = folder.snapshot;
   let content;
-  if (isPage(place)) content = <Statistics trail={statisticsTrail} />;
+  if (isPage(place)) content = <Suspense fallback={loadingPage}><Statistics trail={statisticsTrail} /></Suspense>;
   else {
     const { target } = place as ProjectPlace;
     if (target.kind === 'work' || target.kind === 'diagram') {
       const item = snapshot.work.find(entry => entry.id === target.work);
       content = !item ? <div className="page-state" aria-busy="true"><Spinner size="large" label="Reading the plan" /></div>
-        : <PlanFrame files={files} filled={target.kind === 'diagram'}>{target.kind === 'diagram' ? <div className="work-page section-diagrams"><AtlasWorkPanel key={item.id} work={item} target={target} /></div>
-          : target.view === 'statistics' ? <WorkStatisticsPage work={item} /> : <WorkPage work={item} snapshot={snapshot} target={target} />}</PlanFrame>;
+        : <PlanFrame files={files} filled={target.kind === 'diagram'}>{target.kind === 'diagram' ? <div className="work-page section-diagrams"><Suspense fallback={loadingPage}><AtlasWorkPanel key={item.id} work={item} target={target} /></Suspense></div>
+          : target.view === 'statistics' ? <Suspense fallback={loadingPage}><WorkStatisticsPage work={item} /></Suspense> : <WorkPage work={item} snapshot={snapshot} target={target} />}</PlanFrame>;
     } else {
       const file = snapshot.documents.find(document => document.path === target.path);
       const page = !file ? <Gone title="This file no longer exists" detail={target.path} /> : <FileView file={file} snapshot={snapshot} anchor={target.anchor ?? null} />;
       content = files ? <PlanFrame files={files}>{page}</PlanFrame> : page;
     }
   }
-  return <WorkbenchContext.Provider value={scope}>
+  return <WorkbenchContext.Provider value={scope}><ReadingContext.Provider value={read}>
     {change?.error && <Notice className="folder-error" tone="warning" announce title={scope.remote ? `Atlas can’t read this project on ${scope.remote.hostName} right now.` : 'This project can’t be read right now.'}>
       {change.error} {scope.remote ? 'Showing the last view.' : 'Showing the last good view. Atlas reloads when the folder is readable again.'}
     </Notice>}
     {change?.notice && <Notice className="folder-error" tone="info">{change.notice}</Notice>}
     {content}
-  </WorkbenchContext.Provider>;
+  </ReadingContext.Provider></WorkbenchContext.Provider>;
 }
 
 /** A page of a plan (the plan, its statistics, a diagram, a file) with the plan's Files card at its top right. */

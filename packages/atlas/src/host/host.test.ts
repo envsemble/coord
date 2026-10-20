@@ -11,6 +11,7 @@ import path from 'node:path';
 import { HomeDatabase } from '../planning/index.ts';
 import { AccessStore, lockAddress, normalizeCode } from './access/access.ts';
 import { HostRequestError, describeHost, pairWithHost, parsePairing } from './client.ts';
+import { withWorkDocuments } from './contract.ts';
 import { acceptableHost, attachment } from './host.ts';
 import { pairRequest, accessSettings } from './validate.ts';
 import { accessStore, client, freePort, noGrant, opened, pairDevice, projectNamed, quiet, start, temporary, until } from './testing.ts';
@@ -43,6 +44,9 @@ test('the owner reads any folder it opens; a request with the wrong shape or sco
   assert.deepEqual([state.folderId, state.status], [opened.folderId, 'ready']);
   const snapshot = await connection.request('folder.snapshot', { folderId: opened.folderId });
   assert.equal(snapshot.work.length, 4);
+  // Each document comes once: the work items get theirs back from the snapshot's, the plan first.
+  assert.ok(snapshot.work.every(work => !('documents' in work)));
+  assert.equal(withWorkDocuments(snapshot).work.find(work => work.id === 'work-0001')?.documents[0]?.path, 'active/0001-saved-payment-methods/plan.md');
   const plan = await connection.request('folder.document', { folderId: opened.folderId, path: 'active/0001-saved-payment-methods/plan.md' });
   assert.equal(plan.title, 'Saved payment methods');
   await assert.rejects(connection.request('folder.document', { folderId: opened.folderId, path: '../outside.md' }), (error: HostRequestError) => error.code === 'invalid-argument');

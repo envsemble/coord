@@ -48,9 +48,15 @@ function useScrollsMark<T extends HTMLElement>() {
     const observer = new ResizeObserver(mark);
     observer.observe(element);
     for (const child of element.children) observer.observe(child);
+    // Children that come later (a section that appears) are observed as they come.
+    const added = new MutationObserver(records => {
+      for (const record of records) for (const node of record.addedNodes) if (node instanceof Element) observer.observe(node);
+      mark();
+    });
+    added.observe(element, { childList: true });
     mark();
-    return () => observer.disconnect();
-  });
+    return () => { observer.disconnect(); added.disconnect(); };
+  }, []);
   return ref;
 }
 

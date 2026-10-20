@@ -7,7 +7,7 @@
 // breadcrumb set it) and a state filter narrow it, on its heading's line with the search field, centred,
 // which opens the search. One
 // click opens a plan.
-import { useMemo, type MouseEvent } from 'react';
+import { memo, useMemo, type MouseEvent } from 'react';
 import { Button, EmptyState, Kbd, Notice, SearchField, SegmentedControl, Select, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
 import { StatisticsIcon, WorkIcon } from '../ui/icons';
 import type { Project } from '../types';
@@ -68,7 +68,7 @@ const columnWidths = [44, 13, 15, 18, 10];
  * Its summary shows on the title's hover. The status icon carries the colour and pulses while agents
  * work; the text stays neutral but for that line, amber while one waits.
  */
-function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
+const HubRow = memo(function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
   const { work, project, status, activity } = item;
   const facts = hubRowFacts(work, status);
   const waiting = activity?.state === 'waiting' ? activity : null;
@@ -97,6 +97,14 @@ function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
     <TableCell><Spent item={item} facts={facts} /></TableCell>
     <TableCell numeric nowrap>{facts.changed ? <Changed value={facts.changed} /> : <span className="muted">—</span>}</TableCell>
   </TableRow>;
+}, (before, after) => before.go === after.go && rowKey(before.item) === rowKey(after.item));
+
+/** What a row shows of its plan, as text: a row whose plan reads the same in a new listing is not drawn again. */
+const rowKeys = new WeakMap<HubItem, string>();
+function rowKey(item: HubItem) {
+  let key = rowKeys.get(item);
+  if (key === undefined) rowKeys.set(item, key = JSON.stringify([item.project.folderId, item.project.name, item.work, item.activity, item.status.key]));
+  return key;
 }
 
 export function Hub({ projects, error, filter: asked, filters, setFilters, go, query, search, left, platform }: {

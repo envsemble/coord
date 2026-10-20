@@ -131,8 +131,9 @@ test('the project list has each work item\'s step, completion and statistics fro
   const sent = () => owner.lists.at(-1)?.find(item => item.name === 'Northwind')?.summary?.active.find(item => item.id === 'work-0002')?.statistics;
   await until(() => sent()?.lastReport === '2026-10-03T10:00:00.000Z', 5000, () => owner.lists.length);
   assert.deepEqual([sent()?.agentMs, sent()?.activeMs, sent()?.unmergedMs], [5_400_000, 3_600_000, 0]);
-  const shown = async () => (await owner.connection.request('folder.snapshot', { folderId })).work.find(item => item.id === 'work-0002')?.statistics;
-  await until(() => owner.events.some(event => event.folderId === folderId && event.revision > 1), 5000);
+  // A change of the statistics alone: the files were not read again, and the work items alone tell it.
+  const shown = async () => (await owner.connection.request('folder.work', { folderId })).find(item => item.id === 'work-0002')?.statistics;
+  await until(() => owner.events.some(event => event.folderId === folderId && event.revision > event.files), 5000);
   assert.deepEqual([(await shown())?.activeMs, (await shown())?.agents], [3_600_000, [{ session: 's3', subagent: null, model: 'claude-opus', effort: null, agentMs: 3_600_000 }, { session: 's3', subagent: 'a1', model: null, effort: null, agentMs: 1_800_000 }]]);
 });
 

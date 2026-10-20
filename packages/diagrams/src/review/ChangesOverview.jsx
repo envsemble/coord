@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button, Counter, DisclosureNote, Stack, Text } from "@envsemble/envui";
 import { ToolButton } from "../ui/Button";
 import { BackIcon, NextIcon, PreviousIcon } from "../ui/Icons";
@@ -173,9 +173,10 @@ function moveFocus(event) {
 /**
  * Every change in a proposal, one row per changed element: new, changed and
  * removed types with their members summarized, then the relations. Choosing
- * a row selects the element on the canvas and opens its details.
+ * a row selects the element on the canvas and opens its details. Memoized, so
+ * a hover elsewhere in the viewer does not re-render the list.
  */
-export function ChangesOverview({
+export const ChangesOverview = memo(function ChangesOverview({
   rollup,
   baselineDate,
   profile,
@@ -269,7 +270,7 @@ export function ChangesOverview({
       </div>
     </Stack>
   );
-}
+});
 
 /**
  * Above a changed element's details: back to every change, and the previous

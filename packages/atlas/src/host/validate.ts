@@ -130,6 +130,7 @@ export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['p
   'folders.subscribe': object({ folderId }),
   'folders.unsubscribe': object({ folderId }),
   'folder.snapshot': object({ folderId }),
+  'folder.work': object({ folderId }),
   'folder.document': object({ folderId, path: relativePath }),
   'folder.diagrams': object({ folderId, work: workId }),
   'folder.diagram': object({ folderId, work: workId, path: diagramPath }),

@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import { Counter, IconButton, Menubar, MenubarMenu, MenuItem, MenuSeparator, NavigationItem, Tooltip } from '@envsemble/envui';
 import { ArrowBack } from '@envsemble/envui/icons/ArrowBack';
 import { ArrowForward } from '@envsemble/envui/icons/ArrowForward';
-import { AtlasMark } from '@envsemble/atlas-diagrams/react';
+import { AtlasMark } from '@envsemble/atlas-diagrams/mark';
 import type { AppCommand } from '../../shared/contract';
 import type { WindowInfo } from '../types';
 import { api, AtlasError } from '../api';

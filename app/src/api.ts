@@ -1,6 +1,7 @@
 // The renderer's view of the main process: typed calls over the preload bridge. Failures arrive as
 // structured values and are rethrown here as AtlasError, so components can check `code`.
-import type { AtlasBridge, ErrorCode, Result } from '../shared/contract';
+import { withWorkDocuments } from '@envsemble/atlas/host/contract';
+import type { AtlasBridge, ErrorCode, Result, Snapshot } from '../shared/contract';
 
 declare global {
   interface Window { atlas: AtlasBridge }
@@ -23,7 +24,8 @@ type Unwrapped = {
 
 const bridge = (): AtlasBridge => window.atlas;
 
-export const api: Unwrapped = {
+/** The snapshot arrives with each document once; the work items get theirs again here. */
+export const api: Omit<Unwrapped, 'snapshot'> & { snapshot(project: string): Promise<Snapshot> } = {
   info: () => unwrap(bridge().info()),
   projects: () => unwrap(bridge().projects()),
   createProject: (name, folders) => unwrap(bridge().createProject(name, folders)),
@@ -32,7 +34,8 @@ export const api: Unwrapped = {
   updateProject: (project, change) => unwrap(bridge().updateProject(project, change)),
   openProject: project => unwrap(bridge().openProject(project)),
   closeProject: project => unwrap(bridge().closeProject(project)),
-  snapshot: project => unwrap(bridge().snapshot(project)),
+  snapshot: project => unwrap(bridge().snapshot(project)).then(withWorkDocuments),
+  work: project => unwrap(bridge().work(project)),
   document: (project, path) => unwrap(bridge().document(project, path)),
   diagrams: (project, work) => unwrap(bridge().diagrams(project, work)),
   diagram: (project, work, path) => unwrap(bridge().diagram(project, work, path)),

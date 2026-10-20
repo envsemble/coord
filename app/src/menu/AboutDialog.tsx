@@ -2,7 +2,7 @@
 // Atlas home, and the details a bug report needs, copied in one step.
 import { useEffect, useState } from 'react';
 import { Button, Dialog, Text } from '@envsemble/envui';
-import { AtlasMark } from '@envsemble/atlas-diagrams/react';
+import { AtlasMark } from '@envsemble/atlas-diagrams/mark';
 import type { AboutInfo } from '../../shared/contract';
 import { api, AtlasError } from '../api';
 import { FolderOpenIcon } from '../ui/icons';
