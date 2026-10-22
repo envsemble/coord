@@ -194,18 +194,19 @@ export async function grantHome(harness: Harness, home: string, environment: Nod
   return true;
 }
 
-export interface AgentStatus { id: AgentId; found: boolean; connected: boolean; version: string | null; source: string | null }
+/** `listed`: whether the agent answered its plugin list, so that `connected` is what it said (false otherwise). */
+export interface AgentStatus { id: AgentId; found: boolean; connected: boolean; version: string | null; source: string | null; listed: boolean }
 
 /**
  * Whether the agent is found (`program`: the one chosen for it, else the one on the PATH) and has
  * the Atlas plugin of the marketplace in `directory` installed and turned on.
  */
 export async function agentStatus(harness: Harness, directory: string, environment: NodeJS.ProcessEnv, program = onPath(harness.program, environment)): Promise<AgentStatus> {
-  if (!program) return { id: harness.id, found: false, connected: false, version: null, source: null };
+  if (!program) return { id: harness.id, found: false, connected: false, version: null, source: null, listed: false };
   const marketplace = marketplaceName(directory);
   const listed = await runHarness(program, harness.list(marketplace), environment, 30000);
   const plugin = harness.installed(listed.stdout, 'atlas@' + marketplace, environment);
-  return { id: harness.id, found: true, connected: Boolean(plugin?.enabled), version: plugin?.version ?? null, source: plugin?.source ?? null };
+  return { id: harness.id, found: true, connected: Boolean(plugin?.enabled), version: plugin?.version ?? null, source: plugin?.source ?? null, listed: listed.status === 0 };
 }
 
 /** A failure to show as it is: what was tried and what the agent said. */
