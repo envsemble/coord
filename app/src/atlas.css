@@ -597,10 +597,19 @@ body { margin: 0; }
 .agent-progress { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text-muted); }
 .agent-install { --control-height: 1.5rem; }
 .agent-error { flex-basis: 100%; color: var(--color-tone-danger); overflow-wrap: anywhere; }
+.agent-check { color: var(--color-text-muted); }
+.agent-check[data-warning] { color: var(--color-tone-warning); }
+.agent-program { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-inline-size: 0; color: var(--color-text-muted); }
+.agent-program-path { overflow-wrap: anywhere; }
+.agent-by-hand { flex-basis: 100%; }
+.agent-by-hand p { margin: var(--space-2) 0 0; }
+.agent-commands { display: grid; gap: var(--space-2); margin: var(--space-2) 0 0; padding: 0; list-style: none; }
+.agent-commands li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.agent-commands code { overflow-wrap: anywhere; }
 .agent-actions { flex: none; justify-content: flex-end; }
 .agent-done { inline-size: 1.5rem; block-size: 1.5rem; color: var(--color-tone-success); }
 
-/* The onboarding, in place of the window until it is finished or skipped: one step at a time in a
+/* The onboarding, in place of the window until it is finished: one step at a time in a
    column at the middle of the window, its progress above it and Skip, Back and Next below. */
 .onboarding { box-sizing: border-box; min-block-size: 100%; display: grid; place-items: center; padding: var(--space-7) var(--space-5); }
 .onboarding-card { display: grid; gap: var(--space-5); inline-size: min(40rem, 100%); }

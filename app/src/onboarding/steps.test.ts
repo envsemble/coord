@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { chosenAgents, stepFrom, stepsFor } from './steps.ts';
 import type { AgentState } from '../types.ts';
 
-const agent = (id: AgentState['id'], found: boolean): AgentState => ({ id, found, connected: false, version: null });
+const agent = (id: AgentState['id'], found: boolean): AgentState => ({ id, found, program: null, connected: false, version: null, check: null });
 
 test('the onboarding connects only when an agent is chosen, and steps back the way it came', () => {
   assert.deepEqual(stepsFor(['claude']), ['welcome', 'agents', 'connect', 'start']);

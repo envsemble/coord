@@ -1,23 +1,30 @@
 // The agents on this computer, one row each: its mark and name over its status, and at the end what
 // can be done with it. Settings' Agents section connects and disconnects them; the onboarding uses
 // the same rows to choose the agents to connect, then to connect them. Connecting or disconnecting
-// one can take a while: its row shows it, and the others stay usable. An agent not on this computer
-// is greyed, with a link to install it; the list checks again whenever it shows and as the window
-// comes forward, so one installed meanwhile can be connected.
+// one can take a while: its row shows it, and the others stay usable. An agent not found on this
+// computer is greyed, with a link to install it and Choose program… for one the PATH does not have;
+// the list checks again whenever it shows and as the window comes forward, so one installed (or
+// trusted) meanwhile shows as it is. A connected agent's row says whether it runs Atlas, and in
+// Settings each row can show the commands that connect it by hand.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Button, Checkbox, GroupedRows, Row, Spinner } from '@envsemble/envui';
+import { Button, Checkbox, DisclosureNote, GroupedRows, Notice, Row, Spinner } from '@envsemble/envui';
+import { Code } from '@envsemble/envui/content';
 import { agentIds, agentNames } from '../../shared/contract';
-import type { AgentId, AgentState } from '../types';
+import type { AgentFolder, AgentId, AgentState } from '../types';
 import { api, AtlasError } from '../api';
 import { AgentLogo } from './AgentLogo';
-import { agentInstallPages, agentStatus, finished, idle, started, withAgent, type AgentActivity } from './agents';
+import { agentCheckLine, agentInstallPages, agentStatus, agentWarnings, byHandCommands, finished, idle, started, withAgent, type AgentActivity } from './agents';
 import { CheckIcon } from '../ui/icons';
+import { CopyButton } from '../ui/CopyButton';
+import { absoluteDate } from '../ui/format';
 
 /** The agents on this computer and what is happening to each, with ways to check them again and to connect or disconnect one. */
 export function useAgents() {
   const [agents, setAgents] = useState<AgentState[] | null>(null);
   const [error, setError] = useState('');
   const [activity, setActivity] = useState<Partial<Record<AgentId, AgentActivity>>>({});
+  // Why the program last chosen for an agent cannot be it.
+  const [refused, setRefused] = useState<Partial<Record<AgentId, string>>>({});
   // While an agent connects or disconnects, a check would show it halfway; its result says how it is after.
   const running = useRef(0);
   const mounted = useRef(true);
@@ -46,16 +53,51 @@ export function useAgents() {
       setActivity(current => ({ ...current, [id]: finished(action, { error: cancelled ? null : (failure as Error).message }) }));
     } finally { running.current--; }
   }, []);
+  const program = useCallback(async (id: AgentId, choose: boolean) => {
+    try {
+      const change = choose ? await api.chooseAgentProgram(id) : { agent: await api.clearAgentProgram(id), error: null };
+      if (!mounted.current || !change) return;
+      setAgents(current => withAgent(current, change.agent));
+      setRefused(current => ({ ...current, [id]: change.error ?? undefined }));
+    } catch (failure) { if (mounted.current) setRefused(current => ({ ...current, [id]: (failure as Error).message })); }
+  }, []);
   return {
     agents, error, check,
     activity: (id: AgentId) => activity[id] ?? idle,
+    refused: (id: AgentId) => refused[id] ?? null,
     /** Whether any agent is connecting or disconnecting now. */
     busy: Object.values(activity).some(item => item?.running),
     connect: (id: AgentId) => void run(id, 'connect'),
     disconnect: (id: AgentId) => void run(id, 'disconnect'),
+    /** Choose the agent's program in main's file dialog; or forget the one chosen. */
+    chooseProgram: (id: AgentId) => void program(id, true),
+    clearProgram: (id: AgentId) => void program(id, false),
   };
 }
 export type Agents = ReturnType<typeof useAgents>;
+
+/**
+ * The agents as last checked, with whether each connected one runs Atlas, read again as the window
+ * comes forward: cheap (no agent's command runs), for the hub's notice.
+ */
+export function useAgentChecks() {
+  const [agents, setAgents] = useState<AgentState[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    const read = () => { api.agentChecks().then(next => { if (live) setAgents(next); }, () => undefined); };
+    read();
+    window.addEventListener('focus', read);
+    return () => { live = false; window.removeEventListener('focus', read); };
+  }, []);
+  return agents;
+}
+
+/** A notice for each connected agent whose check warns, with `action` (the hub's link to Settings) after it. */
+export function AgentWarnings({ agents, action }: { agents: readonly AgentState[] | null; action?: ReactNode }) {
+  return <>{agentWarnings(agents).map(agent => <Notice key={agent.id} tone="warning" className="agent-warning" data-agent={agent.id} action={action}>
+    {agent.check?.status === 'untrusted' ? <>Codex doesn’t trust Atlas’s hooks yet: type <Code>/hooks</Code> in Codex and trust them.</> : <>{agentNames[agent.id]}: Atlas’s hooks aren’t running.</>}
+  </Notice>)}</>;
+}
 
 /** Open an agent's install page in the browser. */
 function InstallLink({ agent }: { agent: AgentState }) {
@@ -70,6 +112,9 @@ export type AgentListMode = { kind: 'manage' } | { kind: 'choose'; chosen: Agent
 
 export function AgentList({ agents: state, mode, label = 'Agents' }: { agents: Agents; mode: AgentListMode; label?: string }) {
   const { agents, activity } = state;
+  // The folder and marketplace the commands for connecting by hand name (Settings only).
+  const [folder, setFolder] = useState<AgentFolder | null>(null);
+  useEffect(() => { if (mode.kind === 'manage') api.agentFolder().then(setFolder, () => undefined); }, [mode.kind]);
   if (agents === null) return <Spinner label="Checking the agents on this computer" />;
   const shown = agents.filter(agent => mode.kind !== 'connect' || mode.only.includes(agent.id))
     .sort((a, b) => agentIds.indexOf(a.id) - agentIds.indexOf(b.id));
@@ -77,20 +122,43 @@ export function AgentList({ agents: state, mode, label = 'Agents' }: { agents: A
     const now = activity(agent.id);
     return <Row key={agent.id} className="agent-row" data-agent={agent.id} data-found={agent.found} aria-busy={now.running ? true : undefined}
       title={<span className="agent-name"><AgentLogo agent={agent.id} /><span className="row-link-title">{agentNames[agent.id]}</span></span>}
-      detail={<AgentDetail agent={agent} activity={now} />}
+      detail={<AgentDetail agent={agent} activity={now} state={state} mode={mode} folder={folder} />}
       action={<span className="row-actions agent-actions">{action(agent, now, mode, state)}</span>} />;
   })}</GroupedRows>;
 }
 
-/** An agent's status, what is happening to it, or why the last change failed. */
-function AgentDetail({ agent, activity }: { agent: AgentState; activity: AgentActivity }) {
+/** An agent's status (with, connected, whether it runs Atlas), what is happening to it, or why the last change failed. */
+function AgentDetail({ agent, activity, state, mode, folder }: { agent: AgentState; activity: AgentActivity; state: Agents; mode: AgentListMode; folder: AgentFolder | null }) {
   let line: ReactNode = agentStatus(agent);
   if (activity.running) line = <span className="agent-progress"><Spinner size="small" label="" />{activity.running === 'connect' ? 'Connecting… this can take a minute.' : 'Disconnecting…'}</span>;
+  const check = agent.connected && agent.check && !activity.running ? agentCheckLine(agent.check) : null;
+  const refused = state.refused(agent.id);
   return <span className="agent-detail">
     <span className="agent-status" data-connected={agent.connected} role={activity.running ? 'status' : undefined}>{line}</span>
+    {check && agent.check && <span className="agent-check" data-warning={check.warning || undefined} title={agent.check.status === 'ready' ? absoluteDate(agent.check.at) : undefined}>
+      {agent.check.status === 'untrusted' ? <>Hooks not trusted: type <Code>/hooks</Code> in Codex</> : check.text}
+    </span>}
     {!agent.found && !activity.running && <InstallLink agent={agent} />}
+    {mode.kind !== 'connect' && !activity.running && (agent.program
+      ? <span className="agent-program">Program: <span className="agent-program-path">{agent.program}</span>
+        <Button variant="text" underline className="agent-install" aria-label={'Use ' + agentNames[agent.id] + ' from the PATH'} onClick={() => state.clearProgram(agent.id)}>Clear</Button></span>
+      : !agent.found && <Button variant="text" underline className="agent-install" aria-label={'Choose the ' + agentNames[agent.id] + ' program'} onClick={() => state.chooseProgram(agent.id)}>Choose program…</Button>)}
+    {refused && <span className="agent-error" role="alert">{refused}</span>}
     {activity.failed && !activity.running && <span className="agent-error" role="alert">{activity.failed.error}</span>}
+    {mode.kind === 'manage' && folder && <ByHand agent={agent} folder={folder} />}
   </span>;
+}
+
+/** The commands that connect the agent by hand, each with a Copy button; folded until opened. */
+function ByHand({ agent, folder }: { agent: AgentState; folder: AgentFolder }) {
+  const { terminal, session } = byHandCommands(agent.id, folder);
+  const command = (text: string) => <li key={text}><Code>{text}</Code><CopyButton text={text} label="Copy" /></li>;
+  return <DisclosureNote className="agent-by-hand" title="Connect by hand">
+    <p>In a terminal:</p>
+    <ol className="agent-commands">{terminal.map(command)}</ol>
+    <p>{agent.id === 'claude' ? 'Or in a Claude Code session:' : 'Then in Codex, to see it:'}</p>
+    <ol className="agent-commands">{session.map(command)}</ol>
+  </DisclosureNote>;
 }
 
 function action(agent: AgentState, now: AgentActivity, mode: AgentListMode, state: Agents): ReactNode {

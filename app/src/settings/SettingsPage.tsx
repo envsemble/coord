@@ -6,7 +6,6 @@
 // computer's.
 import { useId, type ReactNode } from 'react';
 import { NavigationItem, Notice, Text } from '@envsemble/envui';
-import { Code } from '@envsemble/envui/content';
 import type { ComputerRef, SettingsSection } from '../types';
 import { AgentIcon, ComputerIcon } from '../ui/icons';
 import { Page } from '../ui/Page';
@@ -42,16 +41,14 @@ function SettingsGroup({ title, aside, children }: { title: string; aside?: Reac
   </section>;
 }
 
-/** The agents on this computer: each one's status and plugin version, connected or disconnected here. */
+/** The agents on this computer: each one's status and plugin version, whether it runs Atlas, connected or disconnected here. */
 function AgentsSection({ computer }: { computer: ComputerRef }) {
   const agents = useAgents();
-  const codex = agents.agents?.find(agent => agent.id === 'codex');
   return <SettingsGroup title="Agents" aside={<span className="settings-scope"><ComputerIcon /> This computer</span>}>
     <Text tone="muted" className="settings-description">Atlas connects Claude Code and Codex by installing its plugin into them: their sessions then plan with Atlas and report their work here. Updates of Atlas update the plugin in the connected agents.</Text>
     {computer.hostId !== null && <Notice tone="info">These are the agents on this computer, not on {computer.name}: connecting one installs Atlas’s plugin here. Agents on {computer.name} are connected in Atlas there.</Notice>}
     {agents.error && <Notice tone="warning" announce>{agents.error}</Notice>}
     <AgentList agents={agents} mode={{ kind: 'manage' }} label="Agents on this computer" />
-    {codex?.connected && <p className="dialog-note">Codex asks once to trust Atlas’s hooks: in a new Codex session, type <Code>/hooks</Code> and trust them.</p>}
   </SettingsGroup>;
 }
 

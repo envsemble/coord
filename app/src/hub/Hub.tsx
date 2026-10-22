@@ -6,14 +6,16 @@
 // the row says for how long. A project filter (part of the place, so back and forward and a plan's
 // breadcrumb set it) and a state filter narrow it, on its heading's line with the search field, centred,
 // which opens the search. One
-// click opens a plan.
+// click opens a plan. A connected agent that does not run Atlas (Codex not trusting its hooks, say)
+// has a notice above the plans, linking to Settings › Agents, until it does.
 import { memo, useMemo, type MouseEvent } from 'react';
 import { Button, EmptyState, Kbd, Notice, SearchField, SegmentedControl, Select, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
 import { StatisticsIcon, WorkIcon } from '../ui/icons';
 import type { Project } from '../types';
 import { hubGroups, hubItems, hubRowFacts, inState, type HubItem, type HubRowFacts, type HubState } from './hubPlans';
 import { absoluteDate, plural, relativeDate, workNumber } from '../ui/format';
-import { hubPlace, projectsPlace, statisticsPlace, workTarget, type Place } from '../navigation/targets';
+import { hubPlace, projectsPlace, settingsPlace, statisticsPlace, workTarget, type Place } from '../navigation/targets';
+import { AgentWarnings, useAgentChecks } from '../settings/AgentList';
 import { StatusIcon } from '../ui/badges';
 import { StepBar } from '../plan/LedgerProgress';
 import { ModelName } from '../ui/ModelName';
@@ -127,12 +129,15 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, q
   // The projects to filter by: the active ones.
   const choices = (projects ?? []).filter(project => project.state === 'active');
   const unread = choices.filter(project => project.summary === null);
+  const agents = useAgentChecks();
+  const warnings = <AgentWarnings agents={agents} action={<Button variant="text" underline onClick={() => go(settingsPlace('agents'))}>Settings › Agents</Button>} />;
   if (!projects) return <div className="page-state" aria-busy="true"><Spinner size="large" label="Loading the plans" /></div>;
   // The computer did not list its projects (another computer that does not answer, say).
   if (!projects.length && error) return <Page className="hub">
     <EmptyState className="page-empty" icon={<WorkIcon />} headingLevel={1} title="The projects can’t be listed right now" description={error + ' Atlas lists them again as soon as it can.'} />
   </Page>;
   if (!projects.length) return <Page className="hub">
+    {warnings}
     <EmptyState className="page-empty" icon={<WorkIcon />} headingLevel={1} title="No projects yet"
       description="Plans live in projects. Make one in Projects › New project, or ask an agent to."
       action={<Button variant="secondary" onClick={() => go(projectsPlace())}>Projects</Button>} />
@@ -156,6 +161,7 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, q
     </div>
   </div>}>
     {error && <Notice tone="warning">{error}</Notice>}
+    {warnings}
     {unread.length > 0 && <Text variant="caption" tone="muted" className="hub-note">{unread.map(project => project.name).join(', ')}: the planning folder could not be read.</Text>}
     {groups.map(group => <section key={group.id} className="hub-group" aria-label={group.label}>
       <Text as="h2" variant="section-heading" className="hub-group-heading">{group.label} <span className="muted">{group.items.length}</span></Text>
