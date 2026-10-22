@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -97,13 +97,17 @@ test('the Windows uninstaller disconnects the agents connected to the agent fold
   const profile = path.join(directory, 'Ján'), agent = path.join(profile, '.atlas', 'agent');
   mkdirSync(agent, { recursive: true });
   for (const name of ['state.json', 'onboarding.json']) writeFileSync(path.join(agent, name), '{}');
+  mkdirSync(path.join(agent, 'activity'));
+  writeFileSync(path.join(agent, 'activity', 'claude-hooks'), '2026-10-22T10:00:00.000Z');
   // Stand-ins for claude and codex, which record their arguments and list the plugins they have:
   // Claude Code's from the agent folder, Codex's from a checkout. Codex is not on the PATH: its
-  // program was chosen in Settings.
+  // program was chosen in Settings. The entry for Claude Code names another program (claude.cmd,
+  // which a stand-in there would log), so the PATH's is used.
   const shims = path.join(directory, 'bin'), chosen = path.join(directory, 'chosen');
   mkdirSync(shims);
   mkdirSync(chosen);
-  writeFileSync(path.join(agent, 'programs.json'), JSON.stringify({ codex: path.join(chosen, 'codex.cmd') }));
+  writeFileSync(path.join(agent, 'programs.json'), JSON.stringify({ codex: path.join(chosen, 'codex.cmd'), claude: path.join(chosen, 'claude.cmd') }));
+  writeFileSync(path.join(chosen, 'claude.cmd'), '@echo off\r\n>>"%~dp0claude.log" echo %*\r\nexit /b 1\r\n');
   const lists = {
     claude: [{ id: 'atlas@atlas', version: '0.8.0', enabled: true, readFromFolder: path.join(agent, 'plugin') }],
     codex: { installed: [{ pluginId: 'atlas@atlas', installed: true, marketplaceSource: { source: '\\\\?\\C:\\checkout\\atlas' } }] },
@@ -123,5 +127,6 @@ test('the Windows uninstaller disconnects the agents connected to the agent fold
   const log = (name: string) => readFileSync(path.join(name === 'codex' ? chosen : shims, name + '.log'), 'utf8').split(/\r?\n/).filter(Boolean);
   assert.deepEqual(log('claude'), ['plugin list --json', 'plugin uninstall atlas@atlas', 'plugin marketplace remove atlas']);
   assert.deepEqual(log('codex'), ['plugin list --json --marketplace atlas']);
-  assert.deepEqual(readdirSync(agent), [], 'the state, the programs chosen and the onboarding are forgotten');
+  assert.ok(!existsSync(path.join(chosen, 'claude.log')), 'a program of another name is not run');
+  assert.deepEqual(readdirSync(agent), [], 'the state, the programs chosen, the activity and the onboarding are forgotten');
 });

@@ -21,10 +21,15 @@ export const programFilters = (id: AgentId, platform: NodeJS.Platform = process.
 
 const isFile = (program: string) => statSync(program, { throwIfNoEntry: false })?.isFile() === true;
 
+/**
+ * The programs chosen, each as it was checked when chosen: the agent's program by its name, at a
+ * full path. An entry that is not (the file was edited) is left out, as if none was chosen.
+ */
 function readPrograms(folder: string): Partial<Record<AgentId, string>> {
   try {
     const saved = JSON.parse(readFileSync(file(folder), 'utf8')) as Record<string, unknown>;
-    return Object.fromEntries(Object.entries(saved).filter(([id, program]) => (id === 'claude' || id === 'codex') && typeof program === 'string' && path.isAbsolute(program)));
+    return Object.fromEntries(Object.entries(saved).filter(([id, program]) => (id === 'claude' || id === 'codex') && typeof program === 'string'
+      && path.isAbsolute(program) && programName(id).test(path.basename(program))));
   } catch { return {}; }
 }
 

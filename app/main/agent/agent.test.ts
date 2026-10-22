@@ -8,6 +8,7 @@ import { installAgentFolder, launchers, needsCopy, readState, recordAgent } from
 import { commandPaths, pointPluginAtCommand } from './pluginCommands.ts';
 import { fakeBundle, fakePlugin } from './testing.ts';
 import { mergedPath, pathKey, withoutPathEntry, withPathEntry } from './userPath.ts';
+import { chosenProgram } from './programs.ts';
 import { agentCheck } from './verify.ts';
 
 const temporary = () => mkdtempSync(path.join(tmpdir(), 'atlas-agent-'));
@@ -113,4 +114,14 @@ test('a connected agent is ready once its hooks ran since it was connected, what
   assert.deepEqual(agentCheck({ connectedAt, hooksAt: before, toolsAt: after, trust: 'unknown' }), { status: 'no-hooks' });
   assert.deepEqual(agentCheck({ connectedAt, hooksAt: null, toolsAt: null, trust: 'untrusted' }), { status: 'untrusted' });
   assert.deepEqual(agentCheck({ connectedAt, hooksAt: after, toolsAt: after, trust: 'untrusted' }), { status: 'ready', at: after });
+});
+
+test('a program chosen for an agent is used only while it is the agent\'s, by its name, at a full path that is there', () => {
+  const folder = temporary(), program = path.join(folder, process.platform === 'win32' ? 'codex.cmd' : 'codex'), other = path.join(folder, 'notepad.exe');
+  for (const file of [program, other]) writeFileSync(file, '');
+  writeFileSync(path.join(folder, 'programs.json'), JSON.stringify({ codex: program, claude: other }));
+  assert.equal(chosenProgram(folder, 'codex'), program);
+  assert.equal(chosenProgram(folder, 'claude'), null, 'another program is not Claude Code');
+  writeFileSync(path.join(folder, 'programs.json'), JSON.stringify({ codex: path.basename(program) }));
+  assert.equal(chosenProgram(folder, 'codex'), null, 'a path that is not full');
 });

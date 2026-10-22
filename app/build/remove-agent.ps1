@@ -3,8 +3,8 @@
 # their plugin would otherwise call a command that is gone. It takes the atlas command's folder
 # (%USERPROFILE%\.atlas\agent\bin, which the app put there; main/agent/userPath.ts) off the user's
 # Path, keeping every other entry and the value's type, and forgets the agent folder's state, the
-# programs chosen for the agents and the finished onboarding, so that installing Atlas again sets
-# them up again. The plugin's files stay.
+# programs chosen for the agents, their activity and the finished onboarding, so that installing
+# Atlas again sets them up again. The plugin's files stay.
 #
 # Best effort: nothing here fails the uninstall, and the agents' commands have a minute and a half in all.
 # -KeepRegistry, for its test, neither reads nor writes the registry: only the PATH given is searched.
@@ -62,16 +62,17 @@ try { (Get-Content -LiteralPath (Join-Path $agent 'programs.json') -Raw -Encodin
 # Each agent's plugin list says where its Atlas plugin came from; only one from the agent folder is
 # removed, never one a checkout installed (atlas setup).
 $agents = @(
-  @{ Id = 'claude'; Program = 'claude'; List = @('plugin', 'list', '--json'); Uninstall = @(@('plugin', 'uninstall', 'atlas@atlas'), @('plugin', 'marketplace', 'remove', 'atlas'))
+  @{ Id = 'claude'; Program = 'claude'; Name = '^claude\.exe$'; List = @('plugin', 'list', '--json'); Uninstall = @(@('plugin', 'uninstall', 'atlas@atlas'), @('plugin', 'marketplace', 'remove', 'atlas'))
      Source = { param($listed) $entry = @($listed | Where-Object { $_.id -eq 'atlas@atlas' })[0]; if ($entry.readFromFolder) { Split-Path -Parent $entry.readFromFolder } } },
-  @{ Id = 'codex'; Program = 'codex'; List = @('plugin', 'list', '--json', '--marketplace', 'atlas'); Uninstall = @(@('plugin', 'remove', 'atlas@atlas'), @('plugin', 'marketplace', 'remove', 'atlas'))
+  @{ Id = 'codex'; Program = 'codex'; Name = '^codex\.(exe|cmd)$'; List = @('plugin', 'list', '--json', '--marketplace', 'atlas'); Uninstall = @(@('plugin', 'remove', 'atlas@atlas'), @('plugin', 'marketplace', 'remove', 'atlas'))
      Source = { param($listed) $entry = @($listed.installed | Where-Object { $_.pluginId -eq 'atlas@atlas' })[0]; $entry.marketplaceSource.source } }
 )
 foreach ($item in $agents) {
   try {
-    # The program chosen for the agent, as the app uses it, else the one on the PATH.
+    # The program chosen for the agent, as the app uses it (the agent's by its name, at a full path
+    # that is there; anything else is ignored), else the one on the PATH.
     $program = $chosen[$item.Id]
-    if (-not $program -or -not (Test-Path -LiteralPath $program -PathType Leaf)) { $program = @(Get-Command $item.Program -CommandType Application -ErrorAction SilentlyContinue)[0].Source }
+    if (-not $program -or -not [IO.Path]::IsPathRooted($program) -or (Split-Path -Leaf $program) -notmatch $item.Name -or -not (Test-Path -LiteralPath $program -PathType Leaf)) { $program = @(Get-Command $item.Program -CommandType Application -ErrorAction SilentlyContinue)[0].Source }
     if (-not $program) { continue }
     $listed = Invoke-Agent $program $item.List
     if (-not $listed) { continue }
@@ -103,5 +104,5 @@ if (-not $KeepRegistry) {
     }
   } catch { }
 }
-Remove-Item -LiteralPath (Join-Path $agent 'state.json'), (Join-Path $agent 'programs.json'), (Join-Path $agent 'onboarding.json') -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (Join-Path $agent 'state.json'), (Join-Path $agent 'programs.json'), (Join-Path $agent 'onboarding.json'), (Join-Path $agent 'activity') -Recurse -Force -ErrorAction SilentlyContinue
 exit 0
