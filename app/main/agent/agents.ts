@@ -73,7 +73,11 @@ export class Agents {
         if (await addToUserPath(bin)) this.options.log.info('The atlas command was put on the user Path', { folder: bin });
       } else if (process.platform === 'linux') {
         const linked = await linkCommand(path.join(bin, 'atlas'));
-        this.options.log[linked === 'taken' ? 'warn' : 'info'](linked === 'taken' ? '~/.local/bin/atlas is another file: the atlas command was not linked there' : 'The atlas command is linked in ~/.local/bin', { launcher: path.join(bin, 'atlas') });
+        if (linked === 'taken') {
+          this.options.log.warn('~/.local/bin/atlas is another file: the atlas command was not linked there; the next launch tries again', { launcher: path.join(bin, 'atlas') });
+          return;
+        }
+        this.options.log.info('The atlas command is linked in ~/.local/bin', { launcher: path.join(bin, 'atlas') });
       } else return;
       await markOnPath(this.folder, state);
     } catch (error) { this.options.log.warn('The atlas command could not be put on the PATH; the next launch tries again', { error: (error as Error).message }); }
