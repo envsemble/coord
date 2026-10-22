@@ -1,19 +1,21 @@
-// The atlas command and the Atlas plugin the app carries (resources/agent, assembled by
-// scripts/agent-payload.cjs), copied into the Atlas home's agent/ folder whenever the build there is
-// another. There they have a stable path: the agents read the plugin in place, and the launchers in
-// bin/, on the PATH, run the command on the app's own executable in Node mode, as VS Code's `code`
-// does. Nothing may point into the app itself: an AppImage is mounted at a new path on every run.
+// The atlas command, the Node.js it runs on and the Atlas plugin the app carries (resources/agent,
+// assembled by scripts/agent-payload.cjs), copied into the Atlas home's agent/ folder whenever the
+// build there is another. There they have a stable path: the agents read the plugin in place, and
+// the launchers in bin/, on the PATH, run the command on its own Node.js. Nothing runs from or
+// points into the app itself: an AppImage is mounted at a new path on every run, and an MCP server
+// running from the install folder would hold it while the installer replaces or removes it.
 //
 //   agent/
 //     .claude-plugin/, .agents/   the marketplace manifests, naming plugin/ (atlas setup finds them too)
 //     plugin/                     the plugin, replaced as a whole
-//     command/<build>/            the @envsemble/atlas package and its dependencies, one folder per build
-//     bin/atlas, bin/atlas.cmd    the launchers (atlas.cmd on Windows only)
-//     state.json                  the build copied, the executable the launchers run, and whether bin/ was put on the PATH
+//     command/<build>/            the @envsemble/atlas package and its dependencies, one folder per build,
+//                                 with the Node.js it runs on in runtime/
+//     bin/atlas, bin/atlas.cmd    the launchers (atlas.cmd on Windows only), with paths relative to themselves
+//     state.json                  the build copied, and whether bin/ was put on the PATH
 //
 // A hook or MCP server starting meanwhile never reads a half-copied tree: each folder is copied
 // under a temporary name and renamed into place, the launchers then switch to the new command, and
-// the command a running MCP server still loads from is kept until the next update.
+// the command (and Node.js) a running MCP server still runs on is kept until the next update.
 import { existsSync, readFileSync } from 'node:fs';
 import { chmod, cp, mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
@@ -21,7 +23,7 @@ import path from 'node:path';
 
 /** What resources/agent/build.json says: the app's version, and the build (the version and a hash of the files). */
 export interface Bundle { directory: string; version: string; build: string }
-export interface FolderState { build: string; executable: string; onPath: boolean }
+export interface FolderState { build: string; onPath: boolean }
 
 export function readBundle(directory: string): Bundle {
   const { version, build } = JSON.parse(readFileSync(path.join(directory, 'build.json'), 'utf8')) as { version: string; build: string };
@@ -32,37 +34,48 @@ export function readBundle(directory: string): Bundle {
 export function readState(folder: string): FolderState | null {
   try {
     const state = JSON.parse(readFileSync(path.join(folder, 'state.json'), 'utf8')) as Partial<FolderState>;
-    return typeof state.build === 'string' && typeof state.executable === 'string' ? { build: state.build, executable: state.executable, onPath: state.onPath === true } : null;
+    return typeof state.build === 'string' ? { build: state.build, onPath: state.onPath === true } : null;
   } catch { return null; }
 }
 
-/** The launchers that run `script` with the app's `executable` in Node mode, passing arguments, input, output and exit status through. */
-export function launchers(executable: string, script: string, platform: NodeJS.Platform = process.platform) {
-  // POSIX shells, and on Windows Git Bash (which Claude Code runs hooks in), read forward slashes.
-  const posix = (value: string) => "'" + (platform === 'win32' ? value.replace(/\\/g, '/') : value).replace(/'/g, "'\\''") + "'";
+/** The Node.js executable in a command's folder. */
+const runtimeName = (platform: NodeJS.Platform) => platform === 'win32' ? 'node.exe' : 'node';
+
+/**
+ * The launchers that run the build's command on its Node.js, passing arguments, input, output and
+ * exit status through. Their paths are relative to the launcher, so nothing in them depends on where
+ * the home is: cmd.exe would read a path with letters such as "á" in the console's code page.
+ */
+export function launchers(build: string, platform: NodeJS.Platform = process.platform) {
+  const command = `command/${build}`, node = `${command}/runtime/${runtimeName(platform)}`;
+  // POSIX shells, and on Windows Git Bash (which Claude Code runs hooks in). The launcher is found
+  // through its link in ~/.local/bin on Linux, so the link is followed to bin/ first.
   const sh = [
     '#!/bin/sh',
-    '# The atlas command, run on the Atlas app\'s own executable in Node mode. The app rewrites this file.',
-    'export ELECTRON_RUN_AS_NODE=1',
-    `exec ${posix(executable)} ${posix(script)} "$@"`,
+    '# The atlas command, run on the Node.js the Atlas app ships, from the agent folder. The app rewrites this file.',
+    'agent=$(dirname "$(dirname "$(readlink -f "$0" 2>/dev/null || printf %s "$0")")")',
+    `exec "$agent/${node}" "$agent/${command}/bin/atlas.js" "$@"`,
     '',
   ].join('\n');
   if (platform !== 'win32') return [{ name: 'atlas', text: sh, mode: 0o755 }];
   // cmd.exe reads a batch file a line at a time, so a launcher rewritten while it runs must hold
-  // everything on the line it is running: setlocal keeps the variable out of the caller's console,
-  // and `call exit /b` returns the command's status without reading on.
-  const batch = (value: string) => '"' + value.replace(/%/g, '%%') + '"';
+  // everything on the line it is running: `call exit /b` returns the command's status without
+  // reading on. %~dp0 is the launcher's folder, with its trailing backslash.
+  const windows = (value: string) => '"%~dp0..\\' + value.replace(/\//g, '\\') + '"';
   const cmd = [
-    '@rem The atlas command, run on the Atlas app\'s own executable in Node mode. The app rewrites this file.',
-    `@setlocal & set "ELECTRON_RUN_AS_NODE=1" & ${batch(executable)} ${batch(script)} %* & call exit /b %%errorlevel%%`,
+    '@rem The atlas command, run on the Node.js the Atlas app ships, from the agent folder. The app rewrites this file.',
+    `@${windows(node)} ${windows(command + '/bin/atlas.js')} %* & call exit /b %%errorlevel%%`,
     '',
   ].join('\r\n');
   return [{ name: 'atlas', text: sh, mode: 0o755 }, { name: 'atlas.cmd', text: cmd, mode: 0o644 }];
 }
 
+/** Whether a command's folder has its command and its Node.js. */
+const complete = (command: string, platform: NodeJS.Platform) => existsSync(path.join(command, 'bin', 'atlas.js')) && existsSync(path.join(command, 'runtime', runtimeName(platform)));
+
 /** Whether the folder needs this build copied in: another build, or one whose files are gone. */
-export function needsCopy(state: FolderState | null, folder: string, build: string) {
-  return state?.build !== build || !existsSync(path.join(folder, 'command', build, 'bin', 'atlas.js')) || !existsSync(path.join(folder, 'plugin'));
+export function needsCopy(state: FolderState | null, folder: string, build: string, platform: NodeJS.Platform = process.platform) {
+  return state?.build !== build || !complete(path.join(folder, 'command', build), platform) || !existsSync(path.join(folder, 'plugin'));
 }
 
 const temporaryName = (prefix: string) => prefix + randomBytes(6).toString('hex');
@@ -98,20 +111,20 @@ async function sweep(folder: string, keep: (name: string) => boolean) {
 }
 
 /**
- * Bring the agent folder to this build and executable: copy the bundle in when its build is another
- * (`copied`), and rewrite the launchers when they would run another executable. The state says
- * whether bin/ is on the PATH already (see userPath.ts).
+ * Bring the agent folder to this build: copy the bundle in when its build is another (`copied`),
+ * and write the launchers when they are not this build's. The state says whether bin/ is on the
+ * PATH already (see userPath.ts).
  */
-export async function installAgentFolder(bundle: Bundle, folder: string, executable: string, platform: NodeJS.Platform = process.platform): Promise<{ copied: boolean; state: FolderState }> {
+export async function installAgentFolder(bundle: Bundle, folder: string, platform: NodeJS.Platform = process.platform): Promise<{ copied: boolean; state: FolderState }> {
   const previous = readState(folder);
-  const copied = needsCopy(previous, folder, bundle.build);
+  const copied = needsCopy(previous, folder, bundle.build, platform);
   const command = path.join(folder, 'command', bundle.build);
   if (copied) {
     await mkdir(path.join(folder, 'command'), { recursive: true });
     await sweep(folder, name => !name.startsWith('.copy-') && !name.startsWith('.old-'));
     await sweep(path.join(folder, 'command'), name => !name.startsWith('.copy-'));
     // A complete folder of this build is already there when only the plugin was missing.
-    if (!existsSync(path.join(command, 'bin', 'atlas.js'))) {
+    if (!complete(command, platform)) {
       await rm(command, { recursive: true, force: true });
       await placeFolder(path.join(bundle.directory, 'command'), command);
     }
@@ -131,12 +144,13 @@ export async function installAgentFolder(bundle: Bundle, folder: string, executa
       await writeAtomically(path.join(folder, manifest), readFileSync(path.join(bundle.directory, manifest)));
     }
   }
-  const state: FolderState = { build: bundle.build, executable, onPath: previous?.onPath ?? false };
-  if (copied || previous?.executable !== executable) {
-    for (const launcher of launchers(executable, path.join(command, 'bin', 'atlas.js'), platform)) await writeAtomically(path.join(folder, 'bin', launcher.name), launcher.text, launcher.mode);
-    await writeAtomically(path.join(folder, 'state.json'), JSON.stringify(state, null, 2) + '\n');
+  const state: FolderState = { build: bundle.build, onPath: previous?.onPath ?? false };
+  for (const launcher of launchers(bundle.build, platform)) {
+    const file = path.join(folder, 'bin', launcher.name);
+    if (copied || (existsSync(file) ? readFileSync(file, 'utf8') : null) !== launcher.text) await writeAtomically(file, launcher.text, launcher.mode);
   }
-  // The previous build's command stays for an MCP server that started on it; older ones go.
+  if (copied) await writeAtomically(path.join(folder, 'state.json'), JSON.stringify(state, null, 2) + '\n');
+  // The previous build's command and Node.js stay for an MCP server that started on them; older ones go.
   if (copied) await sweep(path.join(folder, 'command'), name => name === bundle.build || name === previous?.build);
   return { copied, state };
 }

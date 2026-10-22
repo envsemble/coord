@@ -21,8 +21,6 @@ export interface AgentsOptions {
   bundle: string | null;
   /** The marketplace folder connecting uses without a bundle: the checkout. */
   checkout: string;
-  /** What the launchers run: the app's executable, or the AppImage. */
-  executable: string;
   /**
    * Whether this is the installed app on the user's own home. Only then does it put the command on
    * the PATH and refresh the connected agents after an update: a home chosen with ATLAS_HOME (tests,
@@ -55,11 +53,11 @@ export class Agents {
   }
 
   private async prepare() {
-    const { bundle: from, executable, ownHome, log } = this.options;
+    const { bundle: from, ownHome, log } = this.options;
     if (!from) return;
     const bundle = readBundle(from);
     const started = performance.now();
-    const { copied, state } = await installAgentFolder(bundle, this.folder, executable);
+    const { copied, state } = await installAgentFolder(bundle, this.folder);
     if (copied) log.info('Agent folder updated', { build: bundle.build, folder: this.folder, ms: Math.round(performance.now() - started) });
     if (ownHome && !state.onPath) await this.putOnPath(state);
     if (!copied || !ownHome) return;

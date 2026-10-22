@@ -131,7 +131,6 @@ function start(database: HomeDatabase) {
     home: dataDirectory, log,
     bundle: app.isPackaged ? path.join(process.resourcesPath, 'agent') : null,
     checkout: path.resolve(app.getAppPath(), '..'),
-    executable: process.platform === 'linux' && process.env.APPIMAGE ? process.env.APPIMAGE : process.execPath,
     ownHome: app.isPackaged && !process.env.ATLAS_HOME,
   });
 

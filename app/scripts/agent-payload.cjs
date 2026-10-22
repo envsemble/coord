@@ -1,12 +1,70 @@
 // Assembles resources/agent, what the packaged app copies into the Atlas home's agent/ folder
 // (main/agent/agentFolder.ts): the atlas command, which is the @envsemble/atlas package's sources
-// (Node and the app's Electron in Node mode run them as they are) with its production dependencies
-// as the lockfile resolves them; the plugin; and the two marketplace manifests that name it. Its
-// build.json names the build: the version and a hash of every file, so a rebuild of one version
+// (Node runs them as they are) with its production dependencies as the lockfile resolves them, and
+// the Node.js it runs on, in runtime/; the plugin; and the two marketplace manifests that name it.
+// Its build.json names the build: the version and a hash of every file, so a rebuild of one version
 // is copied in too.
+const { execFileSync } = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+
+/** The Node.js the command runs on: the release of Node 24 (engines: >=24) that CI's setup-node runs. */
+const nodeVersion = '24.22.1';
+
+/**
+ * The official Node.js executable for a platform and architecture (electron-builder's names) and its
+ * licence, from nodejs.org, checked against the release's SHASUMS256.txt. The archive and the sums
+ * are kept in artifacts/node-runtime (not committed), so packaging works offline once they are there;
+ * a kept archive is checked again each time.
+ */
+exports.nodeRuntime = async function nodeRuntime(repository, platform, arch) {
+  const system = { win32: 'win', linux: 'linux', darwin: 'darwin' }[platform];
+  const cpu = { x64: 'x64', arm64: 'arm64', ia32: 'x86', armv7l: 'armv7l' }[arch];
+  if (!system || !cpu) throw new Error(`No Node.js runtime for ${platform} ${arch}`);
+  const name = `node-v${nodeVersion}-${system}-${cpu}`;
+  const archive = name + (system === 'win' ? '.zip' : '.tar.gz');
+  const cache = path.join(repository, 'artifacts', 'node-runtime', 'v' + nodeVersion);
+  const kept = async file => {
+    const local = path.join(cache, file);
+    if (!fs.existsSync(local)) {
+      const url = `https://nodejs.org/dist/v${nodeVersion}/${file}`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`${url}: ${response.status} ${response.statusText}`);
+      fs.mkdirSync(cache, { recursive: true });
+      fs.writeFileSync(local + '.download', Buffer.from(await response.arrayBuffer()));
+      fs.renameSync(local + '.download', local);
+    }
+    return fs.readFileSync(local);
+  };
+  const sums = (await kept('SHASUMS256.txt')).toString('utf8');
+  const expected = sums.split('\n').map(line => line.trim().split(/\s+/)).find(([, file]) => file === archive)?.[0];
+  if (!expected) throw new Error(`SHASUMS256.txt of Node.js ${nodeVersion} does not list ${archive}`);
+  const bytes = await kept(archive);
+  const actual = crypto.createHash('sha256').update(bytes).digest('hex');
+  if (actual !== expected) {
+    fs.rmSync(path.join(cache, archive), { force: true });
+    throw new Error(`${archive} does not match its SHA-256 in SHASUMS256.txt (${actual}); it was removed, so the next run downloads it again`);
+  }
+  const executable = system === 'win' ? 'node.exe' : 'bin/node';
+  let files;
+  if (system === 'win') {
+    const { unzipSync } = require(require.resolve('fflate', { paths: [path.join(repository, 'packages', 'diagrams')] }));
+    const wanted = new Set([name + '/' + executable, name + '/LICENSE']);
+    const entries = unzipSync(bytes, { filter: file => wanted.has(file.name) });
+    files = { executable: Buffer.from(entries[name + '/' + executable] ?? []), license: Buffer.from(entries[name + '/LICENSE'] ?? []) };
+  } else {
+    const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-node-'));
+    try {
+      fs.writeFileSync(path.join(temporary, archive), bytes);
+      execFileSync('tar', ['-xzf', archive, name + '/' + executable, name + '/LICENSE'], { cwd: temporary });
+      files = { executable: fs.readFileSync(path.join(temporary, name, executable)), license: fs.readFileSync(path.join(temporary, name, 'LICENSE')) };
+    } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
+  }
+  if (!files.executable?.length || !files.license?.length) throw new Error(`${archive} has no ${executable} or LICENSE`);
+  return { name: path.basename(executable), version: nodeVersion, ...files };
+};
 
 /** Files of the @envsemble/atlas package the command reads: no tests, no test helpers, no build scripts or viewer sources. */
 const commandFiles = relative => /^(?:bin|src|templates)(?:\/|$)/.test(relative) && !/\.test\.ts$|(?:^|\/)testing\.ts$/.test(relative)
@@ -102,14 +160,25 @@ function copy(from, to, filter, hash, relative = '') {
   return { files, bytes };
 }
 
-/** Write resources/agent into `destination` from the repository; returns its build and size. */
-exports.assemble = function assemble(repository, destination, version) {
+/**
+ * Write resources/agent into `destination` from the repository, with `runtime` (nodeRuntime's) as
+ * command/runtime/; returns its build and size.
+ */
+exports.assemble = function assemble(repository, destination, version, runtime) {
   fs.rmSync(destination, { recursive: true, force: true });
   const hash = Object.assign(crypto.createHash('sha256'), { base: destination });
   let files = 0, bytes = 0;
   const add = (from, to, filter = () => true) => { const done = copy(path.join(repository, from), path.join(destination, to), filter, hash); files += done.files; bytes += done.bytes; };
   add('packages/atlas', 'command', commandFiles);
   for (const [to, { real, filter }] of dependencies(repository)) add(real, path.join('command', to), filter);
+  for (const [name, content, mode] of [[runtime.name, runtime.executable, 0o755], ['LICENSE', runtime.license, 0o644]]) {
+    const file = path.join(destination, 'command', 'runtime', name);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, content, { mode });
+    fs.chmodSync(file, mode);
+    hash.update(path.relative(destination, file).split(path.sep).join('/') + '\0').update(content);
+    files++; bytes += content.length;
+  }
   add('plugin', 'plugin', relative => !/^tests(?:\/|$)/.test(relative));
   add('.claude-plugin', '.claude-plugin', relative => relative === 'marketplace.json');
   add('.agents', '.agents', relative => relative === 'plugins' || relative === 'plugins/marketplace.json');
