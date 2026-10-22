@@ -4,7 +4,7 @@ One `atlas` command serves agents, their harnesses and scripts: the planning-sta
 
 ## Install
 
-The app installs the command: it carries it, copies it to `agent/` in the [Atlas home](#the-atlas-home) and, on its first start, puts `agent/bin` on your PATH (the user `Path` on Windows, a link in `~/.local/bin` on Linux). There `atlas` runs on a Node.js the app ships with it, so it needs no Node.js of yours. Uninstalling the app on Windows takes it off the PATH again. See [the app](../app/README.md#install).
+The app installs the command: it carries it, copies it to `agent/` in the [Atlas home](#the-atlas-home) and, on its first start, puts `agent/bin` on your PATH (the user `Path` on Windows, a link in `~/.local/bin` on Linux). There `atlas` runs on a Node.js the app ships with it, so it needs no Node.js of yours. Uninstalling the app on Windows takes it off the PATH again and disconnects the agents it connected. See [the app](../app/README.md#install).
 
 From a checkout, for working on Atlas:
 

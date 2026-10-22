@@ -3,8 +3,9 @@
   StrCpy $isForceCurrentInstall "1"
 !macroend
 
-; Uninstalling (not the uninstall an update runs first) takes the atlas command off the user's Path
-; and forgets the agent folder's state (remove-agent.ps1), so that installing again sets it up again.
+; Uninstalling (not the uninstall an update runs first) disconnects Claude Code and Codex from the
+; agent folder's plugin, takes the atlas command off the user's Path and forgets the agent folder's
+; state (remove-agent.ps1), so that installing again sets it up again.
 !macro customUnInstall
   ${ifNot} ${isUpdated}
     InitPluginsDir

@@ -4,7 +4,7 @@
 
 **The installer is all you need**
 
-- **The app carries the `atlas` command and the Atlas plugin.** It copies them to `agent/` in the Atlas home, and on its first start puts the command on your PATH (the user `Path` on Windows, `~/.local/bin` on Linux), where it runs on a Node.js the app ships with it: no clone, Node.js or `atlas setup` is needed. The Windows uninstaller takes it off the PATH.
+- **The app carries the `atlas` command and the Atlas plugin.** It copies them to `agent/` in the Atlas home, and on its first start puts the command on your PATH (the user `Path` on Windows, `~/.local/bin` on Linux), where it runs on a Node.js the app ships with it: no clone, Node.js or `atlas setup` is needed. The Windows uninstaller takes it off the PATH and disconnects the agents.
 - **Onboarding:** Atlas starts with a short flow until it is finished or skipped: what Atlas is, the agents on this computer (Claude Code and Codex), connecting them, and how to start ("What is Atlas and how do I use it?").
 - **Settings** (File › Settings…, Ctrl+,): **Agents** connects and disconnects Claude Code and Codex and shows the plugin version each has; **Computers** holds both ways of pairing, the computers this one is paired with and the devices that can reach it. Updates refresh the plugin in the connected agents.
 - **The computer menu** only switches computers, with **Computer settings…**; pairing and remote access moved to Settings.
