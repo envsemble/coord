@@ -28,7 +28,8 @@ export const invokeChannels = [
   'plan:export', 'plan:importChoose', 'plan:importConfirm', 'plan:importCancel',
   'computers:list', 'computers:switch', 'computers:pair', 'computers:forget',
   'access:state', 'access:update', 'access:pairingCreate', 'access:pairingRevoke', 'access:devices', 'access:deviceRevoke',
-  'agents:list', 'agents:connect', 'agents:disconnect', 'onboarding:state', 'onboarding:finish',
+  'agents:list', 'agents:checks', 'agents:connect', 'agents:disconnect', 'agents:chooseProgram', 'agents:clearProgram', 'agents:byHand',
+  'onboarding:state', 'onboarding:finish',
 ] as const;
 export type InvokeChannel = typeof invokeChannels[number];
 
@@ -152,13 +153,23 @@ export const agentIds = ['claude', 'codex'] as const;
 export type AgentId = typeof agentIds[number];
 export const agentNames: Record<AgentId, string> = { claude: 'Claude Code', codex: 'Codex' };
 /**
- * An agent on this computer: whether its command is on the PATH (`found`), whether the Atlas plugin
- * is installed in it (`connected`), and the version of the plugin it has (null when not connected or unknown).
+ * Whether a connected agent runs Atlas: ready (a session of it ran Atlas's hooks since it was
+ * connected, the last at `at`), waiting for a first session, or a warning: Codex does not trust
+ * Atlas's hooks (`untrusted`), or a session used Atlas's tools without its hooks running (`no-hooks`).
  */
-export interface AgentState { id: AgentId; found: boolean; connected: boolean; version: string | null }
+export type AgentCheck = { status: 'ready'; at: string } | { status: 'waiting' | 'untrusted' | 'no-hooks' };
+/**
+ * An agent on this computer: whether its program is found (`found`: the one chosen for it, else on
+ * the PATH), the program chosen for it (`program`, null when the PATH's is used), whether the Atlas
+ * plugin is installed in it (`connected`), the version of the plugin it has (null when not connected
+ * or unknown), and, connected, whether it runs Atlas (`check`).
+ */
+export interface AgentState { id: AgentId; found: boolean; program: string | null; connected: boolean; version: string | null; check: AgentCheck | null }
 /** What connecting or disconnecting an agent did: its state after, and the error when it failed (a message fit to show). */
 export interface AgentChange { agent: AgentState; error: string | null }
-/** Whether the onboarding has been finished or skipped on this computer; it shows on launch until then. */
+/** What connecting an agent by hand takes: the marketplace folder the app connects agents to, and the marketplace's name. */
+export interface AgentFolder { directory: string; marketplace: string }
+/** Whether the onboarding has been finished on this computer; it shows on launch until then. */
 export interface OnboardingState { done: boolean }
 
 /** What the menu's About Atlas shows. */
@@ -278,12 +289,20 @@ export interface AtlasBridge {
   revokeDevice(hostId: string | null, deviceId: string): Promise<Result<void>>;
   /** Claude Code and Codex on this computer, checked now. */
   agents(): Promise<Result<AgentState[]>>;
+  /** The agents as last checked, with whether each connected one runs Atlas read now (cheap: no agent's command runs). */
+  agentChecks(): Promise<Result<AgentState[]>>;
+  /** Choose an agent's program in a file dialog (null when cancelled); the result's error says why the file chosen cannot be it. */
+  chooseAgentProgram(id: AgentId): Promise<Result<AgentChange | null>>;
+  /** Forget the program chosen for an agent: the PATH's is used again. */
+  clearAgentProgram(id: AgentId): Promise<Result<AgentState>>;
+  /** What connecting an agent by hand takes. */
+  agentFolder(): Promise<Result<AgentFolder>>;
   /** Install the Atlas plugin into an agent (and grant it the Atlas home); the result says how it went. */
   connectAgent(id: AgentId): Promise<Result<AgentChange>>;
   /** Uninstall the Atlas plugin from an agent. */
   disconnectAgent(id: AgentId): Promise<Result<AgentChange>>;
   onboarding(): Promise<Result<OnboardingState>>;
-  /** The onboarding was finished or skipped: it no longer shows on launch. */
+  /** The onboarding was finished: it no longer shows on launch. */
   finishOnboarding(): Promise<Result<void>>;
   onChanged(listener: (change: ProjectChange) => void): () => void;
   onProjectsChanged(listener: (change: ProjectsChange) => void): () => void;

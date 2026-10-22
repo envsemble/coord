@@ -1,5 +1,5 @@
-// Puts the agent folder's bin/ on the PATH, so that `atlas` runs in new terminals and in the agents'
-// hooks and MCP server. On Windows it goes into the user's Path (HKCU\Environment), read and written
+// Puts the agent folder's bin/ on the PATH, so that `atlas` runs in new terminals, and repairs the
+// app's own PATH at start, so that it finds the agents as a terminal would. On Windows it goes into the user's Path (HKCU\Environment), read and written
 // whole with its own value type through PowerShell (setx cuts a value at 1024 characters, and
 // .NET's SetEnvironmentVariable would store a REG_EXPAND_SZ Path as REG_SZ, leaving %USERPROFILE%
 // unexpanded); the uninstaller takes it off again (build/remove-agent.ps1). On Linux it is a link in
@@ -75,6 +75,53 @@ export async function registryPath(): Promise<string[]> {
 ConvertTo-Json -Compress @([Environment]::GetEnvironmentVariable('Path', 'Machine'), [Environment]::GetEnvironmentVariable('Path', 'User'))`;
   const values = JSON.parse(await runPowerShell(script)) as (string | null)[];
   return values.flatMap(value => (value ?? '').split(';')).filter(entry => entry.trim());
+}
+
+/** The PATH variable's name in an environment: on Windows whatever its case (Explorer starts programs with `path`). */
+export function pathKey(environment: NodeJS.ProcessEnv, platform: NodeJS.Platform = process.platform) {
+  if (platform !== 'win32') return 'PATH';
+  return Object.keys(environment).find(name => name.toUpperCase() === 'PATH') ?? 'Path';
+}
+
+/** A PATH with the entries of `more` it lacks added at its end, compared as the system compares them. */
+export function mergedPath(current: string, more: string[], platform: NodeJS.Platform = process.platform) {
+  const delimiter = platform === 'win32' ? ';' : ':';
+  const key = (entry: string) => platform === 'win32' ? entry.trim().replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase() : entry.replace(/(?<=.)\/+$/, '');
+  const entries = current.split(delimiter).filter(Boolean);
+  const known = new Set(entries.map(key));
+  for (const entry of more) {
+    if (!entry.trim() || known.has(key(entry))) continue;
+    known.add(key(entry));
+    entries.push(entry);
+  }
+  return entries.join(delimiter);
+}
+
+/**
+ * The PATH a login shell sets (macOS and Linux), where an app started from the desktop may have a
+ * shorter one: the user's shell, interactive, so that what its startup files add (nvm, say) is there
+ * too. Between markers, so that whatever the startup files print is left out.
+ */
+async function loginShellPath(environment: NodeJS.ProcessEnv): Promise<string[]> {
+  const shell = environment.SHELL && path.isAbsolute(environment.SHELL) ? environment.SHELL : '/bin/sh';
+  const { stdout } = await runProgram(shell, ['-ilc', 'printf "\\n__ATLAS_PATH__%s__ATLAS_PATH__\\n" "$PATH"'], { env: environment, timeout: 5000 });
+  return (/__ATLAS_PATH__(.*?)__ATLAS_PATH__/.exec(stdout)?.[1] ?? '').split(':').filter(Boolean);
+}
+
+/**
+ * Repair this process's PATH at start, as the user's terminals have it, so the agents are found
+ * however the app was started: on Windows the machine's and the user's Path from the registry
+ * (Explorer's copy may predate an agent's install), elsewhere a login shell's PATH. The entries it
+ * lacks are added at its end, in the variable whatever its case. Says how many were added.
+ */
+export async function repairPath(environment: NodeJS.ProcessEnv = process.env): Promise<number> {
+  const more = process.platform === 'win32' ? await registryPath() : await loginShellPath(environment);
+  const key = pathKey(environment);
+  const before = environment[key] ?? '';
+  const after = mergedPath(before, more);
+  if (after !== before) environment[key] = after;
+  const delimiter = process.platform === 'win32' ? ';' : ':';
+  return after.split(delimiter).filter(Boolean).length - before.split(delimiter).filter(Boolean).length;
 }
 
 /**

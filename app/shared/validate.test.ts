@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { argumentsOf, command, diagramPath, folderPath, isProjectListing, place, relativePath, target, uiState, ValidationError, workId } from './validate.ts';
+import { agentId, argumentsOf, command, diagramPath, folderPath, isProjectListing, place, relativePath, target, uiState, ValidationError, workId } from './validate.ts';
 import { defaultUiState } from './contract.ts';
 
 const projectId = 'f-' + 'a'.repeat(32);
@@ -20,6 +20,9 @@ test('identifiers, commands and view events have exact shapes', () => {
   for (const bad of ['../../planning.json.puml', 'diagrams/../../x.puml', '/x.puml', 'C:/x.puml', 'plan.md']) assert.throws(() => diagramPath(bad), bad);
   assert.equal(command('newWindow'), 'newWindow');
   for (const gone of ['closeFolder', 'locate', 'openFolder', 'exit', 'closeWindow', 'undo', 'paste', 'selectAll']) assert.throws(() => command(gone), /must be one of/, gone);
+  // An agent is named, never its program: main's own dialog chooses that.
+  assert.equal(agentId('codex'), 'codex');
+  for (const bad of ['C:\\Windows\\System32\\cmd.exe', '/bin/sh', 'claude.exe']) assert.throws(() => agentId(bad), /must be one of/, bad);
 });
 
 test('argument lists reject extra arguments', () => {

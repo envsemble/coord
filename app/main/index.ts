@@ -132,6 +132,7 @@ function start(database: HomeDatabase) {
     bundle: app.isPackaged ? path.join(process.resourcesPath, 'agent') : null,
     checkout: path.resolve(app.getAppPath(), '..'),
     ownHome: app.isPackaged && !process.env.ATLAS_HOME,
+    lastSession: harness => (database.db.prepare('SELECT max(updated_at) AS at FROM session WHERE harness = ?').get(harness) as { at: string | null }).at,
   });
 
   manager = new WindowManager({

@@ -12,7 +12,11 @@
 //     command/<build>/            the @envsemble/atlas package and its dependencies, one folder per build,
 //                                 with the Node.js it runs on in runtime/
 //     bin/atlas, bin/atlas.cmd    the launchers (atlas.cmd on Windows only), with paths relative to themselves
-//     state.json                  the build copied, and whether bin/ was put on the PATH
+//     state.json                  the build copied, whether bin/ was put on the PATH, and when each
+//                                 agent was connected
+//     programs.json               the program chosen for an agent not found on the PATH (agents.ts)
+//     activity/                   when Atlas last ran in each agent (@envsemble/atlas/agents/activity)
+//     onboarding.json             whether the onboarding was finished
 //
 // A hook or MCP server starting meanwhile never reads a half-copied tree: each folder is copied
 // under a temporary name and renamed into place, the launchers then switch to the new command, and
@@ -21,11 +25,15 @@ import { existsSync, readFileSync } from 'node:fs';
 import { chmod, cp, mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
+import type { AgentId } from '@envsemble/atlas/agents';
 import { pointPluginAtCommand } from './pluginCommands.ts';
 
 /** What resources/agent/build.json says: the app's version, and the build (the version and a hash of the files). */
 export interface Bundle { directory: string; version: string; build: string }
-export interface FolderState { build: string; onPath: boolean }
+/** What the app knows of a connected agent: when it was connected (or found connected), as an ISO time. */
+export interface AgentRecord { connectedAt: string }
+export type AgentRecords = Partial<Record<AgentId, AgentRecord>>;
+export interface FolderState { build: string; onPath: boolean; agents?: AgentRecords }
 
 export function readBundle(directory: string): Bundle {
   const { version, build } = JSON.parse(readFileSync(path.join(directory, 'build.json'), 'utf8')) as { version: string; build: string };
@@ -33,11 +41,27 @@ export function readBundle(directory: string): Bundle {
   return { directory, version, build };
 }
 
+function readStateFile(folder: string): Partial<FolderState> | null {
+  try { return JSON.parse(readFileSync(path.join(folder, 'state.json'), 'utf8')) as Partial<FolderState>; } catch { return null; }
+}
 export function readState(folder: string): FolderState | null {
-  try {
-    const state = JSON.parse(readFileSync(path.join(folder, 'state.json'), 'utf8')) as Partial<FolderState>;
-    return typeof state.build === 'string' ? { build: state.build, onPath: state.onPath === true } : null;
-  } catch { return null; }
+  const state = readStateFile(folder);
+  if (typeof state?.build !== 'string') return null;
+  const agents = readAgentRecords(folder);
+  return { build: state.build, onPath: state.onPath === true, ...Object.keys(agents).length ? { agents } : {} };
+}
+/** The connected agents' records (in development too, where the folder has no build). */
+export function readAgentRecords(folder: string): AgentRecords {
+  const agents = readStateFile(folder)?.agents;
+  if (!agents || typeof agents !== 'object') return {};
+  return Object.fromEntries(Object.entries(agents).filter(([id, record]) => (id === 'claude' || id === 'codex') && typeof record?.connectedAt === 'string'));
+}
+/** Record an agent as connected now, or (null) forget it, keeping the rest of the state. */
+export async function recordAgent(folder: string, id: AgentId, record: AgentRecord | null) {
+  const state = readStateFile(folder) ?? {};
+  const agents = { ...readAgentRecords(folder) };
+  if (record) agents[id] = record; else delete agents[id];
+  await writeAtomically(path.join(folder, 'state.json'), JSON.stringify({ ...state, agents }, null, 2) + '\n');
 }
 
 /** The Node.js executable in a command's folder. */
@@ -147,7 +171,8 @@ export async function installAgentFolder(bundle: Bundle, folder: string, platfor
       await writeAtomically(path.join(folder, manifest), readFileSync(path.join(bundle.directory, manifest)));
     }
   }
-  const state: FolderState = { build: bundle.build, onPath: previous?.onPath ?? false };
+  const agents = readAgentRecords(folder);
+  const state: FolderState = { build: bundle.build, onPath: previous?.onPath ?? false, ...Object.keys(agents).length ? { agents } : {} };
   for (const launcher of launchers(bundle.build, platform)) {
     const file = path.join(folder, 'bin', launcher.name);
     if (copied || (existsSync(file) ? readFileSync(file, 'utf8') : null) !== launcher.text) await writeAtomically(file, launcher.text, launcher.mode);
@@ -160,5 +185,5 @@ export async function installAgentFolder(bundle: Bundle, folder: string, platfor
 
 /** Record that bin/ is on the PATH, so it is not put there again (the person may take it off). */
 export async function markOnPath(folder: string, state: FolderState) {
-  await writeAtomically(path.join(folder, 'state.json'), JSON.stringify({ ...state, onPath: true }, null, 2) + '\n');
+  await writeAtomically(path.join(folder, 'state.json'), JSON.stringify({ ...state, ...readStateFile(folder), onPath: true }, null, 2) + '\n');
 }

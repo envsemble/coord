@@ -93,16 +93,20 @@ test('the Windows uninstaller disconnects the agents connected to the agent fold
   mkdirSync(agent, { recursive: true });
   for (const name of ['state.json', 'onboarding.json']) writeFileSync(path.join(agent, name), '{}');
   // Stand-ins for claude and codex, which record their arguments and list the plugins they have:
-  // Claude Code's from the agent folder, Codex's from a checkout.
-  const shims = path.join(directory, 'bin');
+  // Claude Code's from the agent folder, Codex's from a checkout. Codex is not on the PATH: its
+  // program was chosen in Settings.
+  const shims = path.join(directory, 'bin'), chosen = path.join(directory, 'chosen');
   mkdirSync(shims);
+  mkdirSync(chosen);
+  writeFileSync(path.join(agent, 'programs.json'), JSON.stringify({ codex: path.join(chosen, 'codex.cmd') }));
   const lists = {
     claude: [{ id: 'atlas@atlas', version: '0.8.0', enabled: true, readFromFolder: path.join(agent, 'plugin') }],
     codex: { installed: [{ pluginId: 'atlas@atlas', installed: true, marketplaceSource: { source: '\\\\?\\C:\\checkout\\atlas' } }] },
   };
   for (const [name, list] of Object.entries(lists)) {
-    writeFileSync(path.join(shims, name + '.json'), JSON.stringify(list));
-    writeFileSync(path.join(shims, name + '.cmd'), `@echo off\r\n>>"%~dp0${name}.log" echo %*\r\nif "%~1 %~2"=="plugin list" type "%~dp0${name}.json"\r\nexit /b 0\r\n`);
+    const folder = name === 'codex' ? chosen : shims;
+    writeFileSync(path.join(folder, name + '.json'), JSON.stringify(list));
+    writeFileSync(path.join(folder, name + '.cmd'), `@echo off\r\n>>"%~dp0${name}.log" echo %*\r\nif "%~1 %~2"=="plugin list" type "%~dp0${name}.json"\r\nexit /b 0\r\n`);
   }
   const environment: NodeJS.ProcessEnv = Object.fromEntries(Object.entries(process.env).filter(([name]) => name.toLowerCase() !== 'path'));
   const system = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32');
@@ -111,8 +115,8 @@ test('the Windows uninstaller disconnects the agents connected to the agent fold
   const powershell = path.join(system, 'WindowsPowerShell', 'v1.0', 'powershell.exe');
   const result = spawnSync(powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', '& ([ScriptBlock]::Create([IO.File]::ReadAllText($env:ATLAS_REMOVE_AGENT))) -KeepRegistry'], { env: environment, encoding: 'utf8', timeout: 60000 });
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  const log = (name: string) => readFileSync(path.join(shims, name + '.log'), 'utf8').split(/\r?\n/).filter(Boolean);
+  const log = (name: string) => readFileSync(path.join(name === 'codex' ? chosen : shims, name + '.log'), 'utf8').split(/\r?\n/).filter(Boolean);
   assert.deepEqual(log('claude'), ['plugin list --json', 'plugin uninstall atlas@atlas', 'plugin marketplace remove atlas']);
   assert.deepEqual(log('codex'), ['plugin list --json --marketplace atlas']);
-  assert.deepEqual(readdirSync(agent), [], 'the state and the onboarding are forgotten');
+  assert.deepEqual(readdirSync(agent), [], 'the state, the programs chosen and the onboarding are forgotten');
 });

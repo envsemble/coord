@@ -4,10 +4,11 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { installAgentFolder, launchers, needsCopy, readState } from './agentFolder.ts';
+import { installAgentFolder, launchers, needsCopy, readState, recordAgent } from './agentFolder.ts';
 import { commandPaths, pointPluginAtCommand } from './pluginCommands.ts';
 import { fakeBundle, fakePlugin } from './testing.ts';
-import { withoutPathEntry, withPathEntry } from './userPath.ts';
+import { mergedPath, pathKey, withoutPathEntry, withPathEntry } from './userPath.ts';
+import { agentCheck } from './verify.ts';
 
 const temporary = () => mkdtempSync(path.join(tmpdir(), 'atlas-agent-'));
 
@@ -45,10 +46,12 @@ test('the agent folder takes a new build whole, writes its launchers, and keeps 
   assert.equal((await installAgentFolder(first, folder, 'linux')).copied, false);
   assert.match(readFileSync(path.join(folder, 'bin', 'atlas'), 'utf8'), /1\.0\.0-aaa\/bin\/atlas\.js/);
 
-  // An update replaces the plugin and adds a command beside the previous one, which a running MCP server may still load.
+  // An update replaces the plugin and adds a command beside the previous one, which a running MCP
+  // server may still load. When each agent was connected stays.
   writeFileSync(path.join(folder, 'state.json'), JSON.stringify({ ...readState(folder), onPath: true }));
+  await recordAgent(folder, 'codex', { connectedAt: '2026-10-22T10:00:00.000Z' });
   const updated = await installAgentFolder(second, folder, 'linux');
-  assert.deepEqual(updated, { copied: true, state: { build: '1.0.0-bbb', onPath: true } });
+  assert.deepEqual(updated, { copied: true, state: { build: '1.0.0-bbb', onPath: true, agents: { codex: { connectedAt: '2026-10-22T10:00:00.000Z' } } } });
   assert.equal(JSON.parse(readFileSync(path.join(folder, 'plugin', '.claude-plugin', 'plugin.json'), 'utf8')).version, '1.0.0-bbb');
   assert.deepEqual(readdirSync(path.join(folder, 'command')).sort(), ['1.0.0-aaa', '1.0.0-bbb']);
   assert.deepEqual(readdirSync(folder).filter(name => name.startsWith('.') && !['.claude-plugin', '.agents'].includes(name)), [], 'no temporary folders left');
@@ -68,6 +71,10 @@ test('the command\'s folder is added to the user Path once, and taken off again,
   assert.equal(withPathEntry('C:\\Tools;%userprofile%\\.Atlas\\agent\\bin\\', entry, environment), null);
   assert.equal(withoutPathEntry('C:\\Tools;;' + entry + ';D:\\x', entry, environment), 'C:\\Tools;;D:\\x');
   assert.equal(withoutPathEntry('C:\\Tools', entry, environment), null);
+  // The app's own PATH, repaired at start: the entries it lacks at its end, in the variable whatever its case.
+  assert.equal(pathKey({ path: 'C:\\Windows' }, 'win32'), 'path');
+  assert.equal(mergedPath('C:\\Windows;C:\\Tools\\', ['c:\\tools', 'C:\\Users\\me\\.local\\bin'], 'win32'), 'C:\\Windows;C:\\Tools\\;C:\\Users\\me\\.local\\bin');
+  assert.equal(mergedPath('/usr/bin:/bin', ['/home/me/.nvm/bin', '/usr/bin/'], 'linux'), '/usr/bin:/bin:/home/me/.nvm/bin');
 });
 
 test('the copy of the plugin runs the command by its full path, in the form each agent runs it on each system', async () => {
@@ -93,4 +100,12 @@ test('the copy of the plugin runs the command by its full path, in the form each
   assert.equal(stop('hooks/hooks.json')[0].command, sh + ' hook Stop');
   assert.equal(stop('hooks/codex.json')[0].command, sh + ' hook Stop');
   assert.deepEqual(read('.mcp.json').mcpServers.atlas, { command: '/home/o\'neil/.atlas/agent/bin/atlas', args: ['mcp'] });
+});
+
+test('a connected agent is ready once its hooks ran since it was connected; untrusted hooks and tools used without hooks warn', () => {
+  const connectedAt = '2026-10-22T10:00:00.000Z', before = '2026-10-21T10:00:00.000Z', after = '2026-10-22T11:00:00.000Z';
+  assert.deepEqual(agentCheck({ connectedAt, hooksAt: after, toolsAt: after, trust: 'unknown' }), { status: 'ready', at: after });
+  assert.deepEqual(agentCheck({ connectedAt, hooksAt: before, toolsAt: null, trust: 'trusted' }), { status: 'waiting' });
+  assert.deepEqual(agentCheck({ connectedAt, hooksAt: before, toolsAt: after, trust: 'unknown' }), { status: 'no-hooks' });
+  assert.deepEqual(agentCheck({ connectedAt, hooksAt: null, toolsAt: null, trust: 'untrusted' }), { status: 'untrusted' });
 });

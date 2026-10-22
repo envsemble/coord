@@ -11,11 +11,12 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell, typ
 import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atlas/host';
 import { resolveDocument } from '@envsemble/atlas/planning';
 import { accessSettings, deviceText } from '@envsemble/atlas/host/validate';
-import { agentIds, defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AgentId, type AccessSettings, type Editor, type ImportPreview, type InvokeChannel, type LoadedUi, type PairingGrant, type Project, type PairingLinkView, type Place, type ProjectPlace, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
-import { argumentsOf, array, boolean, command, diagramPath, editor, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, place, projectId, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, token, uiState, url, workId, type Validator } from '../../shared/validate.ts';
+import { agentNames, defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AgentId, type AccessSettings, type Editor, type ImportPreview, type InvokeChannel, type LoadedUi, type PairingGrant, type Project, type PairingLinkView, type Place, type ProjectPlace, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
+import { agentId, argumentsOf, array, boolean, command, diagramPath, editor, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, place, projectId, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, token, uiState, url, workId, type Validator } from '../../shared/validate.ts';
 import { AtlasError, toErrorValue } from '../errors.ts';
 import type { ProjectView } from '../computers/projectView.ts';
 import type { Agents } from '../agent/agents.ts';
+import { programFilters } from '../agent/programs.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
 import { placeRow, savedPlace } from '../appState.ts';
 import { externalUrl, type AtlasWindow } from './window.ts';
@@ -33,7 +34,6 @@ const pairingLink = string({ min: 3, max: 2048 });
 const grant: Validator<PairingGrant> = object<PairingGrant>({ label: nullable(deviceText(80)), manageAccess: boolean });
 const folders = array(folderPath, limits.folders);
 const searchQuery = string({ min: 1, max: 200 });
-const agentId = oneOf(agentIds);
 const projectChange = object<ProjectChangeRequest>({ name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), folders: optional(folders) });
 
 /** Import previews belong to the window that chose the file. */
@@ -423,8 +423,21 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
     // The agents of this computer, whatever computer the window shows. Connecting installs Atlas's
     // own plugin, which the app carries, and reaches no one else, so it needs no question.
     'agents:list': { args: [], handle: () => actions.agents.list() },
+    'agents:checks': { args: [], handle: () => actions.agents.checks() },
     'agents:connect': { args: [agentId], handle: (_window, id: AgentId) => actions.agents.connect(id) },
     'agents:disconnect': { args: [agentId], handle: (_window, id: AgentId) => actions.agents.disconnect(id) },
+    // An agent's program is a file chosen here, in main's own dialog: a window names only the agent,
+    // never a path to run.
+    'agents:chooseProgram': {
+      args: [agentId],
+      handle: async (window, id: AgentId) => {
+        const choice = await window.oneDialog(() => dialog.showOpenDialog(window.win, { title: `Choose the ${agentNames[id]} program`, buttonLabel: 'Choose', properties: ['openFile'], filters: programFilters(id) }));
+        const program = choice.canceled ? undefined : choice.filePaths[0];
+        return program ? actions.agents.setProgram(id, program) : null;
+      },
+    },
+    'agents:clearProgram': { args: [agentId], handle: (_window, id: AgentId) => actions.agents.clearProgram(id) },
+    'agents:byHand': { args: [], handle: () => actions.agents.byHand() },
     'onboarding:state': { args: [], handle: () => actions.agents.onboarding() },
     'onboarding:finish': { args: [], handle: () => actions.agents.finishOnboarding() },
   };
