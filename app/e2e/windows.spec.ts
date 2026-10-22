@@ -100,6 +100,25 @@ test('a closed window leaves a project it showed open in the others', async () =
   await expect(window.locator('.work-main .breadcrumb')).toContainText('Shop');
 });
 
+test('a new home starts with the onboarding until it is skipped or finished; the window shows after it, and at the next launch', async () => {
+  const home = projectHome();
+  homes.push(home.dataDirectory);
+  launched = await launch({ dataDirectory: home.dataDirectory, onboarding: true });
+  const { window } = launched;
+  await expect(window.getByRole('heading', { name: 'Welcome to Atlas' })).toBeVisible();
+  await window.getByRole('button', { name: 'Next', exact: true }).click();
+  // The agents on this computer, checked there (nothing is connected without Connect).
+  await expect(window.getByRole('heading', { name: 'Connect your agents' })).toBeFocused();
+  await expect(window.getByRole('list', { name: 'Agents on this computer' }).locator('.agent-row')).toHaveCount(2);
+  await window.getByRole('button', { name: 'Skip', exact: true }).click();
+  await expectHub(window);
+  await window.waitForTimeout(600);
+  await close(launched);
+  launched = await launch({ dataDirectory: home.dataDirectory, onboarding: true });
+  await expectHub(launched.window);
+  await expect(launched.window.getByRole('heading', { name: 'Welcome to Atlas' })).toHaveCount(0);
+});
+
 test('a home without projects opens on the hub, which points to the Projects page to make one; About Atlas, from the menu, shows the version in the window and copies the details', async () => {
   launched = await launch();
   const { app, window } = launched;

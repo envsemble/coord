@@ -7,7 +7,7 @@
 // works at the computer; ATLAS_E2E_VISIBLE=1 shows them where the app puts them, to watch a run.
 import { execFileSync, spawnSync, type ChildProcess } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test';
@@ -132,9 +132,19 @@ async function keepOffScreen(app: ElectronApplication) {
 
 export interface Launched { app: ElectronApplication; window: Page; dataDirectory: string; ownsData: boolean; process: ChildProcess }
 
-export async function launch(options: { dataDirectory?: string; args?: string[]; executable?: string; ownsData?: boolean } = {}): Promise<Launched> {
+/**
+ * Start the app on a home (by default a new temporary one). The onboarding, which shows on launch until
+ * it is finished or skipped, counts as done unless `onboarding` asks for it, so the window shows at once.
+ */
+export async function launch(options: { dataDirectory?: string; args?: string[]; executable?: string; ownsData?: boolean; onboarding?: boolean } = {}): Promise<Launched> {
   const ownsData = options.ownsData ?? !options.dataDirectory;
   const dataDirectory = options.dataDirectory ?? temporaryDirectory('atlas-e2e-data-');
+  // Where the app records the onboarding as done (main/agent/agents.ts).
+  const onboarding = path.join(dataDirectory, 'agent', 'onboarding.json');
+  if (!options.onboarding && !existsSync(onboarding)) {
+    mkdirSync(path.dirname(onboarding), { recursive: true });
+    writeFileSync(onboarding, JSON.stringify({ done: true }) + '\n');
+  }
   const env = environment(dataDirectory);
   const extra = [...offScreenSwitches, ...options.args ?? []];
   // Playwright adds --no-sandbox on Linux unless told to keep the sandbox; Atlas refuses to run without it.

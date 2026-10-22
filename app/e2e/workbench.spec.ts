@@ -478,6 +478,7 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   await computerMenu.getByRole('menuitem', { name: 'Computer settings…' }).click();
   await expect(window.getByRole('navigation', { name: 'Settings' }).locator('[aria-current="page"]')).toHaveAttribute('data-section', 'computers');
   await expect(window.getByRole('heading', { name: /^Devices that can reach / })).toBeVisible();
+  await expect(computerMenu).toHaveCount(0);
   await window.keyboard.press('Alt+ArrowLeft');
   await expect(window.getByRole('navigation', { name: 'Settings' }).locator('[aria-current="page"]')).toHaveAttribute('data-section', 'agents');
   await window.keyboard.press('Alt+ArrowLeft');
