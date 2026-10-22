@@ -77,8 +77,8 @@ export function Onboarding({ onDone }: { onDone(): void }) {
     {title('Start a session')}
     <ol className="onboarding-start">
       <li>{connected.length
-        ? <>Start a new {connected.map(id => agentNames[id]).join(' or ')} session in one of your repositories.</>
-        : <>Connect an agent in <strong>Settings › Agents</strong>, then start a new session of it in one of your repositories.</>}</li>
+        ? <>In a new terminal or editor window, start a new {connected.map(id => agentNames[id]).join(' or ')} session in one of your repositories. Windows already open don’t have Atlas’s command yet.</>
+        : <>Connect an agent in <strong>Settings › Agents</strong>, then start a new session of it in one of your repositories, in a new terminal or editor window.</>}</li>
       <li>
         <span>Ask it:</span>
         <span className="onboarding-question"><strong>“{firstQuestion}”</strong><CopyButton text={firstQuestion} label="Copy" /></span>
