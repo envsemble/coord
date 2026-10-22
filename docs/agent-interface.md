@@ -6,7 +6,7 @@ Agents reach Atlas through a plugin for their harness: an MCP server for plannin
 
 The plugin lives in [`plugin/`](../plugin) with a manifest for each harness (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`), the MCP server's configuration (`.mcp.json`), the skills (`skills/`) and the hooks: Claude Code reads `hooks/hooks.json`, and Codex reads `hooks/codex.json`, which its manifest names, because the two harnesses offer different events. The repository is its marketplace: `.claude-plugin/marketplace.json` for Claude Code and `.agents/plugins/marketplace.json` for Codex, both named `atlas`, so the plugin is `atlas@atlas`.
 
-[`atlas setup`](command.md#setup) installs it into each harness on the PATH. By hand, from the checkout:
+The app installs it: its onboarding, and **Settings › Agents** later, connect Claude Code and Codex with the plugin the app carries, a copy in `agent/` of the Atlas home that each app update refreshes (and reinstalls into Codex). From a checkout, [`atlas setup`](command.md#setup) installs it into each harness on the PATH. By hand, from the checkout:
 
 ```sh
 claude plugin marketplace add <checkout>
@@ -15,7 +15,7 @@ codex plugin marketplace add <checkout>
 codex plugin add atlas@atlas
 ```
 
-The plugin calls `atlas` from the PATH, so [install the command](command.md#install) first. Start a new session after installing. Claude Code reads the plugin from the checkout in place; Codex installs a copy, which `codex plugin add atlas@atlas` (or `atlas setup`) refreshes after the checkout changes.
+The plugin calls `atlas` from the PATH, so [install the command](command.md#install) first (the app does). Start a new session after installing. Claude Code reads the plugin from its marketplace folder in place; Codex installs a copy, which `codex plugin add atlas@atlas` (or `atlas setup`) refreshes after the folder changes. Codex asks once to trust the plugin's hooks: type `/hooks` in a new session.
 
 ### Skills
 

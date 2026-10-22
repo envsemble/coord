@@ -51,21 +51,13 @@ Atlas works with **Claude Code** and **Codex** through its plugin: tools for the
 
 ## Get started
 
-Atlas runs on **Windows** and **Linux** and needs **Node 24**, npm and Git.
+Atlas runs on **Windows** and **Linux**, with **Claude Code** or **Codex**.
 
-1. **Install the `atlas` command** from a clone and set Atlas up for your agents. The clone needs a token for Envsemble's private envUI package; [CONTRIBUTING](CONTRIBUTING.md#set-up-and-run) shows how.
+1. **Install the app**: the Windows installer or the Linux AppImage from a [GitHub Release](https://github.com/envsemble/atlas/releases). See [installing the app](app/README.md#install). The app brings everything else: the `atlas` command, which it puts on your PATH, and the Atlas plugin for your agents.
+2. **Connect your agents.** On its first start, Atlas asks which of Claude Code and Codex to connect and installs its plugin into them; **Settings › Agents** does it later.
+3. **Start planning.** Open a new agent session in one of your repositories and ask "What is Atlas and how do I use it?", or describe what you want to build. The agent creates a project for the folder when you plan there.
 
-   ```sh
-   npm ci
-   npm link --workspace @envsemble/atlas
-   atlas setup
-   ```
-
-   `atlas setup` creates the Atlas home (`~/.atlas`) and installs the Atlas plugin into Claude Code and Codex. Start a new agent session afterwards.
-
-2. **Install the app**: the Windows installer or the Linux AppImage from a [GitHub Release](https://github.com/envsemble/atlas/releases), or `npm run package` in the clone. See [installing the app](app/README.md#install).
-3. **Create a project** on the app's **Projects** page: give it a name and the folders where you work on it, such as your repositories. Or just ask your agent to create one.
-4. **Start planning.** Open an agent session in one of the project's folders and describe what you want to build.
+To work on Atlas itself, or to run the command from a checkout instead, see [the atlas command](docs/command.md#install) and [CONTRIBUTING](CONTRIBUTING.md#set-up-and-run).
 
 ## Learn more
 
