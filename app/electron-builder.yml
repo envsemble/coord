@@ -17,9 +17,14 @@ files:
 asar: false
 npmRebuild: false
 publish: null
+# Prunes the app's node_modules and assembles resources/agent: the atlas command and the plugin,
+# which the app copies into the Atlas home (scripts/agent-payload.cjs, main/agent/agentFolder.ts).
 afterPack: scripts/after-pack.cjs
 electronFuses:
-  runAsNode: false
+  # On: the atlas command runs on the app's own executable with ELECTRON_RUN_AS_NODE=1, as VS Code's
+  # `code` does, so it needs no Node.js on the computer. Like the integrity fuses, turning it off only
+  # protects signed builds, and these are unsigned (ADR 0001).
+  runAsNode: true
   enableCookieEncryption: true
   enableNodeOptionsEnvironmentVariable: false
   # Off in the installer and AppImage. `npm run package` also builds an unpacked copy with it on

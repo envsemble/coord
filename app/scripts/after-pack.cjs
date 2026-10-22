@@ -1,8 +1,9 @@
 // electron-builder afterPack hook: drop the diagram package's dependencies that only its command-line
-// features use (PostgreSQL and TypeScript capture). The desktop app reads, lays out and renders
-// diagrams and runs plan export/import; it never loads these.
+// features use (PostgreSQL and TypeScript capture), which the desktop app never loads; and assemble
+// resources/agent, the atlas command (which keeps them) and the plugin (agent-payload.cjs).
 const fs = require('node:fs');
 const path = require('node:path');
+const { assemble } = require('./agent-payload.cjs');
 
 /** Dependencies of @envsemble/atlas-diagrams the app never loads, with everything only they need. */
 const unused = new Set(['pg', 'typescript-compiler']);
@@ -67,4 +68,6 @@ exports.default = async function afterPack(context) {
   };
   prune(path.join(app, 'node_modules'), 'node_modules/');
   console.log(`  • pruned ${removed} packages the app never loads (${(bytes / 1048576).toFixed(1)} MB)`);
+  const agent = assemble(repository, path.join(resources, 'agent'), context.packager.appInfo.version);
+  console.log(`  • assembled the atlas command and the plugin, build ${agent.build} (${agent.files} files, ${(agent.bytes / 1048576).toFixed(1)} MB)`);
 };
