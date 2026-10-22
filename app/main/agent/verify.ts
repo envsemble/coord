@@ -17,13 +17,14 @@ export interface CheckSources {
 }
 
 /**
- * Hooks Codex does not trust do not run; otherwise a session that ran the hooks makes the agent
- * ready, and one that used the tools without any hook running means its hooks are not running.
- * A trust that cannot be read says nothing.
+ * A session that ran the hooks since the agent was connected makes it ready, whatever its
+ * configuration says (the configuration is read cautiously; the hooks running is what counts).
+ * Otherwise hooks Codex does not trust will not run, and a session that used the tools without
+ * any hook running means its hooks are not running. A trust that cannot be read says nothing.
  */
 export function agentCheck({ connectedAt, hooksAt, toolsAt, trust }: CheckSources): AgentCheck {
-  if (trust === 'untrusted') return { status: 'untrusted' };
   if (hooksAt !== null && hooksAt >= connectedAt) return { status: 'ready', at: hooksAt };
+  if (trust === 'untrusted') return { status: 'untrusted' };
   if (toolsAt !== null && toolsAt >= connectedAt) return { status: 'no-hooks' };
   return { status: 'waiting' };
 }

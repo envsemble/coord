@@ -106,10 +106,11 @@ test('the copy of the plugin runs the command by its full path, in the form each
   assert.deepEqual(read('.codex-mcp.json').mcpServers.atlas, { command: '/home/o\'neil/.atlas/agent/bin/atlas', args: ['mcp'] });
 });
 
-test('a connected agent is ready once its hooks ran since it was connected; untrusted hooks and tools used without hooks warn', () => {
+test('a connected agent is ready once its hooks ran since it was connected, whatever its configuration says; untrusted hooks and tools used without hooks warn', () => {
   const connectedAt = '2026-10-22T10:00:00.000Z', before = '2026-10-21T10:00:00.000Z', after = '2026-10-22T11:00:00.000Z';
   assert.deepEqual(agentCheck({ connectedAt, hooksAt: after, toolsAt: after, trust: 'unknown' }), { status: 'ready', at: after });
   assert.deepEqual(agentCheck({ connectedAt, hooksAt: before, toolsAt: null, trust: 'trusted' }), { status: 'waiting' });
   assert.deepEqual(agentCheck({ connectedAt, hooksAt: before, toolsAt: after, trust: 'unknown' }), { status: 'no-hooks' });
   assert.deepEqual(agentCheck({ connectedAt, hooksAt: null, toolsAt: null, trust: 'untrusted' }), { status: 'untrusted' });
+  assert.deepEqual(agentCheck({ connectedAt, hooksAt: after, toolsAt: after, trust: 'untrusted' }), { status: 'ready', at: after });
 });

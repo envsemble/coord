@@ -154,12 +154,13 @@ export class Agents {
   /**
    * Whether a connected agent runs Atlas, from what is cheap to read (no agent's command runs). An
    * agent found connected without a record (connected by hand, or before this app) counts as
-   * connected from now.
+   * connected from now. Its record is forgotten only when the agent said (`listed`) that the plugin
+   * is not there: a list that failed or ran out of time leaves it.
    */
-  private check(id: AgentId, connected: boolean): AgentCheck | null {
+  private check(id: AgentId, connected: boolean, listed = false): AgentCheck | null {
     const recorded = readAgentRecords(this.folder)[id];
     if (!connected) {
-      if (recorded) void this.record(id, null);
+      if (recorded && listed) void this.record(id, null);
       return null;
     }
     let connectedAt = recorded?.connectedAt;
@@ -185,8 +186,8 @@ export class Agents {
     try {
       const environment = await this.environment(item.program);
       // The marketplace's name, from what the app carries, so that the list does not wait for the copy.
-      const { found, connected, version } = await agentStatus(item, this.source, environment, chosen ?? onPath(item.program, environment));
-      state = { id, found, program: chosen, connected, version, check: this.check(id, connected) };
+      const { found, connected, version, listed } = await agentStatus(item, this.source, environment, chosen ?? onPath(item.program, environment));
+      state = { id, found, program: chosen, connected, version, check: this.check(id, connected, listed) };
     } catch (error) {
       this.options.log.warn('An agent\'s state could not be read', { agent: id, error: (error as Error).message });
       state = { id, found: chosen !== null || onPath(item.program, process.env) !== null, program: chosen, connected: false, version: null, check: null };
