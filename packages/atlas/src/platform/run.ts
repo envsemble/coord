@@ -2,7 +2,7 @@
 // goes through temporary files, not pipes: on Windows, a program started at the same moment from
 // another thread (esbuild's long-lived service, for example) can inherit a pipe's handle and hold
 // it open after this program has ended, and execFile would wait for that other program to end too.
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { readdirSync, rmSync } from 'node:fs';
 import { open, readFile, rm, stat, writeFile } from 'node:fs/promises';
@@ -64,6 +64,17 @@ function track(files: string[]) {
   for (const file of files) inProgress.add(file);
 }
 
+/**
+ * Stop a program. On Windows its whole tree: a program run through cmd.exe (an agent's command,
+ * say) would otherwise keep running after cmd.exe is killed. Elsewhere only the program.
+ */
+function stop(child: ChildProcess) {
+  if (process.platform !== 'win32' || child.pid === undefined) { child.kill(); return; }
+  const taskkill = spawn(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'taskkill.exe'), ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore', windowsHide: true });
+  taskkill.once('error', () => child.kill());
+  taskkill.once('exit', code => { if (code !== 0) child.kill(); });
+}
+
 /** Run a program, resolving with its output when it exits successfully; rejects like execFile otherwise. */
 export async function runProgram(file: string, args: string[], options: RunOptions = {}): Promise<{ stdout: string; stderr: string }> {
   const { stdout, stderr } = await runProgramBytes(file, args, options);
@@ -95,9 +106,9 @@ export async function runProgramBytes(file: string, args: string[], options: Run
     const ended = await new Promise<{ code: number | null; signal: NodeJS.Signals | null; killed: boolean }>((resolve, reject) => {
       let killed = false;
       const child = spawn(file, args, { cwd: options.cwd, env: options.env, windowsVerbatimArguments: options.windowsVerbatimArguments, stdio: [input ? input.fd : 'ignore', out.fd, err.fd], windowsHide: true });
-      const timer = setTimeout(() => { killed = true; child.kill(); }, timeout);
+      const timer = setTimeout(() => { killed = true; stop(child); }, timeout);
       // Stop a program whose output outgrows the limit, as execFile does, rather than filling the disk.
-      const watch = setInterval(() => { void out.stat().then(info => { if (info.size > maxBuffer && !overflow) { overflow = true; child.kill(); } }, () => undefined); }, 250);
+      const watch = setInterval(() => { void out.stat().then(info => { if (info.size > maxBuffer && !overflow) { overflow = true; stop(child); } }, () => undefined); }, 250);
       const done = () => { clearTimeout(timer); clearInterval(watch); };
       child.once('error', error => { done(); reject(error); });
       child.once('exit', (code, signal) => { done(); resolve({ code, signal, killed }); });
