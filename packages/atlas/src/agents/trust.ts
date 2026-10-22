@@ -8,7 +8,8 @@
 // and their hooks (codex-rs hooks: hook_key, plugin_hook_key_source). This is not a documented
 // format, so it is read cautiously: an entry per hook is looked for, Codex's hash is never computed
 // again (a stale one counts as trusted; the hooks' activity shows that case), only the plugin's own
-// entries are read, and a file without them, or with one of another shape, says nothing ('unknown').
+// entries are read (other plugins' only show the format is this one), and a file without any, or
+// with one of another shape, says nothing ('unknown').
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { tomlStringAt, tomlStructure } from './grants.ts';
@@ -23,6 +24,13 @@ const codexEvents: Record<string, string> = {
   PreToolUse: 'pre_tool_use', PermissionRequest: 'permission_request', PostToolUse: 'post_tool_use', PreCompact: 'pre_compact', PostCompact: 'post_compact',
   PreModelRequest: 'pre_model_request', PostModelRequest: 'post_model_request', SessionStart: 'session_start', SessionEnd: 'session_end', UserPromptSubmit: 'user_prompt_submit',
   SubagentStart: 'subagent_start', SubagentStop: 'subagent_stop', Stop: 'stop', Interrupt: 'interrupt',
+};
+
+const eventLabels = new Set(Object.values(codexEvents));
+/** A trust key of the shape this reads, for any plugin. */
+const shaped = (key: string) => {
+  const parts = key.split(':');
+  return parts.length >= 5 && /^[^@\s]+@[^@\s]+$/.test(parts[0]) && eventLabels.has(parts.at(-3)!) && /^\d+$/.test(parts.at(-2)!) && /^\d+$/.test(parts.at(-1)!);
 };
 
 /** The trust keys of the command hooks in a plugin's hooks file (`file`, relative to the plugin, with forward slashes), for the plugin `plugin@marketplace`. */
@@ -69,7 +77,10 @@ export function codexHookTrust(config: string | null, plugin: string, keys: stri
   const labels = new Set(keys.map(key => key.split(':').at(-3)));
   const ours = [...entries.keys()].filter(key => key.startsWith(plugin + ':')).map(key => key.slice(plugin.length + 1).split(':'));
   const recognised = (parts: string[]) => parts.length >= 4 && labels.has(parts.at(-3)) && /^\d+$/.test(parts.at(-2)!) && /^\d+$/.test(parts.at(-1)!);
-  if (!ours.length || !ours.every(recognised)) return 'unknown';
+  // Without entries of its own, Atlas's hooks are untrusted when entries of other plugins show the
+  // format is the one read here (<name>@<marketplace>:<file>:<event>:<group>:<hook>).
+  if (!ours.length) return [...entries.keys()].some(shaped) ? 'untrusted' : 'unknown';
+  if (!ours.every(recognised)) return 'unknown';
   return keys.every(key => { const found = entries.get(key); return found?.trusted && !found.off; }) ? 'trusted' : 'untrusted';
 }
 

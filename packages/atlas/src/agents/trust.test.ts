@@ -25,11 +25,13 @@ test('the Atlas hooks are trusted with an entry each; a file of another shape sa
   assert.equal(codexHookTrust(all, atlas, keys), 'trusted');
   assert.equal(codexHookTrust(all.replace(/(codex\.json:session_start:0:0"]\ntrusted_hash = ".*")/, '$1\nenabled = false'), atlas, keys), 'untrusted', 'a hook turned off');
   assert.equal(codexHookTrust(all.replace(trusted(keys[0]), ''), atlas, keys), 'untrusted');
-  // No entry of Atlas's (another plugin's say nothing of it), one of another shape, or a hooks.state
+  // No entry of Atlas's beside another plugin's of the shape read here: Atlas's were never trusted.
+  assert.equal(codexHookTrust(trusted('other@market:hooks/hooks.json:stop:0:0'), atlas, keys), 'untrusted');
+  // No entry at all, or only ones of another shape, one of Atlas's of another shape, or a hooks.state
   // written in a way this does not read.
   assert.equal(codexHookTrust('model = "o3"\n', atlas, keys), 'unknown');
   assert.equal(codexHookTrust(null, atlas, keys), 'unknown');
-  assert.equal(codexHookTrust(trusted('other@market:hooks/hooks.json:stop:0:0'), atlas, keys), 'unknown');
+  assert.equal(codexHookTrust(trusted('other@market:odd-key'), atlas, keys), 'unknown');
   assert.equal(codexHookTrust(all + trusted('other@market:odd-key'), atlas, keys), 'trusted');
   assert.equal(codexHookTrust(all + trusted('atlas@atlas:session_start'), atlas, keys), 'unknown');
   assert.equal(codexHookTrust(all + trusted('atlas@atlas:hooks/codex.json:renamed_event:0:0'), atlas, keys), 'unknown');
