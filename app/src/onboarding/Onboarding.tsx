@@ -58,34 +58,32 @@ export function Onboarding({ onDone }: { onDone(): void }) {
   if (step === 'welcome') content = <>
     <AtlasMark size={56} label="" />
     {title('Welcome to Atlas')}
-    <Text>Atlas is where your coding agents’ plans live. When you design something with an agent, the plan, its steps and the decisions behind it are kept in a planning folder on your computer, and you follow every agent’s work here as it happens.</Text>
+    <Text>Your coding agents’ plans, and their work as it happens.</Text>
   </>;
   else if (step === 'agents') content = <>
     {title('Connect your agents')}
-    <Text>Atlas connects Claude Code and Codex on this computer by installing its plugin into them: their sessions then plan with Atlas, and their work shows here. Choose the ones to connect. You can change this any time in <strong>Settings › Agents</strong>.</Text>
+    <Text>Atlas installs its plugin into the agents you choose.</Text>
     {agents.error && <Notice tone="warning" announce>{agents.error}</Notice>}
     <AgentList agents={agents} mode={{ kind: 'choose', chosen, choose: (id, yes) => setDeclined(current => yes ? current.filter(item => item !== id) : [...current, id]) }} label="Agents on this computer" />
-    {agents.agents && !agents.agents.some(agent => agent.found) && <Text tone="muted">Neither is on this computer yet. Install one, and Atlas finds it when you come back to this window; or connect it later in <strong>Settings › Agents</strong>.</Text>}
+    {agents.agents && !agents.agents.some(agent => agent.found) && <Text tone="muted">Neither is installed yet: install one, then come back.</Text>}
   </>;
   else if (step === 'connect') content = <>
     {title(agents.busy ? 'Connecting your agents' : 'Your agents')}
-    <Text>Atlas installs its plugin into each agent with the agent’s own commands. This can take a minute.</Text>
     <AgentList agents={agents} mode={{ kind: 'connect', only: connecting }} label="Agents being connected" />
-    {!agents.busy && connecting.some(id => agents.activity(id).failed) && <Text tone="muted">Try again, or connect it later in <strong>Settings › Agents</strong>.</Text>}
+    {!agents.busy && connecting.some(id => agents.activity(id).failed) && <Text tone="muted">You can also connect it later in <strong>Settings › Agents</strong>.</Text>}
   </>;
   else content = <>
     {title('Start a session')}
     <ol className="onboarding-start">
       <li>{connected.length
-        ? <>In a new terminal or editor window, start a new {connected.map(id => agentNames[id]).join(' or ')} session in one of your repositories. Windows already open don’t have Atlas’s command yet.</>
-        : <>Connect an agent in <strong>Settings › Agents</strong>, then start a new session of it in one of your repositories, in a new terminal or editor window.</>}</li>
+        ? <>Start {connected.map(id => agentNames[id]).join(' or ')} in a new terminal, in one of your repositories.</>
+        : <>Connect an agent in <strong>Settings › Agents</strong>, then start it in a new terminal.</>}</li>
       <li>
         <span>Ask it:</span>
         <span className="onboarding-question"><strong>“{firstQuestion}”</strong><CopyButton text={firstQuestion} label="Copy" /></span>
       </li>
-      {(connected.includes('codex') || !connected.length) && <li>In Codex, trust the Atlas hooks once: type <Code>/hooks</Code> and trust them.</li>}
+      {(connected.includes('codex') || !connected.length) && <li>In Codex, trust the Atlas hooks once in <Code>/hooks</Code>.</li>}
     </ol>
-    <Text tone="muted">The agent answers from Atlas’s plugin and guides you from there; the plans it writes show here.</Text>
   </>;
 
   const index = steps.indexOf(step);
