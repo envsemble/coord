@@ -119,8 +119,13 @@ export async function installAgentFolder(bundle: Bundle, folder: string, executa
     const plugin = path.join(folder, 'plugin'), old = path.join(folder, temporaryName('.old-'));
     const fresh = path.join(folder, temporaryName('.copy-'));
     await cp(path.join(bundle.directory, 'plugin'), fresh, { recursive: true });
-    if (existsSync(plugin)) await moveInto(plugin, old);
-    await moveInto(fresh, plugin);
+    // The old one stays until the new one is in place, and comes back when it cannot be.
+    const replacing = existsSync(plugin);
+    if (replacing) await moveInto(plugin, old);
+    try { await moveInto(fresh, plugin); } catch (error) {
+      if (replacing) await moveInto(old, plugin);
+      throw error;
+    }
     await rm(old, { recursive: true, force: true, maxRetries: 2 }).catch(() => undefined);
     for (const manifest of [path.join('.claude-plugin', 'marketplace.json'), path.join('.agents', 'plugins', 'marketplace.json')]) {
       await writeAtomically(path.join(folder, manifest), readFileSync(path.join(bundle.directory, manifest)));
