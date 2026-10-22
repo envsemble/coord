@@ -13,7 +13,7 @@ Remote access is off by default. It works while Atlas (or `atlas serve`) runs on
 
 ## Turn it on
 
-On the computer whose projects you want to reach, choose **Remote Access…** in the computer menu (the computer's name in the title bar):
+On the computer whose projects you want to reach, open **Settings › Computers** (**File › Settings…**, or **Computer settings…** in the computer menu, the computer's name in the title bar). **Devices that can reach** the computer holds remote access:
 
 1. **Allow paired devices to connect to this computer** turns the network listener on or off. The change applies at once. Turning it on, or moving it to another address, asks first when it does not follow your click or key press, for example with a screen reader.
 2. **Reach this computer via** picks the address the host listens on:
@@ -41,20 +41,18 @@ On the computer whose projects you want to reach, choose **Remote Access…** in
 
 6. **Paired devices** lists each device by name, marks the ones with **Manage access**, and shows when each paired, whether it is connected and when it was last seen. **Revoke…** removes a device: its connection closes immediately and its credential stops working.
 
-On Windows, the first time the host listens on a network address, Windows Defender Firewall may ask whether Atlas may communicate on networks. Allow it for private networks; Tailscale's network is usually treated as one. If the address goes away (Tailscale disconnects, or the network changes), Atlas says so in the dialog and tries again every 30 seconds.
+On Windows, the first time the host listens on a network address, Windows Defender Firewall may ask whether Atlas may communicate on networks. Allow it for private networks; Tailscale's network is usually treated as one. If the address goes away (Tailscale disconnects, or the network changes), Atlas says so in Settings and tries again every 30 seconds.
 
 ## Connect from another device
 
-On the other device, choose **Connect to Another Atlas…** in the computer menu, and paste the pairing link. If you only have the address and the code, type the address (`http://100.64.1.2:7346`) and Atlas asks for the code. Then **Show** that computer: the window's hub lists its plans.
+On the other device, choose **Connect to Another Atlas…** in **Settings › Computers**, and paste the pairing link. If you only have the address and the code, type the address (`http://100.64.1.2:7346`) and Atlas asks for the code. Then **Show** that computer: the window's hub lists its plans.
 
 ## Work on another computer
 
 Each window says where it works: the **computer menu** (the computer's name in the title bar, after the back and forward arrows and the menus) and the plans its hub lists.
 
-- **The computer menu** lists this computer and every computer this one is paired with. Computers that do not answer are marked **Offline**.
-  - Choosing a computer works on it in this window: the hub lists its plans.
-  - **Connect to Another Atlas…** pairs with one more.
-  - **Manage Computers…** lists them all. **↗** opens a computer in a new window. **Forget** forgets a paired computer here; press it again to confirm. Windows showing it close; if this window showed it, it shows this computer instead. To cut its access on that computer too, revoke the device there.
+- **The computer menu** lists this computer and every computer this one is paired with, to switch between them. Computers that do not answer are marked **Offline**. Choosing a computer works on it in this window: the hub lists its plans. **Computer settings…** opens **Settings › Computers**.
+- **Other computers**, in **Settings › Computers**, lists the computers this one is paired with. **↗** opens a computer in a new window. **Forget** forgets a paired computer here; press it again to confirm. Windows showing it close; if this window showed it, it shows this computer instead. To cut its access on that computer too, revoke the device there. **Connect to Another Atlas…** pairs with one more.
 - **The projects** are the planning folders in that computer's Atlas home, on the **Projects** page as this computer's are. **New project** there creates one on that computer, and **Rename…** changes a project's name in its `planning.json` there, for every device; choosing the folders a project covers, which are paths on that computer, stays with Atlas there. The order of the projects and whether one is archived are this device's own.
 
 A window on another computer shows the computer's name in its title (`desk — Atlas`). Everything works as it does locally:
@@ -76,7 +74,7 @@ What each device shows stays its own: its windows, the places they show, scrolli
 
 ### Managing access from another device
 
-A device paired with **Manage access** can manage that computer's pairings from its own windows. In a window on that computer, **Remote Access…** in the computer menu creates pairing links (with the same label and Manage access choice) and lists and revokes devices. It also shows how that computer is reached: its addresses and whether it listens. The settings for how the computer is reached stay with Atlas on that computer, or with `atlas serve` there.
+A device paired with **Manage access** can manage that computer's pairings from its own windows. In a window on that computer, **Devices that can reach** that computer, in **Settings › Computers**, creates pairing links (with the same label and Manage access choice) and lists and revokes devices. It also shows how that computer is reached: its addresses and whether it listens. The settings for how the computer is reached stay with Atlas on that computer, or with `atlas serve` there.
 
 ## Without the desktop app: atlas serve
 

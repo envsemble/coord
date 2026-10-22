@@ -2,7 +2,7 @@
 
 ![The Atlas hub on the computer Workstation: seven open plans of the projects Northwind, Platform and Field app, grouped as Working (one plan an agent is on now, with its model, agent time and tokens), Blocked with their reasons, Paused and Drafts, each with its project, steps done and when it changed](../assets/hub.png)
 
-Atlas is a desktop app for your Atlas projects and their plans. Every window opens on the hub, one list of every plan of the computer's projects, and shows one place at a time: the hub, a plan, its statistics, a diagram, a file, the Projects page or statistics. Discuss changes with your agent in chat; the agent edits the records, and Atlas shows them as they change.
+Atlas is a desktop app for your Atlas projects and their plans. Every window opens on the hub, one list of every plan of the computer's projects, and shows one place at a time: the hub, a plan, its statistics, a diagram, a file, the Projects page, statistics or Settings. Discuss changes with your agent in chat; the agent edits the records, and Atlas shows them as they change.
 
 ## Install
 
@@ -36,17 +36,17 @@ A window has two rows at the top, GitHub style.
 **The title bar**, from the left:
 
 - the Atlas mark, then the **back** and **forward** arrows;
-- **File**: **New Window** (Ctrl+Shift+N), **New Project…**, **Import Plan…**, **Export Plan…** (while a plan is open), **Open in Editor** (Ctrl+O, while the window shows a file of this computer) and **Exit**;
+- **File**: **New Window** (Ctrl+Shift+N), **New Project…**, **Import Plan…**, **Export Plan…** (while a plan is open), **Open in Editor** (Ctrl+O, while the window shows a file of this computer), **Settings…** (Ctrl+,; see [Settings](#settings)) and **Exit**;
 - **View**: **Zoom In** (Ctrl++), **Zoom Out** (Ctrl+-), **Actual Size** (Ctrl+0) and **Full Screen** (F11), with **Reload** and **Developer Tools** in development builds;
 - **Help**: **Open Logs** and **About Atlas**;
-- the **computer menu**, the name of the computer the window works on: this computer and the paired ones (choosing one shows its plans in this window), **Connect to Another Atlas…**, **Manage Computers…** and **Remote Access…** (see [Remote computers](#remote-computers));
+- the **computer menu**, the name of the computer the window works on: this computer and the paired ones (choosing one shows its plans in this window), and **Computer settings…**, which opens **Settings › Computers** (see [Remote computers](#remote-computers));
 - at the right: **Open in** (a split button that opens the file the window shows, such as a plan's `plan.md` or a diagram's source, in the editor you choose: VS Code, VS Code Insiders, Cursor, Windsurf, Zed, or the system's file manager), **Search** (Ctrl+P; on the hub its own search field takes its place), record-health notes when the shown project has any, the theme menu (**Match the system**, **Light** or **Dark**, for every window) and the system's window buttons.
 
 Alt opens the menus from the keyboard (Alt+F, Alt+V, Alt+H). Empty space in the title bar moves the window, and a double click maximizes it.
 
 **The sections**, below the title bar: **Plans**, with the number of open plans (the hub, every plan and its pages, and all plans' statistics), and **Projects**, with the number of active projects (the Projects page and each project's statistics).
 
-**Back and forward** step through what the window showed: the hub with its project filter, plans at their headings, their statistics, diagrams and files, the Projects page and statistics. Use the arrows, Alt+← and Alt+→, or the mouse's back and forward buttons. A place shown again is where it was left. With a menu or dialog open, the mouse's buttons only close it, and fields keep Alt+← and Alt+→.
+**Back and forward** step through what the window showed: the hub with its project filter, plans at their headings, their statistics, diagrams and files, the Projects page, statistics and the sections of Settings. Use the arrows, Alt+← and Alt+→, or the mouse's back and forward buttons. A place shown again is where it was left. With a menu or dialog open, the mouse's buttons only close it, and fields keep Alt+← and Alt+→.
 
 **New Window** opens another window on the same computer; Ctrl+Shift+W closes one. Windows open at quit come back at the next start, each with its size, position and place; so does the last window closed. A window whose paired computer does not answer at the start shows the hub at once and its place when the computer answers.
 
@@ -58,6 +58,7 @@ Alt opens the menus from the keyboard (Alt+F, Alt+V, Alt+H). Empty space in the 
 | Ctrl+P                   | Search                                   |
 | Ctrl+O                   | Open the shown file in the chosen editor |
 | Ctrl+Shift+E             | Bring the keyboard to the plan's Files   |
+| Ctrl+,                   | Settings                                 |
 | Ctrl+Shift+N             | New window                               |
 | Ctrl+Shift+W             | Close the window                         |
 | Ctrl++ / Ctrl+- / Ctrl+0 | Zoom in / out / actual size              |
@@ -131,11 +132,20 @@ A plan shows a diagram card under each heading whose text links to a diagram wit
 
 A diagram fills the window below the title bar, with its controls over the canvas: a link back to the plan, the tools, the diagram picker, the views and a proposal's changes. The picker lists the plan's diagrams: each capture with the proposals over it and the later captures compared with it, then the other diagrams, then **With problems**. A proposal, or a capture compared with an earlier one, opens in its change view, with its list of changes beside it. **Understand the model** opens a class diagram's scenarios beside it. Diagrams built on one capture are laid out together, so switching between them moves nothing. When a file changes, the view updates and keeps its camera and selection; a diagram with problems lists them by line and column instead.
 
+## Settings
+
+**File › Settings…** (Ctrl+,) opens Settings in the window, a page with two sections; back and forward step through them like other places.
+
+- **Agents**, this computer's: **Claude Code** and **Codex**, each with its status (**Connected** with the version of the Atlas plugin it has, **Not connected**, or **Not found on this computer** with a link to install it) and **Connect** or **Disconnect**. Connecting installs the Atlas plugin into the agent with the agent's own commands, which can take a minute; the row shows it, and says why if it fails, with **Try again**. In a window on another computer, Agents is still this computer's: connecting installs the plugin here. Codex asks once to trust Atlas's hooks: type `/hooks` in a new Codex session.
+- **Computers**, both ways of pairing: **Other computers**, the computers this one is paired with, and **Devices that can reach** the window's computer (see [Remote computers](#remote-computers)).
+
+Until it is finished or skipped, Atlas starts with a short onboarding instead of the window: what Atlas is, the agents on this computer (those found are ticked; untick the ones to leave alone), connecting them, and how to start: a new session in one of your repositories, asking "What is Atlas and how do I use it?". **Skip** ends it as finishing does; Settings › Agents connects agents any time.
+
 ## Remote computers
 
-**Remote Access…**, in the computer menu, lets your other devices work on this computer: choose the address (Tailscale, a local network or only this machine) and the port, then create a five-minute, one-time pairing link with a QR code. A link may grant **Manage access** (pairing and revoking devices). Revoke devices there too. In a window on another computer, the dialog manages that computer's pairings, when this device has Manage access there.
+**Devices that can reach** this computer, in **Settings › Computers**, lets your other devices work on this computer: choose the address (Tailscale, a local network or only this machine) and the port, then create a five-minute, one-time pairing link with a QR code. A link may grant **Manage access** (pairing and revoking devices). Revoke devices there too. In a window on another computer, the section manages that computer's pairings, when this device has Manage access there.
 
-**Connect to Another Atlas…** pairs with another computer from its link. Then choose it in the computer menu to work on its projects in this window, or open it in a new window from **Manage Computers…**, which also forgets a paired computer. On another computer you can create projects (a name only: their folders are chosen in Atlas on that computer), rename them, archive and restore them (the archive state is this device's), and export and import plans. Show in Folder and Open in Editor work only on this computer's files. See [remote access](../docs/remote-access.md).
+**Connect to Another Atlas…**, under **Other computers** in **Settings › Computers**, pairs with another computer from its link. Then choose it in the computer menu to work on its projects in this window, or open it in a new window from **Other computers**, which also forgets a paired computer. On another computer you can create projects (a name only: their folders are chosen in Atlas on that computer), rename them, archive and restore them (the archive state is this device's), and export and import plans. Show in Folder and Open in Editor work only on this computer's files. See [remote access](../docs/remote-access.md).
 
 ## Staying current
 
