@@ -7,7 +7,8 @@
 //
 //   agent/
 //     .claude-plugin/, .agents/   the marketplace manifests, naming plugin/ (atlas setup finds them too)
-//     plugin/                     the plugin, replaced as a whole
+//     plugin/                     the plugin, replaced as a whole, its hooks and MCP server calling the
+//                                 command by its full path (pluginCommands.ts)
 //     command/<build>/            the @envsemble/atlas package and its dependencies, one folder per build,
 //                                 with the Node.js it runs on in runtime/
 //     bin/atlas, bin/atlas.cmd    the launchers (atlas.cmd on Windows only), with paths relative to themselves
@@ -20,6 +21,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { chmod, cp, mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
+import { pointPluginAtCommand } from './pluginCommands.ts';
 
 /** What resources/agent/build.json says: the app's version, and the build (the version and a hash of the files). */
 export interface Bundle { directory: string; version: string; build: string }
@@ -132,6 +134,7 @@ export async function installAgentFolder(bundle: Bundle, folder: string, platfor
     const plugin = path.join(folder, 'plugin'), old = path.join(folder, temporaryName('.old-'));
     const fresh = path.join(folder, temporaryName('.copy-'));
     await cp(path.join(bundle.directory, 'plugin'), fresh, { recursive: true });
+    await pointPluginAtCommand(fresh, folder, bundle.build, platform);
     // The old one stays until the new one is in place, and comes back when it cannot be.
     const replacing = existsSync(plugin);
     if (replacing) await moveInto(plugin, old);

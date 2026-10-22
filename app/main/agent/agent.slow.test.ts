@@ -1,6 +1,7 @@
-// The launchers the agent folder writes, run as a shell runs them, on this Node.js standing in for
-// the one the app ships, in a home with letters such as "á" in its path, as a user's folder may
-// have; and the command the packaged app carries, assembled as packaging assembles it.
+// The launchers the agent folder writes, and the plugin's hooks and MCP server as its copy there
+// runs them, each as its agent starts it, on this Node.js standing in for the one the app ships, in
+// a home with letters such as "á" in its path, as a user's folder may have; and the command the
+// packaged app carries, assembled as packaging assembles it.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -19,18 +20,39 @@ function atlas(folder: string, args: string[], options: { input?: string; cwd?: 
     : spawnSync(path.join(folder, 'bin', 'atlas'), args, { ...options, encoding: 'utf8' });
 }
 
-test('the launcher passes arguments, input, output and the exit status through', async t => {
-  // A folder name with a space, an ampersand, a percent sign and an "á", which cmd.exe would read otherwise.
-  const directory = mkdtempSync(path.join(tmpdir(), 'atlas agent & 100% Ján '));
+test('the launcher passes arguments, input, output and the exit status through, and the plugin\'s copy runs it by its full path', async t => {
+  // A folder name with a space, an ampersand, a percent sign, an apostrophe and an "á", which a shell would read otherwise.
+  const directory = mkdtempSync(path.join(tmpdir(), 'atlas agent & 100% Ján\'s '));
   const script = 'let input = ""; for await (const chunk of process.stdin) input += chunk;\n'
     + 'console.log(JSON.stringify({ args: process.argv.slice(2), input }));\nprocess.exitCode = 3;\n';
   const bundle = fakeBundle(path.join(directory, 'bundle'), '1.0.0-test', script, process.execPath);
+  cpSync(path.resolve(import.meta.dirname, '../../../plugin'), path.join(bundle.directory, 'plugin'), { recursive: true, force: true });
   const folder = path.join(directory, 'home', 'agent');
   await installAgentFolder(bundle, folder);
   const args = ['hook', 'Stop', 'a b', 'c&d'];
   const result = atlas(folder, args, { input: '{"x":1}' });
   assert.equal(result.status, 3, result.stderr);
   assert.deepEqual(JSON.parse(result.stdout), { args, input: '{"x":1}' });
+
+  // The copy's SessionStart hooks and MCP server, as each agent runs them: Claude Code's hooks in sh
+  // (on Windows without a shell, as a program and its arguments), Codex's with cmd.exe /C on Windows
+  // (the command line in quotes, as Codex passes it) and $SHELL -lc elsewhere; MCP servers as programs.
+  const read = (file: string) => JSON.parse(readFileSync(path.join(folder, 'plugin', file), 'utf8'));
+  const claude = read('hooks/hooks.json').hooks.SessionStart[0].hooks[0], codex = read('hooks/codex.json').hooks.SessionStart[0].hooks[0];
+  const mcp = read('.mcp.json').mcpServers.atlas;
+  const ran = (child: ReturnType<typeof spawnSync>, expected: string[]) => {
+    assert.equal(child.status, 3, String(child.stderr));
+    assert.deepEqual(JSON.parse(String(child.stdout)), { args: expected, input: '{"x":1}' });
+  };
+  const options = { input: '{"x":1}', encoding: 'utf8' as const };
+  if (process.platform === 'win32') {
+    ran(spawnSync(claude.command, claude.args, options), ['hook', 'SessionStart']);
+    ran(spawnSync(process.env.ComSpec ?? 'cmd.exe', ['/C', `"${codex.command}"`], { ...options, windowsVerbatimArguments: true }), ['hook', 'SessionStart']);
+  } else {
+    ran(spawnSync('/bin/sh', ['-c', claude.command], options), ['hook', 'SessionStart']);
+    ran(spawnSync(process.env.SHELL || '/bin/sh', ['-lc', codex.command], options), ['hook', 'SessionStart']);
+  }
+  ran(spawnSync(mcp.command, mcp.args, options), ['mcp']);
   if (process.platform !== 'win32') {
     // On Linux the PATH reaches the launcher through a link in ~/.local/bin.
     const link = path.join(directory, 'local-bin', 'atlas');

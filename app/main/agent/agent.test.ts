@@ -5,7 +5,8 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } fro
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { installAgentFolder, launchers, needsCopy, readState } from './agentFolder.ts';
-import { fakeBundle } from './testing.ts';
+import { commandPaths, pointPluginAtCommand } from './pluginCommands.ts';
+import { fakeBundle, fakePlugin } from './testing.ts';
 import { withoutPathEntry, withPathEntry } from './userPath.ts';
 
 const temporary = () => mkdtempSync(path.join(tmpdir(), 'atlas-agent-'));
@@ -36,6 +37,8 @@ test('the agent folder takes a new build whole, writes its launchers, and keeps 
   assert.ok(existsSync(path.join(folder, '.claude-plugin', 'marketplace.json')) && existsSync(path.join(folder, '.agents', 'plugins', 'marketplace.json')));
   assert.match(readFileSync(path.join(folder, 'bin', 'atlas'), 'utf8'), /1\.0\.0-aaa\/bin\/atlas\.js/);
   assert.equal(needsCopy(readState(folder), folder, first.build, 'linux'), false);
+  // The copy's MCP server runs the launcher by its full path.
+  assert.equal(JSON.parse(readFileSync(path.join(folder, 'plugin', '.mcp.json'), 'utf8')).mcpServers.atlas.command, path.posix.join(folder, 'bin', 'atlas'));
 
   // The same build again copies nothing, but puts back a launcher that is not this build's.
   writeFileSync(path.join(folder, 'bin', 'atlas'), '#!/bin/sh\n');
@@ -65,4 +68,29 @@ test('the command\'s folder is added to the user Path once, and taken off again,
   assert.equal(withPathEntry('C:\\Tools;%userprofile%\\.Atlas\\agent\\bin\\', entry, environment), null);
   assert.equal(withoutPathEntry('C:\\Tools;;' + entry + ';D:\\x', entry, environment), 'C:\\Tools;;D:\\x');
   assert.equal(withoutPathEntry('C:\\Tools', entry, environment), null);
+});
+
+test('the copy of the plugin runs the command by its full path, in the form each agent runs it on each system', async () => {
+  const plugin = path.join(temporary(), 'plugin');
+  const read = (file: string) => JSON.parse(readFileSync(path.join(plugin, file), 'utf8'));
+  const hooks = { hooks: { Stop: [{ hooks: [{ type: 'command', command: 'atlas hook Stop', timeout: 60 }, { type: 'command', command: 'echo other' }] }] } };
+  const stop = (file: string) => read(file).hooks.Stop[0].hooks;
+  const copy = () => fakePlugin(plugin, hooks);
+
+  copy();
+  const windows = 'C:\\Users\\Ján O\'Neil\\.atlas\\agent', paths = commandPaths(windows, '1.0.0-a', 'win32');
+  assert.equal(paths.node, 'C:\\Users\\Ján O\'Neil\\.atlas\\agent\\command\\1.0.0-a\\runtime\\node.exe');
+  await pointPluginAtCommand(plugin, windows, '1.0.0-a', 'win32');
+  // Claude Code: the build's Node.js on the command, without a shell (Git Bash or PowerShell); other commands as they were.
+  assert.deepEqual(stop('hooks/hooks.json'), [{ type: 'command', command: paths.node, args: [paths.script, 'hook', 'Stop'], timeout: 60 }, { type: 'command', command: 'echo other' }]);
+  // Codex: the launcher, whose path stays from one update to the next, for cmd.exe.
+  assert.equal(stop('hooks/codex.json')[0].command, `"${paths.cmd}" hook Stop`);
+  assert.deepEqual(read('.mcp.json').mcpServers.atlas, { command: paths.node, args: [paths.script, 'mcp'] });
+
+  copy();
+  await pointPluginAtCommand(plugin, '/home/o\'neil/.atlas/agent', '1.0.0-a', 'linux');
+  const sh = "'/home/o'\\''neil/.atlas/agent/bin/atlas'";
+  assert.equal(stop('hooks/hooks.json')[0].command, sh + ' hook Stop');
+  assert.equal(stop('hooks/codex.json')[0].command, sh + ' hook Stop');
+  assert.deepEqual(read('.mcp.json').mcpServers.atlas, { command: '/home/o\'neil/.atlas/agent/bin/atlas', args: ['mcp'] });
 });
