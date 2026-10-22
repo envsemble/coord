@@ -138,7 +138,7 @@ export interface Launched { app: ElectronApplication; window: Page; dataDirector
 
 /**
  * Start the app on a home (by default a new temporary one). The onboarding, which shows on launch until
- * it is finished or skipped, counts as done unless `onboarding` asks for it, so the window shows at once.
+ * it is finished, counts as done unless `onboarding` asks for it, so the window shows at once.
  */
 export async function launch(options: { dataDirectory?: string; args?: string[]; executable?: string; ownsData?: boolean; onboarding?: boolean } = {}): Promise<Launched> {
   const ownsData = options.ownsData ?? !options.dataDirectory;

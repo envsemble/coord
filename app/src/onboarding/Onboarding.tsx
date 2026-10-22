@@ -1,8 +1,9 @@
-// The onboarding, shown in place of the window on every launch until it is finished or skipped: what
-// Atlas is, the agents on this computer (choosing which to connect), connecting each one chosen, and
-// how to start the first session. It installs nothing until the person chooses Connect, and Settings ›
-// Agents does the same any time afterwards. Back, Next and Skip are buttons; each step's heading takes
-// focus as it shows, so a screen reader starts reading it.
+// The onboarding, shown in place of the window on every launch until it is finished: what Atlas is,
+// the agents on this computer (choosing which to connect, or none), connecting each one chosen, and
+// how to start the first session, with a warning for a connected agent that does not run Atlas yet.
+// It installs nothing until the person chooses Connect, and Settings › Agents does the same any time
+// afterwards. Back and Next (Finish at the end) are buttons; each step's heading takes focus as it
+// shows, so a screen reader starts reading it.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, Notice, Text } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/content';
@@ -10,7 +11,7 @@ import { AtlasMark } from '@envsemble/atlas-diagrams/mark';
 import { agentNames } from '../../shared/contract';
 import type { AgentId } from '../types';
 import { api } from '../api';
-import { AgentList, useAgents } from '../settings/AgentList';
+import { AgentList, AgentWarnings, useAgents } from '../settings/AgentList';
 import { CopyButton } from '../ui/CopyButton';
 import { chosenAgents, stepFrom, stepsFor, type OnboardingStep } from './steps';
 
@@ -36,7 +37,7 @@ export function Onboarding({ onDone }: { onDone(): void }) {
 
   const finish = () => {
     setFinishing(true);
-    // Finished or skipped, it does not show again; a failure to record it only means it shows next time.
+    // Finished, it does not show again; a failure to record it only means it shows next time.
     api.finishOnboarding().catch(() => undefined).finally(onDone);
   };
   const next = () => {
@@ -53,6 +54,9 @@ export function Onboarding({ onDone }: { onDone(): void }) {
   const back = () => { const to = stepFrom(step, -1, step === 'agents' ? chosen : connecting); if (to) setStep(to); };
 
   const connected = agents.agents?.filter(agent => agent.connected).map(agent => agent.id) ?? [];
+  // Codex asks to trust the hooks once; its warning says so instead while its configuration shows them untrusted.
+  const codex = agents.agents?.find(agent => agent.id === 'codex');
+  const trustHint = !connected.length || (codex?.connected && !['ready', 'untrusted'].includes(codex.check?.status ?? ''));
   const title = (text: string) => <Text as="h1" variant="page-heading" ref={heading} tabIndex={-1} className="onboarding-title">{text}</Text>;
   let content: ReactNode;
   if (step === 'welcome') content = <>
@@ -82,8 +86,9 @@ export function Onboarding({ onDone }: { onDone(): void }) {
         <span>Ask it:</span>
         <span className="onboarding-question"><strong>“{firstQuestion}”</strong><CopyButton text={firstQuestion} label="Copy" /></span>
       </li>
-      {(connected.includes('codex') || !connected.length) && <li>In Codex, trust the Atlas hooks once in <Code>/hooks</Code>.</li>}
+      {trustHint && <li>In Codex, trust the Atlas hooks once in <Code>/hooks</Code>.</li>}
     </ol>
+    <AgentWarnings agents={agents.agents} />
   </>;
 
   const index = steps.indexOf(step);
@@ -94,7 +99,6 @@ export function Onboarding({ onDone }: { onDone(): void }) {
       <div className="onboarding-progress" aria-hidden="true">{steps.map((item, at) => <span key={item} data-done={at <= index || undefined} />)}</div>
       <div className="onboarding-step" data-step={step}>{content}</div>
       <div className="onboarding-actions">
-        {step !== 'start' && <Button variant="text" onClick={finish} disabled={finishing}>Skip</Button>}
         <span className="spacer" />
         {step !== 'welcome' && <Button variant="secondary" onClick={back} disabled={finishing || (step === 'connect' && agents.busy)}>Back</Button>}
         <Button variant="primary" onClick={next} pending={finishing && step === 'start'} disabled={(step === 'connect' && agents.busy) || (step === 'agents' && agents.agents === null)}>{nextLabel}</Button>

@@ -100,7 +100,7 @@ test('a closed window leaves a project it showed open in the others', async () =
   await expect(window.locator('.work-main .breadcrumb')).toContainText('Shop');
 });
 
-test('a new home starts with the onboarding until it is skipped or finished; the window shows after it, and at the next launch', async () => {
+test('a new home starts with the onboarding until it is finished, with no agent connected if none is chosen; the window shows after it, and at the next launch', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
   launched = await launch({ dataDirectory: home.dataDirectory, onboarding: true });
@@ -110,7 +110,12 @@ test('a new home starts with the onboarding until it is skipped or finished; the
   // The agents on this computer, checked there (nothing is connected without Connect).
   await expect(window.getByRole('heading', { name: 'Connect your agents' })).toBeFocused();
   await expect(window.getByRole('list', { name: 'Agents on this computer' }).locator('.agent-row')).toHaveCount(2);
-  await window.getByRole('button', { name: 'Skip', exact: true }).click();
+  // There is no Skip: the agents found start ticked, and with none ticked Next leads past Connect to the Start step.
+  await expect(window.getByRole('button', { name: 'Skip' })).toHaveCount(0);
+  for (const box of await window.getByRole('checkbox', { name: /^Connect / }).all()) if (await box.isChecked()) await box.click();
+  await window.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(window.getByRole('heading', { name: 'Start a session' })).toBeFocused();
+  await window.getByRole('button', { name: 'Finish', exact: true }).click();
   await expectHub(window);
   await window.waitForTimeout(600);
   await close(launched);

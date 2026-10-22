@@ -13,7 +13,7 @@ import { Onboarding } from './onboarding/Onboarding';
 /**
  * One window shows the projects of one computer, this one or another one. Main reads them; this
  * component waits for the window's facts, its saved layout and whether the onboarding is done, then
- * shows the onboarding until it is finished or skipped, and the window (AtlasWindow) after it; and it
+ * shows the onboarding until it is finished, and the window (AtlasWindow) after it; and it
  * draws the dialog every window has: About.
  */
 export default function App() {
