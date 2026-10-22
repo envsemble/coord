@@ -43,6 +43,8 @@ function Invoke-Agent([string] $Program, [string[]] $Arguments) {
       return $null
     }
     if ($process.ExitCode -ne 0) { return $null }
+    # A child the agent left running may hold its output open: wait for it no longer than the time left.
+    if (-not $output.Wait([Math]::Max($left, 1000))) { return $null }
     return $output.Result
   } catch { return $null }
 }

@@ -10,7 +10,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-/** The Node.js the command runs on: the release of Node 24 (engines: >=24) that CI's setup-node runs. */
+/** The Node.js the command runs on: a release of Node 24 (engines: >=24), pinned; CI's setup-node takes the latest 24. */
 const nodeVersion = '24.22.1';
 
 /**
@@ -40,7 +40,11 @@ exports.nodeRuntime = async function nodeRuntime(repository, platform, arch) {
   };
   const sums = (await kept('SHASUMS256.txt')).toString('utf8');
   const expected = sums.split('\n').map(line => line.trim().split(/\s+/)).find(([, file]) => file === archive)?.[0];
-  if (!expected) throw new Error(`SHASUMS256.txt of Node.js ${nodeVersion} does not list ${archive}`);
+  if (!expected) {
+    // Not the release's sums (a proxy's page, say): removed, so the next run downloads them again.
+    fs.rmSync(path.join(cache, 'SHASUMS256.txt'), { force: true });
+    throw new Error(`SHASUMS256.txt of Node.js ${nodeVersion} does not list ${archive}; it was removed, so the next run downloads it again`);
+  }
   const bytes = await kept(archive);
   const actual = crypto.createHash('sha256').update(bytes).digest('hex');
   if (actual !== expected) {
