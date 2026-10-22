@@ -105,8 +105,10 @@ function action(agent: AgentState, now: AgentActivity, mode: AgentListMode, stat
     return agent.connected ? <CheckIcon className="agent-done" aria-label={name + ' is connected'} role="img" /> : null;
   }
   if (!agent.found) return <Button variant="secondary" onClick={state.check}>Check again</Button>;
-  if (retry && !now.running) return retry;
+  const disconnect = <Button variant="secondary" pending={now.running === 'disconnect'} disabled={Boolean(now.running)} aria-label={'Disconnect ' + name} onClick={() => state.disconnect(agent.id)}>Disconnect</Button>;
+  // A connect whose plugin went in but whose grant failed leaves the agent connected: it can be tried again or disconnected.
+  if (retry && !now.running) return agent.connected && now.failed!.action === 'connect' ? <>{retry}{disconnect}</> : retry;
   return agent.connected
-    ? <Button variant="secondary" pending={now.running === 'disconnect'} disabled={Boolean(now.running)} aria-label={'Disconnect ' + name} onClick={() => state.disconnect(agent.id)}>Disconnect</Button>
+    ? disconnect
     : <Button variant="primary" pending={now.running === 'connect'} disabled={Boolean(now.running)} aria-label={'Connect ' + name} onClick={() => state.connect(agent.id)}>Connect</Button>;
 }
