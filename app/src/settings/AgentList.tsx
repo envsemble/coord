@@ -16,7 +16,7 @@ import { AgentLogo } from './AgentLogo';
 import { agentCheckLine, agentInstallPages, agentStatus, agentWarnings, byHandCommands, finished, idle, started, withAgent, type AgentActivity } from './agents';
 import { CheckIcon } from '../ui/icons';
 import { CopyButton } from '../ui/CopyButton';
-import { absoluteDate } from '../ui/format';
+import { absoluteDate, relativeDate } from '../ui/format';
 
 /** The agents on this computer and what is happening to each, with ways to check them again and to connect or disconnect one. */
 export function useAgents() {
@@ -92,10 +92,18 @@ export function useAgentChecks() {
   return agents;
 }
 
-/** A notice for each connected agent whose check warns, with `action` (the hub's link to Settings) after it. */
+/** `/hooks` in a line, as code. */
+const withCode = (text: string) => text.split('/hooks').flatMap((part, index) => index ? [<Code key={index}>/hooks</Code>, part] : [part]);
+
+/**
+ * A notice for each connected agent of this computer whose check warns, saying it is this
+ * computer's (a window may show another), with `action` (the hub's link to Settings) after it.
+ */
 export function AgentWarnings({ agents, action }: { agents: readonly AgentState[] | null; action?: ReactNode }) {
   return <>{agentWarnings(agents).map(agent => <Notice key={agent.id} tone="warning" className="agent-warning" data-agent={agent.id} action={action}>
-    {agent.check?.status === 'untrusted' ? <>Codex doesn’t trust Atlas’s hooks yet: type <Code>/hooks</Code> in Codex and trust them.</> : <>{agentNames[agent.id]}: Atlas’s hooks aren’t running.</>}
+    {agent.check?.status === 'untrusted' ? <>Codex on this computer doesn’t trust Atlas’s hooks yet: type <Code>/hooks</Code> in Codex and trust them.</>
+      : agent.id === 'codex' ? <>Codex on this computer isn’t running Atlas’s hooks: type <Code>/hooks</Code> in Codex and trust them.</>
+      : <>{agentNames[agent.id]} on this computer isn’t running Atlas’s hooks.</>}
   </Notice>)}</>;
 }
 
@@ -131,18 +139,18 @@ export function AgentList({ agents: state, mode, label = 'Agents' }: { agents: A
 function AgentDetail({ agent, activity, state, mode, folder }: { agent: AgentState; activity: AgentActivity; state: Agents; mode: AgentListMode; folder: AgentFolder | null }) {
   let line: ReactNode = agentStatus(agent);
   if (activity.running) line = <span className="agent-progress"><Spinner size="small" label="" />{activity.running === 'connect' ? 'Connecting… this can take a minute.' : 'Disconnecting…'}</span>;
-  const check = agent.connected && agent.check && !activity.running ? agentCheckLine(agent.check) : null;
+  const check = agent.connected && agent.check && !activity.running ? agentCheckLine(agent.check, agent.id) : null;
   const refused = state.refused(agent.id);
   return <span className="agent-detail">
     <span className="agent-status" data-connected={agent.connected} role={activity.running ? 'status' : undefined}>{line}</span>
-    {check && agent.check && <span className="agent-check" data-warning={check.warning || undefined} title={agent.check.status === 'ready' ? absoluteDate(agent.check.at) : undefined}>
-      {agent.check.status === 'untrusted' ? <>Hooks not trusted: type <Code>/hooks</Code> in Codex</> : check.text}
+    {check && agent.check && <span className="agent-check" data-warning={check.warning || undefined}>
+      {agent.check.status === 'ready' ? <>Ready · last session <time dateTime={agent.check.at} title={absoluteDate(agent.check.at)}>{relativeDate(agent.check.at)}</time></> : withCode(check.text)}
     </span>}
     {!agent.found && !activity.running && <InstallLink agent={agent} />}
     {mode.kind !== 'connect' && !activity.running && (agent.program
       ? <span className="agent-program">Program: <span className="agent-program-path">{agent.program}</span>
-        <Button variant="text" underline className="agent-install" aria-label={'Use ' + agentNames[agent.id] + ' from the PATH'} onClick={() => state.clearProgram(agent.id)}>Clear</Button></span>
-      : !agent.found && <Button variant="text" underline className="agent-install" aria-label={'Choose the ' + agentNames[agent.id] + ' program'} onClick={() => state.chooseProgram(agent.id)}>Choose program…</Button>)}
+        <Button variant="text" underline className="agent-install" aria-label={'Clear the program chosen for ' + agentNames[agent.id]} onClick={() => state.clearProgram(agent.id)}>Clear</Button></span>
+      : !agent.found && <Button variant="text" underline className="agent-install" aria-label={'Choose program… for ' + agentNames[agent.id]} onClick={() => state.chooseProgram(agent.id)}>Choose program…</Button>)}
     {refused && <span className="agent-error" role="alert">{refused}</span>}
     {activity.failed && !activity.running && <span className="agent-error" role="alert">{activity.failed.error}</span>}
     {mode.kind === 'manage' && folder && <ByHand agent={agent} folder={folder} />}
@@ -154,7 +162,7 @@ function ByHand({ agent, folder }: { agent: AgentState; folder: AgentFolder }) {
   const { terminal, session } = byHandCommands(agent.id, folder);
   const command = (text: string) => <li key={text}><Code>{text}</Code><CopyButton text={text} label="Copy" /></li>;
   return <DisclosureNote className="agent-by-hand" title="Connect by hand">
-    <p>In a terminal:</p>
+    <p>In a terminal (this installs the plugin; Connect also grants the agent Atlas’s home):</p>
     <ol className="agent-commands">{terminal.map(command)}</ol>
     <p>{agent.id === 'claude' ? 'Or in a Claude Code session:' : 'Then in Codex, to see it:'}</p>
     <ol className="agent-commands">{session.map(command)}</ol>

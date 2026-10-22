@@ -610,7 +610,7 @@ body { margin: 0; }
 .agent-done { inline-size: 1.5rem; block-size: 1.5rem; color: var(--color-tone-success); }
 
 /* The onboarding, in place of the window until it is finished: one step at a time in a
-   column at the middle of the window, its progress above it and Skip, Back and Next below. */
+   column at the middle of the window, its progress above it and Back and Next (Finish) below. */
 .onboarding { box-sizing: border-box; min-block-size: 100%; display: grid; place-items: center; padding: var(--space-7) var(--space-5); }
 .onboarding-card { display: grid; gap: var(--space-5); inline-size: min(40rem, 100%); }
 .onboarding-count { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); }

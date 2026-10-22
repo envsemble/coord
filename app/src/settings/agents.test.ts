@@ -20,9 +20,13 @@ test('an agent changed replaces only its own row', () => {
 });
 
 test('connecting by hand names the folder and marketplace the app uses; only a connected agent\'s untrusted or idle hooks warn', () => {
-  const folder = { directory: 'C:\Users\Ján\.atlas\agent', marketplace: 'atlas' };
-  assert.deepEqual(byHandCommands('claude', folder).terminal, ['claude plugin marketplace add "C:\Users\Ján\.atlas\agent"', 'claude plugin install atlas@atlas']);
-  assert.deepEqual(byHandCommands('codex', folder).terminal, ['codex plugin marketplace add "C:\Users\Ján\.atlas\agent"', 'codex plugin add atlas@atlas']);
+  const folder = { directory: String.raw`C:\Users\Ján O\.atlas\agent`, marketplace: 'atlas' };
+  assert.deepEqual(byHandCommands('claude', folder), {
+    terminal: [String.raw`claude plugin marketplace add "C:\Users\Ján O\.atlas\agent"`, 'claude plugin install atlas@atlas'],
+    // Claude Code's /plugin takes the rest of the line as the path, quotes and all: a path with a space goes in as it is.
+    session: [String.raw`/plugin marketplace add C:\Users\Ján O\.atlas\agent`, '/plugin install atlas@atlas'],
+  });
+  assert.deepEqual(byHandCommands('codex', folder).terminal, [String.raw`codex plugin marketplace add "C:\Users\Ján O\.atlas\agent"`, 'codex plugin add atlas@atlas']);
   const connected = { ...claude, connected: true, version: '0.9.0' };
   assert.deepEqual(agentWarnings([
     { ...connected, check: { status: 'waiting' } }, { ...connected, id: 'codex', check: { status: 'untrusted' } }, { ...codex, check: { status: 'no-hooks' } },

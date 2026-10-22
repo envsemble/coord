@@ -24,19 +24,26 @@ export function agentStatus(agent: AgentState): string {
   return agent.found ? 'Not connected' : 'Not found on this computer';
 }
 
-/** A connected agent's check as its row says it, and whether it is a warning. */
-export function agentCheckLine(check: AgentCheck): { text: string; warning: boolean } {
+/**
+ * A connected agent's check as its row says it, and whether it is a warning. Codex's hooks not
+ * running, when its configuration says they are trusted, are usually trusted for an earlier
+ * command: /hooks trusts them again.
+ */
+export function agentCheckLine(check: AgentCheck, id: AgentId): { text: string; warning: boolean } {
   if (check.status === 'ready') return { text: 'Ready · last session ' + relativeDate(check.at), warning: false };
   if (check.status === 'waiting') return { text: 'Waiting for a first session', warning: false };
-  return { text: check.status === 'untrusted' ? 'Hooks not trusted: type /hooks in Codex' : 'Atlas’s hooks aren’t running', warning: true };
+  if (check.status === 'untrusted') return { text: 'Hooks not trusted: type /hooks in Codex', warning: true };
+  return { text: id === 'codex' ? 'Atlas’s hooks aren’t running: type /hooks in Codex' : 'Atlas’s hooks aren’t running', warning: true };
 }
 
 /** The connected agents whose check warns. */
-export const agentWarnings = (agents: readonly AgentState[] | null) => (agents ?? []).filter(agent => agent.connected && agent.check && agentCheckLine(agent.check).warning);
+export const agentWarnings = (agents: readonly AgentState[] | null) => (agents ?? []).filter(agent => agent.connected && agent.check && agentCheckLine(agent.check, agent.id).warning);
 
 /**
- * The commands that connect an agent by hand to the marketplace folder the app uses (a terminal's,
- * and those typed in a session), for when Connect cannot.
+ * The commands that install the plugin by hand from the marketplace folder the app uses (a
+ * terminal's, and those typed in a session), for when Connect cannot; Connect also grants the agent
+ * Atlas's home. Claude Code's /plugin takes the rest of its line as the path (it joins the words
+ * with spaces and keeps quotes), so the path goes in unquoted there.
  */
 export function byHandCommands(id: AgentId, { directory, marketplace }: AgentFolder): { terminal: string[]; session: string[] } {
   const plugin = 'atlas@' + marketplace;
