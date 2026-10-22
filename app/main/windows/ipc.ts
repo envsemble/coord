@@ -34,7 +34,7 @@ const grant: Validator<PairingGrant> = object<PairingGrant>({ label: nullable(de
 const folders = array(folderPath, limits.folders);
 const searchQuery = string({ min: 1, max: 200 });
 const agentId = oneOf(agentIds);
-const projectChange =object<ProjectChangeRequest>({ name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), folders: optional(folders) });
+const projectChange = object<ProjectChangeRequest>({ name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), folders: optional(folders) });
 
 /** Import previews belong to the window that chose the file. */
 const pendingImports = new Map<string, { window: number; view: ProjectView }>();

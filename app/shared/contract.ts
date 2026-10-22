@@ -122,13 +122,14 @@ export type Target =
   | { kind: 'file'; path: string; anchor?: string | null };
 /** Something of a project (by its ID): a plan, a diagram or a file. */
 export interface ProjectPlace { projectId: string; target: Target }
-/**
- * The window's own pages: the hub, with the plans of every project or of one (`projectId`), the
- * Projects page, and a project's statistics (no project only while the computer has none).
- */
 /** The Settings page's sections: the agents Atlas connects on this computer, and pairing in both directions. */
 export const settingsSections = ['agents', 'computers'] as const;
 export type SettingsSection = typeof settingsSections[number];
+/**
+ * The window's own pages: the hub, with the plans of every project or of one (`projectId`), the
+ * Projects page, a project's statistics (no project only while the computer has none), and a
+ * section of the Settings page.
+ */
 export type PagePlace = { page: 'hub'; projectId: string | null } | { page: 'projects' } | { page: 'statistics'; projectId: string | null } | { page: 'settings'; section: SettingsSection };
 /** What a window shows: one place at a time. */
 export type Place = ProjectPlace | PagePlace;
@@ -146,7 +147,6 @@ export const limits = { path: 2048, folders: 20, inspectorMin: 240, inspectorMax
 /** A folder's full path: from a drive or a share on Windows, from the root elsewhere. */
 export const fullPath = /^(?:[a-zA-Z]:[\\/]|\\\\[^\\/]|\/)/;
 
-/** What the menu's About Atlas shows. */
 /** The agents Atlas can connect on this computer: its plugin installed into each through the agent's own commands. */
 export const agentIds = ['claude', 'codex'] as const;
 export type AgentId = typeof agentIds[number];
@@ -161,6 +161,7 @@ export interface AgentChange { agent: AgentState; error: string | null }
 /** Whether the onboarding has been finished or skipped on this computer; it shows on launch until then. */
 export interface OnboardingState { done: boolean }
 
+/** What the menu's About Atlas shows. */
 export interface AboutInfo {
   version: string;
   electron: string;
