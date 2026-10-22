@@ -28,6 +28,7 @@ export const invokeChannels = [
   'plan:export', 'plan:importChoose', 'plan:importConfirm', 'plan:importCancel',
   'computers:list', 'computers:switch', 'computers:pair', 'computers:forget',
   'access:state', 'access:update', 'access:pairingCreate', 'access:pairingRevoke', 'access:devices', 'access:deviceRevoke',
+  'agents:list', 'agents:connect', 'agents:disconnect', 'onboarding:state', 'onboarding:finish',
 ] as const;
 export type InvokeChannel = typeof invokeChannels[number];
 
@@ -59,7 +60,7 @@ export type AppCommand = typeof appCommands[number];
 
 /** Menu items that need the renderer (focus, pages, dialogs drawn in the window). */
 export const menuCommands = [
-  'toggleFiles', 'quickOpen', 'openInEditor', 'newProject', 'projects', 'statistics', 'importPlan', 'goBack', 'goForward', 'about',
+  'toggleFiles', 'quickOpen', 'openInEditor', 'newProject', 'projects', 'statistics', 'settings', 'importPlan', 'goBack', 'goForward', 'about',
 ] as const;
 export type MenuCommand = typeof menuCommands[number];
 
@@ -125,7 +126,10 @@ export interface ProjectPlace { projectId: string; target: Target }
  * The window's own pages: the hub, with the plans of every project or of one (`projectId`), the
  * Projects page, and a project's statistics (no project only while the computer has none).
  */
-export type PagePlace = { page: 'hub'; projectId: string | null } | { page: 'projects' } | { page: 'statistics'; projectId: string | null };
+/** The Settings page's sections: the agents Atlas connects on this computer, and pairing in both directions. */
+export const settingsSections = ['agents', 'computers'] as const;
+export type SettingsSection = typeof settingsSections[number];
+export type PagePlace = { page: 'hub'; projectId: string | null } | { page: 'projects' } | { page: 'statistics'; projectId: string | null } | { page: 'settings'; section: SettingsSection };
 /** What a window shows: one place at a time. */
 export type Place = ProjectPlace | PagePlace;
 /** A window's layout: the place it shows, and the width the reader gave a diagram's details (absent for the default). */
@@ -143,6 +147,20 @@ export const limits = { path: 2048, folders: 20, inspectorMin: 240, inspectorMax
 export const fullPath = /^(?:[a-zA-Z]:[\\/]|\\\\[^\\/]|\/)/;
 
 /** What the menu's About Atlas shows. */
+/** The agents Atlas can connect on this computer: its plugin installed into each through the agent's own commands. */
+export const agentIds = ['claude', 'codex'] as const;
+export type AgentId = typeof agentIds[number];
+export const agentNames: Record<AgentId, string> = { claude: 'Claude Code', codex: 'Codex' };
+/**
+ * An agent on this computer: whether its command is on the PATH (`found`), whether the Atlas plugin
+ * is installed in it (`connected`), and the version of the plugin it has (null when not connected or unknown).
+ */
+export interface AgentState { id: AgentId; found: boolean; connected: boolean; version: string | null }
+/** What connecting or disconnecting an agent did: its state after, and the error when it failed (a message fit to show). */
+export interface AgentChange { agent: AgentState; error: string | null }
+/** Whether the onboarding has been finished or skipped on this computer; it shows on launch until then. */
+export interface OnboardingState { done: boolean }
+
 export interface AboutInfo {
   version: string;
   electron: string;
@@ -257,6 +275,15 @@ export interface AtlasBridge {
   revokePairing(hostId: string | null, code: string): Promise<Result<void>>;
   devices(hostId: string | null): Promise<Result<PairedDevice[]>>;
   revokeDevice(hostId: string | null, deviceId: string): Promise<Result<void>>;
+  /** Claude Code and Codex on this computer, checked now. */
+  agents(): Promise<Result<AgentState[]>>;
+  /** Install the Atlas plugin into an agent (and grant it the Atlas home); the result says how it went. */
+  connectAgent(id: AgentId): Promise<Result<AgentChange>>;
+  /** Uninstall the Atlas plugin from an agent. */
+  disconnectAgent(id: AgentId): Promise<Result<AgentChange>>;
+  onboarding(): Promise<Result<OnboardingState>>;
+  /** The onboarding was finished or skipped: it no longer shows on launch. */
+  finishOnboarding(): Promise<Result<void>>;
   onChanged(listener: (change: ProjectChange) => void): () => void;
   onProjectsChanged(listener: (change: ProjectsChange) => void): () => void;
   onMenu(listener: (command: MenuCommand) => void): () => void;
