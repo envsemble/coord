@@ -39,7 +39,8 @@ export function placeRow(place: Place): { projectId: string; kind: PlaceKind; ta
     const { step: _found, ...kept } = rest as typeof rest & { step?: string | null };
     return { projectId: place.projectId, kind, target: JSON.stringify(kept) };
   }
-  if (place.page === 'projects' || !place.projectId) return null;
+  // The Projects and Settings pages are no project's: after a restart the window opens on the hub.
+  if ((place.page !== 'hub' && place.page !== 'statistics') || !place.projectId) return null;
   return { projectId: place.projectId, kind: 'project', target: place.page === 'statistics' ? JSON.stringify({ page: 'statistics' }) : null };
 }
 
