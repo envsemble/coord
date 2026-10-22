@@ -196,9 +196,11 @@ export async function grantHome(harness: Harness, home: string, environment: Nod
 
 export interface AgentStatus { id: AgentId; found: boolean; connected: boolean; version: string | null; source: string | null }
 
-/** Whether the agent is on the PATH and has the Atlas plugin of the marketplace in `directory` installed and turned on. */
-export async function agentStatus(harness: Harness, directory: string, environment: NodeJS.ProcessEnv): Promise<AgentStatus> {
-  const program = onPath(harness.program, environment);
+/**
+ * Whether the agent is found (`program`: the one chosen for it, else the one on the PATH) and has
+ * the Atlas plugin of the marketplace in `directory` installed and turned on.
+ */
+export async function agentStatus(harness: Harness, directory: string, environment: NodeJS.ProcessEnv, program = onPath(harness.program, environment)): Promise<AgentStatus> {
   if (!program) return { id: harness.id, found: false, connected: false, version: null, source: null };
   const marketplace = marketplaceName(directory);
   const listed = await runHarness(program, harness.list(marketplace), environment, 30000);
@@ -210,12 +212,11 @@ export async function agentStatus(harness: Harness, directory: string, environme
 export class AgentError extends Error {}
 
 /**
- * Connect an agent: grant it the Atlas home and install the plugin from `directory`. Stops at the
- * first command that fails (AgentError). A home that cannot be granted does not stop the plugin's
- * install; the error is returned after it.
+ * Connect an agent (its `program`, as agentStatus finds it): grant it the Atlas home and install the
+ * plugin from `directory`. Stops at the first command that fails (AgentError). A home that cannot
+ * be granted does not stop the plugin's install; the error is returned after it.
  */
-export async function connectAgent(harness: Harness, directory: string, home: string, environment: NodeJS.ProcessEnv): Promise<{ grantError: string | null }> {
-  const program = onPath(harness.program, environment);
+export async function connectAgent(harness: Harness, directory: string, home: string, environment: NodeJS.ProcessEnv, program = onPath(harness.program, environment)): Promise<{ grantError: string | null }> {
   if (!program) throw new AgentError(`${harness.program} is not on the PATH.`);
   let grantError: string | null = null;
   try { await grantHome(harness, home, environment); } catch (error) {
@@ -227,7 +228,7 @@ export async function connectAgent(harness: Harness, directory: string, home: st
     if (!step.ok) throw new AgentError(`${step.shown} failed: ${lastLines(step.output) || 'exit ' + step.status}`);
   }
   // Claude Code installs a plugin it had turned off without turning it on.
-  if (harness.id === 'claude' && (await agentStatus(harness, directory, environment)).connected === false) {
+  if (harness.id === 'claude' && (await agentStatus(harness, directory, environment, program)).connected === false) {
     const enabled = await runHarness(program, ['plugin', 'enable', 'atlas@' + marketplace], environment);
     if (enabled.status !== 0 && !/already/i.test(enabled.output)) throw new AgentError(`claude plugin enable atlas@${marketplace} failed: ${lastLines(enabled.output)}`);
   }
@@ -235,8 +236,7 @@ export async function connectAgent(harness: Harness, directory: string, home: st
 }
 
 /** Disconnect an agent: uninstall the plugin and remove its marketplace. Nothing there to remove counts as removed. */
-export async function disconnectAgent(harness: Harness, directory: string, environment: NodeJS.ProcessEnv) {
-  const program = onPath(harness.program, environment);
+export async function disconnectAgent(harness: Harness, directory: string, environment: NodeJS.ProcessEnv, program = onPath(harness.program, environment)) {
   if (!program) throw new AgentError(`${harness.program} is not on the PATH.`);
   for (const command of harness.uninstall(marketplaceName(directory))) {
     const result = await runHarness(program, command, environment);
@@ -250,10 +250,9 @@ export async function disconnectAgent(harness: Harness, directory: string, envir
  * (the home moved), when it is pointed at `directory`. An agent connected from another folder (a
  * checkout) is left as it is. Says what it did, or null.
  */
-export async function refreshAgent(harness: Harness, directory: string, environment: NodeJS.ProcessEnv): Promise<string | null> {
-  const status = await agentStatus(harness, directory, environment);
-  if (!status.connected || !status.source) return null;
-  const program = onPath(harness.program, environment)!;
+export async function refreshAgent(harness: Harness, directory: string, environment: NodeJS.ProcessEnv, program = onPath(harness.program, environment)): Promise<string | null> {
+  const status = await agentStatus(harness, directory, environment, program);
+  if (!status.connected || !status.source || !program) return null;
   const marketplace = marketplaceName(directory);
   const [add, install] = harness.install(directory, marketplace);
   const command = harness.id === 'codex' ? same(status.source, directory) ? install : null : !existsSync(status.source) ? add : null;
