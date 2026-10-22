@@ -1,19 +1,20 @@
 # Run by the Windows uninstaller (installer.nsh), not on an update: takes the atlas command's folder
-# (<Atlas home>\agent\bin, which the app put there; main/agent/userPath.ts) off the user's Path,
-# keeping every other entry and the value's type, and forgets the agent folder's state and the
+# (%USERPROFILE%\.atlas\agent\bin, which the app put there; main/agent/userPath.ts) off the user's
+# Path, keeping every other entry and the value's type, and forgets the agent folder's state and the
 # finished onboarding, so that installing Atlas again sets them up again. The plugin's files stay.
 $ErrorActionPreference = 'Stop'
-$atlasHome = if ($env:ATLAS_HOME) { $env:ATLAS_HOME -replace '^~(?=$|[\\/])', $env:USERPROFILE } else { Join-Path $env:USERPROFILE '.atlas' }
-$agent = Join-Path $atlasHome 'agent'
-$entry = (Join-Path $agent 'bin').TrimEnd('\')
+# The app puts the command on the Path only on its default home, never on one ATLAS_HOME chooses (main/index.ts).
+$agent = Join-Path $env:USERPROFILE '.atlas\agent'
+# A Path entry as Windows compares it: variables expanded, either slash, no trailing one (and -ne ignores case).
+function Get-EntryKey([string] $Entry) { [Environment]::ExpandEnvironmentVariables($Entry.Trim()).Replace('/', '\').TrimEnd('\') }
+$entry = Get-EntryKey (Join-Path $agent 'bin')
 
 $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
 if ($key) {
   $value = $key.GetValue('Path', $null, 'DoNotExpandEnvironmentNames')
   if ($value) {
     $entries = $value -split ';'
-    # Compared as Windows does: variables expanded, any case, either slash, no trailing one.
-    $kept = @($entries | Where-Object { -not $_.Trim() -or ([Environment]::ExpandEnvironmentVariables($_.Trim()).Replace('/', '\').TrimEnd('\') -ne $entry) })
+    $kept = @($entries | Where-Object { -not $_.Trim() -or (Get-EntryKey $_) -ne $entry })
     if ($kept.Count -ne $entries.Count) {
       $key.SetValue('Path', ($kept -join ';'), $key.GetValueKind('Path'))
       try {
