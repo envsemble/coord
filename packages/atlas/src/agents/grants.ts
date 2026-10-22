@@ -77,13 +77,13 @@ export function grantClaudeDirectory(text: string | null, directory: string): st
   return insertJson(text, jsonContainer(text, list.start), null, directory, unit, eol);
 }
 
-// Just enough of TOML to edit one key of a config.toml safely: its tables and keys (quoted keys
-// read as what they name), where each value is, and nothing inside strings or comments. Anything
-// else throws, and the file is left alone.
+// Just enough of TOML to edit one key of a config.toml safely, and to read Codex's hook trust
+// (trust.ts): its tables and keys (quoted keys read as what they name), where each value is, and
+// nothing inside strings or comments. Anything else throws, and the file is left alone.
 const tomlSpace = (text: string, index: number) => { while (text[index] === ' ' || text[index] === '\t') index++; return index; };
 const tomlLineEnd = (text: string, index: number) => { while (index < text.length && text[index] !== '\n' && text[index] !== '\r') index++; return index; };
 /** The TOML string starting at `index`: where it ends, and its text. */
-function tomlStringAt(text: string, index: number): { end: number; value: string } {
+export function tomlStringAt(text: string, index: number): { end: number; value: string } {
   const quote = text[index];
   if (text.startsWith(quote.repeat(3), index)) {
     let cursor = index + 3;
@@ -153,9 +153,9 @@ function tomlValueEnd(text: string, index: number): number {
   if (index === start) throw new Error('a key has no value');
   return index;
 }
-interface TomlTable { path: string[]; array: boolean; lineEnd: number }
-interface TomlKey { table: string[]; key: string[]; start: number; value: number }
-function tomlStructure(text: string): { tables: TomlTable[]; keys: TomlKey[] } {
+export interface TomlTable { path: string[]; array: boolean; lineEnd: number }
+export interface TomlKey { table: string[]; key: string[]; start: number; value: number }
+export function tomlStructure(text: string): { tables: TomlTable[]; keys: TomlKey[] } {
   const tables: TomlTable[] = [], keys: TomlKey[] = [];
   let table: string[] = [], index = text.startsWith('﻿') ? 1 : 0;
   while (index < text.length) {
