@@ -17,12 +17,14 @@
     "atlas": "./bin/atlas.js"
   },
   "exports": {
+    "./agents": "./src/agents/agents.ts",
     "./planning": "./src/planning/index.ts",
     "./planning/headings": "./src/planning/reading/headings.ts",
     "./planning/ledger": "./src/planning/work/ledger.ts",
     "./planning/provenance": "./src/planning/reading/provenance.ts",
     "./planning/types": "./src/planning/types.ts",
     "./platform/paths": "./src/platform/paths.ts",
+    "./platform/run": "./src/platform/run.ts",
     "./host": "./src/host/index.ts",
     "./host/contract": "./src/host/contract.ts",
     "./host/validate": "./src/host/validate.ts",

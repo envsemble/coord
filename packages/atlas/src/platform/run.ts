@@ -22,6 +22,10 @@ export interface RunOptions {
   windowsHide?: boolean;
   /** What the program reads as its input, through a temporary file like its output; none by default. */
   input?: string;
+  /** The program's environment (this process's by default). */
+  env?: NodeJS.ProcessEnv;
+  /** Windows: pass the arguments as they are, for a command line already quoted for cmd.exe. */
+  windowsVerbatimArguments?: boolean;
 }
 
 export class ProgramError extends Error {
@@ -90,7 +94,7 @@ export async function runProgramBytes(file: string, args: string[], options: Run
     let overflow = false;
     const ended = await new Promise<{ code: number | null; signal: NodeJS.Signals | null; killed: boolean }>((resolve, reject) => {
       let killed = false;
-      const child = spawn(file, args, { cwd: options.cwd, stdio: [input ? input.fd : 'ignore', out.fd, err.fd], windowsHide: true });
+      const child = spawn(file, args, { cwd: options.cwd, env: options.env, windowsVerbatimArguments: options.windowsVerbatimArguments, stdio: [input ? input.fd : 'ignore', out.fd, err.fd], windowsHide: true });
       const timer = setTimeout(() => { killed = true; child.kill(); }, timeout);
       // Stop a program whose output outgrows the limit, as execFile does, rather than filling the disk.
       const watch = setInterval(() => { void out.stat().then(info => { if (info.size > maxBuffer && !overflow) { overflow = true; child.kill(); } }, () => undefined); }, 250);

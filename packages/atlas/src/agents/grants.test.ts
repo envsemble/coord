@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { grantClaudeDirectory, grantCodexRoot } from './setup.ts';
+import { grantClaudeDirectory, grantCodexRoot } from './grants.ts';
 
 const home = process.platform === 'win32' ? 'C:\\Users\\me\\.atlas' : '/home/me/.atlas';
 const literal = "'" + home + "'";
