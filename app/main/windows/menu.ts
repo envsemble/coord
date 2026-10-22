@@ -19,6 +19,9 @@ export function buildMenu(manager: WindowManager, actions: { openLogs(): void; d
         // The shown file in the chosen editor, as the title bar's Open in button does; the window takes the key itself.
         { label: 'Open in &Editor', accelerator: 'CmdOrCtrl+O', click: () => manager.sendMenu('openInEditor') },
         { type: 'separator' },
+        // Settings: the agents on this computer, and the computers; the window takes the key itself too.
+        { label: '&Settings…', accelerator: 'CmdOrCtrl+,', click: () => manager.sendMenu('settings') },
+        { type: 'separator' },
         { label: 'Close Win&dow', accelerator: 'CmdOrCtrl+Shift+W', click: () => window()?.win.close() },
         { role: 'quit', label: 'E&xit' },
       ],

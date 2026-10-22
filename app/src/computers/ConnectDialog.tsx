@@ -1,4 +1,4 @@
-// Connect to Another Atlas…: pair with another computer's Atlas from its pairing link (or its
+// Connect to Another Atlas…, in Settings › Computers: pair with another computer's Atlas from its pairing link (or its
 // address and code). That computer is then one of the computers this app works on: its projects
 // show in a window that chooses it in the computer menu.
 import { useState } from 'react';
@@ -24,7 +24,7 @@ export function ConnectDialog({ onClose }: { onClose(): void }) {
   const close = (open: boolean) => { if (!open && !busy) onClose(); };
   if (paired) return <Paired computer={paired} onClose={onClose} />;
   return <Dialog open onOpenChange={close} pending={busy} className="connect-dialog" title="Connect to another Atlas"
-    description={<>On the other computer, choose <strong>Remote Access…</strong>, turn remote access on and create a pairing link. Paste the link here, or type its address and code. The link works once, for five minutes.</>}
+    description={<>On the other computer, open <strong>Settings › Computers</strong> (<strong>File › Settings…</strong>), turn remote access on and create a pairing link. Paste the link here, or type its address and code. The link works once, for five minutes.</>}
     closeLabel="Cancel" actions={<Button variant="primary" type="submit" form="connect-form" pending={busy} disabled={!link.trim() || (needsCode && !code.trim())}>Connect</Button>}>
     <form id="connect-form" className="dialog-form" onSubmit={event => { event.preventDefault(); void connect(); }}>
       <Input label="Pairing link or address" value={link} onChange={event => setLink(event.target.value)} placeholder="http://100.64.1.2:7346/pair#token=…" autoFocus spellCheck={false} autoComplete="off" disabled={busy}

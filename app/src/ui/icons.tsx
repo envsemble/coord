@@ -34,3 +34,5 @@ export { TaskAlt as WorkIcon } from '@envsemble/envui/icons/TaskAlt';
 export { Warning as WarningIcon } from '@envsemble/envui/icons/Warning';
 export { Devices as DevicesIcon } from '@envsemble/envui/icons/Devices';
 export { SettingsRemote as RemoteAccessIcon } from '@envsemble/envui/icons/SettingsRemote';
+export { Settings as SettingsIcon } from '@envsemble/envui/icons/Settings';
+export { SmartToy as AgentIcon } from '@envsemble/envui/icons/SmartToy';

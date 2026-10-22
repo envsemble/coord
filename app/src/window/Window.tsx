@@ -1,16 +1,16 @@
 // A window: envUI's window frame with two rows at the top, the title bar (the logo, back and forward,
 // File, the computer, search, record health, the theme and the window buttons) and the sections
 // (Plans, Projects), above one place at a time: the hub, where it starts and returns when nothing else
-// is open, a plan, a diagram or a file of a project, the Projects page or a project's statistics.
+// is open, a plan, a diagram or a file of a project, the Projects page, a project's statistics or Settings.
 // A plan and its pages have the plan's own files in a card beside them.
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Breadcrumbs, Button, EmptyState, Kbd, Notice, Popover, Spinner, Text, TitleBar, useToast, WindowFrame } from '@envsemble/envui';
 import { ThemeMenu } from '../titleBar/ThemeMenu';
 import { ErrorIcon, FolderOpenIcon, SearchIcon, WarningIcon } from '../ui/icons';
 import type { ImportPreview, MenuCommand } from '../../shared/contract';
-import type { Issue, LoadedUi, OpenProjectChange, Project, ProjectChangeRequest, Snapshot, SnapshotWork, Target, WindowInfo } from '../types';
+import type { Issue, LoadedUi, OpenProjectChange, Project, ProjectChangeRequest, SettingsSection, Snapshot, SnapshotWork, Target, WindowInfo } from '../types';
 import { api, AtlasError } from '../api';
-import { documentTarget, hubPlace, isPage, placeId, placeProject, projectsPlace, scrollKey, statisticsPlace, workTarget, type Place, type ProjectPlace } from '../navigation/targets';
+import { documentTarget, hubPlace, isPage, placeId, placeProject, projectsPlace, scrollKey, settingsPlace, statisticsPlace, workTarget, type Place, type ProjectPlace } from '../navigation/targets';
 import { samePath, siblingProject } from '../reader/links';
 import { canGoBack, canGoForward, currentEntry, keyStep, record, samePlace, startHistory, step } from '../navigation/history';
 import { workNumber } from '../ui/format';
@@ -30,6 +30,7 @@ import { ReadingContext, WindowContext, type Notify, type OpenOptions, type Wind
 import { arrived, liveActivity } from '../plan/agentTime';
 import { EditorButton, useEditor } from '../titleBar/EditorButton';
 import { shownFile } from './shownFile';
+import { SettingsPage } from '../settings/SettingsPage';
 
 // The diagrams and the statistics pages load when they are first shown, so a window starts lighter.
 const DiagramsView = lazy(() => import('../diagrams/DiagramsView').then(module => ({ default: module.DiagramsView })));
@@ -42,7 +43,7 @@ const loadingPage = <div className="page-state" aria-busy="true"><Spinner size="
 const toastVariants = { info: 'neutral', warning: 'info', danger: 'error' } as const;
 
 /** Keys handled in the window; the same shortcuts in the application menu are the fallback. */
-const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+o': 'openInEditor', 'ctrl+shift+e': 'toggleFiles' };
+const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+o': 'openInEditor', 'ctrl+shift+e': 'toggleFiles', 'ctrl+,': 'settings' };
 /** Where the back and forward keys stay: fields, and open menus, lists and dialogs. */
 const keepsHistoryKeys = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"], [role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
 /** What the mouse's back and forward buttons only close: open menus, lists and dialogs. */
@@ -298,6 +299,12 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   }, [projects, place, notify]);
   /** Statistics, from the menu: all plans'. */
   const showStatistics = useCallback(() => go(statisticsPlace(null)), [go]);
+  /** Settings, at a section; without one, at the section shown, or Agents. */
+  const showSettings = useCallback((section?: SettingsSection) => setWindowState(current => {
+    const shown = current.ui.place;
+    const next = section ? settingsPlace(section) : isPage(shown) && shown.page === 'settings' ? shown : settingsPlace();
+    return { ui: { ...current.ui, place: next }, history: record(current.history, next) };
+  }), []);
   const filesState = useMemo<FilesState>(() => ({
     expanded: projectPlace ? expanded[projectPlace.projectId] ?? [] : [], selected: node?.id ?? null,
     setExpanded: next => { if (projectPlace) setExpanded(current => ({ ...current, [projectPlace.projectId]: next })); },
@@ -322,11 +329,12 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
       case 'newProject': setCreatingProject(true); break;
       case 'projects': go(projectsPlace()); break;
       case 'statistics': showStatistics(); break;
+      case 'settings': showSettings(); break;
       case 'importPlan': void startImport(); break;
       case 'goBack': navigate(-1); break;
       case 'goForward': navigate(1); break;
     }
-  }, [go, showStatistics, startImport, navigate, openSearch, openInEditor]);
+  }, [go, showStatistics, showSettings, startImport, navigate, openSearch, openInEditor]);
 
   // Menu commands from main; ignore one that repeats a key this window just took, or left to a field.
   const lastShortcut = useRef<{ command: MenuCommand; time: number } | null>(null);
@@ -494,11 +502,13 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
     importPlan: () => runCommand('importPlan'),
     exportPlan: exportProject && exportItem ? () => { void exportWork(exportProject, exportItem); } : null,
     openInEditor: editorFile ? openInEditor : null,
-  }), [navigate, back, forward, runCommand, exportProject, exportItem, exportWork, editorFile, openInEditor]);
+    settings: showSettings,
+  }), [navigate, back, forward, runCommand, exportProject, exportItem, exportWork, editorFile, openInEditor, showSettings]);
   // The sections: a plan, its ledger and its diagrams belong to Plans, with the hub.
   // A project's statistics belong to Projects.
-  // All plans' statistics belong to Plans, a project's to Projects.
-  const section: Section = isPage(place) && (place.page === 'projects' || (place.page === 'statistics' && place.projectId !== null)) ? 'projects' : 'plans';
+  // All plans' statistics belong to Plans, a project's to Projects. Settings belongs to neither.
+  const section: Section | null = isPage(place) && place.page === 'settings' ? null
+    : isPage(place) && (place.page === 'projects' || (place.page === 'statistics' && place.projectId !== null)) ? 'projects' : 'plans';
   const goSection = (next: Section) => next === 'plans' ? go(hubPlace()) : runCommand(next);
   // All plans' statistics are read again when the listing's statistics or projects change, not with every listing.
   const statisticsMark = useMemo(() => JSON.stringify(projects?.map(project => [project.id, project.state, project.summary && [...project.summary.active, ...project.summary.closed].map(work => work.statistics)])), [projects]);
@@ -514,6 +524,7 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
 
   let content;
   if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.projectId} filters={hubFilters} setFilters={setHubFilters} go={go} query={search ?? ''} search={openSearch} left={searchFieldLeft} platform={info.platform} />;
+  else if (isPage(placed) && placed.page === 'settings') content = <SettingsPage section={placed.section} computer={info.computer} go={showSettings} />;
   else if (isPage(placed) && placed.page === 'projects') content = <ProjectsPage projects={projects} error={projectsError} computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} />;
   // All plans' statistics: every active project together.
   else if (isPage(placed) && !placed.projectId) content = <Suspense fallback={loadingPage}><AllStatisticsPage revision={statisticsMark} trail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: 'Statistics' }]} />} /></Suspense>;

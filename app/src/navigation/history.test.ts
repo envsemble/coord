@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { canGoBack, canGoForward, currentEntry, historyLimit, keyStep, record, samePlace, startHistory, step, type History } from './history.ts';
-import { diagramTarget, fileTarget, hubPlace, projectsPlace, statisticsPlace, stepTarget, workTarget, type ProjectPlace } from './targets.ts';
+import { diagramTarget, fileTarget, hubPlace, placeId, projectsPlace, scrollKey, settingsPlace, statisticsPlace, stepTarget, workTarget, type ProjectPlace } from './targets.ts';
 import type { Target } from '../types.ts';
 
 const shop = 'f-' + 'a'.repeat(32), coord = 'f-' + 'b'.repeat(32);
@@ -35,13 +35,18 @@ test('each new place shown follows the current entry; the same place again adds 
   assert.deepEqual(step(step(stepped, -1)!.history, 1)!.place, found);
 });
 
-test("the hub's project filter, the Projects page and a project's statistics are places too", () => {
+test("the hub's project filter, the Projects page, a project's statistics and Settings' sections are places too", () => {
   assert.equal(samePlace(hub, hubPlace()), true);
   assert.equal(samePlace(hub, hubPlace(shop)), false, 'filtering the hub to a project is a step');
   assert.equal(samePlace(hubPlace(shop), hubPlace(shop)), true);
   assert.equal(samePlace(statisticsPlace(shop), statisticsPlace(coord)), false);
   assert.equal(samePlace(statisticsPlace(shop), hubPlace(shop)), false);
   assert.equal(samePlace(projectsPlace(), projectsPlace()), true);
+  // Each section of Settings is a step of its own, on the same page, each scrolled on its own.
+  assert.equal(samePlace(settingsPlace('agents'), settingsPlace()), true);
+  assert.equal(samePlace(settingsPlace('agents'), settingsPlace('computers')), false);
+  assert.equal(placeId(settingsPlace('agents')), placeId(settingsPlace('computers')));
+  assert.notEqual(scrollKey(settingsPlace('agents')), scrollKey(settingsPlace('computers')));
   assert.equal(samePlace(hub, plan), false);
   assert.equal(samePlace(plan, hub), false);
   // From a plan, its breadcrumb's project, then back to the plan and back to the hub.

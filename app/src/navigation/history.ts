@@ -1,8 +1,8 @@
 // Back and forward, as in a browser: what a window showed, in order, and where it is now. An entry is
-// a place: the hub (with its project filter), the Projects page, a project's statistics, a work
-// item's plan at its heading, a diagram at its element, or a file at its heading. The history lives
-// in memory while the window is open.
-import { isPage, placeProject, type Place } from './targets';
+// a place: the hub (with its project filter), the Projects page, a project's statistics, a section
+// of Settings, a work item's plan at its heading, a diagram at its element, or a file at its heading.
+// The history lives in memory while the window is open.
+import { isPage, pagePart, type Place } from './targets';
 import type { Target } from '../types';
 
 /** The entries, which is current, and an id for each (so each can keep where it was left). */
@@ -21,7 +21,7 @@ const parts = (target: Target) => target.kind === 'work' ? [target.work, target.
   : [target.path, target.anchor ?? null];
 /** Whether two places show the same thing; a part left out is the same as one set to null. */
 export function samePlace(a: Place, b: Place) {
-  if (isPage(a) || isPage(b)) return isPage(a) && isPage(b) && a.page === b.page && placeProject(a) === placeProject(b);
+  if (isPage(a) || isPage(b)) return isPage(a) && isPage(b) && a.page === b.page && pagePart(a) === pagePart(b);
   return a.projectId === b.projectId && a.target.kind === b.target.kind && JSON.stringify(parts(a.target)) === JSON.stringify(parts(b.target));
 }
 

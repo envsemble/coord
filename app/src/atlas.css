@@ -564,6 +564,60 @@ body { margin: 0; }
 .pairing-permission > span { display: grid; }
 .pairing-permission-icon { flex: none; color: var(--color-tone-success); }
 
+/* Settings: its sections in a column at the left, the one shown beside them; in a narrow window the
+   sections are a row above it. A section holds its parts one under another, each with its heading. */
+.settings-page { max-inline-size: 64rem; }
+.settings-layout { display: grid; grid-template-columns: 12rem minmax(0, 1fr); gap: var(--space-7); align-items: start; }
+.settings-nav { display: grid; gap: var(--space-1); }
+.settings-nav-item { justify-content: flex-start; }
+.settings-content { display: grid; gap: var(--space-8); min-inline-size: 0; }
+.settings-group { display: grid; gap: var(--space-3); min-inline-size: 0; }
+.settings-group-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); }
+.settings-group-heading > h2 { margin: 0; }
+.settings-scope { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--font-size-body-small); }
+.settings-scope svg { inline-size: 1.125rem; block-size: 1.125rem; }
+.settings-description { margin: 0; max-inline-size: 48rem; }
+.settings-group .section-toolbar > .settings-description { flex: 1 1 20rem; }
+/* Remote access's fields keep a form's width on the wide page. */
+.settings-group :is(.access-fields, .pairing-label) { max-inline-size: 36rem; }
+@media (max-width: 52rem) {
+  .settings-layout { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
+  .settings-nav { display: flex; flex-wrap: wrap; }
+}
+
+/* The agents on this computer: each one's mark and name over its status, its action at the end of the
+   row. One not on this computer is greyed, with its install link; a change on its way shows in its row. */
+.agent-list > .env-row { flex-wrap: nowrap; min-inline-size: 0; }
+.agent-list > .env-row > :first-child { flex: 1; min-inline-size: 0; }
+.agent-name { display: inline-flex; align-items: center; gap: var(--space-3); }
+.agent-logo { flex: none; inline-size: 1.5rem; block-size: 1.5rem; }
+.agent-row[data-found='false'] :is(.agent-name, .agent-status) { opacity: 0.55; }
+.agent-detail { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); padding-inline-start: calc(1.5rem + var(--space-3)); }
+.agent-status[data-connected='true'] { color: var(--color-tone-success); }
+.agent-progress { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text-muted); }
+.agent-install { --control-height: 1.5rem; }
+.agent-error { flex-basis: 100%; color: var(--color-tone-danger); overflow-wrap: anywhere; }
+.agent-actions { flex: none; justify-content: flex-end; }
+.agent-done { inline-size: 1.5rem; block-size: 1.5rem; color: var(--color-tone-success); }
+
+/* The onboarding, in place of the window until it is finished or skipped: one step at a time in a
+   column at the middle of the window, its progress above it and Skip, Back and Next below. */
+.onboarding { box-sizing: border-box; min-block-size: 100%; display: grid; place-items: center; padding: var(--space-7) var(--space-5); }
+.onboarding-card { display: grid; gap: var(--space-5); inline-size: min(40rem, 100%); }
+.onboarding-count { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-body-small); }
+.onboarding-progress { display: flex; gap: var(--space-1); margin-block-start: calc(-1 * var(--space-3)); }
+.onboarding-progress > span { flex: 1; block-size: 0.25rem; border-radius: 0.125rem; background: var(--color-surface-muted); }
+.onboarding-progress > span[data-done] { background: var(--color-tone-accent); }
+.onboarding-step { display: grid; gap: var(--space-4); align-content: start; min-block-size: 20rem; }
+.onboarding-step > svg { justify-self: start; }
+.onboarding-step > p { margin: 0; }
+.onboarding-title { margin: 0; }
+.onboarding-title:focus { outline: none; }
+.onboarding-start { display: grid; gap: var(--space-4); margin: 0; padding-inline-start: 1.25rem; }
+.onboarding-start > li { padding-inline-start: var(--space-2); }
+.onboarding-question { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-block-start: var(--space-2); }
+.onboarding-actions { display: flex; align-items: center; gap: var(--space-2); }
+
 /* A project that cannot be read: its path and what is wrong. */
 .folder-problem-path { display: block; overflow-wrap: anywhere; }
 .folder-problem-path { font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: var(--font-size-body-small); }

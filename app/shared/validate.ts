@@ -1,7 +1,7 @@
 // Validators for the messages the window sends to the main process. The generic validators and the
 // planning shapes are the host's (packages/atlas/src/host/validate.ts); this module adds what only the
 // desktop window sends. Unknown object keys are dropped.
-import { appCommands, editors, fullPath, limits, themePreferences, type PagePlace, type Place, type Project, type ProjectPlace, type ReferenceInput, type Target, type UiState } from './contract.ts';
+import { appCommands, editors, fullPath, limits, settingsSections, themePreferences, type PagePlace, type Place, type Project, type ProjectPlace, type ReferenceInput, type SettingsSection, type Target, type UiState } from './contract.ts';
 import { array, diagramPath, integer, nullable, object, oneOf, optional, projectId, relativePath, string, workId, type Validator } from '@envsemble/atlas/host/validate';
 
 export {
@@ -31,10 +31,13 @@ export const target: Validator<Target> = (value, at = 'target') => {
   if (kind === 'diagram') return object<Extract<Target, { kind: 'diagram' }>>({ kind: oneOf(['diagram'] as const), work: workId, path: nullable(diagramPath), element: anchor })(value, at);
   return object<Extract<Target, { kind: 'file' }>>({ kind: oneOf(['file'] as const), path: relativePath, anchor })(value, at);
 };
+/** A section of the Settings page. */
+export const settingsSection = oneOf(settingsSections);
 /** One of the window's own pages, or something of a project. */
 export const place: Validator<Place> = (value, at = 'place') => {
-  const page = object<{ page?: PagePlace['page'] }>({ page: optional(oneOf(['hub', 'projects', 'statistics'] as const)) })(value, at).page;
+  const page = object<{ page?: PagePlace['page'] }>({ page: optional(oneOf(['hub', 'projects', 'statistics', 'settings'] as const)) })(value, at).page;
   if (page === 'projects') return { page };
+  if (page === 'settings') return { page, section: object<{ section: SettingsSection }>({ section: settingsSection })(value, at).section };
   if (page) return { page, projectId: object<{ projectId: string | null }>({ projectId: nullable(projectId) })(value, at).projectId };
   return object<ProjectPlace>({ projectId, target })(value, at);
 };

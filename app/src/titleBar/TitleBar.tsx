@@ -1,5 +1,5 @@
 // The window's two rows at the top, GitHub style. The title bar: the logo, back and forward, the
-// File, View and Help menus and the computer the window works on (with pairing and remote access)
+// File, View and Help menus and the computer the window works on (with the computers to switch to)
 // at its start. Below it, the sections: Plans (the hub, and every plan, ledger and diagram opened
 // from it) and Projects (with each project's statistics), with their counts. The shortcuts shown in
 // the menus are taken by the window and main's application menu (on macOS, the system's menu bar).
@@ -9,7 +9,7 @@ import { ArrowBack } from '@envsemble/envui/icons/ArrowBack';
 import { ArrowForward } from '@envsemble/envui/icons/ArrowForward';
 import { AtlasMark } from '@envsemble/atlas-diagrams/mark';
 import type { AppCommand } from '../../shared/contract';
-import type { WindowInfo } from '../types';
+import type { SettingsSection, WindowInfo } from '../types';
 import { api, AtlasError } from '../api';
 import { ComputerMenu } from '../computers/ComputerMenu';
 import { useAppActions } from '../appActions';
@@ -27,6 +27,8 @@ export interface WindowMenus {
   exportPlan: (() => void) | null;
   /** Open the shown file in the chosen editor, as the title bar's Open in does; null when the window shows none. */
   openInEditor: (() => void) | null;
+  /** Show Settings, at a section. */
+  settings(section?: SettingsSection): void;
 }
 
 /** The modifier shortcuts use: ⌘ on macOS, Ctrl elsewhere. */
@@ -37,9 +39,9 @@ const historyKeys = (platform: string) => platform === 'darwin'
   : { back: 'Alt+←', forward: 'Alt+→', backKeys: 'Alt+ArrowLeft BrowserBack', forwardKeys: 'Alt+ArrowRight BrowserForward' };
 
 /**
- * The window's menus: File (windows, projects and plans), View (zoom and full screen, and the
- * developer's tools where offered) and Help. Alt and their letter open them, except on macOS.
- * Other computers and remote access are in the computer menu.
+ * The window's menus: File (windows, projects and plans, and Settings), View (zoom and full screen,
+ * and the developer's tools where offered) and Help. Alt and their letter open them, except on macOS.
+ * The computers to switch to are in the computer menu.
  */
 export function AppMenus({ info, menus, onError }: { info: WindowInfo; menus: WindowMenus; onError(message: string): void }) {
   const actions = useAppActions();
@@ -53,6 +55,8 @@ export function AppMenus({ info, menus, onError }: { info: WindowInfo; menus: Wi
       <MenuItem onClick={menus.importPlan}>Import Plan…</MenuItem>
       {menus.exportPlan && <MenuItem onClick={menus.exportPlan}>Export Plan…</MenuItem>}
       {menus.openInEditor && <MenuItem shortcut={mod + '+O'} onClick={menus.openInEditor}>Open in Editor</MenuItem>}
+      <MenuSeparator />
+      <MenuItem shortcut={mod + '+,'} onClick={() => menus.settings()}>Settings…</MenuItem>
       <MenuSeparator />
       <MenuItem onClick={run('quit')}>Exit</MenuItem>
     </MenubarMenu>
@@ -80,7 +84,7 @@ export function TitleBarStart({ info, menus, onError }: { info: WindowInfo; menu
     <span className="title-bar-logo" aria-hidden="true"><AtlasMark size={20} label="" /></span>
     <HistoryButtons platform={info.platform} menus={menus} />
     <AppMenus info={info} menus={menus} onError={onError} />
-    <ComputerMenu current={info.computer} onError={onError} />
+    <ComputerMenu current={info.computer} onError={onError} onSettings={() => menus.settings('computers')} />
   </div>;
 }
 
@@ -100,10 +104,10 @@ function HistoryButtons({ platform, menus }: { platform: string; menus: WindowMe
 export type Section = 'plans' | 'projects';
 
 /**
- * The second row: the window's sections, the one shown underlined as on GitHub, with the open plans
- * and the active projects counted (once listed).
+ * The second row: the window's sections, the one shown underlined as on GitHub (none on Settings),
+ * with the open plans and the active projects counted (once listed).
  */
-export function SectionBar({ section, counts, go }: { section: Section; counts: { plans: number; projects: number } | null; go(section: Section): void }) {
+export function SectionBar({ section, counts, go }: { section: Section | null; counts: { plans: number; projects: number } | null; go(section: Section): void }) {
   const item = (id: Section, label: string, icon: ReactNode, count?: number, countLabel?: string) => <NavigationItem size="compact" className="section-item" data-section={id}
     aria-current={section === id ? 'page' : undefined} icon={icon} onClick={() => go(id)}
     trailing={count === undefined ? undefined : <Counter value={count} aria-label={countLabel} />}>{label}</NavigationItem>;

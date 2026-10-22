@@ -450,10 +450,10 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   await projectAction(window, 'Coord', 'Restore');
   await expect(sections.locator('.section-item').first()).toHaveText(/^Plans\s*6/);
 
-  // File holds the window's and the plans' commands; other computers are in the computer menu.
+  // File holds the window's and the plans' commands, and Settings; the computer menu only switches computers.
   await fileMenu(window).click();
   const menu = window.getByRole('menu', { name: 'File' });
-  await expect(menu.getByRole('menuitem')).toHaveText([/^New Window\s*Ctrl\s*\+?\s*Shift\s*\+?\s*N$/, 'New Project…', 'Import Plan…', 'Exit']);
+  await expect(menu.getByRole('menuitem')).toHaveText([/^New Window\s*Ctrl\s*\+?\s*Shift\s*\+?\s*N$/, 'New Project…', 'Import Plan…', /^Settings…\s*Ctrl\s*\+?\s*,$/, 'Exit']);
   await window.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
   // Alt+F opens it from the keyboard, at its first item.
@@ -467,12 +467,27 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   await expect(window.getByRole('dialog', { name: 'Create project' })).toBeVisible();
   await window.keyboard.press('Escape');
   await expect(window.locator('.projects-page h1')).toHaveText('Projects');
+  // Settings… (Ctrl+,) opens Settings at Agents, a place of its own in no section; Computer settings… opens it at Computers.
+  await window.keyboard.press('Control+,');
+  await expect(window.locator('.settings-page h1')).toHaveText('Settings');
+  await expect(window.getByRole('navigation', { name: 'Settings' }).locator('[aria-current="page"]')).toHaveAttribute('data-section', 'agents');
+  await expect(sections.locator('[aria-current="page"]')).toHaveCount(0);
+  await bar.getByRole('button', { name: /^Computer:/ }).click();
+  const computerMenu = window.getByRole('menu', { name: /^Computer/ });
+  await expect(computerMenu.getByRole('menuitem')).toHaveText(['Computer settings…']);
+  await computerMenu.getByRole('menuitem', { name: 'Computer settings…' }).click();
+  await expect(window.getByRole('navigation', { name: 'Settings' }).locator('[aria-current="page"]')).toHaveAttribute('data-section', 'computers');
+  await expect(window.getByRole('heading', { name: /^Devices that can reach / })).toBeVisible();
+  await window.keyboard.press('Alt+ArrowLeft');
+  await expect(window.getByRole('navigation', { name: 'Settings' }).locator('[aria-current="page"]')).toHaveAttribute('data-section', 'agents');
+  await window.keyboard.press('Alt+ArrowLeft');
+  await expect(window.locator('.projects-page h1')).toHaveText('Projects');
   // Main's application menu keeps the shortcuts (and is the menu bar on macOS), with the sections in View.
   const items = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.map(entry => [entry.label, entry.submenu!.items.filter(item => item.type !== 'separator').map(item => item.accelerator ? item.label + ' ' + item.accelerator : item.label || item.role)]));
   // Electron gives the roles the system's own shortcuts: Exit and Redo differ on Windows.
   const windows = process.platform === 'win32';
   expect(items).toEqual([
-    ['&File', ['New &Window CmdOrCtrl+Shift+N', 'New &Project…', '&Import Plan…', 'Open in &Editor CmdOrCtrl+O', 'Close Win&dow CmdOrCtrl+Shift+W', windows ? 'E&xit' : 'E&xit CommandOrControl+Q']],
+    ['&File', ['New &Window CmdOrCtrl+Shift+N', 'New &Project…', '&Import Plan…', 'Open in &Editor CmdOrCtrl+O', '&Settings… CmdOrCtrl+,', 'Close Win&dow CmdOrCtrl+Shift+W', windows ? 'E&xit' : 'E&xit CommandOrControl+Q']],
     ['&Edit', ['Undo CommandOrControl+Z', windows ? 'Redo Control+Y' : 'Redo Shift+CommandOrControl+Z', 'Cut CommandOrControl+X', 'Copy CommandOrControl+C', 'Paste CommandOrControl+V', 'Select All CommandOrControl+A']],
     ['&View', ['&Back Alt+Left', '&Forward Alt+Right', '&Projects', 'S&tatistics', '&Search… CmdOrCtrl+P', 'F&iles CmdOrCtrl+Shift+E', 'Zoom &In CmdOrCtrl+Plus', 'Zoom &Out CmdOrCtrl+-', '&Actual Size CmdOrCtrl+0', 'Toggle Full Screen F11']],
     ['&Help', ['Open &Logs', '&About Atlas']],

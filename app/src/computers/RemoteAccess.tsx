@@ -1,11 +1,11 @@
-// Remote Access…: let your other devices use this computer's projects. Off by default. The
-// owner picks how the computer is reached (Tailscale, a local network, or only this machine),
-// creates five-minute one-time pairing links shown with a QR code, and revokes paired devices. A
-// paired device gets the whole computer; the pairing link may also grant it Manage access, so it
-// can pair and revoke devices itself. In a window on another computer, the dialog manages that
-// computer's pairings, when this app was granted Manage access there.
+// Devices that can reach a computer, in Settings › Computers: let your other devices use this
+// computer's projects. Off by default. The owner picks how the computer is reached (Tailscale, a
+// local network, or only this machine), creates five-minute one-time pairing links shown with a QR
+// code, and revokes paired devices. A paired device gets the whole computer; the pairing link may
+// also grant it Manage access, so it can pair and revoke devices itself. In a window on another
+// computer, the section manages that computer's pairings, when this app was granted Manage access there.
 import { useEffect, useState } from 'react';
-import { Badge, Button, Checkbox, ConfirmButton, Dialog, GroupedRows, Input, Notice, Row, Select, Spinner, Switch, Text } from '@envsemble/envui';
+import { Badge, Button, Checkbox, ConfirmButton, GroupedRows, Input, Notice, Row, Select, Spinner, Switch, Text } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/content';
 import type { AccessSettings, AccessState, ComputerRef, PairedDevice, PairingLinkView } from '../types';
 import { api } from '../api';
@@ -15,7 +15,10 @@ import { CopyButton } from '../ui/CopyButton';
 
 const platforms: Record<string, string> = { win32: 'Windows', linux: 'Linux', darwin: 'macOS', android: 'Android', ios: 'iOS' };
 
-export function RemoteAccessDialog({ onClose, computer }: { onClose(): void; computer: ComputerRef }) {
+/** The heading of the section, which names the computer the devices reach. */
+export const remoteAccessTitle = (computer: ComputerRef) => 'Devices that can reach ' + computer.name;
+
+export function RemoteAccess({ computer }: { computer: ComputerRef }) {
   const here = computer.hostId === null;
   const [state, setState] = useState<AccessState | null>(null);
   const [devices, setDevices] = useState<PairedDevice[] | null>(null);
@@ -87,14 +90,11 @@ export function RemoteAccessDialog({ onClose, computer }: { onClose(): void; com
     void apply(next => ({ ...next, network: { ...next.network, port: value } }));
   };
 
-  const title = here ? 'Remote access' : 'Remote access to ' + computer.name;
-  if (refused) return <Dialog open onOpenChange={open => { if (!open) onClose(); }} title={title} className="remote-access-dialog" closeLabel="Done">
-    <Notice tone="warning" announce>{refused}</Notice>
-  </Dialog>;
-  return <Dialog open onOpenChange={open => { if (!open) onClose(); }} size="wide" title={title} className="remote-access-dialog" closeLabel="Done"
-    description={here
+  if (refused) return <Notice tone="warning" announce>{refused}</Notice>;
+  return <>
+    <Text tone="muted" className="settings-description">{here
       ? 'Pair your other devices, such as your laptop, to work on this computer from them: they work on its projects, create new ones, and import and export plans, as Atlas does here. Pair only your own devices.'
-      : `Pair your other devices with ${computer.name}, and revoke the ones that should no longer reach it. Only Atlas on ${computer.name} changes how it is reached.`}>
+      : `Pair your other devices with ${computer.name}, and revoke the ones that should no longer reach it. Only Atlas on ${computer.name} changes how it is reached.`}</Text>
     {!state ? (error ? <Notice tone="error" announce>{error}</Notice> : <Spinner label="Loading remote access" />) : <>
       {state.problem ? <Notice tone="error" announce>{state.problem}</Notice>
         : state.managedBy && <Notice tone="warning">Remote access on this computer is managed by {state.managedBy}. Quit it, and Atlas takes over here within a few seconds.</Notice>}
@@ -131,7 +131,7 @@ export function RemoteAccessDialog({ onClose, computer }: { onClose(): void; com
               <CopyButton text={link.code} label="Copy code only" />
               <Button variant="destructive" onClick={() => void revokeLink()}>Revoke</Button>
             </div>
-            <Text variant="caption" tone="muted">In Atlas on the other device, choose <strong>Connect to Another Atlas…</strong> and paste the link. Treat it like a password.</Text>
+            <Text variant="caption" tone="muted">In Atlas on the other device, choose <strong>Connect to Another Atlas…</strong> in <strong>Settings › Computers</strong> and paste the link. Treat it like a password.</Text>
           </div>
         </div> : <form className="pairing-form" onSubmit={event => { event.preventDefault(); void createLink(); }}>
           {link && <Text tone="muted">That pairing link expired.</Text>}
@@ -160,5 +160,5 @@ export function RemoteAccessDialog({ onClose, computer }: { onClose(): void; com
       </section>
       {error && <Notice tone="error" announce>{error}</Notice>}
     </>}
-  </Dialog>;
+  </>;
 }

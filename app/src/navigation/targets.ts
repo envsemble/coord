@@ -1,8 +1,8 @@
 // What a window shows: one place at a time. A place is one of the window's own pages (the hub, the
-// Projects page, a project's statistics) or something of one project (a plan, a plan's statistics, a
+// Projects page, a project's statistics, a section of Settings) or something of one project (a plan, a plan's statistics, a
 // diagram or a file).
 // A work item's diagrams share one place, which switches between them in place.
-import type { Document, PagePlace, Place, ProjectPlace, Target, Work } from '../types';
+import type { Document, PagePlace, Place, ProjectPlace, SettingsSection, Target, Work } from '../types';
 import { workRelative } from '@envsemble/atlas/platform/paths';
 
 export type { PagePlace, Place, ProjectPlace };
@@ -11,9 +11,13 @@ export type { PagePlace, Place, ProjectPlace };
 export const hubPlace = (projectId: string | null = null): PagePlace => ({ page: 'hub', projectId });
 export const projectsPlace = (): PagePlace => ({ page: 'projects' });
 export const statisticsPlace = (projectId: string | null): PagePlace => ({ page: 'statistics', projectId });
+/** Settings, at one of its sections: the agents on this computer, or the computers. */
+export const settingsPlace = (section: SettingsSection = 'agents'): PagePlace => ({ page: 'settings', section });
 export const isPage = (place: Place): place is PagePlace => 'page' in place;
 /** The project a place is of: its own, the hub's filter or the statistics' project; null for none. */
-export const placeProject = (place: Place): string | null => !isPage(place) ? place.projectId : place.page === 'projects' ? null : place.projectId;
+export const placeProject = (place: Place): string | null => !isPage(place) ? place.projectId : place.page === 'projects' || place.page === 'settings' ? null : place.projectId;
+/** Where on a page the place is: the project of the hub or the statistics, or the section of Settings. */
+export const pagePart = (place: PagePlace): string => place.page === 'settings' ? place.section : placeProject(place) ?? '';
 
 export const workTarget = (work: string, anchor: string | null = null): Target => ({ kind: 'work', work, anchor });
 /** A work item's statistics: its time and tokens by session, model and stage, and its timeline. */
@@ -51,7 +55,7 @@ export function placeId(place: Place): string {
 
 /** What a place's scroll position belongs to: a page of a project, a work item's plan, a diagram, or a file. */
 export function scrollKey(place: Place): string {
-  if (isPage(place)) return place.page + ':' + (placeProject(place) ?? '');
+  if (isPage(place)) return place.page + ':' + pagePart(place);
   const { target } = place;
   return placeId(place) + (target.kind === 'diagram' ? ':' + (target.path ?? '') : '');
 }
