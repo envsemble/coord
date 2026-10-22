@@ -16,6 +16,7 @@ import { buildMenu } from './windows/menu.ts';
 import { refusalMessage, startupRefusal, type Refusal } from './startupRefusal.ts';
 import { scheme } from './windows/protocol.ts';
 import { AppState } from './appState.ts';
+import { Agents } from './agent/agents.ts';
 import { WindowManager } from './windows/windowManager.ts';
 import type { AboutInfo } from '../shared/contract.ts';
 import { isProjectListing } from '../shared/validate.ts';
@@ -122,6 +123,17 @@ function start(database: HomeDatabase) {
     onStatus: (client, status, detail) => manager.connectionChanged(client, status, detail),
   });
 
+  // The atlas command and the plugin, which the packaged app carries in resources/agent. Only the
+  // installed app on the user's own home puts the command on the PATH: a home chosen with ATLAS_HOME
+  // (tests, a separate instance) leaves the user's `atlas` alone.
+  const agents = new Agents({
+    home: dataDirectory, log,
+    bundle: app.isPackaged ? path.join(process.resourcesPath, 'agent') : null,
+    checkout: path.resolve(app.getAppPath(), '..'),
+    executable: process.platform === 'linux' && process.env.APPIMAGE ? process.env.APPIMAGE : process.execPath,
+    managePath: app.isPackaged && !process.env.ATLAS_HOME,
+  });
+
   manager = new WindowManager({
     state, database, log, computers, version: app.getVersion(), icon, devUrl, devTools,
     preload: path.join(import.meta.dirname, '../preload/index.cjs'),
@@ -159,7 +171,7 @@ function start(database: HomeDatabase) {
   void app.whenReady().then(async () => {
     log.info('Atlas started', { version: app.getVersion(), packaged: app.isPackaged, platform: process.platform, uptimeMs: Math.round(process.uptime() * 1000) });
     Menu.setApplicationMenu(null);
-    registerIpc(manager, { openLogs, about });
+    registerIpc(manager, { openLogs, about, agents });
     buildMenu(manager, { openLogs, devTools });
     // The host starts while the windows open: the connection waits for its owner token.
     const hostStarted = localHost.start().catch(async error => {
@@ -172,6 +184,8 @@ function start(database: HomeDatabase) {
     // After sleep, connections may be dead without either side knowing: try them all again now.
     powerMonitor.on('resume', () => computers.wakeAll());
     manager.restore();
+    // After the windows open: an update copies the command and the plugin into the home.
+    void agents.start();
     await hostStarted;
   });
 }

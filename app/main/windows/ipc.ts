@@ -11,10 +11,11 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell, typ
 import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atlas/host';
 import { resolveDocument } from '@envsemble/atlas/planning';
 import { accessSettings, deviceText } from '@envsemble/atlas/host/validate';
-import { defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AccessSettings, type Editor, type ImportPreview, type InvokeChannel, type LoadedUi, type PairingGrant, type Project, type PairingLinkView, type Place, type ProjectPlace, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
+import { agentIds, defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AgentId, type AccessSettings, type Editor, type ImportPreview, type InvokeChannel, type LoadedUi, type PairingGrant, type Project, type PairingLinkView, type Place, type ProjectPlace, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
 import { argumentsOf, array, boolean, command, diagramPath, editor, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, place, projectId, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, token, uiState, url, workId, type Validator } from '../../shared/validate.ts';
 import { AtlasError, toErrorValue } from '../errors.ts';
 import type { ProjectView } from '../computers/projectView.ts';
+import type { Agents } from '../agent/agents.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
 import { placeRow, savedPlace } from '../appState.ts';
 import { externalUrl, type AtlasWindow } from './window.ts';
@@ -32,7 +33,8 @@ const pairingLink = string({ min: 3, max: 2048 });
 const grant: Validator<PairingGrant> = object<PairingGrant>({ label: nullable(deviceText(80)), manageAccess: boolean });
 const folders = array(folderPath, limits.folders);
 const searchQuery = string({ min: 1, max: 200 });
-const projectChange = object<ProjectChangeRequest>({ name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), folders: optional(folders) });
+const agentId = oneOf(agentIds);
+const projectChange =object<ProjectChangeRequest>({ name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), folders: optional(folders) });
 
 /** Import previews belong to the window that chose the file. */
 const pendingImports = new Map<string, { window: number; view: ProjectView }>();
@@ -202,7 +204,10 @@ async function saveUi(manager: WindowManager, window: AtlasWindow, ui: UiState) 
   if (window.computer === computer) state.savePlaces(window.rowId, computer === null ? null : computers.idOf(computer), rows, [...window.placesLoaded]);
 }
 
-function channels(manager: WindowManager, actions: { openLogs(): void; about(): AboutInfo }): Record<InvokeChannel, Channel> {
+/** What the message handlers need from the app beyond the windows. */
+export interface IpcActions { openLogs(): void; about(): AboutInfo; agents: Agents }
+
+function channels(manager: WindowManager, actions: IpcActions): Record<InvokeChannel, Channel> {
   const { computers } = manager.context;
   const owner = (): HostClient => computers.local;
   return {
@@ -415,6 +420,13 @@ function channels(manager: WindowManager, actions: { openLogs(): void; about(): 
     'access:pairingRevoke': { args: [computer, pairingCode], handle: (_window, id: string | null, code: string) => remoteErrors(computers.use(id, client => client.request('access.pairingRevoke', { code }))) },
     'access:devices': { args: [computer], handle: (_window, id: string | null) => remoteErrors(computers.use(id, client => client.request('access.devices', {}))) },
     'access:deviceRevoke': { args: [computer, deviceId], handle: (_window, id: string | null, device: string) => remoteErrors(computers.use(id, client => client.request('access.deviceRevoke', { deviceId: device }))) },
+    // The agents of this computer, whatever computer the window shows. Connecting installs Atlas's
+    // own plugin, which the app carries, and reaches no one else, so it needs no question.
+    'agents:list': { args: [], handle: () => actions.agents.list() },
+    'agents:connect': { args: [agentId], handle: (_window, id: AgentId) => actions.agents.connect(id) },
+    'agents:disconnect': { args: [agentId], handle: (_window, id: AgentId) => actions.agents.disconnect(id) },
+    'onboarding:state': { args: [], handle: () => actions.agents.onboarding() },
+    'onboarding:finish': { args: [], handle: () => actions.agents.finishOnboarding() },
   };
 }
 
@@ -437,7 +449,7 @@ function trustedSender(event: IpcMainInvokeEvent, manager: WindowManager): Atlas
   return expected !== null && originOf(frame.url) === expected ? window : null;
 }
 
-export function registerIpc(manager: WindowManager, actions: { openLogs(): void; about(): AboutInfo }) {
+export function registerIpc(manager: WindowManager, actions: IpcActions) {
   const table = channels(manager, actions);
   for (const name of invokeChannels) {
     const channel = table[name];
