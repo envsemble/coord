@@ -1,9 +1,11 @@
 // The launchers the agent folder writes, run as a shell runs them, with Node standing in for the
-// app's executable (it runs the script whatever ELECTRON_RUN_AS_NODE says).
+// app's executable (it runs the script whatever ELECTRON_RUN_AS_NODE says); and the command the
+// packaged app carries, assembled as packaging assembles it.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { cpSync, mkdtempSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { installAgentFolder } from './agentFolder.ts';
@@ -32,4 +34,18 @@ test('the launcher passes arguments, input, output and the exit status through, 
     assert.equal(sh.status, 3, sh.stderr);
     assert.deepEqual(JSON.parse(sh.stdout), { args, input: '{"x":1}', mode: '1' });
   }
+});
+
+test('the command the app carries exports a plan with its diagrams drawn', async () => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'atlas-payload-'));
+  const repository = path.resolve(import.meta.dirname, '../../..');
+  const { assemble } = createRequire(import.meta.url)('../../scripts/agent-payload.cjs') as { assemble: (repository: string, destination: string, version: string) => unknown };
+  assemble(repository, path.join(directory, 'agent'), '1.0.0');
+  const planning = path.join(directory, 'planning');
+  cpSync(path.join(repository, 'app', 'e2e', 'fixtures', 'planning'), planning, { recursive: true });
+  const result = spawnSync(process.execPath, [path.join(directory, 'agent', 'command', 'bin', 'atlas.js'), 'plan', 'export', 'work-0002', '--planning-dir', planning, '--out', path.join(directory, 'plan.html')], { encoding: 'utf8', cwd: directory });
+  assert.equal(result.status, 0, result.stderr);
+  // A diagram the command cannot draw (React missing, say) is still exported, with a warning.
+  assert.doesNotMatch(result.stderr, /cannot be drawn/);
+  assert.match(result.stdout, /Exported work-0002/);
 });

@@ -21,6 +21,9 @@ const diagramFiles = relative => !/^(?:development|downloads|scripts|examples|te
  */
 const dependencyFiles = relative => !/\.d\.[cm]?ts$|(?:^|\/)(?:readme|changelog|history)(?:\.\w+)?$/i.test(relative);
 
+/** Peers of the diagram package that only its standalone viewer loads. */
+const viewerOnly = new Set(['@envsemble/envui']);
+
 /**
  * The installed packages the command can load, by walking the lockfile from @envsemble/atlas: each
  * one's location in the repository, and where it goes under the command's folder.
@@ -50,9 +53,11 @@ function dependencies(repository) {
     if (entry.link) linked.set(real, location);
     found.set(location, real);
     const target = lock[real] ?? {};
-    // Peers a package needs (the MCP SDK's zod) are installed beside it; optional ones are not, nor
-    // the diagram package's, which only its React viewer uses.
-    const peers = real.startsWith('packages/') ? [] : Object.keys(target.peerDependencies ?? {}).filter(name => !target.peerDependenciesMeta?.[name]?.optional);
+    // Peers a package needs are installed beside it: the MCP SDK's zod, and the diagram package's
+    // React, which draws each diagram's SVG (lib/render/renderSVG.cjs). Optional ones are not, nor
+    // envUI, which only the diagram package's standalone viewer bundles (buildViewer's bundleClient,
+    // which the command never calls).
+    const peers = Object.keys(target.peerDependencies ?? {}).filter(name => !target.peerDependenciesMeta?.[name]?.optional && !viewerOnly.has(name));
     for (const name of [...Object.keys({ ...target.dependencies, ...target.optionalDependencies }), ...peers]) {
       const next = resolve(real, name);
       if (next) visit(next);
@@ -73,7 +78,10 @@ function dependencies(repository) {
   return placed;
 }
 
-/** Copy the files of `from` that `filter` accepts (never a nested node_modules or source maps), sorted, adding each to the hash. */
+/**
+ * Copy the files of `from` that `filter` accepts (never a nested node_modules or source maps), sorted,
+ * adding each to the hash. Modes are kept: esbuild's binary must stay executable on Linux.
+ */
 function copy(from, to, filter, hash, relative = '') {
   let files = 0, bytes = 0;
   for (const entry of fs.readdirSync(path.join(from, relative), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) {
@@ -86,6 +94,7 @@ function copy(from, to, filter, hash, relative = '') {
       const content = fs.readFileSync(path.join(from, name));
       fs.mkdirSync(path.dirname(path.join(to, name)), { recursive: true });
       fs.writeFileSync(path.join(to, name), content);
+      fs.chmodSync(path.join(to, name), fs.statSync(path.join(from, name)).mode & 0o777);
       hash.update(path.relative(hash.base, path.join(to, name)).split(path.sep).join('/') + '\0').update(content);
       files++; bytes += content.length;
     }
