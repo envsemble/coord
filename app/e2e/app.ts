@@ -93,6 +93,10 @@ export function environment(dataDirectory: string) {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) if (value !== undefined && key !== 'ELECTRON_RUN_AS_NODE') env[key] = value;
   env.ATLAS_HOME = dataDirectory;
+  // The agents the app lists (claude and codex plugin list) read configurations of the test's own.
+  env.CLAUDE_CONFIG_DIR = path.join(dataDirectory, 'claude');
+  env.CODEX_HOME = path.join(dataDirectory, 'codex');
+  for (const folder of [env.CLAUDE_CONFIG_DIR, env.CODEX_HOME]) mkdirSync(folder, { recursive: true });
   // The AppImage extracts itself instead of mounting through FUSE (not available on CI runners).
   env.APPIMAGE_EXTRACT_AND_RUN = '1';
   return env;

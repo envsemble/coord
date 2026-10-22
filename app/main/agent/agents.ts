@@ -1,9 +1,10 @@
 // The agents on this computer for the Settings page and the onboarding: Claude Code and Codex, each
 // found or not, connected or not, through the agent's own commands (packages/atlas/src/agents, as
 // `atlas setup`). At each launch the packaged app first brings the agent folder in the Atlas home up
-// to date (agentFolder.ts), puts its bin/ on the PATH the first time (userPath.ts), and after an
-// update refreshes the agents connected to it. In development the app carries no agent folder:
-// agents connect to this checkout, as `atlas setup` does, and the PATH is left alone.
+// to date (agentFolder.ts), and on the user's own home puts its bin/ on the PATH the first time
+// (userPath.ts) and after an update refreshes the agents connected to it. In development the app
+// carries no agent folder: agents connect to this checkout, as `atlas setup` does, and the PATH is
+// left alone.
 import { readFileSync } from 'node:fs';
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -22,8 +23,12 @@ export interface AgentsOptions {
   checkout: string;
   /** What the launchers run: the app's executable, or the AppImage. */
   executable: string;
-  /** Whether to put the command on the PATH: only for the installed app on the user's own home. */
-  managePath: boolean;
+  /**
+   * Whether this is the installed app on the user's own home. Only then does it put the command on
+   * the PATH and refresh the connected agents after an update: a home chosen with ATLAS_HOME (tests,
+   * a separate instance) leaves the user's `atlas` and agents alone.
+   */
+  ownHome: boolean;
   log: RotatingLog;
 }
 
@@ -49,14 +54,14 @@ export class Agents {
   }
 
   private async prepare() {
-    const { bundle: from, executable, managePath, log } = this.options;
+    const { bundle: from, executable, ownHome, log } = this.options;
     if (!from) return;
     const bundle = readBundle(from);
     const started = performance.now();
     const { copied, state } = await installAgentFolder(bundle, this.folder, executable);
     if (copied) log.info('Agent folder updated', { build: bundle.build, folder: this.folder, ms: Math.round(performance.now() - started) });
-    if (managePath && !state.onPath) await this.putOnPath(state);
-    if (!copied) return;
+    if (ownHome && !state.onPath) await this.putOnPath(state);
+    if (!copied || !ownHome) return;
     // An update: the agents connected to this folder get the new plugin.
     await Promise.all(harnesses.map(item => this.serial(item.id, async () => {
       try {
