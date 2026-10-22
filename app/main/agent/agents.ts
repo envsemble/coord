@@ -106,7 +106,8 @@ export class Agents {
   private async state(id: AgentId): Promise<AgentState> {
     const item = harness(id);
     try {
-      const { found, connected, version } = await agentStatus(item, this.directory, await this.environment(item.program));
+      // The marketplace's name, from what the app carries, so that the list does not wait for the copy.
+      const { found, connected, version } = await agentStatus(item, this.options.bundle ?? this.options.checkout, await this.environment(item.program));
       return { id, found, connected, version };
     } catch (error) {
       this.options.log.warn('An agent\'s state could not be read', { agent: id, error: (error as Error).message });

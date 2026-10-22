@@ -26,3 +26,4 @@ if ($key) {
   $key.Close()
 }
 Remove-Item -LiteralPath (Join-Path $agent 'state.json'), (Join-Path $agent 'onboarding.json') -Force -ErrorAction SilentlyContinue
+exit 0
