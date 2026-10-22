@@ -93,6 +93,9 @@ test('the copy of the plugin runs the command by its full path, in the form each
   // Codex: the launcher, whose path stays from one update to the next, for cmd.exe.
   assert.equal(stop('hooks/codex.json')[0].command, `"${paths.cmd}" hook Stop`);
   assert.deepEqual(read('.mcp.json').mcpServers.atlas, { command: paths.node, args: [paths.script, 'mcp'] });
+  // Codex keeps a copy, which a failed refresh would leave naming a build since removed: its own file runs the launcher.
+  assert.equal(read('.codex-plugin/plugin.json').mcpServers, './.codex-mcp.json');
+  assert.deepEqual(read('.codex-mcp.json').mcpServers.atlas, { command: paths.cmd, args: ['mcp'] });
 
   copy();
   await pointPluginAtCommand(plugin, '/home/o\'neil/.atlas/agent', '1.0.0-a', 'linux');
@@ -100,6 +103,7 @@ test('the copy of the plugin runs the command by its full path, in the form each
   assert.equal(stop('hooks/hooks.json')[0].command, sh + ' hook Stop');
   assert.equal(stop('hooks/codex.json')[0].command, sh + ' hook Stop');
   assert.deepEqual(read('.mcp.json').mcpServers.atlas, { command: '/home/o\'neil/.atlas/agent/bin/atlas', args: ['mcp'] });
+  assert.deepEqual(read('.codex-mcp.json').mcpServers.atlas, { command: '/home/o\'neil/.atlas/agent/bin/atlas', args: ['mcp'] });
 });
 
 test('a connected agent is ready once its hooks ran since it was connected; untrusted hooks and tools used without hooks warn', () => {

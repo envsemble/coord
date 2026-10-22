@@ -36,10 +36,11 @@ test('the launcher passes arguments, input, output and the exit status through, 
 
   // The copy's SessionStart hooks and MCP server, as each agent runs them: Claude Code's hooks in sh
   // (on Windows without a shell, as a program and its arguments), Codex's with cmd.exe /C on Windows
-  // (the command line in quotes, as Codex passes it) and $SHELL -lc elsewhere; MCP servers as programs.
+  // (the command line in quotes, as Codex passes it) and $SHELL -lc elsewhere; MCP servers as programs,
+  // Codex's its own copy, the launcher.
   const read = (file: string) => JSON.parse(readFileSync(path.join(folder, 'plugin', file), 'utf8'));
   const claude = read('hooks/hooks.json').hooks.SessionStart[0].hooks[0], codex = read('hooks/codex.json').hooks.SessionStart[0].hooks[0];
-  const mcp = read('.mcp.json').mcpServers.atlas;
+  const mcp = read('.mcp.json').mcpServers.atlas, codexMcp = read('.codex-mcp.json').mcpServers.atlas;
   const ran = (child: ReturnType<typeof spawnSync>, expected: string[]) => {
     assert.equal(child.status, 3, String(child.stderr));
     assert.deepEqual(JSON.parse(String(child.stdout)), { args: expected, input: '{"x":1}' });
@@ -53,6 +54,10 @@ test('the launcher passes arguments, input, output and the exit status through, 
     ran(spawnSync(process.env.SHELL || '/bin/sh', ['-lc', codex.command], options), ['hook', 'SessionStart']);
   }
   ran(spawnSync(mcp.command, mcp.args, options), ['mcp']);
+  // Codex starts its server, the launcher, as a program: on Windows a .cmd, which runs in cmd.exe.
+  ran(process.platform === 'win32'
+    ? spawnSync(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', `""${codexMcp.command}" ${codexMcp.args.join(' ')}"`], { ...options, windowsVerbatimArguments: true })
+    : spawnSync(codexMcp.command, codexMcp.args, options), ['mcp']);
   if (process.platform !== 'win32') {
     // On Linux the PATH reaches the launcher through a link in ~/.local/bin.
     const link = path.join(directory, 'local-bin', 'atlas');

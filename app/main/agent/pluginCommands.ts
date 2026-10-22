@@ -10,8 +10,12 @@
 // - Codex runs a hook's command with cmd.exe /C on Windows and $SHELL -lc elsewhere, and asks the
 //   person to trust each hook again when its command changes: its hooks run the launcher, whose path
 //   stays the same from one update to the next (bin/atlas.cmd on Windows, bin/atlas elsewhere).
-// - Both start the MCP server as a program with its arguments, without a shell: the build's Node.js
-//   on the command on Windows (an .exe, which every runtime starts), bin/atlas elsewhere.
+// - Both start the MCP server as a program with its arguments, without a shell. Claude Code reads
+//   the folder in place, so its server can be the build's Node.js on the command on Windows (an .exe,
+//   which every runtime starts), bin/atlas elsewhere. Codex keeps a copy of the plugin, which a
+//   failed refresh after an update would leave naming a build since removed, so its server is the
+//   launcher too: Codex starts a .cmd as an MCP server (codex-rs/rmcp-client resolves the program
+//   with its extension and starts it). Where the two share one file, Codex gets its own.
 //
 // Only commands that run `atlas` with plain words are rewritten; anything else is left as written.
 import { existsSync, readFileSync } from 'node:fs';
@@ -41,7 +45,11 @@ function claudeHook(hook: Hook, words: string[], paths: ReturnType<typeof comman
   if (platform === 'win32') return { ...hook, command: paths.node, args: [paths.script, ...words] };
   return { ...hook, command: [shQuoted(paths.sh), ...words].join(' ') };
 }
-/** A Codex hook that runs `atlas`, as it runs from the agent folder: cmd.exe reads a path in double quotes as it is. */
+/**
+ * A Codex hook that runs `atlas`, as it runs from the agent folder: cmd.exe reads a path in double
+ * quotes as it is. Codex passes the line as `/C "<line>"` (codex-rs/hooks/src/engine/command_runner.rs,
+ * `command.raw_arg(format!(r#""{command_line}""#))`), and cmd.exe takes the outer quotes off.
+ */
 function codexHook(hook: Hook, words: string[], paths: ReturnType<typeof commandPaths>, platform: Platform): Hook {
   return { ...hook, command: [platform === 'win32' ? '"' + paths.cmd + '"' : shQuoted(paths.sh), ...words].join(' ') };
 }
@@ -59,8 +67,15 @@ export function rewriteHooks(file: unknown, rewrite: (hook: Hook, words: string[
   return { ...file as object, hooks: Object.fromEntries(Object.entries(events).map(([event, list]) => [event, groups(list)])) };
 }
 
-/** An MCP configuration (`{ mcpServers: { <name>: { command, args } } }`) with each server that runs `atlas` started from the agent folder. */
-export function rewriteMcp(file: unknown, paths: ReturnType<typeof commandPaths>, platform: Platform): unknown {
+/** How an agent's MCP server runs `atlas <args>` from the agent folder. */
+type McpForm = (args: string[]) => { command: string; args: string[] };
+/** Claude Code's: the build's Node.js on the command on Windows, the launcher elsewhere. */
+const claudeMcp = (paths: ReturnType<typeof commandPaths>, platform: Platform): McpForm => args => platform === 'win32' ? { command: paths.node, args: [paths.script, ...args] } : { command: paths.sh, args };
+/** Codex's: the launcher, whose path stays the same from one update to the next. */
+const codexMcp = (paths: ReturnType<typeof commandPaths>, platform: Platform): McpForm => args => ({ command: platform === 'win32' ? paths.cmd : paths.sh, args });
+
+/** An MCP configuration (`{ mcpServers: { <name>: { command, args } } }`) with each server that runs `atlas` in the form given. */
+export function rewriteMcp(file: unknown, form: McpForm): unknown {
   const servers = (file as { mcpServers?: unknown } | null)?.mcpServers;
   if (!servers || typeof servers !== 'object') return file;
   return {
@@ -68,7 +83,7 @@ export function rewriteMcp(file: unknown, paths: ReturnType<typeof commandPaths>
     mcpServers: Object.fromEntries(Object.entries(servers).map(([name, server]: [string, Hook]) => {
       const args = Array.isArray(server?.args) && server.args.every(item => typeof item === 'string') ? server.args as string[] : null;
       if (server?.command !== 'atlas' || !args) return [name, server];
-      return [name, platform === 'win32' ? { ...server, command: paths.node, args: [paths.script, ...args] } : { ...server, command: paths.sh, args }];
+      return [name, { ...server, ...form(args) }];
     })),
   };
 }
@@ -85,24 +100,31 @@ const readJson = (file: string): Record<string, unknown> | null => { try { retur
 /**
  * Point the hooks and the MCP server of the plugin copied to `plugin` at the agent folder's command
  * (`folder`, build `build`). Claude Code's are the files its manifest names, else hooks/hooks.json
- * and .mcp.json; Codex's are the ones its manifest names.
+ * and .mcp.json; Codex's are the ones its manifest names. An MCP file both use stays Claude Code's,
+ * and Codex's manifest names a copy of it in Codex's form, .codex-mcp.json.
  */
 export async function pointPluginAtCommand(plugin: string, folder: string, build: string, platform: Platform = process.platform) {
   const paths = commandPaths(folder, build, platform);
-  const claude = readJson(path.join(plugin, '.claude-plugin', 'plugin.json')) ?? {}, codex = readJson(path.join(plugin, '.codex-plugin', 'plugin.json')) ?? {};
+  const codexManifest = path.join(plugin, '.codex-plugin', 'plugin.json');
+  const claude = readJson(path.join(plugin, '.claude-plugin', 'plugin.json')) ?? {}, codex = readJson(codexManifest) ?? {};
   const codexHooks = named(plugin, codex.hooks);
   const hookFiles = new Map<string, 'claude' | 'codex'>();
   hookFiles.set(named(plugin, claude.hooks) ?? path.join(plugin, 'hooks', 'hooks.json'), 'claude');
   // A file both name is Codex's: its hooks keep one command from one update to the next.
   if (codexHooks) hookFiles.set(codexHooks, 'codex');
-  const mcpFiles = new Set([named(plugin, claude.mcpServers) ?? path.join(plugin, '.mcp.json'), named(plugin, codex.mcpServers)].filter((file): file is string => file !== null));
   const write = (file: string, value: unknown) => writeFile(file, JSON.stringify(value, null, 2) + '\n');
+  const read = (file: string) => existsSync(file) ? readJson(file) : null;
   for (const [file, agent] of hookFiles) {
-    const read = existsSync(file) ? readJson(file) : null;
-    if (read) await write(file, rewriteHooks(read, (hook, words) => (agent === 'claude' ? claudeHook : codexHook)(hook, words, paths, platform)));
+    const hooks = read(file);
+    if (hooks) await write(file, rewriteHooks(hooks, (hook, words) => (agent === 'claude' ? claudeHook : codexHook)(hook, words, paths, platform)));
   }
-  for (const file of mcpFiles) {
-    const read = existsSync(file) ? readJson(file) : null;
-    if (read) await write(file, rewriteMcp(read, paths, platform));
+  const claudeFile = named(plugin, claude.mcpServers) ?? path.join(plugin, '.mcp.json');
+  let codexFile = named(plugin, codex.mcpServers);
+  const claudeServers = read(claudeFile), codexServers = codexFile ? read(codexFile) : null;
+  if (codexFile === claudeFile && codexServers) {
+    codexFile = path.join(plugin, '.codex-mcp.json');
+    await write(codexManifest, { ...codex, mcpServers: './.codex-mcp.json' });
   }
+  if (claudeServers) await write(claudeFile, rewriteMcp(claudeServers, claudeMcp(paths, platform)));
+  if (codexFile && codexServers) await write(codexFile, rewriteMcp(codexServers, codexMcp(paths, platform)));
 }
