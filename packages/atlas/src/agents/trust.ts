@@ -7,8 +7,8 @@
 // keyed by the plugin, the hooks file in it, the event and the hook's place among the event's groups
 // and their hooks (codex-rs hooks: hook_key, plugin_hook_key_source). This is not a documented
 // format, so it is read cautiously: an entry per hook is looked for, Codex's hash is never computed
-// again (a stale one counts as trusted; the hooks' activity shows that case), and a file without a
-// hooks.state table, or with keys of another shape, says nothing ('unknown').
+// again (a stale one counts as trusted; the hooks' activity shows that case), only the plugin's own
+// entries are read, and a file without them, or with one of another shape, says nothing ('unknown').
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { tomlStringAt, tomlStructure } from './grants.ts';
@@ -24,8 +24,6 @@ const codexEvents: Record<string, string> = {
   PreModelRequest: 'pre_model_request', PostModelRequest: 'post_model_request', SessionStart: 'session_start', SessionEnd: 'session_end', UserPromptSubmit: 'user_prompt_submit',
   SubagentStart: 'subagent_start', SubagentStop: 'subagent_stop', Stop: 'stop', Interrupt: 'interrupt',
 };
-/** A trust key: where the hooks are declared, the event, and the hook's group and place in it. */
-const keyShape = /^.+:[a-z]+(?:_[a-z]+)*:\d+:\d+$/;
 
 /** The trust keys of the command hooks in a plugin's hooks file (`file`, relative to the plugin, with forward slashes), for the plugin `plugin@marketplace`. */
 export function codexHookKeys(plugin: string, file: string, hooks: unknown): string[] {
@@ -39,8 +37,13 @@ export function codexHookKeys(plugin: string, file: string, hooks: unknown): str
   });
 }
 
-/** Whether a config.toml's text has each of `keys` trusted (with a trusted_hash, and not turned off). */
-export function codexHookTrust(config: string | null, keys: string[]): HookTrust {
+/**
+ * Whether a config.toml's text has each of `keys` (the plugin `plugin`'s) trusted, with a
+ * trusted_hash and not turned off. Only the plugin's own entries are read, and each must be one for
+ * an event of its hooks, in any of its hooks files (an earlier version's named hooks/hooks.json);
+ * one of another shape, or none at all, says nothing.
+ */
+export function codexHookTrust(config: string | null, plugin: string, keys: string[]): HookTrust {
   if (config === null || !keys.length) return 'unknown';
   let structure: ReturnType<typeof tomlStructure>;
   try { structure = tomlStructure(config); } catch { return 'unknown'; }
@@ -62,7 +65,11 @@ export function codexHookTrust(config: string | null, keys: string[]): HookTrust
       try { entry(full[2]).trusted = tomlStringAt(config, key.value).value.length > 0; } catch { return 'unknown'; }
     } else if (full[3] === 'enabled' && /^false\b/.test(value)) entry(full[2]).off = true;
   }
-  if (!entries.size || [...entries.keys()].some(key => !keyShape.test(key))) return 'unknown';
+  // <plugin>:<hooks file>:<event>:<group>:<hook>, its event one of the plugin's.
+  const labels = new Set(keys.map(key => key.split(':').at(-3)));
+  const ours = [...entries.keys()].filter(key => key.startsWith(plugin + ':')).map(key => key.slice(plugin.length + 1).split(':'));
+  const recognised = (parts: string[]) => parts.length >= 4 && labels.has(parts.at(-3)) && /^\d+$/.test(parts.at(-2)!) && /^\d+$/.test(parts.at(-1)!);
+  if (!ours.length || !ours.every(recognised)) return 'unknown';
   return keys.every(key => { const found = entries.get(key); return found?.trusted && !found.off; }) ? 'trusted' : 'untrusted';
 }
 
@@ -87,6 +94,6 @@ export function codexTrust(directory: string, codexHome: string): HookTrust {
     const keys = codexHookKeys(`${manifest.name}@${marketplace}`, file, JSON.parse(readFileSync(path.join(plugin, ...file.split('/')), 'utf8')));
     let config: string | null;
     try { config = readFileSync(path.join(codexHome, 'config.toml'), 'utf8'); } catch { config = null; }
-    return codexHookTrust(config, keys);
+    return codexHookTrust(config, `${manifest.name}@${marketplace}`, keys);
   } catch { return 'unknown'; }
 }
