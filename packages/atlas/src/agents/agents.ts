@@ -106,10 +106,20 @@ export function marketplaceName(directory: string) {
   return (JSON.parse(readFileSync(path.join(directory, '.claude-plugin', 'marketplace.json'), 'utf8')) as { name: string }).name;
 }
 
+/**
+ * A variable of an environment by its name in any case, as Windows reads them: a copy of the
+ * environment (a plain object) keeps the case it came with, and Explorer starts programs with `path`.
+ */
+export function variable(environment: NodeJS.ProcessEnv, name: string): string | undefined {
+  if (environment[name] !== undefined || process.platform !== 'win32') return environment[name];
+  const key = Object.keys(environment).find(key => key.toUpperCase() === name);
+  return key === undefined ? undefined : environment[key];
+}
+
 /** A program on PATH, as Windows finds it too (atlas.cmd, claude.exe). */
 export function onPath(name: string, environment: NodeJS.ProcessEnv): string | null {
-  const extensions = process.platform === 'win32' ? (environment.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean) : [''];
-  for (const folder of (environment.PATH ?? environment.Path ?? '').split(path.delimiter).filter(Boolean)) {
+  const extensions = process.platform === 'win32' ? (variable(environment, 'PATHEXT') || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean) : [''];
+  for (const folder of (variable(environment, 'PATH') ?? '').split(path.delimiter).filter(Boolean)) {
     for (const extension of extensions) {
       const candidate = path.join(folder, name + extension.toLowerCase());
       if (statSync(candidate, { throwIfNoEntry: false })?.isFile()) return candidate;
