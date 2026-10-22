@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { withDatabase } from '../../home/database.ts';
 import { readActivity } from '../../agents/activity.ts';
@@ -38,6 +38,12 @@ test('a hook process given bad input exits 0 and prints nothing; a session start
   assert.equal(atlas(['hook', 'SessionStart'], { env, input: JSON.stringify({ session_id: session, cwd: checkout, transcript_path: transcript }) }).status, 0);
   assert.match(readActivity(env.ATLAS_HOME!, 'codex', 'hooks') ?? '', /^\d{4}-/);
   assert.equal(readActivity(env.ATLAS_HOME!, 'claude', 'hooks'), null);
+  // A hook that cannot be told notes nothing; a Codex prompt without a log still has its turn_id.
+  rmSync(path.join(env.ATLAS_HOME!, 'agent', 'activity'), { recursive: true, force: true });
+  atlas(['hook', 'UserPromptSubmit'], { env, input: JSON.stringify({ session_id: session, transcript_path: null }) });
+  assert.deepEqual([readActivity(env.ATLAS_HOME!, 'codex', 'hooks'), readActivity(env.ATLAS_HOME!, 'claude', 'hooks')], [null, null]);
+  atlas(['hook', 'UserPromptSubmit'], { env, input: JSON.stringify({ session_id: session, transcript_path: null, turn_id: 'turn-1' }) });
+  assert.match(readActivity(env.ATLAS_HOME!, 'codex', 'hooks') ?? '', /^\d{4}-/);
 });
 
 test('a PostToolUse with nothing to do is answered before the hook loads; one that edits a planning file is not', t => {

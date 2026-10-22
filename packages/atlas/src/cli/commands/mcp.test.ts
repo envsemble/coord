@@ -6,7 +6,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { withDatabase } from '../../home/database.ts';
 import { createMcpServer } from './mcp.ts';
-import { readActivity } from '../../agents/activity.ts';
+import { agentOfClient, readActivity } from '../../agents/activity.ts';
 import { homeWithPlanning, run, within } from '../testing.ts';
 
 interface Result { content?: { text: string }[]; structuredContent?: Record<string, unknown>; isError?: boolean }
@@ -32,6 +32,8 @@ test('the MCP server serves the planning-state tools, resolving the planning fol
       const where = await call('where', {});
       assert.match(readActivity(home, 'claude', 'mcp') ?? '', /^\d{4}-/);
       assert.equal(readActivity(home, 'codex', 'mcp'), null);
+      // Only Claude Code's and Codex's own clients count: Claude Desktop's (claude-ai) does not.
+      assert.deepEqual(['claude-code', 'codex-mcp-client', 'claude-ai', 'codex'].map(agentOfClient), ['claude', 'codex', null, null]);
       assert.equal((where.structuredContent as { matches: { planningFolder: string }[] }).matches[0].planningFolder, root);
       const status = await call('work_status', { work: 'work-0001' });
       assert.equal(status.isError, undefined);

@@ -5,7 +5,7 @@
 // nothing in the home database, so a hook notes it without opening the database.
 //
 // Only types come from agents.ts: the MCP server and the hooks load this file.
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { AgentId } from './agents.ts';
 
@@ -25,19 +25,25 @@ export const harnessOfTranscript = (transcriptPath: string | null) => transcript
 /** The agent of a harness as the home database names it. */
 export const agentOfHarness = (harness: string): AgentId | null => harness === 'codex' ? 'codex' : harness === 'claude-code' ? 'claude' : null;
 
-/** The agent an MCP client is, by the name it gave (Claude Code's `claude-code`, Codex's `codex-mcp-client`). */
+/**
+ * The agent an MCP client is, by the exact name it gives: Claude Code's `claude-code`, Codex's
+ * `codex-mcp-client`. Any other client (Claude Desktop's `claude-ai`, another app) is neither.
+ */
 export function agentOfClient(name: unknown): AgentId | null {
-  if (typeof name !== 'string') return null;
-  return /codex/i.test(name) ? 'codex' : /claude/i.test(name) ? 'claude' : null;
+  return name === 'claude-code' ? 'claude' : name === 'codex-mcp-client' ? 'codex' : null;
 }
 
-/** Note that Atlas ran in the agent now. Best effort: a failure only leaves the check to the next one. */
+/**
+ * Note that Atlas ran in the agent now, written whole (a temporary file renamed into place), so a
+ * reader never sees half of it. Best effort: a failure only leaves the check to the next one.
+ */
 export function noteActivity(home: string, agent: AgentId, source: ActivitySource, at = new Date().toISOString()) {
+  const file = activityFile(home, agent, source), temporary = file + '.' + process.pid + '.tmp';
   try {
-    const file = activityFile(home, agent, source);
     mkdirSync(path.dirname(file), { recursive: true });
-    writeFileSync(file, at);
-  } catch { /* Best effort. */ }
+    writeFileSync(temporary, at);
+    renameSync(temporary, file);
+  } catch { rmSync(temporary, { force: true }); }
 }
 
 /** When Atlas last ran in the agent, as it was noted; null when it never was (or the note cannot be read). */
