@@ -37,6 +37,7 @@ export class Agents {
   private ready: Promise<void> = Promise.resolve();
   /** Each agent's commands run one after another, so two windows never change one agent at once. */
   private queues = new Map<AgentId, Promise<unknown>>();
+  private listing: Promise<AgentState[]> | null = null;
   private readonly options: AgentsOptions;
 
   constructor(options: AgentsOptions) {
@@ -47,7 +48,7 @@ export class Agents {
   /** The marketplace folder agents are connected to. */
   get directory() { return this.options.bundle ? this.folder : this.options.checkout; }
 
-  /** Bring the agent folder up to date; connecting waits for it. Failures are logged, never thrown. */
+  /** Bring the agent folder up to date; connecting and disconnecting wait for it. Failures are logged, never thrown. */
   start() {
     this.ready = this.prepare().catch(error => { this.options.log.error('The agent folder could not be prepared', error); });
     return this.ready;
@@ -124,15 +125,18 @@ export class Agents {
     }
   }
 
-  /** Claude Code and Codex, checked now (about a second: each lists its plugins). */
+  /**
+   * Claude Code and Codex, checked now (about a second: each lists its plugins). Windows asking
+   * meanwhile (each checks as it comes forward) share the check on its way.
+   */
   list(): Promise<AgentState[]> {
-    return Promise.all(harnesses.map(item => this.state(item.id)));
+    this.listing ??= Promise.all(harnesses.map(item => this.state(item.id))).finally(() => { this.listing = null; });
+    return this.listing;
   }
 
   /** Grant the agent the Atlas home and install the plugin; the error says what failed, as the agent said it. */
   connect(id: AgentId): Promise<AgentChange> {
     return this.change(id, 'connect', async environment => {
-      await this.ready;
       const { grantError } = await connectAgent(harness(id), this.directory, this.options.home, environment);
       return grantError;
     });
@@ -143,7 +147,12 @@ export class Agents {
     return this.change(id, 'disconnect', async environment => { await disconnectAgent(harness(id), this.directory, environment); return null; });
   }
 
-  private change(id: AgentId, action: string, run: (environment: NodeJS.ProcessEnv) => Promise<string | null>): Promise<AgentChange> {
+  /**
+   * Connecting and disconnecting wait for the agent folder (its first copy, and the refresh after an
+   * update), outside the agent's queue, which that refresh takes its turn in.
+   */
+  private async change(id: AgentId, action: string, run: (environment: NodeJS.ProcessEnv) => Promise<string | null>): Promise<AgentChange> {
+    await this.ready;
     return this.serial(id, async () => {
       let error: string | null;
       try { error = await run(await this.environment(harness(id).program)); } catch (failure) {
