@@ -15,7 +15,7 @@ codex plugin marketplace add <checkout>
 codex plugin add atlas@atlas
 ```
 
-The plugin calls `atlas` from the PATH, so [install the command](command.md#install) first (the app does). Start a new session after installing. Claude Code reads the plugin from its marketplace folder in place; Codex installs a copy, which `codex plugin add atlas@atlas` (or `atlas setup`) refreshes after the folder changes. Codex asks once to trust the plugin's hooks: type `/hooks` in a new session.
+The plugin calls `atlas` from the PATH, so [install the command](command.md#install) first. The app's copy calls the command in `agent/` by its full path instead, rewritten as it is copied, in the form each harness runs it: Claude Code's hooks and the MCP server run `bin/atlas` (on Windows, the Node.js the app ships running the command, in exec form, since Claude Code runs hooks in Git Bash or PowerShell), and Codex's hooks run `bin/atlas` (`bin\atlas.cmd` with `cmd.exe /C` on Windows), whose path stays the same across updates. Start a new session after installing. Claude Code reads the plugin from its marketplace folder in place; Codex installs a copy, which `codex plugin add atlas@atlas` (or `atlas setup`) refreshes after the folder changes. Codex asks once to trust the plugin's hooks: type `/hooks` in a new session. It records that in its `config.toml` (`[hooks.state."atlas@atlas:hooks/codex.json:<event>:<group>:<hook>"]` with `trusted_hash`), and asks again when a hook's command changes; the app reads those entries (never Codex's hash) to warn in Settings › Agents, and otherwise tells from activity: the hooks note in `agent/activity/` of the Atlas home when a session starts and at each prompt, and the MCP server when a session first uses its tools.
 
 ### Skills
 

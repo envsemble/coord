@@ -5,8 +5,11 @@
 **The installer is all you need**
 
 - **The app carries the `atlas` command and the Atlas plugin.** It copies them to `agent/` in the Atlas home, and on its first start puts the command on your PATH (the user `Path` on Windows, `~/.local/bin` on Linux), where it runs on a Node.js the app ships with it: no clone, Node.js or `atlas setup` is needed. The Windows uninstaller takes it off the PATH and disconnects the agents.
-- **Onboarding:** Atlas starts with a short flow until it is finished or skipped: what Atlas is, the agents on this computer (Claude Code and Codex), connecting them, and how to start ("What is Atlas and how do I use it?").
+- **Onboarding:** Atlas starts with a short flow until it is finished: what Atlas is, the agents on this computer (Claude Code and Codex), connecting them (or none), and how to start ("What is Atlas and how do I use it?").
 - **Settings** (File › Settings…, Ctrl+,): **Agents** connects and disconnects Claude Code and Codex and shows the plugin version each has; **Computers** holds both ways of pairing, the computers this one is paired with and the devices that can reach it. Updates refresh the plugin in the connected agents.
+- **Agents are found as programs**, on the PATH as a terminal has it (read again at start, however Atlas was started), or through **Choose program…** for one Atlas does not find. **Connect by hand** lists the commands to copy.
+- **The app's plugin calls the command by its full path**, so it works at once, in agents started before the PATH changed too. Codex asks to trust its hooks again once.
+- **Atlas checks the connected agents:** **Ready** after a session ran Atlas's hooks, **Waiting for a first session**, or a warning, in Settings, on the onboarding's last step and on the hub, when Codex does not trust Atlas's hooks or a session used Atlas's tools without its hooks running.
 - **The computer menu** only switches computers, with **Computer settings…**; pairing and remote access moved to Settings.
 - `atlas setup` shares its code with the app's Agents; it behaves as before.
 
