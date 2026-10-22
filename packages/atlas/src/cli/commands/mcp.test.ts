@@ -6,6 +6,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { withDatabase } from '../../home/database.ts';
 import { createMcpServer } from './mcp.ts';
+import { readActivity } from '../../agents/activity.ts';
 import { homeWithPlanning, run, within } from '../testing.ts';
 
 interface Result { content?: { text: string }[]; structuredContent?: Record<string, unknown>; isError?: boolean }
@@ -17,7 +18,8 @@ test('the MCP server serves the planning-state tools, resolving the planning fol
     const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
     const server = createMcpServer();
     await server.connect(serverSide);
-    const client = new Client({ name: 'atlas-cli-test', version: '1' });
+    // Named as Claude Code names its client: the first tool call notes that Claude Code uses the tools.
+    const client = new Client({ name: 'claude-code', version: '1' });
     await client.connect(clientSide);
     try {
       assert.match(client.getInstructions() ?? '', /only through these tools/);
@@ -28,6 +30,8 @@ test('the MCP server serves the planning-state tools, resolving the planning fol
       const call = (name: string, args: object) => client.callTool({ name, arguments: args as Record<string, unknown> }) as Promise<Result>;
       const inRoot = (name: string, args: object) => call(name, { ...args, planningFolder: root });
       const where = await call('where', {});
+      assert.match(readActivity(home, 'claude', 'mcp') ?? '', /^\d{4}-/);
+      assert.equal(readActivity(home, 'codex', 'mcp'), null);
       assert.equal((where.structuredContent as { matches: { planningFolder: string }[] }).matches[0].planningFolder, root);
       const status = await call('work_status', { work: 'work-0001' });
       assert.equal(status.isError, undefined);

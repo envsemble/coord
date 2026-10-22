@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { withDatabase } from '../../home/database.ts';
+import { readActivity } from '../../agents/activity.ts';
 import { atlas, command, environment, homeWithPlanning, temporary, write } from '../testing.ts';
 
 const session = '0b6c3c9e-5a1f-4d2b-9a7e-1f2e3d4c5b6a';
@@ -29,9 +30,14 @@ test('hooks of one session running at once keep each other\'s links', async t =>
   assert.deepEqual(recorded(), [1, 'working']);
 });
 
-test('a hook process given bad input exits 0 and prints nothing', t => {
-  const { env } = homeWithPlanning(t);
+test('a hook process given bad input exits 0 and prints nothing; a session starting notes the agent its hooks ran in', t => {
+  const { env, checkout } = homeWithPlanning(t);
   assert.deepEqual(Object.values(atlas(['hook', 'SessionStart'], { env, input: 'not json' })), [0, '', '']);
+  // Codex's session log, under a CODEX_HOME of its own.
+  const transcript = path.join(checkout, 'codex-home', 'sessions', '2026', '10', '22', 'rollout-2026-10-22T10-00-00-' + session + '.jsonl');
+  assert.equal(atlas(['hook', 'SessionStart'], { env, input: JSON.stringify({ session_id: session, cwd: checkout, transcript_path: transcript }) }).status, 0);
+  assert.match(readActivity(env.ATLAS_HOME!, 'codex', 'hooks') ?? '', /^\d{4}-/);
+  assert.equal(readActivity(env.ATLAS_HOME!, 'claude', 'hooks'), null);
 });
 
 test('a PostToolUse with nothing to do is answered before the hook loads; one that edits a planning file is not', t => {

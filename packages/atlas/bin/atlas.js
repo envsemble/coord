@@ -6,7 +6,7 @@
 // it is answered here before any TypeScript loads, and otherwise only that file loads. So is a
 // PostToolUse with nothing to do: no Atlas tool that changes a work item, and no file edited in the
 // home's planning folder. Every other hook loads src/cli/commands/hook.ts, not the whole command.
-import { readFileSync, realpathSync, statSync } from "node:fs";
+import { mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 
@@ -89,9 +89,26 @@ function idle(text) {
   } catch { return false; }
 }
 
+/**
+ * Note that Atlas's hooks ran in the session's agent, for the app's check of the connected agents
+ * (src/agents/activity.ts reads it, and tells the agent from the session's log the same way).
+ * @param {string} text
+ */
+function noteHooks(text) {
+  try {
+    const transcript = JSON.parse(text || "{}").transcript_path;
+    if (typeof transcript !== "string") return;
+    const agent = /[\\/]\.codex[\\/]|[\\/]rollout-[^\\/]*\.jsonl$/.test(transcript) ? "codex" : "claude";
+    const folder = path.join(atlasHome(), "agent", "activity");
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(path.join(folder, agent + "-hooks"), new Date(started).toISOString());
+  } catch { /* Best effort: the check waits for the next hook. */ }
+}
+
 if (command === "hook") {
   let text = "";
   if (!process.stdin.isTTY) for await (const chunk of process.stdin) text += chunk;
+  if (event === "SessionStart" || event === "UserPromptSubmit") noteHooks(text);
   if (stateEvents.has(event)) {
     if (!settled(text)) await (await import("../src/cli/commands/sessionState.ts")).stateHook(event, text, started);
   } else if (!(event === "PostToolUse" && idle(text))) {

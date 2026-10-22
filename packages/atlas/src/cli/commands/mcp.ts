@@ -14,6 +14,8 @@ import {
 } from '../../planning/index.ts';
 import type { Whereabouts } from '../../planning/projects/findProject.ts';
 import type { WorkResult } from '../../planning/work/work.ts';
+import { agentOfClient, noteActivity } from '../../agents/activity.ts';
+import { atlasHome } from '../../home/homePath.ts';
 import { parseOptions, UsageError, wantsHelp, type Output } from '../args.ts';
 import { createHomeProject } from './planning.ts';
 
@@ -208,7 +210,17 @@ export async function callTool(name: string, input: Arguments) {
 export function createMcpServer() {
   const server = new Server({ name: 'atlas', version }, { capabilities: { tools: {} }, instructions });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) }));
-  server.setRequestHandler(CallToolRequestSchema, async request => callTool(request.params.name, (request.params.arguments ?? {}) as Arguments) as never);
+  // The first tool call notes which agent uses Atlas's tools (by the name its client gave), once:
+  // the app warns when an agent's sessions use them but its hooks never run.
+  let noted = false;
+  server.setRequestHandler(CallToolRequestSchema, async request => {
+    if (!noted) {
+      noted = true;
+      const agent = agentOfClient(server.getClientVersion()?.name);
+      if (agent) noteActivity(atlasHome(undefined, process.env), agent, 'mcp');
+    }
+    return callTool(request.params.name, (request.params.arguments ?? {}) as Arguments) as never;
+  });
   return server;
 }
 
