@@ -18,7 +18,7 @@ When resuming, read the plan as it is now: a later edit must not silently redefi
 
 ## Work
 
-- **Keep the steps true** with the `step` tool as they move; add a step when agreed scope grows (record the amendment in the plan), remove one only with the user told why. Use `work_block` while genuinely blocked, and keep the `summary` and tags current at milestones.
+- **Keep the steps true** with the `step` tool as they move; add a step when agreed scope grows (record the amendment in the plan), also for work the user asks for after delivery while the work is still open, remove one only with the user told why. A step is a deliverable the size of the others; review findings and small fixes belong to the step they serve. Use `work_block` while genuinely blocked, and keep the `summary` and tags current at milestones.
 - **Follow the agreed design.** Tell the user your concerns and keep going; a material departure needs their agreement first, with the evidence and a proposal.
 - **Test** what changed with the quickest checks likely to catch a mistake; run slow suites at milestones and once before handing off, unless the repository says otherwise.
 - **Commit** in recoverable steps as the repository does, and planning changes separately with pathspecs.
