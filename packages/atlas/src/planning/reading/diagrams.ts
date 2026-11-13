@@ -86,7 +86,7 @@ interface Read { files: DiagramFile[]; oversized: string[]; key: string }
 export class DiagramCatalog {
   private described = new Map<string, DiagramEntry[]>();
   private layouts = new Map<string, Promise<Map<string, ViewerPayload>>>();
-  /** The arrangement saves under way, by file. */
+  /** The arrangement saves under way, by work item. */
   private saving = new Map<string, Promise<void>>();
   readonly planningRoot: string;
   constructor(planningRoot: string) { this.planningRoot = planningRoot; }
@@ -184,11 +184,12 @@ export class DiagramCatalog {
   }
   /**
    * Saves a diagram's arrangement (written whole, then moved into place), or removes it with null.
-   * Saves of one file go one after another, so the last one asked for is the one kept.
+   * A work item's saves go one after another, in the order asked for, so the last one asked for is
+   * the one kept.
    */
   async arrange(snapshot: PlanningIndex, workId: string, diagram: string, positions: Record<string, [number, number]> | null): Promise<void> {
-    const file = await this.sidecar(snapshot, workId, diagram);
     const write = async () => {
+      const file = await this.sidecar(snapshot, workId, diagram);
       if (positions === null) { await rm(file, { force: true }); return; }
       const temporary = file + '.' + randomUUID() + '.tmp';
       try {
@@ -196,9 +197,9 @@ export class DiagramCatalog {
         await rename(temporary, file);
       } finally { await rm(temporary, { force: true }); }
     };
-    const next = (this.saving.get(file) ?? Promise.resolve()).catch(() => undefined).then(write);
-    this.saving.set(file, next);
-    try { await next; } finally { if (this.saving.get(file) === next) this.saving.delete(file); }
+    const next = (this.saving.get(workId) ?? Promise.resolve()).catch(() => undefined).then(write);
+    this.saving.set(workId, next);
+    try { await next; } finally { if (this.saving.get(workId) === next) this.saving.delete(workId); }
   }
 
   /** The diagrams a document links to, each under the heading its link sits under. */

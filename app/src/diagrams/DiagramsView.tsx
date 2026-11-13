@@ -95,11 +95,13 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
   useEffect(() => {
     if (!arranging) return;
     let current = true;
-    const made = writes.current.made;
+    // A read that overlaps a save may hold the file from before it; the save's own change reads it again.
+    const made = writes.current.made, during = writes.current.pending > 0;
+    const fresh = () => current && !during && !writes.current.pending && writes.current.made === made;
     api.arrangement(projectId, work.id, arranging).then(positions => {
-      if (!current || writes.current.pending || writes.current.made !== made) return;
+      if (!fresh()) return;
       setArrangement(previous => previous?.root === arranging && JSON.stringify(previous.positions) === JSON.stringify(positions) ? previous : { root: arranging, positions });
-    }).catch(() => { if (current && !writes.current.made) setArrangement({ root: arranging, positions: null }); });
+    }).catch(() => { if (current) setArrangement(previous => previous?.root === arranging ? previous : { root: arranging, positions: null }); });
     return () => { current = false; };
   }, [projectId, work.id, arranging, files]);
   // The elements the family's layers draw: an element removed from them leaves the arrangement when it is next saved.

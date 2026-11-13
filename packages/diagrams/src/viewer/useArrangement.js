@@ -3,8 +3,11 @@ import { arrangeScene, positionsOf } from "../canvas/arrange.mjs";
 
 // The least distance a dragged element keeps from the diagram's top and
 // left edges, the layout's padding, so the scene never shifts under the
-// reader's hand.
+// reader's hand; an element of a package keeps its package's region inside
+// it too (its margin, and its name above).
 const EDGE = 28;
+const PACKAGE_MARGIN = 16;
+const PACKAGE_HEADER = 22;
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 // Positions as a host keeps them, to a tenth, so what it reads back is what
 // was saved.
@@ -65,9 +68,18 @@ export function useArrangement(base, arrangement, onArrange) {
               const id = target?.closest?.("[data-node-id]")?.dataset.nodeId;
               const node = latest.current.scene.nodes.find((n) => n.id === id);
               if (!node) return false;
+              const packaged = (latest.current.scene.packages || []).some((p) =>
+                p.members?.includes(id),
+              );
               dragging.current = {
                 id,
                 grab: [point.x - node.x, point.y - node.y],
+                least: packaged
+                  ? [
+                      EDGE + PACKAGE_MARGIN,
+                      EDGE + PACKAGE_MARGIN + PACKAGE_HEADER,
+                    ]
+                  : [EDGE, EDGE],
                 at: null,
               };
               setDrag(dragging.current);
@@ -79,8 +91,8 @@ export function useArrangement(base, arrangement, onArrange) {
               dragging.current = {
                 ...current,
                 at: [
-                  Math.max(EDGE, point.x - current.grab[0]),
-                  Math.max(EDGE, point.y - current.grab[1]),
+                  Math.max(current.least[0], point.x - current.grab[0]),
+                  Math.max(current.least[1], point.y - current.grab[1]),
                 ],
               };
               setDrag(dragging.current);

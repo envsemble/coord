@@ -5015,6 +5015,8 @@ function arrangeScene(scene, positions = {}, options = {}) {
 
 // src/viewer/useArrangement.js
 var EDGE = 28;
+var PACKAGE_MARGIN2 = 16;
+var PACKAGE_HEADER2 = 22;
 var same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 var tenth = (n) => Math.round(n * 10) / 10;
 var rounded = (positions) => Object.fromEntries(
@@ -5055,9 +5057,16 @@ function useArrangement(base, arrangement, onArrange) {
         const id = target?.closest?.("[data-node-id]")?.dataset.nodeId;
         const node = latest.current.scene.nodes.find((n) => n.id === id);
         if (!node) return false;
+        const packaged = (latest.current.scene.packages || []).some(
+          (p) => p.members?.includes(id)
+        );
         dragging.current = {
           id,
           grab: [point.x - node.x, point.y - node.y],
+          least: packaged ? [
+            EDGE + PACKAGE_MARGIN2,
+            EDGE + PACKAGE_MARGIN2 + PACKAGE_HEADER2
+          ] : [EDGE, EDGE],
           at: null
         };
         setDrag(dragging.current);
@@ -5069,8 +5078,8 @@ function useArrangement(base, arrangement, onArrange) {
         dragging.current = {
           ...current,
           at: [
-            Math.max(EDGE, point.x - current.grab[0]),
-            Math.max(EDGE, point.y - current.grab[1])
+            Math.max(current.least[0], point.x - current.grab[0]),
+            Math.max(current.least[1], point.y - current.grab[1])
           ]
         };
         setDrag(dragging.current);
