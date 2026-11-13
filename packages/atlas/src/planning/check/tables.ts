@@ -12,21 +12,13 @@ const paragraphCharacters = 200;
 /** A table with this many columns or more never fits the column readably. */
 const tooManyColumns = 6;
 
-/** A table row's cells, split on unescaped pipes outside code spans, without the outer pipes. */
+/**
+ * A table row's cells without the outer pipes, split as GFM splits them: on every pipe not escaped
+ * with a backslash, inside code spans too.
+ */
 function cells(line: string): string[] {
-  const row = line.trim().replace(/^\|/, '').replace(/\|$/, '');
-  const out: string[] = [];
-  let cell = '', code = false;
-  for (let index = 0; index < row.length; index++) {
-    const character = row[index];
-    if (character === '\\' && row[index + 1] === '|') { cell += '|'; index++; continue; }
-    // A backtick opens a code span only where another one closes it, as GFM reads it.
-    if (character === '`') code = code ? false : row.includes('`', index + 1);
-    if (character === '|' && !code) { out.push(cell); cell = ''; continue; }
-    cell += character;
-  }
-  out.push(cell);
-  return out;
+  const row = line.trim().replace(/^\|/, '').replace(/(?<!\\)\|$/, '');
+  return row.split(/(?<!\\)\|/).map(cell => cell.replaceAll('\\|', '|'));
 }
 
 /** A cell's text as it reads: links by their words, without emphasis marks or code ticks. */

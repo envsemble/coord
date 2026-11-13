@@ -13,9 +13,10 @@ test('a table reads cramped with many columns, with columns too wide together, o
   assert.match(crampedTables(many)[0].reason, /^6 columns$/);
   assert.match(crampedTables(paragraph)[0].reason, /a cell of \d+ characters/);
   assert.deepEqual(crampedTables(fenced), []);
-  // A pipe inside code or escaped is part of its cell; a lone backtick is text.
-  assert.deepEqual(crampedTables('| Flag | Use | Note |\n| --- | --- | --- |\n| `a|b` | c \\| d | e |\n'), []);
-  assert.match(crampedTables('| a | b | c |\n|---|---|---|\n| it`s | ' + 'x'.repeat(60) + ' | ' + 'y'.repeat(60) + ' |\n')[0].reason, /^3 columns/);
+  // Only an escaped pipe stays in its cell (GFM splits a code span on a pipe too).
+  assert.deepEqual(crampedTables('| Flag | Use | Note |\n| --- | --- | --- |\n| a \\| b | c \\| d | e |\n'), []);
+  // A header split by a code span's pipe has more cells than its delimiter: GFM draws no table.
+  assert.deepEqual(crampedTables('| `a|b` | c |\n|---|---|\n'), []);
   // Not a table: a setext heading over text with pipes, a delimiter of another width, indented code.
   assert.deepEqual(crampedTables('Choose a | b | c | d | e | f\n---\n'), []);
   assert.deepEqual(crampedTables('    ' + many.split('\n').join('\n    ')), []);
