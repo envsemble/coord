@@ -29,14 +29,12 @@
     "./platform/run": "./src/platform/run.ts",
     "./host": "./src/host/index.ts",
     "./host/contract": "./src/host/contract.ts",
-    "./host/validate": "./src/host/validate.ts",
-    "./host/plan-worker": "./src/host/export/planWorker.ts"
+    "./host/validate": "./src/host/validate.ts"
   },
   "scripts": {
-    "build": "node scripts/build-viewer.mjs",
     "test": "node ../../scripts/test-tier.mjs full --import ../../scripts/test-home.mjs src",
     "test:quick": "node ../../scripts/test-tier.mjs quick --import ../../scripts/test-home.mjs src",
-    "check:types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p viewer/tsconfig.json"
+    "check:types": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@envsemble/atlas-diagrams": "*",
@@ -47,27 +45,15 @@
     "mdast-util-from-markdown": "2.1.0",
     "mdast-util-gfm": "3.1.0",
     "micromark-extension-gfm": "3.0.0",
-    "parse5": "8.0.1",
     "qrcode": "1.5.4",
     "ws": "8.22.0",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@envsemble/envui": "0.7.0",
-    "@pierre/theme": "2.0.0",
-    "@shikijs/langs": "4.5.0",
     "@types/mdast": "4.0.4",
     "@types/node": "^24",
     "@types/qrcode": "1.5.6",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
     "@types/ws": "8.18.2",
-    "esbuild": "0.28.2",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1",
-    "shiki": "4.5.0",
     "typescript": "7.0.2"
   }
 }

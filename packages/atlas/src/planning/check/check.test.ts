@@ -258,6 +258,26 @@ test('continues lists work items: malformed or itself is an error, unknown work 
   assert.ok(warnings.some(item => item.includes('the handoffs form a loop')));
 });
 
+test('parts lists work IDs of this project: malformed, itself or twice is an error; unknown work, a part of two groups and a part with parts are warnings', t => {
+  const setup = fixture(t);
+  for (const [parts, message] of [[['shop:work-0002'], 'parts must be a list of work IDs'], [['work-0001'], 'parts names the work item itself'], [['work-0002', 'work-0002'], 'parts lists a work item twice']] as const) {
+    setup.header.parts = [...parts];
+    setup.write();
+    assert.ok(setup.validate().errors.some(item => item.includes(message)), message);
+  }
+  const next = path.join(setup.root, 'active/0002-next');
+  mkdirSync(next, { recursive: true });
+  writeFileSync(path.join(next, 'plan.md'), ['---', 'id: work-0002', 'parts: [work-0003]', '---', ''].join('\n'));
+  setup.registry.work_items.push({ id: 'work-0002', path: 'active/0002-next', current_plan: 'active/0002-next/plan.md' });
+  setup.header.parts = ['work-0002', 'work-0003'];
+  setup.write();
+  const { errors, warnings } = setup.validate();
+  assert.ok(!errors.some(item => item.includes('parts')), errors.join('; '));
+  assert.ok(warnings.some(item => item.startsWith('active/0001-example/plan.md: parts lists work-0003, which names no work item')));
+  assert.ok(warnings.some(item => item.startsWith('active/0002-next/plan.md: parts lists work-0003, which work-0001 lists too')));
+  assert.ok(warnings.some(item => item.startsWith('active/0001-example/plan.md: parts lists work-0002, which has parts of its own')));
+});
+
 test('lifecycle chronology matches the app and preserves unknown dates', t => {
   const setup = fixture(t);
   const valid_ = { ...setup.header, created: '2026-10-01', accepted_at: '2026-10-03', completed_at: '2026-10-05', updated: '2026-10-05', implementation_status: 'complete' };

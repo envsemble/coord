@@ -3,10 +3,9 @@
 // name (the folder under <home>/planning, compared case-insensitively where the file system is):
 // the one name of a project that is unique in the home and that a rename in the app leaves alone.
 // The earlier plan stores nothing; "continued in" is found from the plans that name it.
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseFrontmatter } from '../check/check.ts';
-import type { HandoffLink } from '../types.ts';
 
 export interface HandoffReference { project: string | null; workId: string }
 
@@ -155,48 +154,4 @@ export function handoffExists(root: string, item: HandoffReference, graph = new 
 export function handoffLoop(root: string, workId: string, references?: HandoffReference[], graph = new HandoffGraph()) {
   if (references) graph.assume(root, workId, references);
   return graph.inLoop(root, workId);
-}
-
-/**
- * A work item's handoffs read from the plans of the home's planning folders, for a plan export,
- * which has no listing to take them from: the work it continues and the work continuing it, each
- * with its title, project and outcome, and without project IDs (an export opens no other plan).
- */
-export function handoffLinksAt(root: string, workId: string): { continues: HandoffLink[]; continuedIn: HandoffLink[] } {
-  const graph = new HandoffGraph();
-  const planning = path.dirname(root);
-  let folders: string[] = [];
-  try { folders = readdirSync(planning, { withFileTypes: true }).filter(entry => entry.isDirectory() && existsSync(path.join(planning, entry.name, 'planning.json'))).map(entry => path.join(planning, entry.name)).slice(0, 200); }
-  catch { /* only its own folder */ }
-  if (!folders.some(folder => keyOf(folder) === keyOf(root))) folders.push(root);
-  const names = new Map<string, string>();
-  const nameOf = (folder: string) => {
-    if (!names.has(folder)) { const name = readJson(path.join(folder, 'planning.json'))?.name; names.set(folder, typeof name === 'string' && name.trim() ? name.trim() : path.basename(folder)); }
-    return names.get(folder)!;
-  };
-  const link = (folder: string | null, project: string, id: string, header: Record<string, unknown> | null): HandoffLink => {
-    const design = header?.design_status, implementation = header?.implementation_status;
-    return {
-      projectId: null, project, projectName: folder ? nameOf(folder) : project, workId: id, title: typeof header?.title === 'string' ? header.title : null, state: null,
-      outcome: design === 'superseded' || design === 'abandoned' ? design : implementation === 'complete' ? 'complete' : null,
-    };
-  };
-  const seen = new Set<string>();
-  const continues: HandoffLink[] = [];
-  for (const item of handoffsOf(graph.header(root, workId)?.continues).references) {
-    const folder = graph.folder(root, item);
-    const key = (folder ? keyOf(folder) : '?' + item.project) + '\0' + item.workId;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    continues.push(link(folder, folder ? path.basename(folder) : item.project!, item.workId, folder ? graph.header(folder, item.workId) : null));
-  }
-  const start = graph.node(root, workId).key;
-  const continuedIn: HandoffLink[] = [];
-  for (const folder of folders) {
-    for (const id of [...graph.registry(folder)?.keys() ?? []].slice(0, 2000)) {
-      const header = graph.header(folder, id);
-      if (graph.targets(folder, handoffsOf(header?.continues).references).some(node => node.key === start)) continuedIn.push(link(folder, path.basename(folder), id, header));
-    }
-  }
-  return { continues, continuedIn };
 }

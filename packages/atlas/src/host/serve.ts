@@ -1,7 +1,6 @@
 // `atlas serve`: the host without the desktop app, so other computers can use this one's projects
 // (a server, or a desktop left running). It listens on the Tailscale address unless told otherwise,
 // prints a pairing link with a QR code, and in a terminal takes a few commands.
-import { Worker } from 'node:worker_threads';
 import { createInterface } from 'node:readline';
 import QRCode from 'qrcode';
 import path from 'node:path';
@@ -11,7 +10,6 @@ import { hostAddresses } from './access/addresses.ts';
 import { defaultPort, type PairingLink } from './contract.ts';
 import { impostorHolder } from './access/access.ts';
 import { Host } from './host.ts';
-import type { WorkerLike } from './export/planWorkerClient.ts';
 import { listenAddress } from './validate.ts';
 
 export interface ServeOptions { address: string | null; port: number | null; home: string | null; version: string; interactive: boolean }
@@ -31,7 +29,6 @@ export async function serve(options: ServeOptions, out: ServeOutput): Promise<{ 
   const { home } = await prepareHome({ override: options.home ?? undefined });
   const host = new Host({
     home, version: options.version, log, owner: '`atlas serve`',
-    createPlanWorker: () => new Worker(new URL('./export/planWorker.ts', import.meta.url)) as unknown as WorkerLike,
     networkOverride: { address, port: options.port ?? defaultPort },
     // The planning templates the atlas skill bundles, in this checkout.
     templates: () => readTemplates(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../templates/planning')),

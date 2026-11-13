@@ -81,7 +81,6 @@ export const isoTime = string({ min: 20, max: 40, pattern: /^\d{4}-\d{2}-\d{2}T\
 export const diagramPath = string({ min: 6, max: pathLimit, pattern: /^(?![\\/])(?![a-zA-Z]:)(?!.*(?:^|\/)\.\.(?:\/|$)).+\.puml$/i });
 /** A project's ID, as the project list gives it: `f-` and 32 hex digits. */
 export const projectId = string({ min: 34, max: 34, pattern: /^f-[a-f0-9]{32}$/ });
-export const token = string({ min: 16, max: 80, pattern: /^[a-zA-Z0-9-]+$/ });
 export const deviceId = string({ min: 8, max: 64, pattern: /^d-[a-f0-9]{32}$/ });
 
 /** An IPv4 or IPv6 literal (no host names: a name could be re-pointed at another machine). */
@@ -137,11 +136,6 @@ export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['p
   'project.diagram': object({ projectId, work: workId, path: diagramPath }),
   'project.references': object({ projectId, work: nullable(workId), path: relativePath }),
   'project.diagramIndex': object({ projectId }),
-  'plan.exportPrepare': object({ projectId, work: workId }),
-  'plan.exportDrop': object({ token }),
-  'plan.importRead': object({ projectId, file: absolutePath }),
-  'plan.importConfirm': object({ projectId, token }),
-  'plan.importDrop': object({ token }),
   'access.state': none,
   'access.update': object({ settings: accessSettings }),
   'access.pairingCreate': object({ address: nullable(listenAddress), label: nullable(deviceText(80)), manageAccess: boolean }),

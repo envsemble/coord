@@ -11,6 +11,7 @@ import type { HomeDatabase } from '../../home/database.ts';
 import type { HandoffLink } from '../types.ts';
 import { handoffsOf } from '../handoffs/handoffs.ts';
 import { tagsOf } from '../work/tags.ts';
+import { groupsOfParts, partsOf } from '../work/parts.ts';
 import { runProgram } from '../../platform/run.ts';
 import { storedReports, summarizeReports, type WorkReport } from '../reports/reports.ts';
 
@@ -45,6 +46,11 @@ export interface ProjectWork {
    * plans' `continues` naming it, in any project of the home): handoffs, oldest work first.
    */
   continues?: HandoffLink[]; continuedIn?: HandoffLink[];
+  /**
+   * The work items this one is made of (its plan's `parts`: well-formed work IDs of this project, in
+   * order, each once), and the group that lists it among its parts (the first in the registry, should several), or null.
+   */
+  parts?: string[]; partOf?: string | null;
 }
 /**
  * A work item's statistics in brief, counted as the plan page counts them (see summarizeReports):
@@ -129,6 +135,8 @@ async function workOf(root: string, entry: { id: string; path: string; current_p
     // As the plan names them; linkHandoffs finds them in the home's projects, and the work continuing this.
     continues: handoffsOf(planHeader?.continues).references.map((item): HandoffLink => ({ projectId: null, project: item.project ?? '', projectName: '', workId: item.workId, title: null, state: null, outcome: null })),
     continuedIn: [],
+    // Its parts as the plan lists them; projectSummary finds each part's group.
+    parts: partsOf(planHeader?.parts, entry.id), partOf: null,
   };
 }
 
@@ -149,6 +157,10 @@ export async function projectSummary(root: string, options: { database?: HomeDat
   }
   const [active, closed] = await Promise.all(['active/', 'archive/'].map(location =>
     Promise.all(entries.filter(entry => entry.path.startsWith(location)).map(entry => workOf(root, entry, location === 'archive/', reports.get(entry.id) ?? [])))));
+  // A part's group is the first in the registry that lists it.
+  const byId = new Map([...active, ...closed].map(item => [item.id, item]));
+  const groups = groupsOfParts(entries.map(entry => byId.get(entry.id)).filter(item => item !== undefined));
+  for (const item of byId.values()) item.partOf = groups.get(item.id) ?? null;
   // The latest change first; on the same day, the later registration.
   const number = (id: string) => Number(/[0-9]+$/.exec(id)?.[0] ?? 0);
   closed.sort((a, b) => (b.updated ?? '').localeCompare(a.updated ?? '') || number(b.id) - number(a.id));

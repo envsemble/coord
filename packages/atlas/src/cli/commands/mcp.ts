@@ -9,7 +9,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
-  acceptWork, addSteps, archiveWork, proposeSteps, projectTags, searchWork, tagWork, closeWork, createWork, findPlanning, DatabaseVersionError, PlanningNotFoundError, removeStep, renameStep, reopenWork, setContinues,
+  acceptWork, addSteps, archiveWork, proposeSteps, projectTags, searchWork, tagWork, closeWork, createWork, findPlanning, DatabaseVersionError, PlanningNotFoundError, removeStep, renameStep, reopenWork, setContinues, setParts,
   resolvePlanningFolder, setBlocked, setStepStatus, startWork, WorkError, workStatus, type LedgerStepStatus,
 } from '../../planning/index.ts';
 import type { Whereabouts } from '../../planning/projects/findProject.ts';
@@ -27,6 +27,7 @@ const instructions = "Atlas keeps plans in projects: planning folders in the Atl
   + 'Ask the user before project_create or work_create, and open work items only for work big enough to plan; small tasks stay plain coding. '
   + 'Change planning state (work items, steps, blocked, closing, archiving) only through these tools; edit plan prose, glossaries and diagrams directly as files in the planning folder. '
   + 'When work continues other work (follow-ups moved off work that is closing, a next phase), record the handoff with continues. '
+  + 'When one task is better planned as several ordered pieces, each with its own plan and steps, make them its parts (work_create with partOf; work_parts). '
   + "Tag work with what it will be searched for later: the release it ships in and the areas it touches, reusing the project's tags (where and work_tag count them). "
   + 'Answer questions about past work with work_search. '
   + 'In planning files, write PRs and issues as owner/repo#N and commits as owner/repo@hash (or their URLs), naming the repository yourself, so Atlas links them. '
@@ -100,8 +101,8 @@ const tools: Tool[] = [
   {
     name: 'work_create',
     description: 'Ask the user first; only for work big enough to plan. Create a work item: active/NNNN-slug/ with a draft plan.md (its header holds the summary) and a ledger with the planning steps (Understand the request, doing; Settle the design; Write the plan; Accepted). Then write the plan body directly, and keep the summary and planning steps true as the design settles.',
-    inputSchema: object({ title: { type: 'string' }, summary: { type: 'string', description: 'Two or three plain sentences, on one line: what the work is, why, and where it stands.' }, slug: { type: 'string', description: 'Folder name after the number; derived from the title by default.' }, continues, tags: titles('Its first tags, such as ["search"].') }, ['title']),
-    run: (root, input) => createWork(root, { title: input.title as string, slug: (input.slug as string | undefined) ?? null, summary: (input.summary as string | undefined) ?? null, continues: (input.continues as string[] | undefined) ?? null, tags: (input.tags as string[] | undefined) ?? null }),
+    inputSchema: object({ title: { type: 'string' }, summary: { type: 'string', description: 'Two or three plain sentences, on one line: what the work is, why, and where it stands.' }, slug: { type: 'string', description: 'Folder name after the number; derived from the title by default.' }, continues, tags: titles('Its first tags, such as ["search"].'), partOf: { ...work, description: "The work item of this project it is a part of; it becomes the last of that group's parts." } }, ['title']),
+    run: (root, input) => createWork(root, { title: input.title as string, slug: (input.slug as string | undefined) ?? null, summary: (input.summary as string | undefined) ?? null, continues: (input.continues as string[] | undefined) ?? null, tags: (input.tags as string[] | undefined) ?? null, partOf: (input.partOf as string | undefined) ?? null }),
   },
   {
     name: 'work_tag', description: "Add and remove a work item's tags (lowercase letters, digits, dots and hyphens). Returns its tags and the project's, with counts.",
@@ -144,6 +145,12 @@ const tools: Tool[] = [
     description: 'Record the work a work item continues (the handoff), replacing what was recorded; an empty list records none. Both plans and ledgers then link it.',
     inputSchema: object({ work, continues }, ['work', 'continues']),
     run: (root, input) => setContinues(root, input.work!, input.continues as string[]),
+  },
+  {
+    name: 'work_parts',
+    description: 'Set the work items a work item is made of (its parts, other work of this project), in order, replacing them: to reorder, add existing work or take a part out; an empty list removes them. Groups are one level deep, and a part belongs to one group.',
+    inputSchema: object({ work, parts: titles('Its parts in order, such as ["work-0034", "work-0035"].') }, ['work', 'parts']),
+    run: (root, input) => setParts(root, input.work!, input.parts as string[]),
   },
   {
     name: 'work_close', description: 'Close finished work, once the user confirms it is finished: refused with the open items unless every step is done and nothing is blocked; then complete today and moved to archive/.',

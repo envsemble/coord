@@ -18,13 +18,17 @@ export interface Work {
    * plans' `continues` naming it, in any project of the home): handoffs, oldest work first.
    */
   continues?: HandoffLink[]; continuedIn?: HandoffLink[];
+  /**
+   * The work items this one is made of (its plan's `parts`: well-formed work IDs of this project, in
+   * order, each once), and the group that lists it among its parts (the first, should several), or null.
+   */
+  parts?: string[]; partOf?: string | null;
 }
 /**
  * A work item at the other end of a handoff: its project (`projectId`, the project's ID, its own
- * included; null only when no project of the home has that planning folder, or in a plan export, which
- * opens no other plan; `project` its planning folder's name in the home, `projectName` its name), the
- * work item, and its title, state and outcome as the hub has them (null when the reference names no
- * work item).
+ * included; null only when no project of the home has that planning folder; `project` its planning
+ * folder's name in the home, `projectName` its name), the work item, and its title, state and
+ * outcome as the hub has them (null when the reference names no work item).
  */
 export interface HandoffLink {
   projectId: string | null; project: string; projectName: string; workId: string;

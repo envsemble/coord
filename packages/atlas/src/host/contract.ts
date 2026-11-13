@@ -2,7 +2,7 @@
 // folders) and its clients (the desktop app's windows, another computer's Atlas, later a phone).
 // Only types and constants live here, so every client can import it. Every method declares the
 // scope it requires; the host checks it before any handler runs.
-import type { DocumentContent, HandoffLink, PlanImportResult, PlanningIndex, ProjectState, ProjectSummary as PlanningProjectSummary, ProjectWork, ProjectWorkState, ProjectWorkStatistics, Work } from '../planning/index.ts';
+import type { DocumentContent, HandoffLink, PlanningIndex, ProjectState, ProjectSummary as PlanningProjectSummary, ProjectWork, ProjectWorkState, ProjectWorkStatistics, Work } from '../planning/index.ts';
 import type { DiagramEntry, DiagramIndexEntry, DiagramReference } from '../planning/reading/diagrams.ts';
 
 export type { DiagramEntry, DiagramIndexEntry, DiagramReference, HandoffLink, ProjectState, ProjectWork, ProjectWorkState, ProjectWorkStatistics };
@@ -14,7 +14,7 @@ export const protocolVersion = 14;
  * Every paired device belongs to the person who owns this computer, so pairing grants the whole
  * computer; only managing who else may pair is a separate grant.
  * - `computer`: what the Atlas app can do on this computer: list, create and change its projects,
- *   read them, and import and export plans. Every paired device has it.
+ *   and read them. Every paired device has it.
  * - `access:manage`: create pairing links, list and revoke paired devices. A device has it when its
  *   pairing link granted it.
  * - `owner`: everything, including the remote-access settings. Only the desktop app on the same
@@ -214,14 +214,6 @@ export function withWorkDocuments(value: SnapshotValue): Snapshot {
   return { ...value, work: value.work.map(item => ({ ...item, documents: (owned.get(item.id) ?? []).sort((a, b) => Number(b.category === 'plan') - Number(a.category === 'plan') || a.path.localeCompare(b.path)) })) };
 }
 
-export interface PreparedExport { token: string; bytes: number; warnings: string[]; fileName: string }
-export interface ImportPreviewValue {
-  token: string; title: string; originalId: string | null; origin: string | null; location: string | null;
-  exportedAt: string | null; atlasVersion: string | null; newId: string | null; newFolder: string | null;
-  files: number; bytes: number; diagrams: string[];
-}
-export type ImportResultValue = Pick<PlanImportResult, 'workId' | 'path' | 'files' | 'notes'>;
-
 /** How the host can be reached from other devices. Off unless the owner turns it on. */
 export interface NetworkSettings { enabled: boolean; address: string | null; port: number }
 export type AddressKind = 'loopback' | 'tailscale' | 'lan';
@@ -278,11 +270,6 @@ export interface Methods {
   'project.references': { params: { projectId: string; work: string | null; path: string }; result: DiagramReference[] };
   /** Every diagram of the project, for quick open. */
   'project.diagramIndex': { params: { projectId: string }; result: DiagramIndexEntry[] };
-  'plan.exportPrepare': { params: { projectId: string; work: string }; result: PreparedExport };
-  'plan.exportDrop': { params: { token: string }; result: null };
-  'plan.importRead': { params: { projectId: string; file: string }; result: ImportPreviewValue };
-  'plan.importConfirm': { params: { projectId: string; token: string }; result: ImportResultValue };
-  'plan.importDrop': { params: { token: string }; result: null };
   'access.state': { params: Record<string, never>; result: AccessState };
   'access.update': { params: { settings: AccessSettings }; result: AccessState };
   'access.pairingCreate': { params: { address: string | null } & PairingGrant; result: PairingLink };
@@ -312,12 +299,6 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'project.diagram': 'computer',
   'project.references': 'computer',
   'project.diagramIndex': 'computer',
-  'plan.exportPrepare': 'computer',
-  'plan.exportDrop': 'computer',
-  // A file on this computer, by path: the app's own. Another device sends its file to routes.imports.
-  'plan.importRead': 'owner',
-  'plan.importConfirm': 'computer',
-  'plan.importDrop': 'computer',
   'access.state': 'access:manage',
   'access.update': 'owner',
   'access.pairingCreate': 'access:manage',
@@ -343,7 +324,7 @@ export interface EventMessage<E extends EventName = EventName> { event: E; data:
 export const closeCodes = { revoked: 4401, protocol: 4400, shuttingDown: 4503 } as const;
 
 /** HTTP routes. */
-export const routes = { host: '/api/host', pair: '/api/pair', connect: '/api/connect', files: '/api/projects/:projectId/files/*', imports: '/api/projects/:projectId/imports', exports: '/api/exports/:token' } as const;
+export const routes = { host: '/api/host', pair: '/api/pair', connect: '/api/connect', files: '/api/projects/:projectId/files/*' } as const;
 /** The default port for remote access, when the owner turns it on. */
 export const defaultPort = 7346;
 /** Pairing codes expire this long after they are created. */

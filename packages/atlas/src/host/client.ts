@@ -313,20 +313,15 @@ export class HostClient {
   }
 
   /**
-   * An authenticated HTTP request to the host (files in documents, plan exports, a plan sent for
-   * import). It waits for a connection, so the credential goes only to an address that answered
-   * with the expected host ID.
+   * An authenticated HTTP request to the host, for files in documents. It waits for a connection,
+   * so the credential goes only to an address that answered with the expected host ID.
    */
-  async fetch(pathname: string, timeout = 60000, send?: { method: 'POST'; body: ReadableStream<Uint8Array> | Uint8Array; length: number }): Promise<Response> {
+  async fetch(pathname: string, timeout = 60000): Promise<Response> {
     await this.ready(Math.min(timeout, 15000));
     const token = await this.options.token();
     const origin = this.connectedOrigin;
     if (!origin || this.status !== 'connected') throw new HostRequestError('unavailable', this.detail ?? 'Not connected.');
-    const headers: Record<string, string> = { Authorization: 'Bearer ' + token };
-    if (send) { headers['Content-Type'] = 'application/octet-stream'; headers['Content-Length'] = String(send.length); }
-    // A streamed body needs `duplex: 'half'` in Node's fetch.
-    const init = { headers, signal: AbortSignal.timeout(timeout), redirect: 'error', ...(send ? { method: send.method, body: send.body, duplex: 'half' } : {}) } as RequestInit;
-    return fetch(origin + pathname, init);
+    return fetch(origin + pathname, { headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(timeout), redirect: 'error' });
   }
 
   close() {

@@ -15,12 +15,8 @@ export { workDates, workSessions, workTimeline } from './reports/workSessions.ts
 export { handoffsByWork, linkHandoffs } from './handoffs/crossProject.ts';
 export { resolveReferences } from './references/references.ts';
 export type * from './types.ts';
-export {
-  exportFileName, exportPlan, readPlanExport, importPlan, planImportTarget, planningRelative, PlanExportError,
-  type PlanExportPreview, type PlanImportResult, type PlanImportTarget,
-} from './export/planExport.ts';
 export { runProgram } from '../platform/run.ts';
-export { WorkError, workStatus, createWork, acceptWork, startWork, addSteps, proposeSteps, tagWork, projectTags, searchWork, type FoundWork, setStepStatus, renameStep, removeStep, setBlocked, setContinues, closeWork, archiveWork, reopenWork, localDate } from './work/work.ts';
+export { WorkError, workStatus, createWork, acceptWork, startWork, addSteps, proposeSteps, tagWork, projectTags, searchWork, type FoundWork, setStepStatus, renameStep, removeStep, setBlocked, setContinues, setParts, closeWork, archiveWork, reopenWork, localDate } from './work/work.ts';
 export { readRegistry } from './registry/registry.ts';
 export { setRegistryName } from './registry/registryText.ts';
 export { findPlanning, resolvePlanningFolder, PlanningNotFoundError } from './projects/findProject.ts';

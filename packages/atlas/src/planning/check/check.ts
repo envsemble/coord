@@ -9,6 +9,7 @@ import { readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { agreed, ledgerStatus } from '../work/ledger.ts';
 import { isTag, tagLimit } from '../work/tags.ts';
+import { isWorkId } from '../work/parts.ts';
 import { HandoffGraph, handoffsOf, handoffText } from '../handoffs/handoffs.ts';
 
 const planFields = ['schema_version', 'kind', 'id', 'title', 'created', 'updated', 'design_status', 'implementation_status', 'accepted_at', 'completed_at', 'supersedes', 'superseded_by'];
@@ -33,9 +34,9 @@ export type Metadata = Record<string, MetadataValue>;
 /** In a ledger header, `steps` holds a block list of flat mappings. */
 const ledgerEntryLists = ['steps'];
 /** Fields that may start a block list of scalars on the following lines. */
-const scalarListFields = new Set(['supersedes', 'continues', 'tags']);
+const scalarListFields = new Set(['supersedes', 'continues', 'tags', 'parts']);
 /** The plan header's optional fields. */
-const optionalPlanFields = ['summary', 'continues', 'tags'];
+const optionalPlanFields = ['summary', 'continues', 'tags', 'parts'];
 
 /** A metadata header the checker cannot certify; the message names the offending construct. */
 export class FrontmatterError extends Error {
@@ -329,6 +330,8 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
 
   const workIds = new Set<string>(), locations = new Set<string>();
   const plans: { pointer: string; metadata: Metadata; workId: unknown; location: unknown }[] = [];
+  /** The plans whose parts are well formed, in the registry's order. */
+  const groups: { prefix: string; workId: string; parts: string[] }[] = [];
   /** Per work ID, the ledger's open items: steps not done, and blocked. */
   const openItems = new Map<string, number>();
   workItems.forEach((entry, index) => {
@@ -410,6 +413,29 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
         for (const item of references) if (!handoffs.exists(root, item)) warnings.push(prefix + 'continues ' + handoffText(item) + ', which names no work item');
         if (typeof workId === 'string' && handoffs.inLoop(root, workId)) warnings.push(prefix + 'continues work that continues it: the handoffs form a loop');
       }
+    }
+    // The work it is made of (parts): work items of this project, in order, never itself or twice;
+    // one that names no work item is only a warning (the part may be registered later).
+    const parts = metadata.parts;
+    if (parts !== undefined && parts !== null) {
+      if (!Array.isArray(parts) || !parts.every(isWorkId)) errors.push(prefix + 'parts must be a list of work IDs of this project, such as ["work-0034", "work-0035"]');
+      else if ((parts as string[]).includes(workId as string)) errors.push(prefix + 'parts names the work item itself');
+      else if (new Set(parts).size !== parts.length) errors.push(prefix + 'parts lists a work item twice');
+      else {
+        for (const part of parts as string[]) if (!workIds.has(part)) warnings.push(prefix + 'parts lists ' + part + ', which names no work item in this project');
+        if (typeof workId === 'string') groups.push({ prefix, workId, parts: parts as string[] });
+      }
+    }
+  }
+  // Groups are one level deep, and a part belongs to one group: both only warnings.
+  const partsByGroup = new Map(groups.map(group => [group.workId, group.parts]));
+  const groupOf = new Map<string, string>();
+  for (const { prefix, workId, parts } of groups) {
+    for (const part of parts) {
+      const other = groupOf.get(part);
+      if (other) warnings.push(prefix + 'parts lists ' + part + ', which ' + other + ' lists too: a part belongs to one group');
+      else groupOf.set(part, workId);
+      if (partsByGroup.get(part)?.length) warnings.push(prefix + 'parts lists ' + part + ', which has parts of its own: groups are one level deep');
     }
   }
 

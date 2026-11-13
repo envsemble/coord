@@ -57,7 +57,7 @@ function captureOf(summary: DiagramSummary, byPath: Map<string, DiagramSummary>)
 }
 
 /** Describes a work folder's diagram files for the catalog. */
-export function describeFiles(files: DiagramFile[], oversized: string[] = []): DiagramEntry[] {
+function describeFiles(files: DiagramFile[], oversized: string[] = []): DiagramEntry[] {
   const summaries = atlas.describeDiagrams(files);
   const byPath = new Map(summaries.map(summary => [summary.path, summary]));
   const texts = new Map(files.map(file => [file.path, file.text]));
@@ -162,7 +162,7 @@ export class DiagramCatalog {
     if (!document || (document.workId !== null && document.workId !== workId)) throw new PlanningError('Choose an indexed document of this work item or of the planning folder.', 403);
     if (!/\.md$/i.test(document.path)) return [];
     const content = await readDocument(this.planningRoot, document.path);
-    // The Markdown parser loads when first needed: this module comes with plan export, which every command loads.
+    // The Markdown parser loads only when a document's diagram links are read.
     const { diagramLinks } = await import('./diagramLinks.ts');
     const listed = new Map<string, Promise<DiagramEntry[]>>();
     const results: DiagramReference[] = [];
