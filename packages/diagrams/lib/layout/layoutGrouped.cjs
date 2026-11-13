@@ -8,6 +8,8 @@ const elk = new ELK();
 
 /** The room between two groups, on top of each one's own padding. */
 const GROUP_GAP = 96;
+/** The room each relation beyond two between the same groups adds to the gap. */
+const PER_RELATION = 16;
 /** The room round a package's elements, and its name's above them (as arrange.mjs keeps it). */
 const PACKAGE_MARGIN = 16;
 /** The room a package's name takes above its elements. */
@@ -121,13 +123,17 @@ async function layoutGrouped(
   for (const r of relations) tie(r.sourceId, r.targetId, 1);
   for (const g of generalizations) tie(g.specificId, g.generalId, 2);
   const order = packingOrder(parts.length, ties);
+  // Many relations between two groups need room to run apart, with their
+  // labels: the gap grows with the most relations between any two.
+  const most = Math.max(0, ...[...ties.values()]);
+  const gap = GROUP_GAP + PER_RELATION * Math.max(0, Math.ceil(most) - 2);
   const header = (part) => (part.cluster.name ? PACKAGE_HEADER : 0);
   const packed = await elk.layout({
     id: "groups",
     layoutOptions: {
       "elk.algorithm": "rectpacking",
       "elk.aspectRatio": String(ASPECT),
-      "elk.spacing.nodeNode": String(GROUP_GAP),
+      "elk.spacing.nodeNode": String(gap),
       "elk.padding": "[top=0,left=0,bottom=0,right=0]",
       "elk.rectpacking.trybox": "false",
     },

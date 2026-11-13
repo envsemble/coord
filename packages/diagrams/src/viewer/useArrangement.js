@@ -46,7 +46,12 @@ export function useArrangement(base, arrangement, onArrange) {
   const dragging = useRef(null);
   const [drag, setDrag] = useState(null);
   const shown = useMemo(
-    () => (drag?.at ? arrangeScene(scene, { [drag.id]: drag.at }) : scene),
+    // While it moves, routes keep off each other by cost alone (quick);
+    // when it is let go they are routed in full.
+    () =>
+      drag?.at
+        ? arrangeScene(scene, { [drag.id]: drag.at }, { quick: true })
+        : scene,
     [scene, drag],
   );
   const latest = useRef({ scene, positions });

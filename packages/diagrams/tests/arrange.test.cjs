@@ -255,6 +255,64 @@ test("an element dragged past the top left shifts the whole scene back inside th
   assert.equal(node(moved, "Order").x, order.x + moved.offset.x);
 });
 
+test("routes keep off each other: relations between the same elements run a track apart, not on one line", () => {
+  const box = (id, x, y) => ({
+    id,
+    name: id,
+    x,
+    y,
+    width: 180,
+    height: 70,
+    attributes: [],
+    methods: [],
+  });
+  const relation = (id, source, target) => ({
+    id,
+    type: "association",
+    source,
+    target,
+    paths: [],
+    labels: [],
+  });
+  const scene = {
+    nodes: [box("A", 28, 28), box("B", 600, 300), box("C", 28, 400)],
+    edges: [
+      relation("one", "A", "B"),
+      relation("two", "A", "B"),
+      relation("three", "C", "B"),
+      relation("four", "A", "C"),
+    ],
+    width: 900,
+    height: 600,
+  };
+  const routed = arrangeScene(scene, {});
+  const segments = routed.edges.map((e) => {
+    const n = e.paths[0].match(/-?\d+(?:\.\d+)?/g).map(Number);
+    const out = [];
+    for (let i = 2; i + 1 < n.length; i += 2)
+      out.push([n[i - 2], n[i - 1], n[i], n[i + 1]]);
+    return out;
+  });
+  const overlap = ([x1, y1, x2, y2], [u1, v1, u2, v2]) => {
+    const along = (a, b, c, d) =>
+      Math.min(Math.max(a, b), Math.max(c, d)) -
+      Math.max(Math.min(a, b), Math.min(c, d));
+    if (y1 === y2 && v1 === v2 && Math.abs(y1 - v1) < 9)
+      return along(x1, x2, u1, u2);
+    if (x1 === x2 && u1 === u2 && Math.abs(x1 - u1) < 9)
+      return along(y1, y2, v1, v2);
+    return 0;
+  };
+  for (let a = 0; a < segments.length; a++)
+    for (let b = a + 1; b < segments.length; b++)
+      for (const p of segments[a])
+        for (const q of segments[b])
+          assert(
+            overlap(p, q) <= 2,
+            `${routed.edges[a].id} and ${routed.edges[b].id} share a line`,
+          );
+});
+
 test("re-routing every relation of a 40-element diagram stays fast", () => {
   let seed = 7;
   const random = () => (seed = (seed * 48271) % 2147483647) / 2147483647;

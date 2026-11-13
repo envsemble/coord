@@ -3,8 +3,12 @@
 // positions it did not choose, so the routes here come from a small
 // orthogonal router of our own, in the style of libavoid's: a sparse grid of
 // lines along the boxes' margins and the ports, searched with A* for the
-// route with the least length plus a cost per bend. It runs on every pointer
-// move of a drag, so it only re-routes what a move disturbs.
+// route with the least length plus a cost per bend. Routes keep off each
+// other: running along a route drawn costs many times its length and crossing
+// one a lot, the ends on a side keep a port apart, and a crowded side gives way
+// to another, so lines do not lie on top of each other. It runs on every
+// pointer move of a drag (quickly then, without tracks beside the routes), so
+// it only re-routes what a move disturbs.
 
 // Clearance a route keeps from the boxes it passes.
 const MARGIN = 12;
@@ -32,6 +36,17 @@ const PACKAGE_MARGIN = 16;
 const PACKAGE_HEADER = 22;
 // How far past its two ends a route's search grid reaches first.
 const REGION = 64;
+// The size of the cells the search finds nearby boxes by.
+const CELL = 96;
+// Routes keep off each other: a run along another route (on the same line, or
+// nearer than TRACK) costs SHARED times its length, and crossing one costs
+// CROSSING; the search may take a track TRACK beside each route drawn.
+const TRACK = 10;
+const SHARED = 12;
+const CROSSING = 240;
+// What running through a label that stays costs, beyond its length counted
+// as within a margin.
+const LABEL_CROSSING = 120;
 // Directions, which double as box sides: a side's number is the direction
 // that leaves the box through it (right, bottom, left, top).
 const DX = [1, 0, -1, 0];
@@ -189,41 +204,28 @@ function preferredAlong(box, side, other) {
   return clamp(c, lo, hi);
 }
 
-// Places the ends on one side as near their preferences as they can be while
-// keeping their order and the port gap. Taking off i gaps turns this into an
-// ordered (isotonic) fit, which pooling adjacent violators solves exactly;
-// ends that already exist weigh so much that they stay where they are.
-function spread(items, lo, hi) {
-  const n = items.length;
-  const gap = n > 1 ? Math.min(PORT_GAP, Math.max(0, hi - lo) / (n - 1)) : 0;
-  const top = Math.max(lo, hi - (n - 1) * gap);
-  const blocks = [];
-  items.forEach((item, i) => {
-    let block = {
-      total: (item.pref - i * gap) * item.weight,
-      weight: item.weight,
-      count: 1,
-    };
-    while (
-      blocks.length &&
-      blocks[blocks.length - 1].total / blocks[blocks.length - 1].weight >=
-        block.total / block.weight
-    ) {
-      const last = blocks.pop();
-      block = {
-        total: last.total + block.total,
-        weight: last.weight + block.weight,
-        count: last.count + block.count,
-      };
+// The place on a side's stretch [lo, hi] nearest pref that keeps gap from
+// every place taken, or else the middle of the widest free stretch.
+function freePlace(pref, taken, lo, hi, gap) {
+  const clear = (v) => taken.every((t) => Math.abs(t - v) >= gap - 0.01);
+  const candidates = [clamp(pref, lo, hi)];
+  for (const t of taken) candidates.push(t - gap, t + gap);
+  let best = null;
+  for (const c of candidates)
+    if (c >= lo - 0.01 && c <= hi + 0.01 && clear(c))
+      if (best === null || Math.abs(c - pref) < Math.abs(best - pref)) best = c;
+  if (best !== null) return best;
+  const edges = [lo, ...taken.filter((t) => t > lo && t < hi), hi].sort(
+    (a, b) => a - b,
+  );
+  let at = clamp(pref, lo, hi),
+    widest = -1;
+  for (let k = 1; k < edges.length; k++)
+    if (edges[k] - edges[k - 1] > widest) {
+      widest = edges[k] - edges[k - 1];
+      at = (edges[k] + edges[k - 1]) / 2;
     }
-    blocks.push(block);
-  });
-  const out = [];
-  for (const block of blocks) {
-    const v = clamp(block.total / block.weight, lo, top);
-    for (let k = 0; k < block.count; k++) out.push(v + out.length * gap);
-  }
-  return out;
+  return at;
 }
 
 // How far a route may run straight out of a side before it turns: the stub,
@@ -310,17 +312,65 @@ function indexIn(sorted, v) {
   return sorted[lo] === v ? lo : -1;
 }
 
+/** The first index of a sorted list whose value is at least v. */
+function firstAt(sorted, v) {
+  let lo = 0,
+    hi = sorted.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (sorted[mid] < v) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 // A* over the grid that the obstacles' margins and the two ends span. A state
 // is a grid point and the direction the route arrived in, so a bend can be
 // charged where the direction changes. `arrival` is what entering the goal in
 // each direction costs: Infinity rules a direction out.
-function search(from, fromDir, to, arrival, obstacles, region) {
+function search(from, fromDir, to, arrival, obstacles, region, occupied) {
   const xv = [region.x0, region.x1, from.x, to.x];
   const yv = [region.y0, region.y1, from.y, to.y];
   for (const o of obstacles) {
     xv.push(round(o.x - MARGIN), round(o.x + o.width + MARGIN));
     yv.push(round(o.y - MARGIN), round(o.y + o.height + MARGIN));
   }
+  // The routes drawn in this region, and a track beside each.
+  const inside = (v, lo, hi) => v >= lo && v <= hi;
+  const flat = (occupied?.flat || []).filter(
+    (g) =>
+      inside(g.y, region.y0, region.y1) &&
+      g.x1 >= region.x0 &&
+      g.x0 <= region.x1,
+  );
+  const upright = (occupied?.upright || []).filter(
+    (g) =>
+      inside(g.x, region.x0, region.x1) &&
+      g.y1 >= region.y0 &&
+      g.y0 <= region.y1,
+  );
+  // Sorted by where they lie, so a step finds the few near it at once.
+  flat.sort((a, b) => a.y - b.y);
+  upright.sort((a, b) => a.x - b.x);
+  const flatAt = flat.map((g) => g.y),
+    uprightAt = upright.map((g) => g.x);
+  // Tracks beside the routes, only in a search near the ends: across the
+  // whole scene they would make the grid too large to search quickly.
+  if (!occupied?.wide) {
+    for (const g of flat)
+      for (const y of [g.y - TRACK, g.y + TRACK])
+        if (inside(y, region.y0, region.y1)) yv.push(round(y));
+    for (const g of upright)
+      for (const x of [g.x - TRACK, g.x + TRACK])
+        if (inside(x, region.x0, region.x1)) xv.push(round(x));
+  }
+  const labels = (occupied?.labels || []).filter(
+    (l) =>
+      l.x < region.x1 &&
+      l.x + l.width > region.x0 &&
+      l.y < region.y1 &&
+      l.y + l.height > region.y0,
+  );
   const xs = uniqueSorted(xv),
     ys = uniqueSorted(yv);
   const nx = xs.length,
@@ -339,16 +389,91 @@ function search(from, fromDir, to, arrival, obstacles, region) {
   const down = new Float64Array(Math.max(0, nx * (ny - 1))).fill(-1);
   // What a step between neighbouring grid points costs: Infinity through a
   // box, more inside a box's margin.
+  // The boxes by the cells of a coarse grid their margins touch, so a step
+  // looks only at the boxes near it.
+  const cells = new Map();
+  const cellOf = (v) => Math.floor(v / CELL);
+  obstacles.forEach((o, n) => {
+    for (
+      let cx = cellOf(o.x - MARGIN);
+      cx <= cellOf(o.x + o.width + MARGIN);
+      cx++
+    )
+      for (
+        let cy = cellOf(o.y - MARGIN);
+        cy <= cellOf(o.y + o.height + MARGIN);
+        cy++
+      ) {
+        const key = cx * 65536 + cy;
+        if (!cells.has(key)) cells.set(key, []);
+        cells.get(key).push(n);
+      }
+  });
+  const labelCells = new Map();
+  labels.forEach((l, n) => {
+    for (let cx = cellOf(l.x); cx <= cellOf(l.x + l.width); cx++)
+      for (let cy = cellOf(l.y); cy <= cellOf(l.y + l.height); cy++) {
+        const key = cx * 65536 + cy;
+        if (!labelCells.has(key)) labelCells.set(key, []);
+        labelCells.get(key).push(n);
+      }
+  });
+  let visit = 0;
+  const seen = new Int32Array(obstacles.length);
+  const labelSeen = new Int32Array(labels.length);
   const classify = (x1, y1, x2, y2) => {
     const a = { x: x1, y: y1 },
       b = { x: x2, y: y2 };
     let soft = false;
-    for (const o of obstacles) {
-      if (crosses(a, b, o, 0.5)) return Infinity;
-      if (!soft && crosses(a, b, o, 0.5 - MARGIN)) soft = true;
-    }
+    visit++;
+    for (let cx = cellOf(x1); cx <= cellOf(x2); cx++)
+      for (let cy = cellOf(y1); cy <= cellOf(y2); cy++)
+        for (const n of cells.get(cx * 65536 + cy) || []) {
+          if (seen[n] === visit) continue;
+          seen[n] = visit;
+          const o = obstacles[n];
+          if (crosses(a, b, o, 0.5)) return Infinity;
+          if (!soft && crosses(a, b, o, 0.5 - MARGIN)) soft = true;
+        }
     const length = x2 - x1 + (y2 - y1);
-    return soft ? length * SOFT : length;
+    let extra = 0;
+    if (y1 === y2) {
+      const near = firstAt(flatAt, y1 - TRACK + 0.5);
+      for (let k = near; k < flat.length && flatAt[k] < y1 + TRACK - 0.5; k++)
+        extra +=
+          Math.max(0, Math.min(x2, flat[k].x1) - Math.max(x1, flat[k].x0)) *
+          (SHARED - 1);
+      for (let k = firstAt(uprightAt, x1 + 1e-6); k < upright.length; k++) {
+        if (uprightAt[k] >= x2) break;
+        if (y1 > upright[k].y0 && y1 < upright[k].y1) extra += CROSSING;
+      }
+    } else {
+      const near = firstAt(uprightAt, x1 - TRACK + 0.5);
+      for (
+        let k = near;
+        k < upright.length && uprightAt[k] < x1 + TRACK - 0.5;
+        k++
+      )
+        extra +=
+          Math.max(
+            0,
+            Math.min(y2, upright[k].y1) - Math.max(y1, upright[k].y0),
+          ) *
+          (SHARED - 1);
+      for (let k = firstAt(flatAt, y1 + 1e-6); k < flat.length; k++) {
+        if (flatAt[k] >= y2) break;
+        if (x1 > flat[k].x0 && x1 < flat[k].x1) extra += CROSSING;
+      }
+    }
+    for (let cx = cellOf(x1); cx <= cellOf(x2); cx++)
+      for (let cy = cellOf(y1); cy <= cellOf(y2); cy++)
+        for (const n of labelCells.get(cx * 65536 + cy) || []) {
+          if (labelSeen[n] === visit) continue;
+          labelSeen[n] = visit;
+          if (crosses(a, b, labels[n], 0.5))
+            extra += length * (SOFT - 1) + LABEL_CROSSING;
+        }
+    return (soft ? length * SOFT : length) + extra;
   };
   const step = (i, j, d) => {
     if (d === 0 || d === 2) {
@@ -410,6 +535,34 @@ function search(from, fromDir, to, arrival, obstacles, region) {
   return points.reverse();
 }
 
+/** The routes drawn, split into their level and upright segments, for the search to keep off. */
+function occupancy() {
+  const flat = [],
+    upright = [],
+    labels = [];
+  return {
+    flat,
+    upright,
+    // Labels that stay: a route may cross one, at a cost.
+    labels,
+    wide: false,
+    add(points) {
+      for (let k = 1; k < (points?.length || 0); k++) {
+        const a = points[k - 1],
+          b = points[k];
+        if (a.y === b.y && a.x !== b.x)
+          flat.push({ y: a.y, x0: Math.min(a.x, b.x), x1: Math.max(a.x, b.x) });
+        else if (a.x === b.x && a.y !== b.y)
+          upright.push({
+            x: a.x,
+            y0: Math.min(a.y, b.y),
+            y1: Math.max(a.y, b.y),
+          });
+      }
+    },
+  };
+}
+
 function regionAround(points, boxes, pad) {
   let x0 = Infinity,
     y0 = Infinity,
@@ -432,7 +585,7 @@ function regionAround(points, boxes, pad) {
 // Routes from one end to the other: first on a grid of the boxes near the
 // two ends, which is all most routes need, then on the whole scene's when the
 // near grid has no way through or its route runs into a box it left out.
-function routeBetween(start, end, boxes, near, everything) {
+function routeBetween(start, end, boxes, near, everything, occupied) {
   const local = regionAround([start.stub, end.stub], near, REGION);
   const tries = [
     [
@@ -455,6 +608,9 @@ function routeBetween(start, end, boxes, near, everything) {
       end.arrival,
       obstacles,
       region,
+      obstacles === boxes && occupied && !occupied.wide
+        ? { ...occupied, wide: true }
+        : occupied,
     );
     if (!found) continue;
     const points = simplify([start.port, ...found, end.port]);
@@ -522,7 +678,7 @@ function selfLoop(box, k, boxes) {
 // Moves the middle run of a Z-shaped route to the middle of the free room
 // between the runs either side of it, as a layered layout would draw it,
 // instead of hugging whichever margin the grid happened to offer.
-function centreJogs(route, boxes) {
+function centreJogs(route, boxes, others = []) {
   const p = route.points;
   for (let k = 1; k < p.length - 2; k++) {
     const a = p[k],
@@ -556,6 +712,19 @@ function centreJogs(route, boxes) {
       if (to <= c) lo = Math.max(lo, to);
       else if (from >= c) hi = Math.min(hi, from);
       else blocked = true;
+    }
+    // Other routes running the same way bound the channel too, a track's
+    // width off, so two routes in one channel are not both centred on it.
+    for (const [m, n] of others) {
+      if (vertical ? m.x !== n.x : m.y !== n.y) continue;
+      if (
+        Math.max(m[cross], n[cross]) < spanLo ||
+        Math.min(m[cross], n[cross]) > spanHi
+      )
+        continue;
+      const v = m[axis];
+      if (v <= c) lo = Math.max(lo, v + TRACK);
+      else hi = Math.min(hi, v - TRACK);
     }
     if (blocked || lo > hi || c < lo - 0.01 || c > hi + 0.01) continue;
     a[axis] = b[axis] = round((lo + hi) / 2);
@@ -667,7 +836,7 @@ function nameCandidates(label, routes) {
     const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
     const ux = Math.sign(b.x - a.x),
       uy = Math.sign(b.y - a.y);
-    for (let n = 0; n < 13; n++) {
+    for (let n = 0; n < 41; n++) {
       const offset = n === 0 ? 0 : (n % 2 ? 1 : -1) * Math.ceil(n / 2) * 8;
       if (Math.abs(offset) > length / 2) break;
       const x = mid.x + ux * offset,
@@ -769,9 +938,33 @@ function placeLabels(tasks, boxes, fixedLabels, allSegments) {
             return false;
           return true;
         };
-        let chosen = null;
-        for (let tier = 0; tier < 4 && !chosen; tier++)
-          chosen = candidates.find((c) => fits(c, tier)) || null;
+        // The cheapest place: never on a box; then as few labels, other
+        // routes and stretches of its own route under it as can be, and as
+        // near its first choice.
+        let chosen = null,
+          lowest = Infinity;
+        candidates.forEach((c, rank) => {
+          const r = {
+            x: c.x,
+            y: c.y,
+            width: label.width,
+            height: label.height,
+          };
+          if (boxes.some((o) => overlapping(r, o, 2))) return;
+          let cost = rank * 2;
+          for (const o of occupied) if (overlapping(r, o, 2)) cost += 400;
+          for (const [a, b] of allSegments)
+            if (rectTouchesSegment(r, a, b, 1)) cost += 120;
+          for (const [a, b] of own)
+            if (rectTouchesSegment(r, a, b, 1)) cost += 60;
+          if (cost < lowest) {
+            lowest = cost;
+            chosen = c;
+          }
+        });
+        if (!chosen)
+          for (let tier = 0; tier < 4 && !chosen; tier++)
+            chosen = candidates.find((c) => fits(c, tier)) || null;
         chosen ||= candidates[0] || { x: label.x, y: label.y };
         label.x = round(chosen.x);
         label.y = round(chosen.y);
@@ -991,7 +1184,27 @@ export function arrangeScene(scene, positions = {}, options = {}) {
       fixEnd(box.id, loop.points[loop.points.length - 1]);
     }
 
-  const endOf = (box, side, other) => {
+  // An end takes the side facing the other box, or, when that side has no
+  // room left for another port, the side facing it the other way.
+  const room = (box, side) => {
+    const [lo, hi] = sideSpan(box, side);
+    const used = sides.get(box.id + "\u0000" + side)?.items.length || 0;
+    return Math.floor((hi - lo) / PORT_GAP) + 1 - used;
+  };
+  const endOf = (box, primary, other) => {
+    let side = primary;
+    if (room(box, primary) <= 0) {
+      const o = centreOf(other),
+        c = centreOf(box);
+      const second = alongY(primary)
+        ? o.y >= c.y
+          ? 1
+          : 3
+        : o.x >= c.x
+          ? 0
+          : 2;
+      if (room(box, second) > room(box, primary)) side = second;
+    }
     const end = { box, side, along: null };
     addEnd(box, side, {
       pref: preferredAlong(box, side, other),
@@ -1040,14 +1253,24 @@ export function arrangeScene(scene, positions = {}, options = {}) {
       }
     }
 
+  // On each side the ends that stay keep their places, and each new end
+  // takes the free place nearest where it would like to be, a port gap from
+  // every other end, so no two routes leave a box on top of each other.
   for (const { box, side, items } of sides.values()) {
     if (!items.some((item) => item.end)) continue;
-    items.sort((a, b) => a.pref - b.pref);
     const [lo, hi] = sideSpan(box, side);
-    const at = spread(items, lo, hi);
-    items.forEach((item, i) => {
-      if (item.end) item.end.along = round(at[i]);
-    });
+    const taken = items.filter((item) => !item.end).map((item) => item.pref);
+    const fresh = items
+      .filter((item) => item.end)
+      .sort((a, b) => a.pref - b.pref);
+    const gap = Math.min(
+      PORT_GAP,
+      Math.max(0, hi - lo) / Math.max(1, items.length - 1),
+    );
+    for (const item of fresh) {
+      item.end.along = round(freePlace(item.pref, taken, lo, hi, gap));
+      taken.push(item.end.along);
+    }
   }
   const terminal = (end) => {
     const port = portPoint(end.box, end.side, end.along);
@@ -1059,18 +1282,45 @@ export function arrangeScene(scene, positions = {}, options = {}) {
     return { port, stub, length };
   };
 
-  const routed = [];
+  // What is drawn already, which new routes keep off: the routes that stay,
+  // then each new one as it is drawn, the shortest first.
+  const occupied = occupancy();
+  // While an element is dragged, routes keep off the others by cost alone,
+  // without the tracks beside them, so each move routes at once.
+  if (options.quick) occupied.wide = true;
   for (const r of plain)
-    if (r.reroute && !r.route) {
-      const from = terminal(r.ends[0]),
-        to = terminal(r.ends[1]);
+    if (!r.reroute) {
+      occupied.add(r.points);
+      occupied.labels.push(...(r.edge.labels || []));
+    }
+  for (const t of trees)
+    if (!t.reroute) {
+      occupied.add(t.trunk);
+      for (const m of t.members) occupied.add(m.points);
+    }
+  const pending = plain
+    .filter((r) => r.reroute && !r.route)
+    .map((r) => ({ r, from: terminal(r.ends[0]), to: terminal(r.ends[1]) }))
+    .sort(
+      (a, b) =>
+        Math.abs(a.from.stub.x - a.to.stub.x) +
+          Math.abs(a.from.stub.y - a.to.stub.y) -
+          (Math.abs(b.from.stub.x - b.to.stub.x) +
+            Math.abs(b.from.stub.y - b.to.stub.y)) ||
+        (a.r.edge.id < b.r.edge.id ? -1 : 1),
+    );
+  const routed = [];
+  for (const { r, from, to } of pending) {
+    {
       r.route = routeBetween(
         { ...from, dir: r.ends[0].side },
         { ...to, arrival: arrivalInto(r.ends[1].side) },
         boxes,
         [r.ends[0].box, r.ends[1].box],
         everythingBox,
+        occupied,
       );
+      occupied.add(r.route);
       routed.push({
         points: r.route,
         movable: true,
@@ -1078,6 +1328,7 @@ export function arrangeScene(scene, positions = {}, options = {}) {
         owner: r,
       });
     }
+  }
   for (const t of trees)
     if (t.reroute) {
       const junction = t.trunk[0];
@@ -1092,12 +1343,24 @@ export function arrangeScene(scene, positions = {}, options = {}) {
           boxes,
           [m.end.box, byId.get(t.group.target)],
           everythingBox,
+          occupied,
         );
+        occupied.add(m.points);
       }
     }
 
   // Straighten and separate the new routes against everything drawn.
-  for (const route of routed) centreJogs(route, boxes);
+  const everyRoute = [
+    ...routed.map((r) => r.points),
+    ...plain.filter((r) => !r.reroute).map((r) => r.points),
+    ...trees.flatMap((t) => [t.trunk, ...t.members.map((m) => m.points)]),
+  ];
+  for (const route of routed)
+    centreJogs(
+      route,
+      boxes,
+      everyRoute.filter((p) => p !== route.points).flatMap(segmentsOf),
+    );
   const drawn = [
     ...routed,
     ...plain
