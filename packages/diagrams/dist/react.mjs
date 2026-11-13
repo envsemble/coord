@@ -5030,15 +5030,20 @@ function arrangeScene(scene, positions = {}, options = {}) {
     const stretches = [];
     let start = lo;
     for (const f of fixed) {
-      stretches.push({ lo: start, hi: f - gap, items: [] });
+      stretches.push({
+        lo: Math.max(lo, start),
+        hi: Math.min(hi, f - gap),
+        items: []
+      });
       start = f + gap;
     }
-    stretches.push({ lo: start, hi, items: [] });
+    stretches.push({ lo: Math.max(lo, start), hi, items: [] });
     const open = stretches.filter((st) => st.hi >= st.lo - 0.01);
     const fresh = items.filter((item) => item.end).sort(
       (p, q) => p.pref - q.pref || (p.order < q.order ? -1 : p.order > q.order ? 1 : 0)
     );
-    const capacity = (st) => Math.floor((st.hi - st.lo) / Math.max(gap, 1e-6)) + 1;
+    const capacity = (st) => Math.max(1, Math.floor((st.hi - st.lo) / Math.max(gap, 1e-6) + 1e-6) + 1);
+    const overflow = [];
     for (const item of fresh) {
       const ranked = open.map((st) => ({
         st,
@@ -5046,14 +5051,20 @@ function arrangeScene(scene, positions = {}, options = {}) {
       })).sort((p, q) => p.away - q.away);
       const home = ranked.find(({ st }) => st.items.length < capacity(st))?.st;
       if (home) home.items.push(item);
-      else item.end.along = round(freePlace(item.pref, fixed, lo, hi, gap));
+      else overflow.push(item);
     }
+    const taken = [...fixed];
     for (const st of open) {
       if (!st.items.length) continue;
       const at = spread(st.items, st.lo, Math.max(st.lo, st.hi));
       st.items.forEach((item, k) => {
         item.end.along = round(at[k]);
+        taken.push(item.end.along);
       });
+    }
+    for (const item of overflow) {
+      item.end.along = round(freePlace(item.pref, taken, lo, hi, gap));
+      taken.push(item.end.along);
     }
   }
   const terminal = (end) => {

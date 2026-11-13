@@ -209,8 +209,7 @@ function preferredAlong(box, side, other) {
 
 // Places the ends on one side as near their preferences as they can be while
 // keeping their order and the port gap. Taking off i gaps turns this into an
-// ordered (isotonic) fit, which pooling adjacent violators solves exactly;
-// ends that already exist weigh so much that they stay where they are.
+// ordered (isotonic) fit, which pooling adjacent violators solves exactly.
 function spread(items, lo, hi) {
   const n = items.length;
   const gap = n > 1 ? Math.min(PORT_GAP, Math.max(0, hi - lo) / (n - 1)) : 0;
@@ -1324,11 +1323,16 @@ export function arrangeScene(scene, positions = {}, options = {}) {
       .sort((p, q) => p - q);
     const stretches = [];
     let start = lo;
+    // Kept clear of the side's rounded corners, as every end is.
     for (const f of fixed) {
-      stretches.push({ lo: start, hi: f - gap, items: [] });
+      stretches.push({
+        lo: Math.max(lo, start),
+        hi: Math.min(hi, f - gap),
+        items: [],
+      });
       start = f + gap;
     }
-    stretches.push({ lo: start, hi, items: [] });
+    stretches.push({ lo: Math.max(lo, start), hi, items: [] });
     const open = stretches.filter((st) => st.hi >= st.lo - 0.01);
     const fresh = items
       .filter((item) => item.end)
@@ -1337,8 +1341,10 @@ export function arrangeScene(scene, positions = {}, options = {}) {
           p.pref - q.pref ||
           (p.order < q.order ? -1 : p.order > q.order ? 1 : 0),
       );
+    // A stretch a rounding error leaves inverted still holds one end.
     const capacity = (st) =>
-      Math.floor((st.hi - st.lo) / Math.max(gap, 1e-6)) + 1;
+      Math.max(1, Math.floor((st.hi - st.lo) / Math.max(gap, 1e-6) + 1e-6) + 1);
+    const overflow = [];
     for (const item of fresh) {
       const ranked = open
         .map((st) => ({
@@ -1353,14 +1359,22 @@ export function arrangeScene(scene, positions = {}, options = {}) {
         .sort((p, q) => p.away - q.away);
       const home = ranked.find(({ st }) => st.items.length < capacity(st))?.st;
       if (home) home.items.push(item);
-      else item.end.along = round(freePlace(item.pref, fixed, lo, hi, gap));
+      else overflow.push(item);
     }
+    const taken = [...fixed];
     for (const st of open) {
       if (!st.items.length) continue;
       const at = spread(st.items, st.lo, Math.max(st.lo, st.hi));
       st.items.forEach((item, k) => {
         item.end.along = round(at[k]);
+        taken.push(item.end.along);
       });
+    }
+    // Ends no stretch has room for take the free place nearest them, clear
+    // of every end placed, each in turn.
+    for (const item of overflow) {
+      item.end.along = round(freePlace(item.pref, taken, lo, hi, gap));
+      taken.push(item.end.along);
     }
   }
   const terminal = (end) => {
