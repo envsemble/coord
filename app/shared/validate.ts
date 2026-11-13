@@ -5,8 +5,8 @@ import { agentIds, appCommands, fullPath, limits, settingsSections, themePrefere
 import { array, diagramPath, integer, nullable, object, oneOf, optional, projectId, relativePath, string, workId, type Validator } from '@envsemble/atlas/host/validate';
 
 export {
-  ValidationError, argumentsOf, array, boolean, diagramPath, diagramPositions, integer, ipAddress, nullable, object, oneOf, optional, pairingCode,
-  port, projectId, projectName, relativePath, string, workId, type Validator,
+  ValidationError, argumentsOf, array, boolean, diagramPath, diagramPositions, fileContent, integer, ipAddress, nullable, object, oneOf, optional, pagePath, pairingCode,
+  port, projectId, projectName, relativePath, string, toolInput, toolName, workId, type Validator,
 } from '@envsemble/atlas/host/validate';
 
 export const command = oneOf(appCommands);

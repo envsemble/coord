@@ -10,7 +10,7 @@ import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atla
 import { resolveDocument } from '@envsemble/atlas/planning';
 import { accessSettings, deviceText } from '@envsemble/atlas/host/validate';
 import { agentNames, defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AgentId, type AccessSettings, type InvokeChannel, type LoadedUi, type PairingGrant, type Project, type PairingLinkView, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
-import { agentId, argumentsOf, array, boolean, command, diagramPath, diagramPositions, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectId, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, uiState, url, workId, type Validator } from '../../shared/validate.ts';
+import { agentId, argumentsOf, array, boolean, command, diagramPath, diagramPositions, fileContent, folderPath, pagePath, toolInput, toolName, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectId, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, uiState, url, workId, type Validator } from '../../shared/validate.ts';
 import { AtlasError, toErrorValue } from '../errors.ts';
 import type { ProjectView } from '../computers/projectView.ts';
 import type { Agents } from '../agent/agents.ts';
@@ -182,6 +182,10 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
     'project:arrange': { args: [projectId, workId, diagramPath, nullable(diagramPositions)], handle: async (window, projectId: string, work: string, file: string, positions: Record<string, [number, number]> | null) => remoteErrors((await window.readable(projectId)).request('project.arrange', { projectId, work, path: file, positions })) },
     'project:references': { args: [projectId, nullable(workId), relativePath], handle: async (window, projectId: string, work: string | null, file: string) => (await window.readable(projectId)).request('project.references', { projectId, work, path: file }) },
     'project:diagramIndex': { args: [projectId], handle: async (window, projectId: string) => (await window.readable(projectId)).request('project.diagramIndex', { projectId }) },
+    // A page: its build, the files it writes and the Atlas tools it calls, on the project's computer.
+    'project:page': { args: [projectId, pagePath], handle: async (window, projectId: string, folder: string) => remoteErrors((await window.readable(projectId)).request('project.page', { projectId, path: folder }, { timeout: 60000 })) },
+    'project:write': { args: [projectId, relativePath, fileContent], handle: async (window, projectId: string, file: string, content: string) => remoteErrors((await window.readable(projectId)).request('project.write', { projectId, path: file, content })) },
+    'project:tool': { args: [projectId, toolName, toolInput], handle: async (window, projectId: string, name: string, input: Record<string, unknown>) => remoteErrors((await window.readable(projectId)).request('project.tool', { projectId, name, input }, { timeout: 60000 })) },
     // What a planning file references, a work item's sessions and its time, from the project's computer.
     'references:resolve': { args: [projectId, referenceInputs], handle: async (window, projectId: string, items: ReferenceInput[]) => remoteErrors((await window.readable(projectId)).request('references.resolve', { projectId, items }, { timeout: 30000 })) },
     'work:sessions': { args: [projectId, workId], handle: async (window, projectId: string, work: string) => remoteErrors((await window.readable(projectId)).request('work.sessions', { projectId, work })) },

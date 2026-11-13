@@ -1,11 +1,12 @@
 // The explorer mirrors the planning folder on disk, or one folder of it (a plan's work folder): real
 // folder and file names, dot folders hidden. Diagram files (.puml) open as diagrams; the arrangement
-// a reader gave a diagram (name.layout.json beside it) is the diagram’s, and not listed. Only
+// a reader gave a diagram (name.layout.json beside it) is the diagram’s, and not listed. A work
+// item's page (a folder of its `pages/` folder) opens as the page, its files under it. Only
 // expanded branches are flattened into rows, so very large folders stay cheap: the tree renders
 // just the rows in view.
 import type { Document, Snapshot, Work } from '../types';
 
-export type NodeKind = 'folder' | 'work' | 'file';
+export type NodeKind = 'folder' | 'work' | 'page' | 'file';
 export interface ExplorerRow {
   id: string;
   kind: NodeKind;
@@ -70,7 +71,8 @@ export function visibleRows(index: ExplorerIndex, expanded: ReadonlySet<string>,
       const id = folderNodeId(path);
       const work = index.works.get(path);
       const open = expanded.has(id);
-      rows.push({ id, kind: work ? 'work' : 'folder', name: base(path), path, depth, expandable: true, expanded: open, work });
+      const page = !work && base(parent(path)) === 'pages' && index.works.has(parent(parent(path)));
+      rows.push({ id, kind: work ? 'work' : page ? 'page' : 'folder', name: base(path), path, depth, expandable: true, expanded: open, work });
       if (!open) continue;
       visit(path, depth + 1);
     }

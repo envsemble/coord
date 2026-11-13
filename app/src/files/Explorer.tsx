@@ -6,11 +6,11 @@
 // resizes it (envUI's resizable drawer, on the page's background), and the width is kept.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Menu, NavigationDrawer, Text, Tree, type NavigationDrawerDestination, type TreeItem } from '@envsemble/envui';
-import { DiagramIcon, GlossaryIcon, LedgerIcon, PlanIcon } from '../ui/icons';
+import { DiagramIcon, GlossaryIcon, LedgerIcon, PageIcon, PlanIcon } from '../ui/icons';
 import type { Document, Snapshot, Target, Work } from '../types';
 import { api } from '../api';
 import { buildIndex, fileNodeId, folderNodeId, revealIds, visibleRows, type ExplorerRow } from './explorerModel';
-import { documentTarget, fileTarget, isDiagramFile } from '../navigation/targets';
+import { documentTarget, fileTarget, isDiagramFile, pageAt, pageTarget } from '../navigation/targets';
 import { workNumber } from '../ui/format';
 import { familyLayers } from '../diagrams/layers';
 import type { DiagramEntry } from '../types';
@@ -26,6 +26,8 @@ export function placeWork(target: Target | undefined, snapshot: Snapshot): Work 
 /** The node of what the window shows, and the folders to open so it shows. */
 export function nodeForTarget(target: Target | undefined, snapshot: Snapshot): { id: string; reveal: string[] } | null {
   if (!target) return null;
+  // A page is its folder's row.
+  if (target.kind === 'file' && pageAt(target.path, snapshot.work)) return { id: folderNodeId(target.path), reveal: revealIds(target.path) };
   if (target.kind === 'file') return { id: fileNodeId(target.path), reveal: revealIds(target.path) };
   if (target.kind === 'work' || target.kind === 'diagram') {
     const work = snapshot.work.find(item => item.id === target.work);
@@ -100,6 +102,8 @@ export function PlanFiles({ work }: { work: Work }) {
   };
   const activate = ({ row }: Row) => {
     if (row.kind === 'file') open(fileOpens(row.file!));
+    // A page opens as itself; its chevron shows its files.
+    else if (row.kind === 'page') open(pageTarget(row.path!));
     else setOpen(row.id, !row.expanded);
   };
   const reveal = (path: string) => { api.reveal(projectId, path).catch(error => notify((error as Error).message, 'warning')); };
@@ -113,6 +117,7 @@ export function PlanFiles({ work }: { work: Work }) {
         {isDiagramFile(row.path!) && <Menu.Item onClick={() => open(fileTarget(row.path!))}>Open as Text</Menu.Item>}
         {revealItem(row.path!)}
       </>
+      : row.kind === 'page' ? <><Menu.Item onClick={() => open(pageTarget(row.path!))}>Open Page</Menu.Item>{revealItem(row.path!)}</>
       : revealItem(row.path!);
     return <>{entries}{entries && <Menu.Separator />}<Menu.Item disabled={!expanded.length} onClick={() => setExpanded([])}>Collapse All Folders</Menu.Item></>;
   };
@@ -162,6 +167,7 @@ export function focusPlanFiles() {
  */
 function treeItem(row: ExplorerRow, workPath: string, tag?: string): Row {
   const base = { value: row.id, depth: row.depth, expandable: row.expandable, expanded: row.expanded, row, textValue: row.name };
+  if (row.kind === 'page') return { ...base, label: row.name, icon: <PageIcon className="explorer-special" data-file="page" />, tooltip: 'Page · ' + row.path };
   if (row.kind !== 'file') return { ...base, label: row.name, icon: <></>, tooltip: row.path };
   const own = (name: string) => row.path === workPath + '/' + name;
   const icon = own('plan.md') ? <PlanIcon className="explorer-special" data-file="plan" />

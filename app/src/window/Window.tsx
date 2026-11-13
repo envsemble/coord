@@ -12,7 +12,7 @@ import { ErrorIcon, WarningIcon } from '../ui/icons';
 import type { MenuCommand } from '../../shared/contract';
 import type { Issue, LoadedUi, OpenProjectChange, Project, ProjectChangeRequest, SettingsSection, Snapshot, SnapshotWork, Target, Work, WindowInfo } from '../types';
 import { api } from '../api';
-import { documentTarget, hubPlace, isPage, placeId, placeProject, scrollKey, settingsPlace, statisticsPlace, workTarget, type Place, type ProjectPlace } from '../navigation/targets';
+import { documentTarget, hubPlace, isPage, pageAt, placeId, placeProject, scrollKey, settingsPlace, statisticsPlace, workTarget, type Place, type ProjectPlace } from '../navigation/targets';
 import { samePath, siblingProject } from '../reader/links';
 import { canGoBack, canGoForward, currentEntry, keyStep, record, samePlace, startHistory, step } from '../navigation/history';
 import { workNumber } from '../ui/format';
@@ -34,6 +34,7 @@ import { SettingsPage } from '../settings/SettingsPage';
 
 // The diagrams and the statistics pages load when they are first shown, so a window starts lighter.
 const DiagramsView = lazy(() => import('../diagrams/DiagramsView').then(module => ({ default: module.DiagramsView })));
+const PageView = lazy(() => import('../page/PageView').then(module => ({ default: module.PageView })));
 const WorkStatisticsPage = lazy(() => import('../statistics/WorkStatisticsPage').then(module => ({ default: module.WorkStatisticsPage })));
 const ProjectStatisticsPage = lazy(() => import('../statistics/ProjectStatisticsPage').then(module => ({ default: module.ProjectStatisticsPage })));
 const AllStatisticsPage = lazy(() => import('../statistics/ProjectStatisticsPage').then(module => ({ default: module.AllStatisticsPage })));
@@ -456,7 +457,8 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
     if ('place' in destination) go(destination.place);
     else void openPath(destination.projectId, destination.path, destination.anchor);
   }, [go, openPath]);
-  const fills = projectPlace?.target.kind === 'diagram' && Boolean(readSnapshot);
+  // A diagram or a page fills the body.
+  const fills = Boolean(readSnapshot) && (projectPlace?.target.kind === 'diagram' || (projectPlace?.target.kind === 'file' && pageAt(projectPlace.target.path, readSnapshot!.work) !== null));
   /** The project the search lists the documents and diagrams of: the one a plan, diagram or file of shows. */
   const searchScope = useMemo(() => projectPlace && reading && readSnapshot ? { projectId: reading, snapshot: readSnapshot } : null, [Boolean(projectPlace), reading, readSnapshot]);
 
@@ -571,6 +573,11 @@ function ProjectContent({ place, folder, project, scope, read, statisticsTrail }
       content = !item ? <div className="page-state" aria-busy="true"><Spinner size="lg" label="Reading the plan" /></div>
         : target.kind === 'diagram' ? <div className="work-page is-diagrams"><Suspense fallback={loadingPage}><DiagramsView key={item.id} work={item} target={target} /></Suspense></div>
         : <PlanFrame work={item} snapshot={snapshot}>{target.view === 'statistics' ? <Suspense fallback={loadingPage}><WorkStatisticsPage work={item} /></Suspense> : <PlanPage work={item} snapshot={snapshot} target={target} />}</PlanFrame>;
+    } else if (pageAt(target.path, snapshot.work)) {
+      // A work item's page fills the window beside Files, as a diagram does.
+      const page = pageAt(target.path, snapshot.work)!;
+      content = !snapshot.documents.some(document => document.path.startsWith(page.folder + '/')) ? <PlanFrame work={page.work} snapshot={snapshot}><Gone title="This page no longer exists" detail={target.path} /></PlanFrame>
+        : <div className="work-page is-page"><Suspense fallback={loadingPage}><PageView key={page.folder} work={page.work} folder={page.folder} name={page.name} /></Suspense></div>;
     } else {
       const file = snapshot.documents.find(document => document.path === target.path);
       // A plan's plan.md and ledger.md are the plan page, as Atlas shows them, however they are opened.

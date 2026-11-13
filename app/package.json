@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@envsemble/atlas-diagrams": "*",
+    "esbuild": "0.28.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
@@ -35,9 +36,10 @@
     "@electron/fuses": "1.8.0",
     "@envsemble/atlas": "*",
     "@envsemble/envui": "1.0.0",
+    "@pierre/diffs": "1.6.4",
+    "@pierre/theme": "2.0.0",
     "@playwright/test": "1.64.0",
     "@shikijs/langs": "4.5.0",
-    "@pierre/theme": "2.0.0",
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",

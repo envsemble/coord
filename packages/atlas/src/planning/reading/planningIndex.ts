@@ -1,4 +1,5 @@
-import { readdir, readFile, realpath, stat } from 'node:fs/promises';
+import { mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { parse } from 'yaml';
@@ -85,6 +86,27 @@ async function resolveInside(resolvedRoot: string, relative: string) {
   }
   if (!(await stat(actual)).isFile()) throw new PlanningError('Choose a file to read.', 400);
   return actual;
+}
+/**
+ * Write a text file in a planning folder (a page's choices or data), as readDocument reads one: a
+ * path inside it, outside hidden and excluded folders. Its folders are made, and the file is
+ * replaced whole, through a temporary file beside it.
+ */
+export async function writeDocument(root: string, relative: string, content: string) {
+  requireReadable(relative);
+  const resolvedRoot = await realpath(root);
+  const target = path.resolve(resolvedRoot, relative);
+  if (!within(resolvedRoot, target)) throw new PlanningError('Write inside the planning folder.', 403);
+  await mkdir(path.dirname(target), { recursive: true });
+  const folder = await realpath(path.dirname(target));
+  if (!within(resolvedRoot, path.join(folder, 'x')) || hidden(path.relative(resolvedRoot, path.join(folder, path.basename(target))))) throw new PlanningError('Write inside the readable planning folder.', 403);
+  const existing = await stat(target).catch(() => null);
+  if (existing && !existing.isFile()) throw new PlanningError('Only a file can be written.', 400);
+  const temporary = path.join(folder, `.${path.basename(target)}.${randomUUID()}.tmp`);
+  try {
+    await writeFile(temporary, content, 'utf8');
+    await rename(temporary, path.join(folder, path.basename(target)));
+  } finally { await rm(temporary, { force: true }); }
 }
 function unpack(source: string): { body: string; metadata: Record<string, unknown> | null } {
   const normalized = source.replace(/^\uFEFF/, '');

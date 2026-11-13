@@ -125,7 +125,7 @@ export class Host {
   readonly openProjects: OpenProjects;
   private readonly options: HostOptions;
   private readonly connections = new Set<Connection>();
-  private readonly websockets = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
+  private readonly websockets = new WebSocketServer({ noServer: true, maxPayload: 4 * 1024 * 1024 });
   private loopback: Listener | null = null;
   private network: Listener | null = null;
   private networkError: string | null = null;
@@ -800,6 +800,9 @@ export class Host {
       case 'project.arrange': { const { projectId, work, path: file, positions } = p as { projectId: string; work: string; path: string; positions: Record<string, [number, number]> | null }; return this.subscribed(connection, projectId).arrange(work, file, positions).then(() => null) as never; }
       case 'project.references': { const { projectId, work, path: file } = p as { projectId: string; work: string | null; path: string }; return this.subscribed(connection, projectId).references(work, file) as never; }
       case 'project.diagramIndex': return this.subscribed(connection, (p as { projectId: string }).projectId).diagramIndex() as never;
+      case 'project.page': { const { projectId, path: folder } = p as { projectId: string; path: string }; return this.subscribed(connection, projectId).page(folder) as never; }
+      case 'project.write': { const { projectId, path: file, content } = p as { projectId: string; path: string; content: string }; return this.subscribed(connection, projectId).write(file, content).then(() => null) as never; }
+      case 'project.tool': { const { projectId, name, input } = p as { projectId: string; name: string; input: Record<string, unknown> }; return this.subscribed(connection, projectId).tool(name, input) as never; }
       case 'access.state': return this.accessState() as never;
       case 'access.update': {
         const { settings } = p as unknown as Methods['access.update']['params'];

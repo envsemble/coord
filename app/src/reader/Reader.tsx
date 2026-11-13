@@ -2,12 +2,12 @@ import { createContext, createElement, memo, useContext, useEffect, useMemo, use
 import { Button, Link, Spinner } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
 import { Markdown } from '@envsemble/envui/markdown';
-import { ChevronRightIcon, DiagramIcon, FileIcon, FolderOpenIcon, NewWindowIcon } from '../ui/icons';
+import { ChevronRightIcon, DiagramIcon, FileIcon, FolderOpenIcon, NewWindowIcon, PageIcon } from '../ui/icons';
 import type { DiagramReference, Document, DocumentContent, Snapshot, Target } from '../types';
 import { api, fileUrl } from '../api';
 import { resolveLink, siblingReference } from './links';
 import { findHeadingId, rehypeFoldRequests, rehypeHeadingIds } from './headings';
-import { documentTarget, workTarget } from '../navigation/targets';
+import { documentTarget, pageTarget, workTarget } from '../navigation/targets';
 import { bytes } from '../ui/format';
 import { useWindow, useWindowActions } from '../window/windowContext';
 import { appSchemes, fromUrl, referenceKey, rehypeReferences, type Found } from './references';
@@ -40,9 +40,10 @@ function diagramNames(references: DiagramReference[]) {
  * words, in the accent colour, so it reads as a diagram; its tooltip names the diagram and where it
  * came from.
  */
-function DiagramLink({ id, title, onOpen, children }: { id?: string; title: string; onOpen(): void; children?: ReactNode }) {
-  return <Link id={id} href="#" underline={false} className="diagram-link" title={title} onClick={event => { event.preventDefault(); onOpen(); }}>
-    <DiagramIcon className="diagram-link-icon" />{children}
+function DiagramLink({ id, title, onOpen, children, page = false }: { id?: string; title: string; onOpen(): void; children?: ReactNode; page?: boolean }) {
+  const Icon = page ? PageIcon : DiagramIcon;
+  return <Link id={id} href="#" underline={false} className={'diagram-link' + (page ? ' page-link' : '')} title={title} onClick={event => { event.preventDefault(); onOpen(); }}>
+    <Icon className="diagram-link-icon" />{children}
   </Link>;
 }
 
@@ -166,6 +167,8 @@ export function Reader({ file, snapshot, anchor, references = noReferences, hide
         const route: Target | null = target.file ? documentTarget(target.file, owner, target.anchor ?? null)
           : target.work ? workTarget(target.work.id, target.anchor ?? null) : null;
         if (href.startsWith('#') && target.anchor !== undefined) return <Link id={id} href="#" onClick={event => { event.preventDefault(); scrollToHeading(target.anchor!); }}>{children}</Link>;
+        // A work item's page reads as a diagram does: it opens in place.
+        if (target.page) return <DiagramLink id={id} page title={'Page · ' + target.page.slice(target.page.lastIndexOf('/') + 1)} onOpen={() => open(pageTarget(target.page!))}>{children}</DiagramLink>;
         if (route?.kind === 'diagram') {
           const named = names.get(route.work + ':' + route.path);
           const title = (named ? named.title + (named.provenance ? ' · ' + named.provenance : '') : 'Diagram') + (route.element ? ' · ' + route.element : '');

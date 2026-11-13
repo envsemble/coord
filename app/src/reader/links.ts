@@ -2,7 +2,8 @@ import type { Document, Work } from '../types';
 import { samePath } from '@envsemble/atlas/platform/paths';
 
 export { samePath };
-export type Destination = { file?: Document; work?: Work; anchor?: string; external?: string };
+/** Where a link leads: a document, a work item (its plan), a page (its folder), an anchor, or a web address. */
+export type Destination = { file?: Document; work?: Work; page?: string; anchor?: string; external?: string };
 function containedReference(href: string, source: string) {
   // Check before URL resolution can clamp excessive parent traversal to the root.
   const rawPath = href.replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, '').replace(/[\t\r\n]/g, '').replaceAll('\\', '/').split(/[?#]/, 1)[0].replace(/^http:/i, '').replace(/^\/{2,}[^/]*/, '');
@@ -21,8 +22,13 @@ export function resolveLink(href: string, source: string, documents: Document[],
     if (!containedReference(href, source)) return {};
     const relative = decodeURIComponent(target.pathname.slice(1));
     // URL resolution normalizes dot segments; only registered, retained targets are navigable.
+    const folder = relative.replace(/\/$/, '');
+    // A work item's page is a folder in its pages/ folder that holds files.
+    const page = /\/pages\/[^/]+$/.test(folder) && work.some(candidate => samePath(candidate.path, folder.replace(/\/pages\/[^/]+$/, ''), caseSensitive, normalizesUnicode))
+      ? documents.find(candidate => candidate.path.startsWith(folder + '/'))?.path.slice(0, folder.length) : undefined;
     return { file: documents.find(candidate => samePath(candidate.path, relative, caseSensitive, normalizesUnicode)),
-      work: work.find(candidate => samePath(candidate.path, relative.replace(/\/$/, ''), caseSensitive, normalizesUnicode)),
+      work: work.find(candidate => samePath(candidate.path, folder, caseSensitive, normalizesUnicode)),
+      ...page && { page },
       anchor: decodeURIComponent(target.hash.slice(1)) };
   } catch {
     // Hand-written references can contain malformed URLs or percent encodings. Keep their surrounding prose readable.

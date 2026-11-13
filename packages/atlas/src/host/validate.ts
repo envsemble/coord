@@ -78,6 +78,17 @@ export const workId = string({ min: 6, max: 32, pattern: /^work-[0-9]{4,}$/ });
 /** A moment as clients send it: an ISO time with its zone. */
 export const isoTime = string({ min: 20, max: 40, pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/ });
 /** A diagram file's path in its work folder, relative and inside it. */
+/** A page's folder in the planning folder: `<work path>/pages/<name>`. */
+export const pagePath = string({ min: 8, max: pathLimit, pattern: /^(?![\\/])(?![a-zA-Z]:)(?!.*(?:^|\/)\.\.(?:\/|$)).+\/pages\/[^/]+$/ });
+/** The text a page writes into a file, at most a million characters. */
+export const fileContent = string({ min: 0, max: 1_000_000 });
+/** An Atlas tool's name, as agents call it. */
+export const toolName = string({ min: 1, max: 64, pattern: /^[a-z_]+$/ });
+/** A tool's arguments: a JSON object, as a page passes it (the message size bounds it). */
+export const toolInput: Validator<Record<string, unknown>> = (value, at = '') => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) fail(at, 'an object');
+  return value as Record<string, unknown>;
+};
 export const diagramPath = string({ min: 6, max: pathLimit, pattern: /^(?![\\/])(?![a-zA-Z]:)(?!.*(?:^|\/)\.\.(?:\/|$)).+\.puml$/i });
 /** The most elements an arrangement places. */
 export const arrangementLimit = 5000;
@@ -156,6 +167,9 @@ export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['p
   'project.arrange': object({ projectId, work: workId, path: diagramPath, positions: nullable(diagramPositions) }),
   'project.references': object({ projectId, work: nullable(workId), path: relativePath }),
   'project.diagramIndex': object({ projectId }),
+  'project.page': object({ projectId, path: pagePath }),
+  'project.write': object({ projectId, path: relativePath, content: fileContent }),
+  'project.tool': object({ projectId, name: toolName, input: toolInput }),
   'access.state': none,
   'access.update': object({ settings: accessSettings }),
   'access.pairingCreate': object({ address: nullable(listenAddress), label: nullable(deviceText(80)), manageAccess: boolean }),

@@ -4,8 +4,11 @@
 // scope it requires; the host checks it before any handler runs.
 import type { DocumentContent, HandoffLink, PlanningIndex, ProjectState, ProjectSummary as PlanningProjectSummary, ProjectWork, ProjectWorkState, ProjectWorkStatistics, Work } from '../planning/index.ts';
 import type { DiagramEntry, DiagramIndexEntry, DiagramReference } from '../planning/reading/diagrams.ts';
+import type { PageBuild, PageProblem } from '../planning/pages/pages.ts';
 
-export type { DiagramEntry, DiagramIndexEntry, DiagramReference, HandoffLink, ProjectState, ProjectWork, ProjectWorkState, ProjectWorkStatistics };
+export type { DiagramEntry, DiagramIndexEntry, DiagramReference, HandoffLink, PageBuild, PageProblem, ProjectState, ProjectWork, ProjectWorkState, ProjectWorkStatistics };
+/** An Atlas tool's result for a page: its value, or the refusal an agent would read. */
+export type ToolOutcome = { ok: true; value: unknown } | { ok: false; error: string };
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
 export const protocolVersion = 14;
@@ -274,6 +277,12 @@ export interface Methods {
   'project.references': { params: { projectId: string; work: string | null; path: string }; result: DiagramReference[] };
   /** Every diagram of the project, for quick open. */
   'project.diagramIndex': { params: { projectId: string }; result: DiagramIndexEntry[] };
+  /** Build a page (`path`: its folder, `<work>/pages/<name>`) for a window to run: its code, or why it does not build. */
+  'project.page': { params: { projectId: string; path: string }; result: PageBuild };
+  /** Write a text file in the planning folder (a page's choices or data), making its folders. */
+  'project.write': { params: { projectId: string; path: string; content: string }; result: null };
+  /** Run one of the Atlas tools agents use (work_status, step and the rest) in the project's planning folder, for a page. */
+  'project.tool': { params: { projectId: string; name: string; input: Record<string, unknown> }; result: ToolOutcome };
   'access.state': { params: Record<string, never>; result: AccessState };
   'access.update': { params: { settings: AccessSettings }; result: AccessState };
   'access.pairingCreate': { params: { address: string | null } & PairingGrant; result: PairingLink };
@@ -305,6 +314,9 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'project.arrange': 'computer',
   'project.references': 'computer',
   'project.diagramIndex': 'computer',
+  'project.page': 'computer',
+  'project.write': 'computer',
+  'project.tool': 'computer',
   'access.state': 'access:manage',
   'access.update': 'owner',
   'access.pairingCreate': 'access:manage',

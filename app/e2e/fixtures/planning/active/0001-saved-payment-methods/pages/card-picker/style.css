@@ -1,0 +1,2 @@
+.card-picker { padding: var(--env-space-6); max-inline-size: 72rem; }
+.layout-option { flex: 1 1 18rem; }

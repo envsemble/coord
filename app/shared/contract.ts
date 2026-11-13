@@ -7,20 +7,20 @@
 import type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, ErrorCode, HostErrorValue, PairedDevice, PairingGrant, PairingLink, Project,
   ProjectState, ProjectStatistics, ProjectStatus, ProjectSummary, ProjectWork, ProjectWorkState, ReferenceInput, ResolvedReference, SearchKind, SearchResult, SessionActivity, Snapshot,
-  SnapshotValue, SnapshotWork, WorkActivity, WorkCommit, WorkSession, WorkTimeline,
+  SnapshotValue, SnapshotWork, WorkActivity, WorkCommit, WorkSession, WorkTimeline, PageBuild, PageProblem, ToolOutcome,
 } from '@envsemble/atlas/host/contract';
 import type { DocumentContent } from '@envsemble/atlas/planning/types';
 
 export type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, DocumentContent, ErrorCode, PairedDevice, PairingGrant, Project,
   ProjectState, ProjectStatistics, ProjectStatus, ProjectSummary, ProjectWork, ProjectWorkState, ReferenceInput, ResolvedReference, SearchKind, SearchResult, SessionActivity, Snapshot,
-  SnapshotValue, SnapshotWork, WorkActivity, WorkCommit, WorkSession, WorkTimeline,
+  SnapshotValue, SnapshotWork, WorkActivity, WorkCommit, WorkSession, WorkTimeline, PageBuild, PageProblem, ToolOutcome,
 };
 
 export const invokeChannels = [
   'window:info',
   'projects:list', 'projects:create', 'search:query', 'projects:chooseFolder', 'projects:update', 'project:open', 'project:close',
-  'project:snapshot', 'project:work', 'project:document', 'project:diagrams', 'project:diagram', 'project:arrangement', 'project:arrange', 'project:references', 'project:diagramIndex',
+  'project:snapshot', 'project:work', 'project:document', 'project:diagrams', 'project:diagram', 'project:arrangement', 'project:arrange', 'project:references', 'project:diagramIndex', 'project:page', 'project:write', 'project:tool',
   'project:statistics', 'projects:statistics', 'ui:load', 'ui:save',
   'references:resolve', 'work:sessions', 'work:timeline',
   'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:copy',
@@ -211,6 +211,12 @@ export interface AtlasBridge {
   references(projectId: string, work: string | null, path: string): Promise<Result<DiagramReference[]>>;
   /** Every diagram of a project, for quick open. */
   diagramIndex(projectId: string): Promise<Result<DiagramIndexEntry[]>>;
+  /** Build a page, by its folder in the planning folder (`<work>/pages/<name>`), for its frame to run. */
+  page(projectId: string, path: string): Promise<Result<PageBuild>>;
+  /** Write a text file in the planning folder, for a page. */
+  writeFile(projectId: string, path: string, content: string): Promise<Result<null>>;
+  /** Run an Atlas tool (work_status, step and the rest) in the project's planning folder, for a page. */
+  tool(projectId: string, name: string, input: Record<string, unknown>): Promise<Result<ToolOutcome>>;
   /** A project's statistics for a period (ISO times; `from` null: since its first report, `to` null: until now), by day or week. */
   projectStatistics(projectId: string, from: string | null, to: string | null, unit: 'day' | 'week'): Promise<Result<ProjectStatistics>>;
   /** The statistics of every active project together (all plans), for a period as projectStatistics has it. */

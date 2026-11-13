@@ -4,18 +4,24 @@ import { defineConfig } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 import { defaultClientConditions, searchForWorkspaceRoot, type Plugin } from 'vite';
 import { themeStorageKey } from './shared/theme';
+import { pagePolicy } from './shared/pagePolicy';
 
 // The production policy is also sent as a header by the atlas:// protocol (main/windows/protocol.ts).
 // Development allows the Vite client (inline React refresh preamble, HMR socket) on localhost only.
-const productionPolicy = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' atlas: data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'";
-const developmentPolicy = "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' atlas: data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:* ws://127.0.0.1:*; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'";
+// The window may frame only its pages' frames (atlas://page, or the dev server in development).
+const productionPolicy = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' atlas: data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; frame-src atlas://page; worker-src 'none'; base-uri 'none'; form-action 'none'";
+const developmentPolicy = "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' atlas: data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:* ws://127.0.0.1:*; object-src 'none'; frame-src 'self'; worker-src 'none'; base-uri 'none'; form-action 'none'";
 
 function contentSecurityPolicy(): Plugin {
-  let policy = productionPolicy;
+  let serving = false;
   return {
     name: 'atlas-content-security-policy',
-    configResolved(config) { policy = config.command === 'serve' ? developmentPolicy : productionPolicy; },
-    transformIndexHtml(html) { return html.replace('<meta charset="UTF-8" />', `<meta charset="UTF-8" />\n    <meta http-equiv="Content-Security-Policy" content="${policy}" />`); },
+    configResolved(config) { serving = config.command === 'serve'; },
+    // A page's frame runs the page's own code, under its own policy (shared/pagePolicy.ts).
+    transformIndexHtml(html, context) {
+      const policy = context.filename.endsWith('page-frame.html') ? pagePolicy(serving, true) : serving ? developmentPolicy : productionPolicy;
+      return html.replace('<meta charset="UTF-8" />', `<meta charset="UTF-8" />\n    <meta http-equiv="Content-Security-Policy" content="${policy}" />`);
+    },
   };
 }
 
@@ -55,9 +61,10 @@ const envUIRoot = envUISource ? realpathSync(resolve(import.meta.dirname, 'node_
 export default defineConfig({
   main: {
     build: {
-      // The diagram package (CommonJS with native and lazily loaded dependencies) stays in
-      // node_modules; everything else, including the planning reader, is bundled.
-      externalizeDeps: { include: ['@envsemble/atlas-diagrams'] },
+      // The diagram package (CommonJS with native and lazily loaded dependencies) and esbuild (a
+      // native binary, which builds pages) stay in node_modules; everything else, including the
+      // planning reader, is bundled.
+      externalizeDeps: { include: ['@envsemble/atlas-diagrams', 'esbuild'] },
       // The app's main process and the Atlas host it runs in a utility process (main/host/hostProcess.ts).
       lib: { entry: { index: resolve(import.meta.dirname, 'main/index.ts'), host: resolve(import.meta.dirname, 'main/host/hostProcess.ts') } },
       sourcemap: true,
@@ -77,7 +84,8 @@ export default defineConfig({
     root: import.meta.dirname,
     publicDir: resolve(import.meta.dirname, '../packages/diagrams/assets'),
     // Minified: the window parses less as it starts (electron-vite leaves the renderer unminified).
-    build: { minify: true, rolldownOptions: { input: resolve(import.meta.dirname, 'index.html') } },
+    // The window, and the frame each page runs in.
+    build: { minify: true, rolldownOptions: { input: { index: resolve(import.meta.dirname, 'index.html'), 'page-frame': resolve(import.meta.dirname, 'page-frame.html') } } },
     resolve: { dedupe: ['react', 'react-dom'], ...(envUISource && { conditions: ['envui-source', ...defaultClientConditions] }) },
     ...(envUISource && { optimizeDeps: { exclude: ['@envsemble/envui'] } }),
     ...(envUIRoot && { server: { fs: { allow: [searchForWorkspaceRoot(import.meta.dirname), envUIRoot] } } }),

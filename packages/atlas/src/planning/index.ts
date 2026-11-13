@@ -2,7 +2,7 @@
 // and the Atlas home (src/home), which the app reaches through `@envsemble/atlas/planning`. Tests
 // import the modules themselves. The diagram catalog and search lay diagrams out and read every
 // file, so only the host imports them, directly; checking a diagram loads only the diagram parser.
-export { PlanningError, loadPlanning, readDocument, resolveDocument } from './reading/planningIndex.ts';
+export { PlanningError, loadPlanning, readDocument, resolveDocument, writeDocument } from './reading/planningIndex.ts';
 export { atlasHome, electronDataDirectory, homePlanningDirectory, homePlanningFolders, prepareHome } from '../home/home.ts';
 export { DatabaseVersionError, HomeDatabase, canonicalProjectFolderSync, folderKey, isPlanningFolder, planningName, projectOf, withDatabaseAsync, type ProjectRow, type ProjectState } from '../home/database.ts';
 export { validatePlanning } from './check/check.ts';

@@ -3,9 +3,11 @@
 // answers every request about that folder from it.
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { readDocument, workStatistics, type HomeDatabase } from '../../planning/index.ts';
+import { readDocument, workStatistics, writeDocument, type HomeDatabase } from '../../planning/index.ts';
+import { buildPage } from '../../planning/pages/pages.ts';
+import { callTool } from '../../cli/commands/mcp.ts';
 import { PlanningReader } from '../../planning/reading/reader.ts';
-import type { DiagramEntry, DiagramIndexEntry, DiagramReference, OpenProjectState, ProjectStatus, Snapshot } from '../contract.ts';
+import type { DiagramEntry, DiagramIndexEntry, DiagramReference, OpenProjectState, PageBuild, ProjectStatus, Snapshot, ToolOutcome } from '../contract.ts';
 import { HostError, type Logger } from '../errors.ts';
 import { watchFolder, type FolderWatcher } from './folderWatcher.ts';
 
@@ -199,6 +201,20 @@ export class OpenProject {
   }
 
   document(relative: string) { return readDocument(this.root, relative); }
+  /** Build a page, by its folder in the planning folder. */
+  async page(relative: string): Promise<PageBuild> {
+    const folder = path.resolve(this.root, relative);
+    if (!(await exists(folder))) throw new HostError('not-found', 'This page is not in the planning folder any more.');
+    return buildPage(this.root, folder);
+  }
+  /** Write a file a page asked for (its choices, its data). The watcher then reports the change. */
+  write(relative: string, content: string) { return writeDocument(this.root, relative, content); }
+  /** Run an Atlas tool for a page, in this planning folder. */
+  async tool(name: string, input: Record<string, unknown>): Promise<ToolOutcome> {
+    const result = await callTool(name, { ...input, planningFolder: this.root, cwd: this.root });
+    const text = result.content.map(item => item.text).join('\n');
+    return 'isError' in result && result.isError ? { ok: false, error: text } : { ok: true, value: 'structuredContent' in result ? result.structuredContent : text };
+  }
   diagrams(work: string): Promise<DiagramEntry[]> { return this.reader().diagrams.list(this.snapshot(), work); }
   diagram(work: string, file: string) { return this.reader().diagrams.prepared(this.snapshot(), work, file); }
   arrangement(work: string, file: string) { return this.reader().diagrams.arrangement(this.snapshot(), work, file); }

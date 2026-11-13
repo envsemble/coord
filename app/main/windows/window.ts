@@ -7,7 +7,7 @@ import type { HostClient, Project } from '@envsemble/atlas/host';
 import type { EventChannel, ProjectChangeRequest, WindowInfo } from '../../shared/contract.ts';
 import { AtlasError } from '../errors.ts';
 import { ProjectView } from '../computers/projectView.ts';
-import { createProtocolHandler, isEntry, originOf, rendererOrigin, scheme } from './protocol.ts';
+import { createProtocolHandler, isEntry, isPageFrameUrl, originOf, rendererOrigin, scheme } from './protocol.ts';
 import { defaultSize, type Bounds, type WindowRow } from '../appState.ts';
 import type { WindowManager } from './windowManager.ts';
 
@@ -139,8 +139,10 @@ export class AtlasWindow {
       const url = new URL(details.url);
       const local = ['atlas:', 'data:', 'blob:', 'devtools:'].includes(url.protocol);
       const devServer = dev && (url.protocol === 'http:' || url.protocol === 'ws:') && url.host === dev.host;
-      if (!local && !devServer) context.log.warn('Blocked a request', { url: url.protocol + '//' + url.host });
-      callback({ cancel: !local && !devServer });
+      // A page, in its frame, reaches what its agent made it for: no guards (work-0036).
+      const page = Boolean(details.frame?.parent) && isPageFrameUrl(details.frame!.url, context.devUrl);
+      if (!local && !devServer && !page) context.log.warn('Blocked a request', { url: url.protocol + '//' + url.host });
+      callback({ cancel: !local && !devServer && !page });
     });
     session.on('will-download', (event, item) => {
       // Only files the viewer generates itself (SVG/JSON exports) may be saved; the user picks where.
@@ -161,6 +163,14 @@ export class AtlasWindow {
       if (external) void this.openExternal(external).catch(() => undefined);
     });
     contents.on('will-redirect', (event, url) => { if (!own(url)) event.preventDefault(); });
+    // A page's frame stays on its page; a link it follows opens in the browser.
+    contents.on('will-frame-navigate', event => {
+      if (event.isMainFrame) return;
+      if (isPageFrameUrl(event.url, this.manager.context.devUrl ?? null)) return;
+      event.preventDefault();
+      const external = externalUrl(event.url);
+      if (external) void this.openExternal(external).catch(() => undefined);
+    });
     contents.on('will-attach-webview', event => event.preventDefault());
     contents.setWindowOpenHandler(({ url }) => {
       const external = externalUrl(url);

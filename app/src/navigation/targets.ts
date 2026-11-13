@@ -32,6 +32,18 @@ export const fileTarget = (path: string, anchor: string | null = null): Target =
 export const isDiagramFile = (path: string) => /\.puml$/i.test(path);
 
 /**
+ * A work item's pages are folders of its `pages/` folder, each opened as the page it holds. A page
+ * opens as a file target naming its folder.
+ */
+export const pageTarget = (folder: string): Target => fileTarget(folder);
+/** The page folder a work item has at `path`, if `path` is one (`<work>/pages/<name>`). */
+export function pageAt(path: string, work: readonly Work[]): { folder: string; name: string; work: Work } | null {
+  const match = /^(.+)\/pages\/([^/]+)$/.exec(path.replace(/\/+$/, ''));
+  const owner = match ? work.find(item => item.path === match[1]) : undefined;
+  return match && owner ? { folder: match[0], name: match[2], work: owner } : null;
+}
+
+/**
  * Where a link to a document goes: a work item's plan opens as the work item, its diagram files as
  * its diagrams (an anchor naming an element), anything else (its ledger too) as a file.
  */
