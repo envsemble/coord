@@ -6,6 +6,8 @@ const {
   groupLabel,
 } = require("./generalizationGroups.cjs");
 const { knownMultiplicity } = require("./multiplicity.cjs");
+const { layoutGroups } = require("./groups.cjs");
+const { layoutGrouped } = require("./layoutGrouped.cjs");
 const round = (n) => Number(n.toFixed(2));
 // Names that only repeat what a relation is: every captured type-use
 // dependency has the first, and some relations are named only the second.
@@ -238,7 +240,7 @@ function alignInheritanceBars(graph, groups, routedEdges, direction) {
     for (const [id, sections] of originals) routes.get(id).sections = sections;
   }
 }
-async function layoutDiagram(view, classes, relations, generalizations) {
+async function layoutFlat(view, classes, relations, generalizations) {
   const allEdges = [
     ...generalizations.map((g) => ({
       ...g,
@@ -579,5 +581,35 @@ async function layoutDiagram(view, classes, relations, generalizations) {
     }),
   };
   return { diagram, check };
+}
+/** A relation's labels as the flat layout sizes them: its name, and the counts at its ends. */
+function edgeLabels(edge) {
+  const name = relationLabel(edge);
+  return [
+    ...(name ? [label(edge.id + "-name", name)] : []),
+    ...(knownMultiplicity(edge.sourceMultiplicity)
+      ? [label(edge.id + "-tail", edge.sourceMultiplicity, "TAIL")]
+      : []),
+    ...(knownMultiplicity(edge.targetMultiplicity)
+      ? [label(edge.id + "-head", edge.targetMultiplicity, "HEAD")]
+      : []),
+  ];
+}
+/**
+ * A view laid out: in one piece when it is small or its relations hold it
+ * together, or else in its groups (packages, or the groups its relations
+ * form), each group compact and the groups apart (see layoutGrouped.cjs).
+ */
+async function layoutDiagram(view, classes, relations, generalizations) {
+  const clusters = layoutGroups(view, classes, relations, generalizations);
+  if (!clusters.length)
+    return layoutFlat(view, classes, relations, generalizations);
+  // The router the viewer re-routes a dragged element's relations with.
+  const { arrangeScene } = require("../../src/canvas/arrange.mjs");
+  return layoutGrouped(view, classes, relations, generalizations, clusters, {
+    layoutFlat,
+    route: arrangeScene,
+    edgeLabels,
+  });
 }
 module.exports = { layoutDiagram, relationLabel, labelSize };
