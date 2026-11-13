@@ -3018,11 +3018,10 @@ function useOverlayInsets(viewerRef, topRef) {
       const edge = (selector) => viewer.querySelector(selector)?.getBoundingClientRect();
       const top = edge(":scope > .atlas-overlay-top");
       const inspector = edge(":scope > .side-panel.open");
-      const layers = edge(":scope > .atlas-overlay-layers");
       return {
         top: top ? Math.max(0, top.bottom - box.top) : 0,
         bottom: 0,
-        left: layers && layers.width < box.width * 0.4 ? Math.max(0, layers.right - box.left) : 0,
+        left: 0,
         // A full-width inspector on narrow panels covers the diagram anyway.
         right: inspector && inspector.width < box.width * 0.6 ? Math.max(0, box.right - inspector.left) : 0,
         // Panels that may cover a selected node, in canvas coordinates.
@@ -5404,7 +5403,6 @@ function DiagramPanelContent({
   focus = null,
   leading,
   sections,
-  layers,
   review = null,
   identity,
   arrangement = null,
@@ -5509,7 +5507,6 @@ function DiagramPanelContent({
             onClearHover: state.clearHover
           }
         ),
-        layers && /* @__PURE__ */ jsx24("div", { className: "atlas-overlay-layers", children: layers }),
         /* @__PURE__ */ jsx24(SidePanel, { state, model, scenarios })
       ]
     }

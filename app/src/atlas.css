@@ -245,8 +245,6 @@ body { margin: 0; }
    the page is as wide as the two, so its title and breadcrumb line up with the text. */
 .work-page { --atlas-reading: 48rem; }
 .work-page.env-page { max-inline-size: calc(var(--atlas-reading) + var(--env-space-7) + 20rem + 2 * var(--env-space-5)); }
-/* An island like the diagram's: a pane pill with their hairline and shadow. */
-.diagrams-island { box-shadow: 0 0 0 0.0625rem color-mix(in srgb, var(--env-color-fg-default) 9%, transparent), 0 0.0625rem 0.1875rem color-mix(in srgb, var(--env-color-fg-default) 14%, transparent), 0 0.5rem 1.5rem -0.5rem color-mix(in srgb, var(--env-color-fg-default) 28%, transparent); }
 @media (max-width: 40rem) {
   .work-page { --atlas-gutter: var(--env-space-2); }
 }
@@ -335,26 +333,20 @@ body { margin: 0; }
 /* A plan's diagrams: the canvas fills the panel. */
 .diagrams { position: relative; display: flex; flex: 1; flex-direction: column; min-block-size: 22rem; }
 .diagrams-canvas { position: relative; flex: 1; min-block-size: 0; isolation: isolate; }
+/* The plan's breadcrumb over a diagram, on a pill of the page's colour so the diagram does not show through. */
+.diagrams .atlas-overlay-sections .breadcrumb, .diagrams-trail .breadcrumb { padding: var(--env-space-1) var(--env-space-3); border-radius: var(--env-radius-full); background-color: color-mix(in srgb, var(--env-color-bg-page) 92%, transparent); }
+/* While a diagram loads, the plan's breadcrumb is where the diagram's toolbar puts it. */
+.diagrams-trail { position: absolute; inset-block-start: var(--env-space-3); inset-inline-start: var(--env-space-3); z-index: calc(var(--env-z-raised) + 1); }
 .diagrams-state { position: absolute; inset: 0; display: grid; place-content: center; padding: var(--env-space-6); background: var(--env-color-bg-page); }
 .diagrams-state > * { max-inline-size: 30rem; }
 .diagram-problems { margin: var(--env-space-3) 0 0; padding-inline-start: 1.25rem; text-align: start; }
-/* While a diagram loads, its layer marker is where the diagram's overlay puts it. */
-.diagrams-islands { position: absolute; inset-block-start: var(--atlas-gutter); inset-inline-start: var(--atlas-gutter); z-index: var(--env-z-raised); display: grid; justify-items: start; gap: var(--env-space-2); }
-@media (max-width: 40rem) {
-  .diagrams-islands { gap: var(--env-space-1); }
-}
 .diagrams-notices { position: absolute; inset-block-end: 3.5rem; inset-inline-start: 50%; z-index: calc(var(--env-z-raised) + 1); display: grid; gap: var(--env-space-2); inline-size: min(35rem, calc(100% - 2rem)); transform: translateX(-50%); }
-/* A diagram's name at its top left: its icon, its name, whose long name gives way, and where it came from. */
-.layer-marker { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; padding-inline-start: var(--env-space-1); }
-.layer-marker-icon { display: inline-flex; color: var(--env-color-fg-muted); }
-.layer-marker-title { min-inline-size: 0; max-inline-size: 18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline-end: var(--env-space-2); }
-/* A diagram's layers, one above another under the diagram's name: a quiet card, its rows the layers. */
-.layer-list { display: grid; gap: var(--env-space-1); min-inline-size: 13rem; box-shadow: 0 0 0 0.0625rem color-mix(in srgb, var(--env-color-fg-default) 9%, transparent), 0 0.5rem 1.5rem -0.5rem color-mix(in srgb, var(--env-color-fg-default) 28%, transparent); }
-.layer-list-heading { margin: 0; padding-inline: var(--env-space-2); color: var(--env-color-fg-muted); font-weight: var(--env-font-weight-medium); }
-.layer-list-name { max-inline-size: 15rem; overflow: hidden; color: var(--env-color-fg-default); font-weight: var(--env-font-weight-medium); text-overflow: ellipsis; white-space: nowrap; }
 
 /* A file page: the file name beside its title, quietly, its path on hover. */
 .file-page .file-name { color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); font-weight: var(--env-font-weight-regular); }
+
+/* Text for assistive technology only. */
+.visually-hidden { position: absolute; inline-size: 0.0625rem; block-size: 0.0625rem; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* Statistics */
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--env-space-3); }

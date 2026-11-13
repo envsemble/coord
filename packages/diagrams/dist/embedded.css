@@ -171,17 +171,6 @@
   white-space: nowrap;
 }
 
-/* A host's layers of the diagram, at the left below the toolbars. */
-.atlas-panel .atlas-overlay-layers {
-  position: absolute;
-  z-index: calc(var(--env-z-sticky) - 1);
-  top: var(--atlas-top-inset, 4rem);
-  left: var(--atlas-gutter);
-  max-width: min(18rem, calc(100% - 2 * var(--atlas-gutter)));
-  max-height: calc(100% - var(--atlas-top-inset, 4rem) - var(--atlas-gutter));
-  overflow: auto;
-}
-
 /* The pane beside the canvas: a proposal’s changes, or the scenarios. Its
    content scrolls below its header. */
 .atlas-panel .panel {

@@ -56,9 +56,15 @@ export function buildIndex(snapshot: Pick<Snapshot, 'folders' | 'documents' | 'w
 export const folderNodeId = (path: string) => 'd:' + path;
 export const fileNodeId = (path: string) => 'f:' + path;
 
-/** The rows of a folder (`root`: the planning folder's own by default) and of its folders that are open. */
-export function visibleRows(index: ExplorerIndex, expanded: ReadonlySet<string>, root = ''): ExplorerRow[] {
+/**
+ * The rows of a folder (`root`: the planning folder's own by default) and of its folders that are open.
+ * `layers` maps a diagram's first file to its other layers (later captures and proposals, in order,
+ * by their paths): the first file opens like a folder onto them, and they are listed only there.
+ */
+export function visibleRows(index: ExplorerIndex, expanded: ReadonlySet<string>, root = '', layers: ReadonlyMap<string, readonly string[]> = new Map()): ExplorerRow[] {
   const rows: ExplorerRow[] = [];
+  const nested = new Set([...layers.values()].flat());
+  const byPath = new Map([...index.files.values()].flat().map(file => [file.path, file]));
   const visit = (directory: string, depth: number) => {
     for (const path of index.folders.get(directory) ?? []) {
       const id = folderNodeId(path);
@@ -68,7 +74,13 @@ export function visibleRows(index: ExplorerIndex, expanded: ReadonlySet<string>,
       if (!open) continue;
       visit(path, depth + 1);
     }
-    for (const file of index.files.get(directory) ?? []) rows.push({ id: fileNodeId(file.path), kind: 'file', name: file.name, path: file.path, depth, expandable: false, expanded: false, file });
+    for (const file of index.files.get(directory) ?? []) {
+      if (nested.has(file.path)) continue;
+      const own = (layers.get(file.path) ?? []).filter(path => byPath.has(path));
+      const open = own.length > 0 && expanded.has(fileNodeId(file.path));
+      rows.push({ id: fileNodeId(file.path), kind: 'file', name: file.name, path: file.path, depth, expandable: own.length > 0, expanded: open, file });
+      if (open) for (const path of own) rows.push({ id: fileNodeId(path), kind: 'file', name: byPath.get(path)!.name, path, depth: depth + 1, expandable: false, expanded: false, file: byPath.get(path) });
+    }
   };
   visit(root, 0);
   return rows;

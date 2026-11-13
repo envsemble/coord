@@ -4,13 +4,14 @@ import type { ViewerPayload } from '@envsemble/atlas-diagrams';
 import '@envsemble/atlas-diagrams/embedded.css';
 import type { DiagramEntry, Target, Work } from '../types';
 import { api } from '../api';
-import { diagramTarget } from '../navigation/targets';
+import { diagramTarget, workTarget } from '../navigation/targets';
 import { selectDiagram } from './diagramSelection';
 import { familyLayers, stepLayer } from './layers';
-import { DiagramName, LayerList } from './LayerMarker';
 import { elementId } from '@envsemble/atlas/planning/provenance';
-import { Alert, Spinner, Surface, useThemePreference } from '@envsemble/envui';
+import { Alert, Spinner, Text, useThemePreference } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
+import { Trail } from '../ui/Trail';
+import { workNumber } from '../ui/format';
 import { DiagramIcon } from '../ui/icons';
 import { useWindow } from '../window/windowContext';
 
@@ -42,7 +43,7 @@ const typing = (target: EventTarget | null) => target instanceof HTMLElement && 
  * A work item's diagram, one of its `.puml` files, filling the window below its top rows. A capture,
  * the later captures compared with it and the proposals over it are one diagram with layers: they
  * arrive together, laid out once, so another layer shows at once in the same panel with nothing
- * moving. The layers, one above another at the left, and `[` and `]` switch them; each switch is a step Back returns from.
+ * moving. The Files tree lists a diagram's layers under its first file, and `[` and `]` step through them; each switch is a step Back returns from.
  * Another diagram opens from the Files tree, a plan's link or Search. Its elements can be dragged:
  * the arrangement, one for all the layers, is kept beside the family's first file.
  */
@@ -123,7 +124,7 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
 
   const layers = useMemo(() => familyLayers(listed, selected), [listed, selected]);
   const select = useCallback((next: string) => retarget(diagramTarget(work.id, next)), [retarget, work.id]);
-  // `[` and `]` step to the previous and next layer, as the marker's tooltip says.
+  // `[` and `]` step to the previous and next layer.
   useEffect(() => {
     if (!layers.length) return;
     const key = (event: KeyboardEvent) => {
@@ -139,11 +140,8 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
     return () => window.removeEventListener('keydown', key);
   }, [layers, selected, select]);
 
-  // The diagram's name, or its layers (naming the one shown), at its top left. The viewer draws again
-  // only when what it is given changes: the marker and the element in focus
-  // stay the same objects while nothing of theirs does.
-  const marker = useMemo(() => entry ? <DiagramName diagram={entry} /> : null, [entry]);
-  const layerList = useMemo(() => layers.length ? <LayerList layers={layers} value={selected} onChange={select} /> : null, [layers, selected, select]);
+  // The viewer draws again only when what it is given changes: the element in focus stays the same
+  // object while nothing of its does.
   const error = diagramError?.path === selected ? diagramError.message : '';
   const notices = [listError, error].filter(Boolean);
   const payload = entry?.valid === false ? undefined : loaded?.payloads.get(selected);
@@ -151,16 +149,18 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
   // Drawn once the arrangement is read, so the automatic layout does not show first.
   const positions = !arranging ? null : arrangement?.root === arranging ? arrangement.positions : undefined;
   const empty = diagrams && !listed.length && !selected;
+  // The plan's breadcrumb, at the diagram's top left, as on the plan's other pages.
+  const trail = useMemo(() => <Trail work={work.id} items={[{ label: workNumber(work.id), target: workTarget(work.id) }]} />, [work.id]);
 
+  // The diagram is named by the Files tree, where it is marked; its name heads the page for assistive technology.
   return <section className="diagrams" aria-label="Work diagrams">
+    {entry && <Text render={<h1 />} className="visually-hidden diagram-title">{entry.title}</Text>}
     <div className="diagrams-canvas">
       {payload && positions !== undefined ? <ViewerErrorBoundary key={payload.family ?? selected} resetKey={payload.model.document?.revision.id}>
-        <DiagramPanel payload={payload} theme={theme} focus={focus} leading={marker} layers={layerList} arrangement={positions} onArrange={arranging ? arrange : undefined} />
+        <DiagramPanel payload={payload} theme={theme} focus={focus} sections={trail} arrangement={positions} onArrange={arranging ? arrange : undefined} />
       </ViewerErrorBoundary>
       : <>
-        {marker && <div className="diagrams-islands">
-          <Surface background="default" radius="full" padding={1} className="diagrams-island">{marker}</Surface>
-        </div>}
+        <div className="diagrams-trail">{trail}</div>
         {!diagrams ? <div className="diagrams-state"><Spinner label="Loading diagrams" /></div>
           : empty ? <div className="diagrams-state"><EmptyState icon={<DiagramIcon />} title="No diagrams yet" description="Diagrams appear here when your agent writes PlantUML (.puml) files into this work folder; the atlas skill tells it how." /></div>
           : entry && !entry.valid ? <div className="diagrams-state"><Problems diagram={entry} /></div>

@@ -19,3 +19,15 @@ test('the files show folders before files and real names, and a diagram file ope
   assert.deepEqual(documentTarget(document('active/0001-x/order.puml', 'work-0001'), work, 'Order'), diagramTarget('work-0001', 'order.puml', 'Order'));
   assert.deepEqual(documentTarget(document('active/0001-x/order.puml', 'work-0001'), undefined), fileTarget('active/0001-x/order.puml'));
 });
+
+test("a diagram's layers are listed under its first file, which opens like a folder onto them", () => {
+  const files = ['active/0001-x/diagrams/now.puml', 'active/0001-x/diagrams/later.puml', 'active/0001-x/proposals/draft.puml', 'active/0001-x/diagrams/alone.puml'];
+  const index = buildIndex({ folders: ['active', 'active/0001-x', 'active/0001-x/diagrams', 'active/0001-x/proposals'], documents: files.map(path => document(path, 'work-0001')), work: [work] });
+  const layers = new Map([['active/0001-x/diagrams/now.puml', ['active/0001-x/diagrams/later.puml', 'active/0001-x/proposals/draft.puml']]]);
+  const open = new Set([folderNodeId('active/0001-x/diagrams'), folderNodeId('active/0001-x/proposals')]);
+  const rows = (expanded: Set<string>) => visibleRows(index, expanded, 'active/0001-x', layers).map(row => [row.id, row.depth, row.expandable]);
+  // Folded, the first file stands for the diagram; its layers leave their folders.
+  assert.deepEqual(rows(open), [['d:active/0001-x/diagrams', 0, true], ['f:active/0001-x/diagrams/alone.puml', 1, false], ['f:active/0001-x/diagrams/now.puml', 1, true], ['d:active/0001-x/proposals', 0, true]]);
+  // Opened, its layers follow it, in their order.
+  assert.deepEqual(rows(new Set([...open, 'f:active/0001-x/diagrams/now.puml'])).slice(2, 5), [['f:active/0001-x/diagrams/now.puml', 1, true], ['f:active/0001-x/diagrams/later.puml', 2, false], ['f:active/0001-x/proposals/draft.puml', 2, false]]);
+});

@@ -33,18 +33,20 @@ async function cameraSettled(window: Page) {
 
 const node = (window: Page, name: string) => window.locator(`.diagrams .diagram-base .node[data-name="${name}"]`);
 
-test('a capture, its later captures and its proposals are one diagram with layers: the marker and [ and ] switch them in place, and Back returns to the layer before', async () => {
+test('a capture, its later captures and its proposals are one diagram with layers: the Files tree lists them under the capture and switches them in place, as [ and ] do, and Back returns to the layer before', async () => {
   launched = await launchProject({ dataDirectory, folder });
   const { window, app } = launched;
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1720, 900));
   // A proposal opens with its changes beside it, which stay open across its family's proposals.
   await openDiagrams(window, 'Checkout · proposed payment methods');
-  // The layers stand one above another, the proposals (by title) over the capture; no picker.
-  const layers = window.getByRole('list', { name: 'Layers' });
-  const layer = (name: string) => layers.getByRole('button', { name, exact: true });
-  await expect(layers.locator('.layer-list-name')).toHaveText(['Checkout · proposed payment methods', 'Checkout · alternative: methods on the customer', 'Checkout · captured TypeScript']);
-  await expect(layer('Checkout · proposed payment methods')).toHaveAttribute('aria-current', 'true');
+  // The Files tree lists the layers under the capture, the proposals by title, the one shown marked; no picker, no card over the canvas.
+  const tree = window.locator('.plan-files');
+  const layer = (file: string) => tree.locator(`[role="treeitem"][data-id="f:active/0001-saved-payment-methods/diagrams/${file}"]`);
+  await expect(tree.locator('[role="treeitem"][data-id*="/diagrams/checkout-"]')).toHaveText(['checkout-capture.puml Captured', 'checkout-alternative.puml Proposal', 'checkout-proposal.puml Proposal']);
+  await expect(layer('checkout-capture.puml')).toHaveAttribute('aria-expanded', 'true');
+  await expect(layer('checkout-proposal.puml')).toHaveAttribute('aria-selected', 'true');
   await expect(window.getByRole('menu', { name: 'Choose a diagram' })).toHaveCount(0);
+  await expect(window.locator('.diagrams .layer-list')).toHaveCount(0);
 
   // An element every layer has, selected.
   await node(window, 'CheckoutService').click();
@@ -72,10 +74,10 @@ test('a capture, its later captures and its proposals are one diagram with layer
     expect(await placement()).toEqual(settled);
     await expect(node(window, 'CheckoutService')).toHaveAttribute('aria-pressed', 'true');
   }
-  await expect(layer('Checkout · alternative: methods on the customer')).toHaveAttribute('aria-current', 'true');
+  await expect(layer('checkout-alternative.puml')).toHaveAttribute('aria-selected', 'true');
   // A proposal lists and fades its changes; the capture has none.
   await expect(window.getByRole('button', { name: /^Changes, \d+$/ })).toBeVisible();
-  await layer('Checkout · captured TypeScript').click();
+  await layer('checkout-capture.puml').click();
   await expect(title).toHaveText('Checkout · captured TypeScript');
   await expect(window.getByRole('button', { name: /^Changes, \d+$/ })).toHaveCount(0);
   await expect(window.locator('.diagrams .viewer.fade-unchanged')).toHaveCount(0);
@@ -200,10 +202,10 @@ test('a class diagram opens from its link with its scenarios as its guide; a lin
   const link = window.locator('.prose .diagram-link', { hasText: 'class diagram' });
   await expect(link).toHaveAttribute('title', 'Fulfilment · conceptual model · Agent-authored');
   await link.click();
-  // A diagram alone is named with where it came from, and has no layers.
+  // The diagram is named by its heading and its row in the Files tree, marked there; nothing floats over the canvas to name it.
   await expect(window.locator('.diagrams .diagram-title')).toHaveText('Fulfilment · conceptual model');
-  await expect(window.locator('.diagrams .island-start')).toContainText('Agent-authored');
-  await expect(window.getByRole('list', { name: 'Layers' })).toHaveCount(0);
+  await expect(window.locator('.plan-files [role="treeitem"][data-id$="/diagrams/fulfilment.puml"]')).toHaveAttribute('aria-selected', 'true');
+  await expect(window.locator('.diagrams .island-start')).toHaveCount(0);
   await expect(window.locator('.diagrams .node').first()).toBeVisible();
   // No full view, search, attributes toggle or details toggle; attributes show.
   for (const name of [/full ?screen|full view/i, /^Fields$/, /^Search/, /details$/]) await expect(window.locator('.diagrams').getByRole('button', { name })).toHaveCount(0);

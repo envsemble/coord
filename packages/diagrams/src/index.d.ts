@@ -37,8 +37,6 @@ export const DiagramPanel: ComponentType<{
    * island moves to a row below it.
    */
   sections?: ReactNode;
-  /** Host content at the left under the toolbars, such as a family's layers, one above another; the camera fits the diagram beside it. */
-  layers?: ReactNode;
   /**
    * How the reader arranged the diagram, kept by the host: each element's
    * top-left corner by its id; null or absent for the automatic layout. An

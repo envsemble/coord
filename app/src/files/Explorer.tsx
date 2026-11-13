@@ -1,8 +1,9 @@
 // The open plan's files, at the left of its pages: its work folder (plan, ledger,
 // context, diagrams and the rest) as a tree of real folder and file names; a work item's diagram
-// files open as its diagrams. A click, or Enter, opens a file in the window; folders open and close in
-// place. Ctrl+Shift+E brings the keyboard to it.
-import { createContext, useContext, useMemo } from 'react';
+// files open as its diagrams. A diagram's first file opens like a folder onto its other layers (its
+// later captures and the proposals over it), listed only there. A click, or Enter, opens a file in the
+// window; folders open and close in place. Ctrl+Shift+E brings the keyboard to it.
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Menu, Text, Tree, type TreeItem } from '@envsemble/envui';
 import { DiagramIcon, GlossaryIcon, LedgerIcon, PlanIcon } from '../ui/icons';
 import type { Document, Snapshot, Target, Work } from '../types';
@@ -10,6 +11,8 @@ import { api } from '../api';
 import { buildIndex, fileNodeId, folderNodeId, revealIds, visibleRows, type ExplorerRow } from './explorerModel';
 import { documentTarget, fileTarget, isDiagramFile } from '../navigation/targets';
 import { workNumber } from '../ui/format';
+import { familyLayers } from '../diagrams/layers';
+import type { DiagramEntry } from '../types';
 import { useWindow } from '../window/windowContext';
 
 /** The work item a place is of: a plan, its statistics or diagrams, or a file in its work folder; null for anything else. */
@@ -46,16 +49,44 @@ export const FilesContext = createContext<FilesState>({ expanded: [], setExpande
  * marked. It stays in view as the page scrolls, and scrolls on its own when it is long.
  */
 export function PlanFiles({ work }: { work: Work }) {
-  const { projectId, open, notify, remote, snapshot } = useWindow();
+  const { projectId, open, notify, remote, snapshot, files } = useWindow();
   const { expanded, setExpanded, selected } = useContext(FilesContext);
   const index = useMemo(() => buildIndex(snapshot), [snapshot]);
-  const expandedSet = useMemo(() => new Set(expanded), [expanded]);
+  // A diagram's layers: its later captures and the proposals over it, under its first file.
+  const [diagrams, setDiagrams] = useState<DiagramEntry[]>([]);
+  useEffect(() => {
+    let current = true;
+    api.diagrams(projectId, work.id).then(next => { if (current) setDiagrams(next); }).catch(() => { if (current) setDiagrams([]); });
+    return () => { current = false; };
+  }, [projectId, work.id, files]);
+  // Each layer's small tag: when the first capture and a later one were taken, or that it is a proposal.
+  const { layers, tags } = useMemo(() => {
+    const map = new Map<string, string[]>(), tags = new Map<string, string>();
+    const full = (path: string) => work.path + '/' + path;
+    for (const root of new Set(diagrams.flatMap(entry => entry.family ? [entry.family] : []))) {
+      const family = familyLayers(diagrams, root);
+      const members = family.map(layer => layer.path).filter(path => path !== root);
+      if (members.length) map.set(full(root), members.map(full));
+      for (const layer of family) tags.set(full(layer.path), layer.kind === 'proposal' ? 'Proposal' : layer.label);
+    }
+    return { layers: map, tags };
+  }, [diagrams, work.path]);
+  // A diagram shown, or one of its layers, opens its layers in the tree, with the folders they are in.
+  const expandedSet = useMemo(() => {
+    const set = new Set(expanded);
+    for (const [root, members] of layers)
+      if (selected && [root, ...members].some(path => fileNodeId(path) === selected)) {
+        set.add(fileNodeId(root));
+        for (const id of revealIds(root)) set.add(id);
+      }
+    return set;
+  }, [expanded, layers, selected]);
   // The plan's folder heads its files, open unless folded.
   const rows = useMemo(() => {
     const id = folderNodeId(work.path), open = !expandedSet.has(folded(id));
     const top: ExplorerRow = { id, kind: 'folder', name: work.path.slice(work.path.lastIndexOf('/') + 1), path: work.path, depth: 0, expandable: true, expanded: open };
-    return [top, ...open ? visibleRows(index, expandedSet, work.path).map(row => ({ ...row, depth: row.depth + 1 })) : []].map(row => treeItem(row, work.path));
-  }, [index, expandedSet, work.path]);
+    return [top, ...open ? visibleRows(index, expandedSet, work.path, layers).map(row => ({ ...row, depth: row.depth + 1 })) : []].map(row => treeItem(row, work.path, tags.get(row.path ?? '')));
+  }, [index, expandedSet, work.path, layers, tags]);
   // A file opens as a file, a diagram file of the work item as its diagram.
   // A plan's plan.md opens as the plan, a diagram as a diagram, any other file on its page.
   const fileOpens = (file: Document) => documentTarget(file, work);
@@ -102,7 +133,7 @@ export function focusPlanFiles() {
  * A row of the tree. Only the files Atlas reads for what they are have an icon: the plan, its ledger,
  * its glossary and its diagrams; every other row keeps the icon's room empty, so the names line up.
  */
-function treeItem(row: ExplorerRow, workPath: string): Row {
+function treeItem(row: ExplorerRow, workPath: string, tag?: string): Row {
   const base = { value: row.id, depth: row.depth, expandable: row.expandable, expanded: row.expanded, row, textValue: row.name };
   if (row.kind !== 'file') return { ...base, label: row.name, icon: <></>, tooltip: row.path };
   const own = (name: string) => row.path === workPath + '/' + name;
@@ -112,5 +143,5 @@ function treeItem(row: ExplorerRow, workPath: string): Row {
     : isDiagramFile(row.path!) && row.file?.workId ? <DiagramIcon className="explorer-special" data-file="diagram" />
     : <></>;
   // Its whole name; its title, when it has one of its own, on hover.
-  return { ...base, label: row.name, icon, tooltip: row.file && row.file.title !== row.file.name ? row.file.title + ' \u00b7 ' + row.path : row.path };
+  return { ...base, label: row.name, icon, ...tag ? { description: tag } : {}, tooltip: row.file && row.file.title !== row.file.name ? row.file.title + ' \u00b7 ' + row.path : row.path };
 }

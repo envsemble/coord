@@ -181,7 +181,7 @@ test("a plan opens from the hub with its summary and its side column, and with i
   // A diagram opens from its link in the plan; Back returns to the plan.
   await window.locator('.prose .diagram-link').first().click();
   await expect(window.locator('.diagrams .atlas-panel').first()).toBeVisible();
-  await expect(window.locator('.diagrams .island-start .diagram-title')).toBeVisible();
+  await expect(window.locator('.diagrams .diagram-title')).toHaveCount(1);
   await window.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
   // The trail's project leads to the hub filtered to the project, which Back leaves again.
@@ -255,6 +255,11 @@ test("the plan's files are beside its pages with the plan's own folder, open a f
   await expect(files.getByRole('tree')).toBeFocused();
   // A folder opens in place; a diagram file opens as a diagram, any other file on the page; the sidebar stays.
   await files.locator(row('d:active/0001-saved-payment-methods/diagrams')).click();
+  // A diagram's layers are under its first file, with a tag each.
+  await expect(files.locator(row('f:active/0001-saved-payment-methods/diagrams/checkout-proposal.puml'))).toHaveCount(0);
+  // Opening the diagram opens its layers.
+  await files.locator(row('f:active/0001-saved-payment-methods/diagrams/checkout-capture.puml')).click();
+  await expect(files.locator(row('f:active/0001-saved-payment-methods/diagrams/checkout-proposal.puml'))).toContainText('Proposal');
   await files.locator(row('f:active/0001-saved-payment-methods/diagrams/checkout-proposal.puml')).click();
   await expect(window.locator('.diagrams .diagram-title')).toHaveText('Checkout · proposed payment methods');
   await expect(sidebar).toBeVisible();
