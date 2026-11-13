@@ -1,35 +1,35 @@
-/* The diagram palette is Atlas's own: node fills and stereotype colours stay
-   fixed, while the canvas, grid, text, lines and selection follow envUI's
-   tokens. It is declared on each of Atlas's theme boundaries (the offline
+/* The diagram follows envUI's tokens throughout: the canvas is the page's
+   own background, so a diagram sits in the window as a page does, and its
+   elements are surfaces on it, as envUI's cards are on a page; the grid,
+   text, lines and selection take envUI's colours too. It is declared on each of Atlas's theme boundaries (the offline
    page and every panel), so the canvas follows the nearest Theme as soon as
    React commits a change; light-dark() picks the value for the colour scheme
    that theme sets. */
 :root,
 .atlas-page,
 .atlas-panel {
-  --canvas: var(--env-color-bg-field);
-  /* Nodes sit a step above the canvas: the default surface in light, the
-     filled one in dark. */
-  --surface: light-dark(var(--env-color-bg-default), var(--env-color-bg-muted));
+  --canvas: var(--env-color-bg-page);
+  /* Elements sit on the canvas as surfaces sit on a page. */
+  --surface: var(--env-color-bg-default);
   --text: var(--env-color-fg-default);
   --grid: light-dark(
     var(--env-color-border-muted),
     color-mix(
       in srgb,
       var(--env-color-border-muted) 55%,
-      var(--env-color-bg-field)
+      var(--env-color-bg-page)
     )
   );
   --diagram-selection: var(--env-color-fg-on-selected);
   --accent: color-mix(
     in srgb,
     var(--env-color-fg-on-selected) 60%,
-    var(--env-color-bg-field)
+    var(--env-color-bg-page)
   );
   --diagram-border: color-mix(
     in srgb,
     var(--env-color-fg-muted) 60%,
-    var(--env-color-bg-field)
+    var(--env-color-bg-page)
   );
   --diagram-divider: var(--env-color-border-muted);
   --diagram-edge: var(--env-color-fg-muted);

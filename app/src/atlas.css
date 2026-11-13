@@ -241,7 +241,10 @@ body { margin: 0; }
 /* Work page: the plan, with the work's facts beside it. The diagrams' islands keep a gutter from the edge. */
 /* The plan's page is wider than envUI's large page, for its text and its side column together. */
 .work-page { --atlas-gutter: var(--env-space-3); }
-.work-page.env-page { max-inline-size: calc(92rem + 2 * var(--env-space-5)); }
+/* A plan reads in a column of comfortable lines (--atlas-reading), with its side column beside it:
+   the page is as wide as the two, so its title and breadcrumb line up with the text. */
+.work-page { --atlas-reading: 48rem; }
+.work-page.env-page { max-inline-size: calc(var(--atlas-reading) + var(--env-space-7) + 20rem + 2 * var(--env-space-5)); }
 /* An island like the diagram's: a pane pill with their hairline and shadow. */
 .diagrams-island { box-shadow: 0 0 0 0.0625rem color-mix(in srgb, var(--env-color-fg-default) 9%, transparent), 0 0.0625rem 0.1875rem color-mix(in srgb, var(--env-color-fg-default) 14%, transparent), 0 0.5rem 1.5rem -0.5rem color-mix(in srgb, var(--env-color-fg-default) 28%, transparent); }
 @media (max-width: 40rem) {
@@ -301,6 +304,22 @@ body { margin: 0; }
 .reader-loading { display: grid; place-content: center; padding-block: var(--env-space-8); }
 .prose :is(h1, h2, h3, h4, h5, h6) { scroll-margin-block-start: calc(var(--atlas-sticky-top, var(--app-sticky-top, 0px)) + var(--env-space-4)); }
 .prose img { max-inline-size: 100%; }
+/* Reading: a plan is long running text, set for reading rather than scanning. Lines stop at about the
+   length of a book's (tables, code and pictures keep the column's width), the text is a touch larger
+   with more room between its lines, a section's heading stands apart from the section before and
+   close to its own, and lists, links and code chips stay quiet. */
+.prose { --atlas-measure: 72ch; --env-prose-list-item-gap: var(--env-space-2); font-size: calc(var(--env-font-size-body) + 0.0625rem); }
+.prose :where(p, li, blockquote, dd, dt) { font-size: inherit; line-height: 1.65; }
+.prose .env-prose > :where(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6, dl), .prose .request-fold > :where(p, ul, ol) { max-inline-size: var(--atlas-measure); }
+.prose .env-prose > :where(h2, h3, h4):not(:first-child) { margin-block-start: var(--env-space-8); }
+.prose .env-prose > :where(h2, h3, h4) + * { margin-block-start: var(--env-space-3); }
+.prose h2 { font-weight: var(--env-font-weight-semibold); }
+.prose :where(h3, h4) { font-size: inherit; font-weight: var(--env-font-weight-semibold); }
+.prose .env-prose > :where(h3, h4):not(:first-child) { margin-block-start: var(--env-space-6); }
+.prose :where(li) > :where(p) + :where(p, ul, ol) { margin-block-start: var(--env-space-2); }
+.prose :where(a):not(.diagram-link) { text-decoration-thickness: 0.0625rem; text-underline-offset: 0.2em; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); }
+.prose :where(a):not(.diagram-link):hover { text-decoration-color: currentColor; }
+.prose :where(p, li) code { font-size: 0.875em; }
 .external-icon { inline-size: 0.75em; block-size: 0.75em; margin-inline-start: 0.125em; vertical-align: baseline; }
 .outside-reference { border-block-end: 0.0625rem dashed var(--env-color-fg-disabled); cursor: help; }
 .source-text { margin: 0; font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: var(--env-font-size-body-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -325,10 +344,14 @@ body { margin: 0; }
   .diagrams-islands { gap: var(--env-space-1); }
 }
 .diagrams-notices { position: absolute; inset-block-end: 3.5rem; inset-inline-start: 50%; z-index: calc(var(--env-z-raised) + 1); display: grid; gap: var(--env-space-2); inline-size: min(35rem, calc(100% - 2rem)); transform: translateX(-50%); }
-/* A diagram's layers: its icon, the segments, and the layer shown, whose long name gives way. */
+/* A diagram's name at its top left: its icon, its name, whose long name gives way, and where it came from. */
 .layer-marker { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; padding-inline-start: var(--env-space-1); }
 .layer-marker-icon { display: inline-flex; color: var(--env-color-fg-muted); }
 .layer-marker-title { min-inline-size: 0; max-inline-size: 18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline-end: var(--env-space-2); }
+/* A diagram's layers, one above another under the diagram's name: a quiet card, its rows the layers. */
+.layer-list { display: grid; gap: var(--env-space-1); min-inline-size: 13rem; box-shadow: 0 0 0 0.0625rem color-mix(in srgb, var(--env-color-fg-default) 9%, transparent), 0 0.5rem 1.5rem -0.5rem color-mix(in srgb, var(--env-color-fg-default) 28%, transparent); }
+.layer-list-heading { margin: 0; padding-inline: var(--env-space-2); color: var(--env-color-fg-muted); font-weight: var(--env-font-weight-medium); }
+.layer-list-name { max-inline-size: 15rem; overflow: hidden; color: var(--env-color-fg-default); font-weight: var(--env-font-weight-medium); text-overflow: ellipsis; white-space: nowrap; }
 
 /* A file page: the file name beside its title, quietly, its path on hover. */
 .file-page .file-name { color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); font-weight: var(--env-font-weight-regular); }

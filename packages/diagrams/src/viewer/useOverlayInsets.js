@@ -31,10 +31,16 @@ export function useOverlayInsets(viewerRef, topRef) {
         viewer.querySelector(selector)?.getBoundingClientRect();
       const top = edge(":scope > .atlas-overlay-top");
       const inspector = edge(":scope > .side-panel.open");
+      // A host's layers sit at the left under the toolbars; a wide one on a
+      // narrow panel covers the diagram anyway.
+      const layers = edge(":scope > .atlas-overlay-layers");
       return {
         top: top ? Math.max(0, top.bottom - box.top) : 0,
         bottom: 0,
-        left: 0,
+        left:
+          layers && layers.width < box.width * 0.4
+            ? Math.max(0, layers.right - box.left)
+            : 0,
         // A full-width inspector on narrow panels covers the diagram anyway.
         right:
           inspector && inspector.width < box.width * 0.6

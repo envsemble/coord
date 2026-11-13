@@ -7,7 +7,7 @@ import { api } from '../api';
 import { diagramTarget } from '../navigation/targets';
 import { selectDiagram } from './diagramSelection';
 import { familyLayers, stepLayer } from './layers';
-import { DiagramName, LayerMarker } from './LayerMarker';
+import { DiagramName, LayerList } from './LayerMarker';
 import { elementId } from '@envsemble/atlas/planning/provenance';
 import { Alert, Spinner, Surface, useThemePreference } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
@@ -42,7 +42,7 @@ const typing = (target: EventTarget | null) => target instanceof HTMLElement && 
  * A work item's diagram, one of its `.puml` files, filling the window below its top rows. A capture,
  * the later captures compared with it and the proposals over it are one diagram with layers: they
  * arrive together, laid out once, so another layer shows at once in the same panel with nothing
- * moving. The layer marker and `[` and `]` switch layers; each switch is a step Back returns from.
+ * moving. The layers, one above another at the left, and `[` and `]` switch them; each switch is a step Back returns from.
  * Another diagram opens from the Files tree, a plan's link or Search. Its elements can be dragged:
  * the arrangement, one for all the layers, is kept beside the family's first file.
  */
@@ -142,8 +142,8 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
   // The diagram's name, or its layers (naming the one shown), at its top left. The viewer draws again
   // only when what it is given changes: the marker and the element in focus
   // stay the same objects while nothing of theirs does.
-  const marker = useMemo(() => layers.length ? <LayerMarker layers={layers} value={selected} onChange={select} />
-    : entry ? <DiagramName diagram={entry} /> : null, [layers, selected, select, entry]);
+  const marker = useMemo(() => entry ? <DiagramName diagram={entry} /> : null, [entry]);
+  const layerList = useMemo(() => layers.length ? <LayerList layers={layers} value={selected} onChange={select} /> : null, [layers, selected, select]);
   const error = diagramError?.path === selected ? diagramError.message : '';
   const notices = [listError, error].filter(Boolean);
   const payload = entry?.valid === false ? undefined : loaded?.payloads.get(selected);
@@ -155,7 +155,7 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
   return <section className="diagrams" aria-label="Work diagrams">
     <div className="diagrams-canvas">
       {payload && positions !== undefined ? <ViewerErrorBoundary key={payload.family ?? selected} resetKey={payload.model.document?.revision.id}>
-        <DiagramPanel payload={payload} theme={theme} focus={focus} leading={marker} arrangement={positions} onArrange={arranging ? arrange : undefined} />
+        <DiagramPanel payload={payload} theme={theme} focus={focus} leading={marker} layers={layerList} arrangement={positions} onArrange={arranging ? arrange : undefined} />
       </ViewerErrorBoundary>
       : <>
         {marker && <div className="diagrams-islands">

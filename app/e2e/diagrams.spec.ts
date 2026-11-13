@@ -39,10 +39,11 @@ test('a capture, its later captures and its proposals are one diagram with layer
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1720, 900));
   // A proposal opens with its changes beside it, which stay open across its family's proposals.
   await openDiagrams(window, 'Checkout · proposed payment methods');
-  // The marker shows the layers, the capture first, then the proposals by title; no picker.
-  const layers = window.getByRole('radiogroup', { name: 'Layer' });
-  await expect(layers.getByRole('radio')).toHaveText(['Captured', 'Proposal 1', 'Proposal 2']);
-  await expect(layers.getByRole('radio', { name: 'Proposal 2' })).toHaveAttribute('aria-checked', 'true');
+  // The layers stand one above another, the proposals (by title) over the capture; no picker.
+  const layers = window.getByRole('list', { name: 'Layers' });
+  const layer = (name: string) => layers.getByRole('button', { name, exact: true });
+  await expect(layers.locator('.layer-list-name')).toHaveText(['Checkout · proposed payment methods', 'Checkout · alternative: methods on the customer', 'Checkout · captured TypeScript']);
+  await expect(layer('Checkout · proposed payment methods')).toHaveAttribute('aria-current', 'true');
   await expect(window.getByRole('menu', { name: 'Choose a diagram' })).toHaveCount(0);
 
   // An element every layer has, selected.
@@ -71,10 +72,10 @@ test('a capture, its later captures and its proposals are one diagram with layer
     expect(await placement()).toEqual(settled);
     await expect(node(window, 'CheckoutService')).toHaveAttribute('aria-pressed', 'true');
   }
-  await expect(layers.getByRole('radio', { name: 'Proposal 1' })).toHaveAttribute('aria-checked', 'true');
+  await expect(layer('Checkout · alternative: methods on the customer')).toHaveAttribute('aria-current', 'true');
   // A proposal lists and fades its changes; the capture has none.
   await expect(window.getByRole('button', { name: /^Changes, \d+$/ })).toBeVisible();
-  await layers.getByRole('radio', { name: 'Captured' }).click();
+  await layer('Checkout · captured TypeScript').click();
   await expect(title).toHaveText('Checkout · captured TypeScript');
   await expect(window.getByRole('button', { name: /^Changes, \d+$/ })).toHaveCount(0);
   await expect(window.locator('.diagrams .viewer.fade-unchanged')).toHaveCount(0);
@@ -202,7 +203,7 @@ test('a class diagram opens from its link with its scenarios as its guide; a lin
   // A diagram alone is named with where it came from, and has no layers.
   await expect(window.locator('.diagrams .diagram-title')).toHaveText('Fulfilment · conceptual model');
   await expect(window.locator('.diagrams .island-start')).toContainText('Agent-authored');
-  await expect(window.getByRole('radiogroup', { name: 'Layer' })).toHaveCount(0);
+  await expect(window.getByRole('list', { name: 'Layers' })).toHaveCount(0);
   await expect(window.locator('.diagrams .node').first()).toBeVisible();
   // No full view, search, attributes toggle or details toggle; attributes show.
   for (const name of [/full ?screen|full view/i, /^Fields$/, /^Search/, /details$/]) await expect(window.locator('.diagrams').getByRole('button', { name })).toHaveCount(0);
@@ -289,7 +290,8 @@ test('node names stay centred in their boxes below 100% zoom', async () => {
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 900));
   // The measurement looks for light text on a dark box.
   await window.emulateMedia({ colorScheme: 'dark' });
-  await openDiagrams(window, 'Checkout · proposed payment methods');
+  // A diagram without layers, so nothing floats over the measured node.
+  await openDiagrams(window, 'Fulfilment · conceptual model');
   const zoom = window.getByRole('button', { name: /^Zoom \d+%/ });
   for (const step of ['fit', 'out'] as const) {
     // The canvas's own zoom-out key (the toolbar may fold its zoom buttons away in a narrow window).
@@ -299,7 +301,7 @@ test('node names stay centred in their boxes below 100% zoom', async () => {
     // Let the camera settle before measuring paint.
     await cameraSettled(window);
     await window.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-    const margins = await paintedNameMargins(window, node(window, 'PaymentMethodVault').first());
+    const margins = await paintedNameMargins(window, node(window, 'Carrier').first());
     expect(margins.right, `painted name reaches the box edge at ${percent}%`).toBeGreaterThan(4);
     expect(Math.abs(margins.left - margins.right), `name off centre at ${percent}%: ${JSON.stringify(margins)}`).toBeLessThanOrEqual(6);
   }

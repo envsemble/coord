@@ -12,9 +12,10 @@
 - **Diagrams as links:** a plan's link to a diagram shows inline as the diagram's, in purple with a diagram icon, in place of the cards under its headings.
 - **Readable tables:** a plan's table columns keep a readable width and the table scrolls sideways when it has more than fit; `atlas check` warns about a table that will read cramped, and about rows a blank line cut off from their table, and an agent hears it as it writes.
 - **A plainer diagram viewer:** full view, the attributes toggle (attributes always show), search, the element details with their source excerpts, and drawn stereotypes are gone; a proposal’s changes and a class diagram’s scenarios keep a side panel of their own.
-- **One diagram with layers:** a capture, the proposals over it and the later captures compared with it are one diagram; a layer marker shows its layers, and `[` and `]` switch them, in place of the diagram picker. Every diagram is named at its top left.
+- **One diagram with layers:** a capture, the proposals over it and the later captures compared with it are one diagram; its layers stand one above another at the left, and `[` and `]` switch them, in place of the diagram picker. The canvas takes the page's background. Every diagram is named at its top left.
 - **Diagrams in groups:** the layout draws related elements together, a diagram’s packages as named regions or the groups its relations form, with room and longer lines between the groups.
 - **Arrange a diagram by hand:** drag an element and its relations follow; the arrangement is kept beside the diagram (`name.layout.json`), for all its layers, new elements go beside the ones they relate to, and **Reset layout** lays it out again.
+- **Plans that read well:** a plan's text wraps at a comfortable line length, a touch larger with more room between its lines, its sections set apart; the plan and its side column are centred together. A plan's plan.md and ledger.md open as the plan page, and other documents show without their raw metadata header, under their plan's breadcrumb.
 - **Open in is removed:** the title bar's Open in, **File › Open in Editor** (Ctrl+O) and the choice of editor go. A file a plan links to still opens in VS Code.
 - **Plan export and import are removed**, with `atlas plan export` and `atlas plan import`, File › Import Plan… and Export Plan…, and the plan export viewer.
 

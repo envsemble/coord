@@ -1,5 +1,4 @@
-import { Kbd, SegmentedControl, Text, Tooltip } from '@envsemble/envui';
-import { IconLayers } from '@envsemble/envui/icons/Layers';
+import { Button, Kbd, List, Surface, Text, Tooltip } from '@envsemble/envui';
 import { IconDifference } from '@envsemble/envui/icons/Difference';
 import { IconPhotoCamera } from '@envsemble/envui/icons/PhotoCamera';
 import type { Layer } from './layers';
@@ -8,23 +7,25 @@ import { DiagramIcon } from '../ui/icons';
 import { ProvenanceBadge } from '../ui/badges';
 
 /**
- * A diagram's layers, in the diagram's top left: one segment per file of its family, the one shown
- * chosen, and the name of the layer shown. `[` and `]` step through them too, as its tooltip says.
- * No dropdown: a family of many layers keeps its segments, which scroll in a narrow window.
+ * A diagram's layers, one above another as layers stack: the proposals on top, the first capture at
+ * the bottom, the layer shown marked. A layer is chosen by its row, or stepped to with `[` and `]`,
+ * as the heading's tooltip says.
  */
-export function LayerMarker({ layers, value, onChange }: { layers: Layer[]; value: string; onChange(path: string): void }) {
-  const current = layers.find(layer => layer.path === value) ?? layers[0];
-  const items = layers.map(layer => ({ value: layer.path, label: layer.label, icon: layer.kind === 'capture' ? <IconPhotoCamera /> : <IconDifference /> }));
-  return <div className="layer-marker">
-    <Tooltip content={<>Layers of this diagram. <Kbd>[</Kbd> and <Kbd>]</Kbd> switch between them.</>} side="bottom">
-      <span className="layer-marker-icon" aria-hidden="true"><IconLayers /></span>
+export function LayerList({ layers, value, onChange }: { layers: Layer[]; value: string; onChange(path: string): void }) {
+  return <Surface background="default" radius="xl" padding={2} className="layer-list">
+    <Tooltip content={<><Kbd>[</Kbd> and <Kbd>]</Kbd> step between the layers.</>} side="right">
+      <Text render={<h2 />} variant="body-sm" className="layer-list-heading">Layers</Text>
     </Tooltip>
-    <SegmentedControl size="sm" aria-label="Layer" items={items} value={current.path} onValueChange={next => next && onChange(next)} />
-    <Text render={<span />} emphasis="muted" className="layer-marker-title diagram-title" title={current.title}>{current.title}</Text>
-  </div>;
+    <List.Root aria-label="Layers" density="xs">
+      {[...layers].reverse().map(layer => <List.Item key={layer.path} interactive current={layer.path === value}
+        start={layer.kind === 'capture' ? <IconPhotoCamera /> : <IconDifference />}
+        label={<Button variant="text" data-row-target className="layer-list-name" title={layer.title} onClick={() => onChange(layer.path)}>{layer.title}</Button>}
+        description={layer.label} />)}
+    </List.Root>
+  </Surface>;
 }
 
-/** A diagram that is not one of a family's layers, named in the diagram's top left with where it came from. */
+/** A diagram's name in the diagram's top left, with where it came from. */
 export function DiagramName({ diagram }: { diagram: DiagramEntry }) {
   return <div className="layer-marker">
     <span className="layer-marker-icon" aria-hidden="true"><DiagramIcon /></span>

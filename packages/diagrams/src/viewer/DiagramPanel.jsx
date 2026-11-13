@@ -75,6 +75,7 @@ function DiagramPanelContent({
   focus = null,
   leading,
   sections,
+  layers,
   review = null,
   identity,
   arrangement = null,
@@ -175,6 +176,7 @@ function DiagramPanelContent({
           onHover={state.hover}
           onClearHover={state.clearHover}
         />
+        {layers && <div className="atlas-overlay-layers">{layers}</div>}
         <SidePanel state={state} model={model} scenarios={scenarios} />
       </div>
     </Theme>
