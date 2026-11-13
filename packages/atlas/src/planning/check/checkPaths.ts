@@ -70,9 +70,9 @@ function checkedFiles(root: string, relative = ''): string[] {
   return found;
 }
 
-/** The file a planning check message is about (`active/x/plan.md: ...`), or null for a registry message. */
+/** The file a planning check message is about (`active/x/plan.md: ...`, or `active/x/plan.md:17: ...` at a line), or null for a registry message. */
 function subject(message: string) {
-  const match = /^([^\s:]+?\.md): /.exec(message.replaceAll('\\', '/'));
+  const match = /^([^\s:]+?\.md)(?::\d+)?: /.exec(message.replaceAll('\\', '/'));
   return match ? match[1] : null;
 }
 

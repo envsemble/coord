@@ -6,7 +6,7 @@ import { ChevronRightIcon, DiagramIcon, FileIcon, FolderOpenIcon, NewWindowIcon 
 import type { DiagramReference, Document, DocumentContent, Snapshot, Target } from '../types';
 import { api, fileUrl } from '../api';
 import { resolveLink, siblingReference } from './links';
-import { findHeadingId, headingPrefix, rehypeFoldRequests, rehypeHeadingIds } from './headings';
+import { findHeadingId, rehypeFoldRequests, rehypeHeadingIds } from './headings';
 import { documentTarget, workTarget } from '../navigation/targets';
 import { bytes } from '../ui/format';
 import { useWindow, useWindowActions } from '../window/windowContext';

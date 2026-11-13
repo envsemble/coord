@@ -20,7 +20,8 @@ function cells(line: string): string[] {
   for (let index = 0; index < row.length; index++) {
     const character = row[index];
     if (character === '\\' && row[index + 1] === '|') { cell += '|'; index++; continue; }
-    if (character === '`') code = !code;
+    // A backtick opens a code span only where another one closes it, as GFM reads it.
+    if (character === '`') code = code ? false : row.includes('`', index + 1);
     if (character === '|' && !code) { out.push(cell); cell = ''; continue; }
     cell += character;
   }
@@ -35,7 +36,7 @@ const delimiter = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 
 /**
  * The tables of a Markdown text that will read cramped: the line each starts on (1-based) and why,
- * outside fenced code.
+ * outside fenced and indented code.
  */
 export function crampedTables(text: string): { line: number; reason: string }[] {
   const lines = text.split(/\r?\n/);
@@ -45,8 +46,10 @@ export function crampedTables(text: string): { line: number; reason: string }[] 
     const line = lines[index];
     const fenceMark = /^\s*(```|~~~)/.exec(line)?.[1];
     if (fenceMark) { fence = fence === fenceMark ? null : fence ?? fenceMark; continue; }
-    if (fence || !line.includes('|') || !delimiter.test(lines[index + 1] ?? '') || !lines[index + 1].includes('-')) continue;
+    // Indented code (four spaces) holds no table; a table's delimiter row has a cell per column.
+    if (fence || /^ {4}/.test(line) || !line.includes('|') || !delimiter.test(lines[index + 1] ?? '') || !lines[index + 1].includes('-')) continue;
     const header = cells(line);
+    if (cells(lines[index + 1]).length !== header.length) continue;
     const rows = [header];
     let end = index + 2;
     while (end < lines.length && lines[end].includes('|') && lines[end].trim()) rows.push(cells(lines[end++]));

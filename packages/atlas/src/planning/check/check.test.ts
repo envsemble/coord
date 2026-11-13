@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { parseFrontmatter, validatePlanning } from './check.ts';
+import { checkPaths } from './checkPaths.ts';
 import { ledgerStatus } from '../work/ledger.ts';
 
 const valid = { errors: [], warnings: [] };
@@ -462,7 +463,7 @@ test('the planning folder keeps files byte for byte through Git, whatever core.a
   for (const [name, content] of Object.entries(originals)) assert.deepEqual(readFileSync(path.join(copy, 'active/0001-example', name)), content);
 });
 
-test("an active plan's table that reads cramped in Atlas is a warning, with its line", t => {
+test("an active plan's table that reads cramped in Atlas is a warning, with its line, also in a check of that file alone (as the hook runs it)", async t => {
   const setup = fixture(t);
   const next = path.join(setup.root, 'active/0002-next');
   mkdirSync(next, { recursive: true });
@@ -470,4 +471,6 @@ test("an active plan's table that reads cramped in Atlas is a warning, with its 
   setup.registry.work_items.push({ id: 'work-0002', path: 'active/0002-next', current_plan: 'active/0002-next/plan.md' });
   setup.write();
   assert.ok(setup.validate().warnings.some(item => item.startsWith('active/0002-next/plan.md:5: a table with 6 columns reads cramped in Atlas')));
+  const [alone] = await checkPaths([path.join(next, 'plan.md')]);
+  assert.ok(alone.warnings.some(item => item.startsWith('active/0002-next/plan.md:5: a table with 6 columns')), alone.warnings.join('; '));
 });
