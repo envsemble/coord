@@ -8,7 +8,7 @@ Make a diagram when the work settles domain concepts, boundaries or data structu
 
 ## Where it goes
 
-Put diagrams under the work folder's `diagrams/`. Link each from the plan with an ordinary Markdown link under the heading it explains: `[Order model](diagrams/orders.puml)`, or `diagrams/orders.puml#Order` for one element (its PlantUML name, or a class's display name URL-encoded). The rationale goes in the plan, not in the diagram.
+Put diagrams under the work folder's `diagrams/`. Link each from the plan with an ordinary Markdown link in the sentence it explains: `[Order model](diagrams/orders.puml)`, or `diagrams/orders.puml#Order` for one element (its PlantUML name, or a class's display name URL-encoded). The rationale goes in the plan, not in the diagram.
 
 ## Syntax
 

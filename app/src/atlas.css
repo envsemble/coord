@@ -312,13 +312,10 @@ body { margin: 0; }
 .reader-boxed .prose, .reader-boxed .source-text, .reader-boxed .attachment { padding: var(--env-space-5) var(--env-space-6) var(--env-space-6); }
 .reader-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--env-space-3); padding: var(--env-space-2) var(--env-space-3) var(--env-space-2) var(--env-space-5); border-block-end: 0.0625rem solid var(--env-color-border-default); }
 .reader-name { display: inline-flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; }
-.diagram-cards { display: grid; gap: var(--env-space-3); margin-block: var(--env-space-3) var(--env-space-5); }
-.diagram-card-title { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-2); }
-.diagram-card-icon { color: var(--env-color-fg-primary); }
-.diagram-card-elements { display: flex; flex-wrap: wrap; gap: var(--env-space-1) var(--env-space-3); margin: 0; }
-.element-chip { padding: 0; border: 0; background: none; color: var(--env-color-fg-link); font: inherit; font-size: var(--env-font-size-body-sm); cursor: pointer; }
-.element-chip:hover { text-decoration: underline; }
-.element-chip:focus-visible { outline: 0.125rem solid var(--env-color-border-focus); outline-offset: 0.125rem; border-radius: 0.25rem; }
+/* A link to a diagram, inline in the text: a purple diagram icon before its words, in the accent colour and medium weight. */
+.diagram-link { color: var(--env-color-fg-accent); font-weight: var(--env-font-weight-medium); }
+.diagram-link:hover { text-decoration: underline; }
+.diagram-link-icon { inline-size: 1.1em; block-size: 1.1em; margin-inline-end: 0.2em; vertical-align: -0.2em; }
 
 /* A plan's diagrams: the canvas fills the panel. */
 .diagrams { position: relative; display: flex; flex: 1; flex-direction: column; min-block-size: 22rem; }
@@ -583,3 +580,7 @@ body { margin: 0; }
 @media (prefers-reduced-motion: reduce) {
   .step-bar > span { transition: none; }
 }
+/* A document's tables keep readable columns: none narrower than 8 rem, the text wrapping inside it.
+   A table with more columns than fit scrolls sideways in envUI's table region instead of crushing them. */
+.prose .env-markdown-table > table { inline-size: auto; min-inline-size: 100%; }
+.prose .env-markdown-table :is(th, td) { min-inline-size: 8rem; vertical-align: top; }

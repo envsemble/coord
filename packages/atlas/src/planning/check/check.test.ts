@@ -461,3 +461,13 @@ test('the planning folder keeps files byte for byte through Git, whatever core.a
   execFileSync('git', ['-c', 'core.autocrlf=true', 'clone', '--no-hardlinks', setup.root, copy], { stdio: 'pipe' });
   for (const [name, content] of Object.entries(originals)) assert.deepEqual(readFileSync(path.join(copy, 'active/0001-example', name)), content);
 });
+
+test("an active plan's table that reads cramped in Atlas is a warning, with its line", t => {
+  const setup = fixture(t);
+  const next = path.join(setup.root, 'active/0002-next');
+  mkdirSync(next, { recursive: true });
+  writeFileSync(path.join(next, 'plan.md'), ['---', 'id: work-0002', '---', '', '| a | b | c | d | e | f |', '|-|-|-|-|-|-|', '| 1 | 2 | 3 | 4 | 5 | 6 |', ''].join('\n'));
+  setup.registry.work_items.push({ id: 'work-0002', path: 'active/0002-next', current_plan: 'active/0002-next/plan.md' });
+  setup.write();
+  assert.ok(setup.validate().warnings.some(item => item.startsWith('active/0002-next/plan.md:5: a table with 6 columns reads cramped in Atlas')));
+});

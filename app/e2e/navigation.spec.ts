@@ -237,7 +237,7 @@ test('the mouse buttons close an open menu without going back, and one press goe
   await expect(shows(window)).toHaveText(decision);
   await window.keyboard.press('Alt+ArrowLeft');
   await expect(shows(window)).toHaveText('Saved payment methods');
-  await window.locator('.diagram-card').first().getByRole('button', { name: 'Open diagram' }).click();
+  await window.locator('.prose .diagram-link').first().click();
   await expect(window.locator('.diagrams .node').first()).toBeVisible();
   const diagram = (await window.locator('.diagram-picker-title').textContent())!;
   // Windows and Linux report the buttons to the window too, as main's back or forward.

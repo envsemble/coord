@@ -178,8 +178,8 @@ test("a plan opens from the hub with its summary and its side column, and with i
   await expect(window.locator('.plan-aside .ledger-handoff')).toHaveText('Continued in #0001 · Saved payment methods');
   await window.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
-  // A diagram opens from its card in the plan; Back returns to the plan.
-  await window.locator('.diagram-card').first().getByRole('button', { name: 'Open diagram' }).click();
+  // A diagram opens from its link in the plan; Back returns to the plan.
+  await window.locator('.prose .diagram-link').first().click();
   await expect(window.locator('.diagrams .atlas-panel').first()).toBeVisible();
   await expect(window.locator('.diagrams .island-start .diagram-picker-button')).toBeVisible();
   await window.getByRole('button', { name: 'Back', exact: true }).click();

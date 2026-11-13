@@ -1,16 +1,14 @@
-import { createContext, createElement, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
-import { Button, Card, Link, Spinner } from '@envsemble/envui';
+import { createContext, createElement, memo, useContext, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
+import { Button, Link, Spinner } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
 import { Markdown } from '@envsemble/envui/markdown';
 import { ChevronRightIcon, DiagramIcon, FileIcon, FolderOpenIcon, NewWindowIcon } from '../ui/icons';
 import type { DiagramReference, Document, DocumentContent, Snapshot, Target } from '../types';
 import { api, fileUrl } from '../api';
 import { resolveLink, siblingReference } from './links';
-import { sectionAnchors } from '@envsemble/atlas/planning/headings';
 import { findHeadingId, headingPrefix, rehypeFoldRequests, rehypeHeadingIds } from './headings';
-import { diagramTarget, documentTarget, workTarget } from '../navigation/targets';
-import { bytes, workNumber } from '../ui/format';
-import { ProvenanceBadge } from '../ui/badges';
+import { documentTarget, workTarget } from '../navigation/targets';
+import { bytes } from '../ui/format';
 import { useWindow, useWindowActions } from '../window/windowContext';
 import { appSchemes, fromUrl, referenceKey, rehypeReferences, type Found } from './references';
 import { PullMark, ReferenceLink, ReferencesContext, useCollectedReferences, useResolvedReferences } from './ReferenceLink';
@@ -31,28 +29,22 @@ export function useReferences(file: Document | undefined, workId: string | null 
   return links;
 }
 
-interface DiagramCard { key: string; path: string; workId: string; title: string; provenance: DiagramReference['provenance']; elements: string[] }
-function cards(references: DiagramReference[]): DiagramCard[] {
-  const byDiagram = new Map<string, DiagramCard>();
-  for (const reference of references) {
-    const key = reference.workId + ':' + reference.path;
-    let card = byDiagram.get(key);
-    if (!card) { card = { key, path: reference.path, workId: reference.workId, title: reference.title, provenance: reference.provenance, elements: [] }; byDiagram.set(key, card); }
-    if (reference.element && !card.elements.includes(reference.element)) card.elements.push(reference.element);
-  }
-  return [...byDiagram.values()];
+/** The diagrams a document links to, by work item and path: their titles and where they came from, for their links' tooltips. */
+function diagramNames(references: DiagramReference[]) {
+  const names = new Map<string, { title: string; provenance: string }>();
+  for (const reference of references) names.set(reference.workId + ':' + reference.path, { title: reference.title, provenance: reference.provenance.label });
+  return names;
 }
-/** The diagrams the passage links to, under its heading, with the elements its links name. */
-function DiagramCards({ items, showWork }: { items: DiagramCard[]; showWork: boolean }) {
-  const { open } = useWindowActions();
-  const show = (card: DiagramCard, element?: string) => open(diagramTarget(card.workId, card.path, element ?? card.elements[0] ?? null));
-  return <div className="diagram-cards">{items.map(card => <Card key={card.key} className="diagram-card" background="default" padding={4}
-    title={<span className="diagram-card-title"><DiagramIcon className="diagram-card-icon" /><span>{card.title}</span><ProvenanceBadge provenance={card.provenance} /></span>}
-    meta={showWork ? workNumber(card.workId) : undefined}
-    actions={<Button variant="secondary" onClick={() => show(card)}>Open diagram</Button>}>
-    {card.elements.length > 0 && <p className="diagram-card-elements">{card.elements.slice(0, 8).map(element => <Button variant="secondary" size="sm" key={element} className="element-chip" title={'Open the diagram at ' + element} onClick={() => show(card, element)}>{element}</Button>)}
-      {card.elements.length > 8 && <span className="muted">+{card.elements.length - 8}</span>}</p>}
-  </Card>)}</div>;
+
+/**
+ * A link to a diagram, inline in the text as the author wrote it: a purple diagram icon before its
+ * words, in the accent colour, so it reads as a diagram; its tooltip names the diagram and where it
+ * came from.
+ */
+function DiagramLink({ id, title, onOpen, children }: { id?: string; title: string; onOpen(): void; children?: ReactNode }) {
+  return <Link id={id} href="#" underline={false} className="diagram-link" title={title} onClick={event => { event.preventDefault(); onOpen(); }}>
+    <DiagramIcon className="diagram-link-icon" />{children}
+  </Link>;
 }
 
 function text(node: unknown): string {
@@ -100,8 +92,8 @@ function FoldToggle({ id, children }: { id?: string; children?: ReactNode }) {
   return <Button variant="text" className="request-fold-toggle" aria-expanded={folds.open.has(id)} startIcon={<ChevronRightIcon className="request-fold-icon" />} onClick={() => folds.toggle(id)}>{children}</Button>;
 }
 
-export function Reader({ file, snapshot, anchor, references = noReferences, showWork = false, hideTitle, plan = false, showHeader = false }: {
-  file: Document; snapshot: Snapshot; anchor: string | null; references?: DiagramReference[]; showWork?: boolean;
+export function Reader({ file, snapshot, anchor, references = noReferences, hideTitle, plan = false, showHeader = false }: {
+  file: Document; snapshot: Snapshot; anchor: string | null; references?: DiagramReference[];
   /** The file as it is: its metadata header shown as a table above its text. */ showHeader?: boolean;
   /** A level-one heading repeating the page title is omitted. */ hideTitle?: string;
   /** A work item's plan: its request shows folded. */ plan?: boolean;
@@ -146,27 +138,11 @@ export function Reader({ file, snapshot, anchor, references = noReferences, show
   const plugins = useMemo((): Plugins => [rehypeHeadingIds, [rehypeReferences, { collected }], ...plan ? [rehypeFoldRequests] : []], [collected, plan]);
   const resolved = useResolvedReferences(content?.format === 'markdown' ? inputs : []);
   const referenceScope = useMemo(() => ({ resolved }), [resolved]);
-  const cardCount = references.length;
   useEffect(() => {
     if (content && anchor) requestAnimationFrame(() => scrollToHeading(anchor));
-  }, [content, anchor, cardCount]);
+  }, [content, anchor]);
 
-  // The headings the page actually drew, once it has drawn them; until then the document's own.
-  const [drawn, setDrawn] = useState<{ body: string; anchors: Set<string> } | null>(null);
-  const diagramCards = useMemo(() => {
-    const sections = new Map<string, DiagramCard[]>();
-    const anchors = content?.format !== 'markdown' ? new Set<string>() : drawn?.body === content.body ? drawn.anchors : sectionAnchors(content.body);
-    const unplaced: DiagramReference[] = [];
-    const bySection = new Map<string, DiagramReference[]>();
-    for (const reference of references) {
-      // A link before any heading, or under one the document no longer has, shows at the top.
-      const anchor = reference.section;
-      if (!anchor || !anchors.has(anchor)) { unplaced.push(reference); continue; }
-      bySection.set(anchor, [...bySection.get(anchor) ?? [], reference]);
-    }
-    for (const [anchor, items] of bySection) sections.set(anchor, cards(items));
-    return { sections, top: cards(unplaced) };
-  }, [references, content, drawn]);
+  const names = useMemo(() => diagramNames(references), [references]);
 
   function destination(href: string) {
     const snapshot = snapshotRef.current;
@@ -174,10 +150,9 @@ export function Reader({ file, snapshot, anchor, references = noReferences, show
   }
   const components = useMemo(() => {
     const heading = (level: number) => function Heading({ node, children, id }: { node?: unknown; children?: ReactNode; id?: string }) {
-      const attached = id?.startsWith(headingPrefix) ? diagramCards.sections.get(id.slice(headingPrefix.length)) : undefined;
       const repeated = level === 1 && hideTitle !== undefined && text(node).trim() === hideTitle.trim();
       const toggles = Boolean((node as { properties?: { dataFoldToggle?: unknown } } | undefined)?.properties?.dataFoldToggle);
-      return <>{repeated ? <span id={id} /> : createElement('h' + level, { id }, toggles ? <FoldToggle id={id}>{children}</FoldToggle> : children)}{attached && <DiagramCards items={attached} showWork={showWork} />}</>;
+      return repeated ? <span id={id} /> : createElement('h' + level, { id }, toggles ? <FoldToggle id={id}>{children}</FoldToggle> : children);
     };
     return {
       ...Object.fromEntries([1, 2, 3, 4, 5, 6].map(level => ['h' + level, heading(level)])),
@@ -193,6 +168,11 @@ export function Reader({ file, snapshot, anchor, references = noReferences, show
         const route: Target | null = target.file ? documentTarget(target.file, owner, target.anchor ?? null)
           : target.work ? workTarget(target.work.id, target.anchor ?? null) : null;
         if (href.startsWith('#') && target.anchor !== undefined) return <Link id={id} href="#" onClick={event => { event.preventDefault(); scrollToHeading(target.anchor!); }}>{children}</Link>;
+        if (route?.kind === 'diagram') {
+          const named = names.get(route.work + ':' + route.path);
+          const title = (named ? named.title + (named.provenance ? ' · ' + named.provenance : '') : 'Diagram') + (route.element ? ' · ' + route.element : '');
+          return <DiagramLink id={id} title={title} onOpen={() => open(route)}>{children}</DiagramLink>;
+        }
         if (route) return <Link id={id} href="#" onClick={event => {
           event.preventDefault();
           if (target.file && target.file.path === file.path && target.anchor) { scrollToHeading(target.anchor); return; }
@@ -210,15 +190,7 @@ export function Reader({ file, snapshot, anchor, references = noReferences, show
         return target.file ? <img src={fileUrl(projectId, target.file.path)} alt={alt} /> : <span className="outside-reference">Image: {alt || String(src)}</span>;
       },
     };
-  }, [diagramCards, showWork, hideTitle, linkKey, file.path, open, projectId, sibling, openPath]);
-  // A card under a heading the page did not draw (its text reads differently there) moves to the top,
-  // once the document is drawn (again).
-  useLayoutEffect(() => {
-    if (content?.format !== 'markdown') return;
-    const ids = Array.from(article.current?.querySelectorAll<HTMLElement>('[id^="' + headingPrefix + '"]') ?? [], node => node.id.slice(headingPrefix.length));
-    const anchors = new Set(ids);
-    if (drawn?.body !== content.body || anchors.size !== drawn.anchors.size || ids.some(id => !drawn.anchors.has(id))) setDrawn({ body: content.body, anchors });
-  }, [content, components, plugins]);
+  }, [names, hideTitle, linkKey, file.path, open, projectId, sibling, openPath]);
   const reveal = () => { api.reveal(projectId, file.path).catch(failure => notify(failure.message, 'warning')); };
   const revealButton = remote ? null : <Button variant="text" startIcon={<FolderOpenIcon />} onClick={reveal} title="Show this file in your file manager">Show in folder</Button>;
 
@@ -227,7 +199,6 @@ export function Reader({ file, snapshot, anchor, references = noReferences, show
       : !content ? <div className="reader-loading"><Spinner label="Loading the document" /></div>
       : content.format === 'markdown' ? <div className="prose">
         {showHeader && content.metadata && <DocumentHeader metadata={content.metadata} />}
-        {diagramCards.top.length > 0 && <DiagramCards items={diagramCards.top} showWork={showWork} />}
         <ReferencesContext.Provider value={referenceScope}><FoldsContext.Provider value={folds}><ReaderMarkdown body={content.body} plugins={plugins} components={components} /></FoldsContext.Provider></ReferencesContext.Provider>
       </div>
       : content.format === 'text' ? <pre className="source-text">{content.body}</pre>

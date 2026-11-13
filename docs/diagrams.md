@@ -6,7 +6,7 @@ Because the subset is PlantUML, any diagram Atlas accepts also renders in PlantU
 
 ## Where diagrams live
 
-Every `*.puml` file in a work folder is one of its diagrams, usually under `diagrams/`. A plan links a diagram with an ordinary Markdown link under the heading the diagram explains, and the app shows the diagram's card there:
+Every `*.puml` file in a work folder is one of its diagrams, usually under `diagrams/`. A plan links a diagram with an ordinary Markdown link in the sentence the diagram explains, and the app shows the link as the diagram's, with a purple diagram icon:
 
 ```md
 ## Data model
@@ -15,7 +15,7 @@ Orders keep their lines and the address they ship to.
 [Order model](diagrams/orders.puml)
 ```
 
-A fragment names one element, which the card shows as a chip and the viewer focuses: `[the order](diagrams/orders.puml#Order)`. It is the element's PlantUML name, or a class's display name, URL-encoded (`#Order%20Item`). Any Markdown document of the work item can link its diagrams this way, such as the plan or the glossary; `atlas check` warns about a diagram no document links. A diagram's history is its file's history in the planning folder's Git.
+A fragment names one element, which the viewer focuses: `[the order](diagrams/orders.puml#Order)`. It is the element's PlantUML name, or a class's display name, URL-encoded (`#Order%20Item`). Any Markdown document of the work item can link its diagrams this way, such as the plan or the glossary; `atlas check` warns about a diagram no document links. A diagram's history is its file's history in the planning folder's Git.
 
 ## The subset
 

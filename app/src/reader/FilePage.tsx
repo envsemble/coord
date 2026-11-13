@@ -22,6 +22,6 @@ export function FilePage({ file, snapshot, anchor }: { file: Document; snapshot:
   return <Page className="file-page" width="md" title={file.title}
     breadcrumbs={<Trail work={owner?.id} items={[...(owner ? [{ label: workNumber(owner.id), target: workTarget(owner.id) }] : []), { label: <span title={file.path}>{file.name}</span> }]} />}
     actions={!remote && <Button variant="secondary" size="sm" startIcon={<FolderOpenIcon />} onClick={reveal} title="Show this file in your file manager">Show in folder</Button>}>
-    <Reader key={file.path} file={file} snapshot={snapshot} anchor={anchor} references={references} showWork={!file.workId} hideTitle={file.title} showHeader />
+    <Reader key={file.path} file={file} snapshot={snapshot} anchor={anchor} references={references} hideTitle={file.title} showHeader />
   </Page>;
 }

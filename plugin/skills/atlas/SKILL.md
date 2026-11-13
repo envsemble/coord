@@ -37,6 +37,8 @@ Record as understanding settles, not only at the end:
 - **Tags** (`work_create`, `work_tag`): what the work will be searched for later. Give the areas it touches (`search`, `hub`, `performance`, not activities like `fix`), at most about five, reusing the project's tags before inventing one; keep them true as the work changes. Add the release it ships in: where the project versions its releases, the version its manifest names (`package.json`); when that version is already tagged as released (`v<version>` in Git), ask the user which release the work goes in.
 - **`CONTEXT.md`:** the work's glossary, updated the moment a term resolves ([format](../atlas-grill/references/CONTEXT-FORMAT.md)).
 
+Atlas shows a plan in a column about 100 characters wide. Keep a table to a few short columns (a word or a phrase each) and put long text in a list or paragraphs below it; `atlas check` warns about a table that will read cramped. Link a diagram from the sentence that is about it (`[the order model](diagrams/orders.puml)`): the link shows as the diagram.
+
 Write PRs, issues and commits in full, naming the repository from the checkout you work in: `owner/repo#12`, `owner/repo@4ab195a`, or their URLs. Atlas links these; `#12` and a bare hash stay plain text.
 
 Keep one record per thing, and update it rather than adding summaries. Skip transcripts and command logs. Lessons that outlive the work belong in the repository's own `AGENTS.md` or documentation, not in Atlas.

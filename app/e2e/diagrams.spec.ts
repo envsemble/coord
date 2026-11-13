@@ -217,14 +217,14 @@ test('the details resize from their inner edge, by pointer or keyboard, and keep
   }
 });
 
-test('a class diagram opens from its card with its scenarios as its guide and a full view; an element chip and a link in the plan open it at that element, and Back returns to the plan', async () => {
+test('a class diagram opens from its link with its scenarios as its guide and a full view; a link naming an element opens it at that element, and Back returns to the plan', async () => {
   launched = await launchProject({ dataDirectory, folder });
   const { window } = launched;
   await openPlan(window, 'Order fulfilment model');
-  // The links under a heading attach the diagram's card there, with the elements they name.
-  const card = window.locator('.diagram-card', { hasText: 'Fulfilment · conceptual model' }).first();
-  await expect(card.locator('.element-chip')).toHaveText(['Order', 'Shipment']);
-  await card.getByRole('button', { name: 'Open diagram' }).click();
+  // A link to a diagram shows as the diagram's, its tooltip naming it and where it came from.
+  const link = window.locator('.prose .diagram-link', { hasText: 'class diagram' });
+  await expect(link).toHaveAttribute('title', 'Fulfilment · conceptual model · Agent-authored');
+  await link.click();
   await expect(window.locator('.diagram-picker-title')).toHaveText('Fulfilment · conceptual model');
   await expect(window.locator('.diagrams .node').first()).toBeVisible();
   // The scenario that exemplifies the class diagram is listed beside it.
@@ -249,22 +249,22 @@ test('a class diagram opens from its card with its scenarios as its guide and a 
   await window.keyboard.press('Alt+ArrowLeft');
   await expect(window.locator('.work-page h1')).toHaveText('Order fulfilment model');
 
-  // A chip opens the diagram at its element.
-  await card.locator('.element-chip', { hasText: 'Shipment' }).click();
+  // A link naming an element opens the diagram at it.
+  await window.locator('.prose .diagram-link', { hasText: 'shipments' }).click();
   // Off the canvas, so no element under the pointer previews its details.
   await window.locator('.diagram-picker-button').hover();
   const details = window.locator('.inspector.open');
   await expect(details.getByRole('heading', { level: 1 })).toHaveText('Shipment');
   await window.keyboard.press('Alt+ArrowLeft');
   await expect(window.locator('.work-page h1')).toHaveText('Order fulfilment model');
-  // A link in the text opens the diagram too, at the element its fragment names.
-  await window.locator('.prose a', { hasText: 'orders' }).first().click();
+  // Another one, at its element too.
+  await window.locator('.prose .diagram-link', { hasText: 'orders' }).first().click();
   await expect(window.locator('.diagram-picker-title')).toHaveText('Fulfilment · conceptual model');
   await window.locator('.diagram-picker-button').hover();
   await expect(details.getByRole('heading', { level: 1 })).toHaveText('Order');
 });
 
-test('a card sits under its heading however the heading is written, a fragment may name a class as it reads, and a diagram with problems shows them instead of drawing', async () => {
+test('a link may name a class as it reads, and a diagram with problems shows them instead of drawing', async () => {
   const work = path.join(folder, 'active/0002-order-fulfilment-model');
   writeFileSync(path.join(work, 'diagrams/broken.puml'), '@startuml\ntitle Broken\nclass A\nclass B\nA -up-> B\n@enduml\n');
   writeFileSync(path.join(work, 'diagrams/lines.puml'), '@startuml\ntitle Order lines\nclass "Order Item" as OrderItem\nclass Order\nOrder "1" *-- "1..*" OrderItem : lines\n@enduml\n');
@@ -273,17 +273,8 @@ test('a card sits under its heading however the heading is written, a fragment m
   launched = await launchProject({ dataDirectory, folder });
   const { window } = launched;
   await openPlan(window, 'Order fulfilment model');
-  const after = (heading: Locator) => heading.locator('xpath=following-sibling::*[1]');
-  // Code and underscores in a heading, and the second of two equal headings, each get their card.
-  const table = after(window.locator('.prose h2', { hasText: 'order_items' }));
-  await expect(table).toHaveClass(/diagram-cards/);
-  await expect(table.locator('.element-chip')).toHaveText(['Order Item']);
-  const questions = window.locator('.prose h2', { hasText: 'Open questions' });
-  await expect(questions).toHaveCount(2);
-  await expect(after(questions.first())).not.toHaveClass(/diagram-cards/);
-  await expect(after(questions.last())).toContainText('Order lines');
-  // The chip names the class by its display name; the diagram opens at it.
-  await table.locator('.element-chip').click();
+  // The link names the class by its display name; the diagram opens at it.
+  await window.locator('.prose .diagram-link', { hasText: 'order item' }).click();
   await expect(window.locator('.diagram-picker-title')).toHaveText('Order lines');
   await window.locator('.diagram-picker-button').hover();
   await expect(window.locator('.inspector.open').getByRole('heading', { level: 1 })).toHaveText('Order Item');

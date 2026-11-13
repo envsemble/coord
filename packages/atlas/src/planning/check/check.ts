@@ -10,6 +10,7 @@ import path from 'node:path';
 import { agreed, ledgerStatus } from '../work/ledger.ts';
 import { isTag, tagLimit } from '../work/tags.ts';
 import { isWorkId } from '../work/parts.ts';
+import { crampedTables, crampedTableWarning } from './tables.ts';
 import { HandoffGraph, handoffsOf, handoffText } from '../handoffs/handoffs.ts';
 
 const planFields = ['schema_version', 'kind', 'id', 'title', 'created', 'updated', 'design_status', 'implementation_status', 'accepted_at', 'completed_at', 'supersedes', 'superseded_by'];
@@ -354,9 +355,12 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     if (location !== null && pathKey(planPath) !== pathKey(path.join(location, 'plan.md'))) { errors.push(label + ".current_plan must be the work folder's plan.md"); return; }
     if (!isFile(planPath)) { errors.push(label + '.current_plan must identify a file'); return; }
     let metadata: Metadata | null;
-    try { metadata = parseFrontmatter(readText(planPath, true)); }
+    let text: string;
+    try { text = readText(planPath, true); metadata = parseFrontmatter(text); }
     catch (error) { errors.push(String(pointer) + ': ' + (error as Error).message); return; }
     if (metadata === null) { errors.push(String(pointer) + ': the plan has no metadata header'); return; }
+    // An active plan's tables read well in Atlas, or the agent writing it hears why not.
+    if (typeof entry.path === 'string' && entry.path.startsWith('active/')) for (const table of crampedTables(text)) warnings.push(crampedTableWarning(String(pointer), table));
     plans.push({ pointer: String(pointer), metadata, workId, location: entry.path });
   });
 
