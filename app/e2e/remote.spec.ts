@@ -1,7 +1,7 @@
 // Remote access between two copies of Atlas: one turns remote access on, the other pairs with a
 // one-time link and then works on the first computer's projects as if they were local: their plans in
-// its hub, listed on its Projects page (archived its own way), read, renamed and created there, plan export and
-// import, and switching between computers. Both run on this machine with their own homes; the
+// its hub, listed on its Projects page (archived its own way), read, renamed and created there, and
+// switching between computers. Both run on this machine with their own homes; the
 // first listens on 127.0.0.1, since CI runners have no Tailscale.
 import { existsSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
@@ -121,22 +121,9 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await expect(access.locator('.device-list li')).toContainText('Reading laptop');
   await expect(access.locator('.device-list li').getByText('Connected')).toBeVisible();
 
-  // Export a plan from that computer to this one, and import it back there: the file is sent over.
-  const exported = path.join(readerData, 'exported.atlas-plan.html');
-  await reading.app.evaluate(({ dialog }, target) => {
-    dialog.showSaveDialog = (async () => ({ canceled: false, filePath: target })) as unknown as typeof dialog.showSaveDialog;
-    dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [target] })) as unknown as typeof dialog.showOpenDialog;
-    dialog.showMessageBox = (async () => ({ response: 0, checkboxChecked: false })) as unknown as typeof dialog.showMessageBox;
-  }, exported);
-  expect(await bridge(viewer).call(async (atlas, id) => (await atlas.exportPlan(id, 'work-0003')).ok, northwind)).toBe(true);
-  expect(existsSync(exported)).toBe(true);
-  const preview = await bridge(viewer).call(async (atlas, id) => atlas.chooseImport(id), northwind);
-  expect(preview).toMatchObject({ ok: true, value: { newId: 'work-0005', file: 'exported.atlas-plan.html' } });
-  const imported = await bridge(viewer).call(async (atlas, token) => atlas.confirmImport(token), (preview as { value: { token: string } }).value.token);
-  expect(imported).toMatchObject({ ok: true, value: { workId: 'work-0005' } });
-  expect(readFileSync(path.join(folder, 'planning.json'), 'utf8')).toContain('work-0005');
+  // Its plans are in the hub here.
   await goHome(viewer);
-  await expect(hubRows(viewer)).toHaveCount(4);
+  await expect(hubRows(viewer)).toHaveCount(3);
 
   // A project created from here is made on that computer, and both see it. Its workspace folders
   // are paths there, chosen in Atlas there: here it gets a name only, and its folders are not changed.

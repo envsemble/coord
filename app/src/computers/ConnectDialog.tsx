@@ -2,7 +2,7 @@
 // address and code). That computer is then one of the computers this app works on: its projects
 // show in a window that chooses it in the computer menu.
 import { useState } from 'react';
-import { Button, Dialog, Input, Notice, Text } from '@envsemble/envui';
+import { Alert, Button, Dialog, TextField, Text } from '@envsemble/envui';
 import { ComputerIcon } from '../ui/icons';
 import type { Computer } from '../types';
 import { api } from '../api';
@@ -27,10 +27,10 @@ export function ConnectDialog({ onClose }: { onClose(): void }) {
     description={<>On the other computer, open <strong>Settings › Computers</strong> (<strong>File › Settings…</strong>), turn remote access on and create a pairing link. Paste the link here, or type its address and code. The link works once, for five minutes.</>}
     closeLabel="Cancel" actions={<Button variant="primary" type="submit" form="connect-form" pending={busy} disabled={!link.trim() || (needsCode && !code.trim())}>Connect</Button>}>
     <form id="connect-form" className="dialog-form" onSubmit={event => { event.preventDefault(); void connect(); }}>
-      <Input label="Pairing link or address" value={link} onChange={event => setLink(event.target.value)} placeholder="http://100.64.1.2:7346/pair#token=…" autoFocus spellCheck={false} autoComplete="off" disabled={busy}
-        hint="Use the Tailscale address to connect from anywhere on your tailnet. On a local network, the connection is not encrypted." />
-      {needsCode && <Input label="Pairing code" value={code} onChange={event => setCode(event.target.value)} placeholder="XXXX-XXXX-XXXX-XXXX" spellCheck={false} autoComplete="off" disabled={busy} />}
-      {error && <Notice tone="error" announce>{error}</Notice>}
+      <TextField label="Pairing link or address" value={link} onValueChange={setLink} placeholder="http://100.64.1.2:7346/pair#token=…" autoFocus spellCheck={false} autoComplete="off" disabled={busy}
+        description="Use the Tailscale address to connect from anywhere on your tailnet. On a local network, the connection is not encrypted." />
+      {needsCode && <TextField label="Pairing code" value={code} onValueChange={setCode} placeholder="XXXX-XXXX-XXXX-XXXX" spellCheck={false} autoComplete="off" disabled={busy} />}
+      {error && <Alert tone="danger" announce>{error}</Alert>}
     </form>
   </Dialog>;
 }
@@ -42,6 +42,6 @@ function Paired({ computer, onClose }: { computer: Computer; onClose(): void }) 
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }} className="connect-dialog" title="Connect to another Atlas"
     actions={<Button variant="primary" startIcon={<ComputerIcon />} onClick={show}>Show {computer.name}</Button>}>
     <Text>This computer is paired with <strong>{computer.name}</strong>. Choose <strong>{computer.name}</strong> in the computer menu at the top of a window to work on its projects{computer.manageAccess ? '; you can also pair and revoke its devices' : ''}.</Text>
-    {error && <Notice tone="error" announce>{error}</Notice>}
+    {error && <Alert tone="danger" announce>{error}</Alert>}
   </Dialog>;
 }

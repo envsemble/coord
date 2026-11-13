@@ -20,7 +20,7 @@ export function FilePage({ file, snapshot, anchor }: { file: Document; snapshot:
   const reveal = () => { api.reveal(projectId, file.path).catch(error => notify((error as Error).message, 'warning')); };
   return <div className="page file-page">
     <div className="work-trail">
-      <Trail items={[...(owner ? [{ label: workNumber(owner.id), target: workTarget(owner.id) }] : []), { label: <span title={file.path}>{file.name}</span> }]} />
+      <Trail work={owner?.id} items={[...(owner ? [{ label: workNumber(owner.id), target: workTarget(owner.id) }] : []), { label: <span title={file.path}>{file.name}</span> }]} />
       {!remote && <Button variant="text" className="work-export" startIcon={<FolderOpenIcon />} onClick={reveal} title="Show this file in your file manager">Show in folder</Button>}
     </div>
     <Reader key={file.path} file={file} snapshot={snapshot} anchor={anchor} references={references} showWork={!file.workId} showHeader />

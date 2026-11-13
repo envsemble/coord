@@ -7,8 +7,8 @@
 // trusted) meanwhile shows as it is. A connected agent's row says whether it runs Atlas, and in
 // Settings each row can show the commands that connect it by hand.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Button, Checkbox, DisclosureNote, GroupedRows, Notice, Row, Spinner } from '@envsemble/envui';
-import { Code } from '@envsemble/envui/content';
+import { Alert, Button, Checkbox, Disclosure, List, Spinner } from '@envsemble/envui';
+import { Code } from '@envsemble/envui/code';
 import { agentIds, agentNames } from '../../shared/contract';
 import type { AgentFolder, AgentId, AgentState } from '../types';
 import { api, AtlasError } from '../api';
@@ -100,11 +100,11 @@ const withCode = (text: string) => text.split('/hooks').flatMap((part, index) =>
  * computer's (a window may show another), with `action` (the hub's link to Settings) after it.
  */
 export function AgentWarnings({ agents, action }: { agents: readonly AgentState[] | null; action?: ReactNode }) {
-  return <>{agentWarnings(agents).map(agent => <Notice key={agent.id} tone="warning" className="agent-warning" data-agent={agent.id} action={action}>
+  return <>{agentWarnings(agents).map(agent => <Alert key={agent.id} tone="warning" className="agent-warning" data-agent={agent.id} actions={action}>
     {agent.check?.status === 'untrusted' ? <>Codex on this computer doesn’t trust Atlas’s hooks yet: type <Code>/hooks</Code> in Codex and trust them.</>
       : agent.id === 'codex' ? <>Codex on this computer isn’t running Atlas’s hooks: type <Code>/hooks</Code> in Codex and trust them.</>
       : <>{agentNames[agent.id]} on this computer isn’t running Atlas’s hooks.</>}
-  </Notice>)}</>;
+  </Alert>)}</>;
 }
 
 /** Open an agent's install page in the browser. */
@@ -126,19 +126,19 @@ export function AgentList({ agents: state, mode, label = 'Agents' }: { agents: A
   if (agents === null) return <Spinner label="Checking the agents on this computer" />;
   const shown = agents.filter(agent => mode.kind !== 'connect' || mode.only.includes(agent.id))
     .sort((a, b) => agentIds.indexOf(a.id) - agentIds.indexOf(b.id));
-  return <GroupedRows className="agent-list" aria-label={label}>{shown.map(agent => {
+  return <List.Root className="agent-list" aria-label={label}>{shown.map(agent => {
     const now = activity(agent.id);
-    return <Row key={agent.id} className="agent-row" data-agent={agent.id} data-found={agent.found} aria-busy={now.running ? true : undefined}
-      title={<span className="agent-name"><AgentLogo agent={agent.id} /><span className="row-link-title">{agentNames[agent.id]}</span></span>}
-      detail={<AgentDetail agent={agent} activity={now} state={state} mode={mode} folder={folder} />}
-      action={<span className="row-actions agent-actions">{action(agent, now, mode, state)}</span>} />;
-  })}</GroupedRows>;
+    return <List.Item key={agent.id} className="agent-row" data-agent={agent.id} data-found={agent.found} aria-busy={now.running ? true : undefined}
+      label={<span className="agent-name"><AgentLogo agent={agent.id} /><span className="row-link-title">{agentNames[agent.id]}</span></span>}
+      description={<AgentDetail agent={agent} activity={now} state={state} mode={mode} folder={folder} />}
+      end={<span className="row-actions agent-actions">{action(agent, now, mode, state)}</span>} />;
+  })}</List.Root>;
 }
 
 /** An agent's status (with, connected, whether it runs Atlas), what is happening to it, or why the last change failed. */
 function AgentDetail({ agent, activity, state, mode, folder }: { agent: AgentState; activity: AgentActivity; state: Agents; mode: AgentListMode; folder: AgentFolder | null }) {
   let line: ReactNode = agentStatus(agent);
-  if (activity.running) line = <span className="agent-progress"><Spinner size="small" label="" />{activity.running === 'connect' ? 'Connecting… this can take a minute.' : 'Disconnecting…'}</span>;
+  if (activity.running) line = <span className="agent-progress"><Spinner size="sm" label="" />{activity.running === 'connect' ? 'Connecting… this can take a minute.' : 'Disconnecting…'}</span>;
   const check = agent.connected && agent.check && !activity.running ? agentCheckLine(agent.check, agent.id) : null;
   const refused = state.refused(agent.id);
   return <span className="agent-detail">
@@ -161,12 +161,12 @@ function AgentDetail({ agent, activity, state, mode, folder }: { agent: AgentSta
 function ByHand({ agent, folder }: { agent: AgentState; folder: AgentFolder }) {
   const { terminal, session } = byHandCommands(agent.id, folder);
   const command = (text: string) => <li key={text}><Code>{text}</Code><CopyButton text={text} label="Copy" /></li>;
-  return <DisclosureNote className="agent-by-hand" title="Connect by hand">
+  return <Disclosure className="agent-by-hand" title="Connect by hand">
     <p>In a terminal (this installs the plugin; Connect also grants the agent Atlas’s home):</p>
     <ol className="agent-commands">{terminal.map(command)}</ol>
     <p>{agent.id === 'claude' ? 'Or in a Claude Code session:' : 'Then in Codex, to see it:'}</p>
     <ol className="agent-commands">{session.map(command)}</ol>
-  </DisclosureNote>;
+  </Disclosure>;
 }
 
 function action(agent: AgentState, now: AgentActivity, mode: AgentListMode, state: Agents): ReactNode {

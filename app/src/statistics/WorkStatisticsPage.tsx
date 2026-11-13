@@ -4,7 +4,7 @@
 // and agent time and tokens by model and reasoning effort. The timeline is also a table, folded, for
 // screen readers.
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import { DisclosureNote, SegmentedControl, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
+import { Disclosure, SegmentedControl, Table, Text } from '@envsemble/envui';
 import type { Work, WorkSession, WorkTimeline } from '../types';
 import { aiModel, withEffort } from '../ui/aiModels';
 import { ModelName } from '../ui/ModelName';
@@ -24,7 +24,7 @@ import { agentTimeNote, effortRows } from './workStatistics';
 
 function Section({ title, note, children }: { title: string; note?: ReactNode; children: ReactNode }) {
   return <section className="plan-statistics-section" aria-label={title}>
-    <div className="section-toolbar"><Text as="h2" variant="section-heading">{title}</Text>{note}</div>
+    <div className="section-toolbar"><Text render={<h2 />} variant="title">{title}</Text>{note}</div>
     {children}
   </section>;
 }
@@ -34,14 +34,14 @@ function ByModel({ work }: { work: Work }) {
   if (!models.length) return <p className="muted">No model was reported for this plan yet.</p>;
   const rows = orderModels(effortRows(models));
   const colour = modelPalette(rows);
-  return <Table className="plan-statistics-table" aria-label="Agent time and tokens by model and effort">
-    <TableHead><TableRow><TableHeaderCell>Model and effort</TableHeaderCell><TableHeaderCell numeric>Agent time</TableHeaderCell><TableHeaderCell numeric>Tokens</TableHeaderCell></TableRow></TableHead>
-    <TableBody>{rows.map(row => <TableRow key={row.model + ':' + row.effort}>
-      <TableCell><ModelKey model={row.model} effort={row.effort} colour={colour(row.model, row.effort)} items={rows} /></TableCell>
-      <TableCell numeric>{duration(row.agentMs)}</TableCell>
-      <TableCell numeric>{row.tokens !== null ? compactNumber(row.tokens) : '—'}</TableCell>
-    </TableRow>)}</TableBody>
-  </Table>;
+  return <Table.Root className="plan-statistics-table" aria-label="Agent time and tokens by model and effort">
+    <Table.Head><Table.Row><Table.HeaderCell>Model and effort</Table.HeaderCell><Table.HeaderCell numeric>Agent time</Table.HeaderCell><Table.HeaderCell numeric>Tokens</Table.HeaderCell></Table.Row></Table.Head>
+    <Table.Body>{rows.map(row => <Table.Row key={row.model + ':' + row.effort}>
+      <Table.Cell><ModelKey model={row.model} effort={row.effort} colour={colour(row.model, row.effort)} items={rows} /></Table.Cell>
+      <Table.Cell numeric>{duration(row.agentMs)}</Table.Cell>
+      <Table.Cell numeric>{row.tokens !== null ? compactNumber(row.tokens) : '—'}</Table.Cell>
+    </Table.Row>)}</Table.Body>
+  </Table.Root>;
 }
 
 type Zoom = 'all' | 'week' | 'day';
@@ -142,8 +142,8 @@ function Timeline({ timeline, sessions, live }: { timeline: WorkTimeline; sessio
   const working = timeline.lanes.reduce((sum, lane) => sum + laneWork(lane), 0);
   const summary = plural(timeline.lanes.length, 'lane') + ', ' + duration(working) + ' of work' + (timeline.waitedMs ? ', ' + duration(timeline.waitedMs) + ' waiting for you' : '') + ', shown from ' + absoluteDate(new Date(start).toISOString()) + ' to ' + absoluteDate(new Date(end).toISOString()) + '.';
   const stretches = timeline.lanes.flatMap(lane => [...lane.working.map(([from, to]) => ({ lane, kind: 'Working', from, to })), ...lane.waiting.map(([from, to]) => ({ lane, kind: 'Waiting for you', from, to }))]).sort((a, b) => a.from.localeCompare(b.from));
-  return <Section title="Timeline" note={<SegmentedControl aria-label="Timeline span" size="compact" value={preset ?? ''} onValueChange={value => setPreset(value as Zoom)}
-    options={[{ value: 'all', label: 'All' }, { value: 'week', label: 'Last week' }, { value: 'day', label: 'Last day' }]} />}>
+  return <Section title="Timeline" note={<SegmentedControl aria-label="Timeline span" size="sm" value={preset ?? ''} onValueChange={value => setPreset(value as Zoom)}
+    items={[{ value: 'all', label: 'All' }, { value: 'week', label: 'Last week' }, { value: 'day', label: 'Last day' }]} />}>
     {timeline.lanes.length ? <>
       <div ref={chart} className="timeline" role="group" aria-roledescription="timeline" aria-label={summary} aria-describedby="timeline-help" tabIndex={0}
         onKeyDown={keys} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={() => { if (!drag.current) setTip(null); }}>
@@ -162,16 +162,16 @@ function Timeline({ timeline, sessions, live }: { timeline: WorkTimeline; sessio
         </div>}
       </div>
       <p id="timeline-help" className="timeline-legend muted"><span className="timeline-key" data-kind="working" /> working <span className="timeline-key" data-kind="waiting" /> waiting for you <span className="timeline-key" data-kind="now" /> now · Shift and the wheel zoom, dragging moves; on the focused chart the arrow keys move and zoom, Home shows all</p>
-      <DisclosureNote title="The timeline as a table">
-        <Table className="plan-statistics-table" aria-label="Timeline">
-          <TableHead><TableRow><TableHeaderCell>Model</TableHeaderCell><TableHeaderCell>Session or subagent</TableHeaderCell><TableHeaderCell>What</TableHeaderCell><TableHeaderCell>From</TableHeaderCell><TableHeaderCell>To</TableHeaderCell><TableHeaderCell numeric>Length</TableHeaderCell></TableRow></TableHead>
-          <TableBody>{stretches.map((stretch, index) => <TableRow key={index}>
-            <TableCell>{stretch.lane.model ? <ModelName model={stretch.lane.model} effort={stretch.lane.effort} /> : laneName(stretch.lane, sessions)}</TableCell><TableCell>{laneDetail(stretch.lane, sessions).split(' · ')[0]}</TableCell><TableCell>{stretch.kind}</TableCell>
-            <TableCell>{absoluteDate(stretch.from)}</TableCell><TableCell>{absoluteDate(stretch.to)}</TableCell>
-            <TableCell numeric>{duration(Math.max(0, Date.parse(stretch.to) - Date.parse(stretch.from)))}</TableCell>
-          </TableRow>)}</TableBody>
-        </Table>
-      </DisclosureNote>
+      <Disclosure title="The timeline as a table">
+        <Table.Root className="plan-statistics-table" aria-label="Timeline">
+          <Table.Head><Table.Row><Table.HeaderCell>Model</Table.HeaderCell><Table.HeaderCell>Session or subagent</Table.HeaderCell><Table.HeaderCell>What</Table.HeaderCell><Table.HeaderCell>From</Table.HeaderCell><Table.HeaderCell>To</Table.HeaderCell><Table.HeaderCell numeric>Length</Table.HeaderCell></Table.Row></Table.Head>
+          <Table.Body>{stretches.map((stretch, index) => <Table.Row key={index}>
+            <Table.Cell>{stretch.lane.model ? <ModelName model={stretch.lane.model} effort={stretch.lane.effort} /> : laneName(stretch.lane, sessions)}</Table.Cell><Table.Cell>{laneDetail(stretch.lane, sessions).split(' · ')[0]}</Table.Cell><Table.Cell>{stretch.kind}</Table.Cell>
+            <Table.Cell>{absoluteDate(stretch.from)}</Table.Cell><Table.Cell>{absoluteDate(stretch.to)}</Table.Cell>
+            <Table.Cell numeric>{duration(Math.max(0, Date.parse(stretch.to) - Date.parse(stretch.from)))}</Table.Cell>
+          </Table.Row>)}</Table.Body>
+        </Table.Root>
+      </Disclosure>
     </> : <p className="muted">No session has worked on this plan since Atlas began recording when agents work.</p>}
   </Section>;
 }
@@ -204,12 +204,12 @@ export function WorkStatisticsPage({ work }: { work: Work }) {
   const statistics = work.statistics;
   // Headed like a project's statistics: the breadcrumb, then the heading, here with the plan's title.
   return <Page className="plan-statistics-page" heading={<div className="page-heading-stack">
-    <Trail items={[{ label: workNumber(work.id), target: workTarget(work.id) }, { label: 'Statistics' }]} />
-    <div className="plan-statistics-header"><Text as="h1" variant="page-heading">Statistics</Text><Text tone="muted">{work.title}</Text></div>
+    <Trail work={work.id} items={[{ label: workNumber(work.id), target: workTarget(work.id) }, { label: 'Statistics' }]} />
+    <div className="plan-statistics-header"><Text render={<h1 />} variant="title">Statistics</Text><Text emphasis="muted">{work.title}</Text></div>
   </div>}>
     <Headline work={work} live={live} sessions={sessions} timeline={timeline} />
     {timeline && <Timeline timeline={timeline} sessions={sessions} live={live} />}
     <Section title="By model and effort"><ByModel work={work} /></Section>
-    {statistics && statistics.reports > 0 && <Text variant="caption" tone="muted">{agentTimeNote(statistics)}</Text>}
+    {statistics && statistics.reports > 0 && <Text variant="caption" emphasis="muted">{agentTimeNote(statistics)}</Text>}
   </Page>;
 }

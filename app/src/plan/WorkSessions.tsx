@@ -3,7 +3,7 @@
 // the person, the waiting session's message. Read from the host as the plan's activity changes.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Button } from '@envsemble/envui';
-import { Markdown } from '@envsemble/envui/content';
+import { Markdown } from '@envsemble/envui/markdown';
 import type { WorkCommit, WorkSession, WorkTimeline } from '../types';
 import { api } from '../api';
 import { ModelName } from '../ui/ModelName';

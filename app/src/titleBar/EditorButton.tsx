@@ -4,8 +4,8 @@
 // (another window may change it, so it is read again as the list opens); the main part opens the file.
 // Ctrl+O (⌘O) does what the main part does. Main builds each editor's link and checks the file.
 import { useEffect, useState } from 'react';
-import { Button, ButtonGroup, IconButton, Menu, MenuItem, Tooltip } from '@envsemble/envui';
-import { ExpandMore } from '@envsemble/envui/icons/ExpandMore';
+import { Button, ButtonGroup, IconButton, Menu, Tooltip } from '@envsemble/envui';
+import { IconExpandMore as ExpandMore } from '@envsemble/envui/icons/ExpandMore';
 import { editorNames, editors, type Editor } from '../../shared/contract';
 import { api } from '../api';
 import { EditorMark } from '../ui/EditorMark';
@@ -38,13 +38,13 @@ export function EditorButton({ platform, editor, choose, read, open }: { platfor
         <span className="editor-button-label">{editorAction(editor, platform)}</span>
       </Button>
     </Tooltip>
-    <Menu aria-label="Open in" align="end" density="compact" onOpenChange={shown => { if (shown) read(); }}
+    <Menu.Root aria-label="Open in" align="end" onOpenChange={shown => { if (shown) read(); }}
       trigger={<IconButton variant="secondary" className="editor-button-more" icon={<ExpandMore />} aria-label="Choose the editor" />}>
-      {editors.map(value => <MenuItem key={value} icon={<EditorMark editor={value} />} shortcut={value === editor ? mod + '+O' : undefined}
-        trailing={value === editor ? <CheckIcon className="editor-current" aria-label="Current" /> : undefined}
+      {editors.map(value => <Menu.Item key={value} icon={<EditorMark editor={value} />} shortcut={value === editor ? mod + '+O' : undefined}
+        end={value === editor ? <CheckIcon className="editor-current" aria-label="Current" /> : undefined}
         onClick={() => { void choose(value).catch(() => undefined); }}>
         {editorName(value, platform)}
-      </MenuItem>)}
-    </Menu>
+      </Menu.Item>)}
+    </Menu.Root>
   </ButtonGroup>;
 }

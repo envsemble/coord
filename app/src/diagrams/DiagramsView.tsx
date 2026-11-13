@@ -7,8 +7,9 @@ import { api } from '../api';
 import { diagramTarget } from '../navigation/targets';
 import { selectDiagram } from './diagramSelection';
 import { elementId, modelSummary } from '@envsemble/atlas/planning/provenance';
-import { Button, EmptyState, Menu, MenuGroup, MenuRadioGroup, MenuRadioItem, Notice, Spinner, Surface, useThemePreference } from '@envsemble/envui';
-import { ExpandMore } from '@envsemble/envui/icons/ExpandMore';
+import { Alert, Button, Menu, Spinner, Surface, useThemePreference } from '@envsemble/envui';
+import { EmptyState } from '../ui/EmptyState';
+import { IconExpandMore as ExpandMore } from '@envsemble/envui/icons/ExpandMore';
 import { DiagramIcon } from '../ui/icons';
 import { ProvenanceBadge } from '../ui/badges';
 import { useWindow } from '../window/windowContext';
@@ -56,17 +57,17 @@ function DiagramPicker({ diagrams, selected, payloads, open, onOpenChange, onSel
   diagrams: DiagramEntry[]; selected: string; payloads: Map<string, ViewerPayload>; open: boolean; onOpenChange(open: boolean): void; onSelect(path: string): void;
 }) {
   const current = diagrams.find(diagram => diagram.path === selected);
-  return <Menu aria-label="Choose a diagram" align="start" density="compact" className="diagram-menu" open={open} onOpenChange={onOpenChange}
+  return <Menu.Root aria-label="Choose a diagram" align="start" className="diagram-menu" open={open} onOpenChange={onOpenChange}
     trigger={<Button variant="secondary" className="diagram-picker-button" startIcon={<DiagramIcon />} endIcon={<ExpandMore />}>
       <span className="diagram-picker-title">{current?.title ?? (selected ? 'Unavailable diagram' : 'Choose a diagram')}</span>
       {current && <ProvenanceBadge provenance={current.provenance} />}
     </Button>}>
-    <MenuRadioGroup value={selected} onValueChange={onSelect}>
-      {pickerGroups(diagrams).map(group => <MenuGroup key={group.key} label={group.title}>
-        {group.items.map(diagram => <MenuRadioItem key={diagram.path} value={diagram.path} description={describe(diagram, diagrams, payloads.get(diagram.path)) || undefined}>{diagram.title}</MenuRadioItem>)}
-      </MenuGroup>)}
-    </MenuRadioGroup>
-  </Menu>;
+    <Menu.RadioGroup value={selected} onValueChange={onSelect}>
+      {pickerGroups(diagrams).map(group => <Menu.Group key={group.key} label={group.title}>
+        {group.items.map(diagram => <Menu.RadioItem key={diagram.path} value={diagram.path} description={describe(diagram, diagrams, payloads.get(diagram.path)) || undefined}>{diagram.title}</Menu.RadioItem>)}
+      </Menu.Group>)}
+    </Menu.RadioGroup>
+  </Menu.Root>;
 }
 
 /** A diagram's payload as the host answers: with the payloads of the rest of its family, laid out together. */
@@ -167,14 +168,14 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
       </ViewerErrorBoundary>
       : <>
         <div className="diagrams-islands">
-          {picker && <Surface tone="pane" corners="pill" padding={1} density="compact" className="diagrams-island">{picker}</Surface>}
+          {picker && <Surface background="default" radius="full" padding={1} className="diagrams-island">{picker}</Surface>}
         </div>
         {!diagrams ? <div className="diagrams-state"><Spinner label="Loading diagrams" /></div>
           : empty ? <div className="diagrams-state"><EmptyState icon={<DiagramIcon />} title="No diagrams yet" description="Diagrams appear here when your agent writes PlantUML (.puml) files into this work folder; the atlas skill tells it how." /></div>
           : entry && !entry.valid ? <div className="diagrams-state"><Problems diagram={entry} /></div>
           : <div className="diagrams-state">{error ? null : <Spinner label="Loading the diagram" />}</div>}
       </>}
-      {notices.length > 0 && <div className="diagrams-notices" role="status">{notices.map((message, index) => <Notice tone="warning" key={index}>{message}</Notice>)}</div>}
+      {notices.length > 0 && <div className="diagrams-notices" role="status">{notices.map((message, index) => <Alert tone="warning" key={index}>{message}</Alert>)}</div>}
     </div>
   </section>;
 }

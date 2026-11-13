@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hubGroups, hubItems, hubRowFacts, hubStatus, inState, lastChange } from './hubPlans.ts';
+import { hubGroups, hubItems, hubRowFacts, hubStatus, inState, lastChange, partsFacts } from './hubPlans.ts';
 import { compactNumber, duration } from '../ui/format.ts';
 import type { Project, ProjectSummary, ProjectWork } from '../types.ts';
 
@@ -140,4 +140,15 @@ test('a plan last changed on its date, or at its last report when that is the sa
   assert.equal(lastChange(work('work-0001', 'draft', { updated: '2026-10-14', statistics: statistics({ lastReport: '2026-10-01T08:00:00Z' }) })), '2026-10-14');
   assert.equal(lastChange(work('work-0001', 'draft', { statistics: statistics({ lastReport: '2026-10-01T08:00:00Z' }) })), '2026-10-01T08:00:00Z');
   assert.equal(lastChange(work('work-0001', 'draft')), null);
+});
+
+test('a part says its place in its group, and a group how many of its parts are closed', () => {
+  const grouped = project('Grouped', 5, {
+    active: [work('work-0005', 'implementing', { parts: ['work-0006', 'work-0007'], partOf: null }), work('work-0007', 'draft', { partOf: 'work-0005' })],
+    closed: [work('work-0006', 'closed', { outcome: 'complete', partOf: 'work-0005' })],
+  });
+  const [group, second] = grouped.summary!.active;
+  assert.deepEqual(partsFacts(group, grouped), { kind: 'group', count: 2, closed: 1 });
+  assert.deepEqual(partsFacts(second, grouped), { kind: 'part', group: 'work-0005', index: 2, count: 2 });
+  assert.equal(partsFacts(atlas.summary!.active[0], atlas), null);
 });

@@ -76,7 +76,7 @@ test('the launcher passes arguments, input, output and the exit status through, 
   assert.deepEqual(JSON.parse(sh.stdout), { args, input: '{"x":1}' });
 });
 
-test('the command the app carries exports a plan with its diagrams drawn', () => {
+test('the command the app carries checks a planning folder with its diagrams', () => {
   const directory = mkdtempSync(path.join(tmpdir(), 'atlas-payload-'));
   const repository = path.resolve(import.meta.dirname, '../../..');
   type Runtime = { name: string; executable: Buffer; license: Buffer };
@@ -85,11 +85,8 @@ test('the command the app carries exports a plan with its diagrams drawn', () =>
   assemble(repository, path.join(directory, 'agent'), '1.0.0', { name: 'node', executable: Buffer.from('node'), license: Buffer.from('Node.js') });
   const planning = path.join(directory, 'planning');
   cpSync(path.join(repository, 'app', 'e2e', 'fixtures', 'planning'), planning, { recursive: true });
-  const result = spawnSync(process.execPath, [path.join(directory, 'agent', 'command', 'bin', 'atlas.js'), 'plan', 'export', 'work-0002', '--planning-dir', planning, '--out', path.join(directory, 'plan.html')], { encoding: 'utf8', cwd: directory });
+  const result = spawnSync(process.execPath, [path.join(directory, 'agent', 'command', 'bin', 'atlas.js'), 'check', planning], { encoding: 'utf8', cwd: directory });
   assert.equal(result.status, 0, result.stderr);
-  // A diagram the command cannot draw (React missing, say) is still exported, with a warning.
-  assert.doesNotMatch(result.stderr, /cannot be drawn/);
-  assert.match(result.stdout, /Exported work-0002/);
 });
 
 test('the Windows uninstaller disconnects the agents connected to the agent folder, and only them', { skip: process.platform !== 'win32' && 'the uninstaller is Windows only' }, () => {

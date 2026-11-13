@@ -70,9 +70,9 @@ exports.nodeRuntime = async function nodeRuntime(repository, platform, arch) {
   return { name: path.basename(executable), version: nodeVersion, ...files };
 };
 
-/** Files of the @envsemble/atlas package the command reads: no tests, no test helpers, no build scripts or viewer sources. */
+/** Files of the @envsemble/atlas package the command reads: no tests and no test helpers. */
 const commandFiles = relative => /^(?:bin|src|templates)(?:\/|$)/.test(relative) && !/\.test\.ts$|(?:^|\/)testing\.ts$/.test(relative)
-  || ['package.json', 'dist', 'dist/plan-viewer.html'].includes(relative);
+  || relative === 'package.json';
 /** The diagram package's development pages and tooling are not needed (as in electron-builder.yml's files). */
 const diagramFiles = relative => !/^(?:development|downloads|scripts|examples|tests)(?:\/|$)|^(?:index\.html|vite\.config\.mjs|tsconfig\.contracts\.json)$/.test(relative);
 

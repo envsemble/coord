@@ -124,9 +124,8 @@ test('a window saves the place it shows as a row of its project, and loads it ba
   assert.deepEqual(placeRow({ projectId, target: { kind: 'work', work: 'work-0001', anchor: null, step: 'Build the hub' } }), { projectId, kind: 'work', target: '{"work":"work-0001","anchor":null}' });
   // The hub filtered to a project, and a project's statistics, are rows of that project.
   for (const page of [{ page: 'hub' as const, projectId }, { page: 'statistics' as const, projectId }]) assert.deepEqual(savedPlace(projectId, placeRow(page)!), page);
-  // The hub of every project and the Projects page are no row: a window without one opens on the hub.
+  // The hub of every project is no row: a window without one opens on the hub.
   assert.equal(placeRow({ page: 'hub', projectId: null }), null);
-  assert.equal(placeRow({ page: 'projects' }), null);
   // A row that cannot be read loads as nothing.
   assert.deepEqual(savedPlace(projectId, { kind: 'file', target: '{"path":"README.md"}' }), { projectId, target: { kind: 'file', path: 'README.md' } });
   assert.equal(savedPlace(projectId, { kind: 'file', target: '{"path":"../x"}' }), null);

@@ -4,7 +4,8 @@
 // the plans completed marked) and its models and effort. From the host's project.statistics; all
 // plans' statistics (every active project together) are the same page, from its projects.statistics.
 import { useEffect, useState, type ReactNode } from 'react';
-import { DisclosureNote, EmptyState, IconButton, Notice, Popover, SegmentedControl, Spinner, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, Text } from '@envsemble/envui';
+import { Alert, Disclosure, IconButton, Popover, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
+import { EmptyState } from '../ui/EmptyState';
 import { InfoIcon, StatisticsIcon } from '../ui/icons';
 import type { ProjectStatistics } from '../types';
 import { api } from '../api';
@@ -52,7 +53,7 @@ function WorkOverTime({ statistics, scope }: { statistics: ProjectStatistics; sc
   const line = bars.map((item, index) => `${(index + 0.5) / bars.length * 100},${100 - item.activeMs / top * 100}`).join(' ');
   const labelEvery = Math.max(1, Math.ceil(bars.length / 8));
   return <section className="project-statistics-section" aria-label="Work over time">
-    <Text as="h2" variant="section-heading">Work over time</Text>
+    <Text render={<h2 />} variant="title">Work over time</Text>
     {bars.some(item => item.total > 0) ? <>
       <div className="work-chart" role="img" aria-label={'Agent time ' + (statistics.unit === 'day' ? 'by day' : 'by week') + ', ' + plural(bars.length, statistics.unit) + '. The table below has every ' + statistics.unit + '.'} onPointerLeave={() => setShown(null)}>
         <div className="work-chart-bars">{bars.map((item, index) => <div key={item.start} className="work-chart-column" data-shown={shown === index ? '' : undefined} onPointerEnter={() => setShown(index)}>
@@ -75,15 +76,15 @@ function WorkOverTime({ statistics, scope }: { statistics: ProjectStatistics; sc
         <span><span className="work-chart-key-line" aria-hidden="true" />at least one agent working</span>
         <span><span className="work-chart-key-completed" aria-hidden="true" />plans completed</span>
       </p>
-      <DisclosureNote title="The work over time as a table">
-        <Table className="project-statistics-table" aria-label="Work over time">
-          <TableHead><TableRow><TableHeaderCell>{statistics.unit === 'day' ? 'Day' : 'Week'}</TableHeaderCell><TableHeaderCell numeric>Agent time</TableHeaderCell><TableHeaderCell numeric>At least one working</TableHeaderCell><TableHeaderCell>Plans completed</TableHeaderCell></TableRow></TableHead>
-          <TableBody>{bars.map(item => <TableRow key={item.start}>
-            <TableCell>{bucketName(item.start, statistics.unit)}</TableCell><TableCell numeric>{duration(item.total)}</TableCell><TableCell numeric>{duration(item.activeMs)}</TableCell>
-            <TableCell>{item.completed.map(plan => plan.title).join(', ') || '—'}</TableCell>
-          </TableRow>)}</TableBody>
-        </Table>
-      </DisclosureNote>
+      <Disclosure title="The work over time as a table">
+        <Table.Root className="project-statistics-table" aria-label="Work over time">
+          <Table.Head><Table.Row><Table.HeaderCell>{statistics.unit === 'day' ? 'Day' : 'Week'}</Table.HeaderCell><Table.HeaderCell numeric>Agent time</Table.HeaderCell><Table.HeaderCell numeric>At least one working</Table.HeaderCell><Table.HeaderCell>Plans completed</Table.HeaderCell></Table.Row></Table.Head>
+          <Table.Body>{bars.map(item => <Table.Row key={item.start}>
+            <Table.Cell>{bucketName(item.start, statistics.unit)}</Table.Cell><Table.Cell numeric>{duration(item.total)}</Table.Cell><Table.Cell numeric>{duration(item.activeMs)}</Table.Cell>
+            <Table.Cell>{item.completed.map(plan => plan.title).join(', ') || '—'}</Table.Cell>
+          </Table.Row>)}</Table.Body>
+        </Table.Root>
+      </Disclosure>
     </> : <p className="muted">No agent worked on {scope} in this period.</p>}
   </section>;
 }
@@ -94,15 +95,15 @@ function ModelsAndEffort({ statistics }: { statistics: ProjectStatistics }) {
   const models = orderModels(statistics.models);
   const colour = modelPalette(models);
   return <section className="project-statistics-section" aria-label="Models and effort">
-    <Text as="h2" variant="section-heading">Models and effort</Text>
-    {statistics.models.length ? <Table className="project-statistics-table" aria-label="Agent time and tokens by model and effort">
-      <TableHead><TableRow><TableHeaderCell>Model and effort</TableHeaderCell><TableHeaderCell numeric>Agent time</TableHeaderCell><TableHeaderCell numeric>Share</TableHeaderCell><TableHeaderCell numeric>Tokens</TableHeaderCell></TableRow></TableHead>
-      <TableBody>{models.map(item => <TableRow key={modelKey(item.model, item.effort)}>
-        <TableCell><ModelKey model={item.model} effort={item.effort} colour={colour(item.model, item.effort)} items={models} /></TableCell>
-        <TableCell numeric>{duration(item.agentMs)}</TableCell><TableCell numeric>{total ? Math.round(item.agentMs / total * 100) + '%' : '—'}</TableCell>
-        <TableCell numeric>{item.tokens !== null ? compactNumber(item.tokens) : '—'}</TableCell>
-      </TableRow>)}</TableBody>
-    </Table> : <p className="muted">No model was reported in this period.</p>}
+    <Text render={<h2 />} variant="title">Models and effort</Text>
+    {statistics.models.length ? <Table.Root className="project-statistics-table" aria-label="Agent time and tokens by model and effort">
+      <Table.Head><Table.Row><Table.HeaderCell>Model and effort</Table.HeaderCell><Table.HeaderCell numeric>Agent time</Table.HeaderCell><Table.HeaderCell numeric>Share</Table.HeaderCell><Table.HeaderCell numeric>Tokens</Table.HeaderCell></Table.Row></Table.Head>
+      <Table.Body>{models.map(item => <Table.Row key={modelKey(item.model, item.effort)}>
+        <Table.Cell><ModelKey model={item.model} effort={item.effort} colour={colour(item.model, item.effort)} items={models} /></Table.Cell>
+        <Table.Cell numeric>{duration(item.agentMs)}</Table.Cell><Table.Cell numeric>{total ? Math.round(item.agentMs / total * 100) + '%' : '—'}</Table.Cell>
+        <Table.Cell numeric>{item.tokens !== null ? compactNumber(item.tokens) : '—'}</Table.Cell>
+      </Table.Row>)}</Table.Body>
+    </Table.Root> : <p className="muted">No model was reported in this period.</p>}
   </section>;
 }
 
@@ -125,18 +126,18 @@ function StatisticsView({ read, revision, trail, scope, all }: {
   const statistics = shown?.statistics ?? null;
   // The breadcrumb over the title and its explanation at the left, the period at the right across both.
   return <Page title="Statistics" className="statistics-page" heading={<div className="statistics-heading"><div className="page-heading-stack">{trail}<div className="statistics-title">
-    <Text as="h1" variant="page-heading">Statistics</Text>
-    <Popover aria-label="About statistics" title="About these numbers" width="wide" trigger={<IconButton variant="text" icon={<InfoIcon />} aria-label="About these numbers" />}>
+    <Text render={<h1 />} variant="title">Statistics</Text>
+    <Popover aria-label="About statistics" title="About these numbers" width="lg" trigger={<IconButton variant="text" icon={<InfoIcon />} aria-label="About these numbers" />}>
       <div className="info-body">
         <p>The figures come from the reports agents record when a session stops, read from their session logs where Atlas can (Claude Code and Codex). Agent time adds up every agent's working time, each session and each subagent in full, also while they work at once; the line shows the time at least one of them was working.</p>
         <p>Time counts where it was worked, by the reports' working intervals; a report without them counts at its time. A plan counts as completed on its completion date, and the time it took runs from its acceptance to its completion. Waiting on you counts the time {all ? 'the sessions' : 'the project’s sessions'} waited for you, waits at once counted once.{all ? ' All plans are every active project’s together.' : ''}</p>
       </div>
     </Popover>
   </div></div>
-    <SegmentedControl aria-label="Period" value={periodId} onValueChange={value => setPeriodId(value as PeriodId)} options={periods.map(item => ({ value: item.id, label: item.label }))} />
+    <SegmentedControl aria-label="Period" value={periodId} onValueChange={value => setPeriodId(value as PeriodId)} items={periods.map(item => ({ value: item.id, label: item.label }))} />
   </div>}>
-    {shown?.error && <Notice tone="warning">{shown.error}</Notice>}
-    {!shown ? <div className="page-state" aria-busy="true"><Spinner size="large" label="Reading the statistics" /></div>
+    {shown?.error && <Alert tone="warning">{shown.error}</Alert>}
+    {!shown ? <div className="page-state" aria-busy="true"><Spinner size="lg" label="Reading the statistics" /></div>
       : !statistics ? null
       : statistics.current.agentMs === 0 && statistics.current.plansCompleted === 0 ? <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No work in this period" description={statistics.from ? 'Agents have not reported on ' + scope + ' since ' + absoluteDate(statistics.from) + '.' : 'Agents have not reported on ' + scope + ' yet.'} />
       : <>

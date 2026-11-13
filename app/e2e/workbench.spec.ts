@@ -450,10 +450,10 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   await projectAction(window, 'Coord', 'Restore');
   await expect(sections.locator('.section-item').first()).toHaveText(/^Plans\s*6/);
 
-  // File holds the window's and the plans' commands, and Settings; the computer menu only switches computers.
+  // File holds the window's commands and Settings; the computer menu only switches computers.
   await fileMenu(window).click();
   const menu = window.getByRole('menu', { name: 'File' });
-  await expect(menu.getByRole('menuitem')).toHaveText([/^New Window\s*Ctrl\s*\+?\s*Shift\s*\+?\s*N$/, 'New Project…', 'Import Plan…', /^Settings…\s*Ctrl\s*\+?\s*,$/, 'Exit']);
+  await expect(menu.getByRole('menuitem')).toHaveText([/^New Window\s*Ctrl\s*\+?\s*Shift\s*\+?\s*N$/, 'New Project…', /^Settings…\s*Ctrl\s*\+?\s*,$/, 'Exit']);
   await window.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
   // Alt+F opens it from the keyboard, at its first item.
@@ -488,7 +488,7 @@ test('two rows at the top: the logo, back and forward, File, the computer, searc
   // Electron gives the roles the system's own shortcuts: Exit and Redo differ on Windows.
   const windows = process.platform === 'win32';
   expect(items).toEqual([
-    ['&File', ['New &Window CmdOrCtrl+Shift+N', 'New &Project…', '&Import Plan…', 'Open in &Editor CmdOrCtrl+O', '&Settings… CmdOrCtrl+,', 'Close Win&dow CmdOrCtrl+Shift+W', windows ? 'E&xit' : 'E&xit CommandOrControl+Q']],
+    ['&File', ['New &Window CmdOrCtrl+Shift+N', 'New &Project…', 'Open in &Editor CmdOrCtrl+O', '&Settings… CmdOrCtrl+,', 'Close Win&dow CmdOrCtrl+Shift+W', windows ? 'E&xit' : 'E&xit CommandOrControl+Q']],
     ['&Edit', ['Undo CommandOrControl+Z', windows ? 'Redo Control+Y' : 'Redo Shift+CommandOrControl+Z', 'Cut CommandOrControl+X', 'Copy CommandOrControl+C', 'Paste CommandOrControl+V', 'Select All CommandOrControl+A']],
     ['&View', ['&Back Alt+Left', '&Forward Alt+Right', '&Projects', 'S&tatistics', '&Search… CmdOrCtrl+P', 'F&iles CmdOrCtrl+Shift+E', 'Zoom &In CmdOrCtrl+Plus', 'Zoom &Out CmdOrCtrl+-', '&Actual Size CmdOrCtrl+0', 'Toggle Full Screen F11']],
     ['&Help', ['Open &Logs', '&About Atlas']],

@@ -2,11 +2,11 @@
 // planning shapes are the host's (packages/atlas/src/host/validate.ts); this module adds what only the
 // desktop window sends. Unknown object keys are dropped.
 import { agentIds, appCommands, editors, fullPath, limits, settingsSections, themePreferences, type PagePlace, type Place, type Project, type ProjectPlace, type ReferenceInput, type SettingsSection, type Target, type UiState } from './contract.ts';
-import { array, diagramPath, integer, nullable, object, oneOf, optional, projectId, relativePath, string, workId, type Validator } from '@envsemble/atlas/host/validate';
+import { array, boolean, diagramPath, integer, nullable, object, oneOf, optional, projectId, relativePath, string, workId, type Validator } from '@envsemble/atlas/host/validate';
 
 export {
   ValidationError, argumentsOf, array, boolean, diagramPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode,
-  port, projectId, projectName, relativePath, string, token, workId, type Validator,
+  port, projectId, projectName, relativePath, string, workId, type Validator,
 } from '@envsemble/atlas/host/validate';
 
 export const command = oneOf(appCommands);
@@ -37,8 +37,9 @@ export const target: Validator<Target> = (value, at = 'target') => {
 export const settingsSection = oneOf(settingsSections);
 /** One of the window's own pages, or something of a project. */
 export const place: Validator<Place> = (value, at = 'place') => {
-  const page = object<{ page?: PagePlace['page'] }>({ page: optional(oneOf(['hub', 'projects', 'statistics', 'settings'] as const)) })(value, at).page;
-  if (page === 'projects') return { page };
+  const page = object<{ page?: PagePlace['page'] | 'projects' }>({ page: optional(oneOf(['hub', 'projects', 'statistics', 'settings'] as const)) })(value, at).page;
+  // The Projects page is gone: its projects are managed from the hub.
+  if (page === 'projects') return { page: 'hub', projectId: null };
   if (page === 'settings') return { page, section: object<{ section: SettingsSection }>({ section: settingsSection })(value, at).section };
   if (page) return { page, projectId: object<{ projectId: string | null }>({ projectId: nullable(projectId) })(value, at).projectId };
   return object<ProjectPlace>({ projectId, target })(value, at);
@@ -47,6 +48,7 @@ export const place: Validator<Place> = (value, at = 'place') => {
 export const uiState: Validator<UiState> = object<UiState>({
   place,
   inspectorWidth: optional(integer(limits.inspectorMin, limits.inspectorMax)),
+  filesHidden: optional(boolean),
 });
 
 /**

@@ -2,8 +2,8 @@
 // "#0023 · Plans hub" (and its project's name when it is another project's), opening it; the ledger's
 // entries above and after the steps; and "continued in #0026" on closed work's status line.
 import type { MouseEvent, ReactNode } from 'react';
-import { ArrowBack } from '@envsemble/envui/icons/ArrowBack';
-import { ArrowForward } from '@envsemble/envui/icons/ArrowForward';
+import { IconArrowBack as ArrowBack } from '@envsemble/envui/icons/ArrowBack';
+import { IconArrowForward as ArrowForward } from '@envsemble/envui/icons/ArrowForward';
 import type { Handoff } from './handoffs';
 
 /** Opens another plan: its project's ID and its work ID. */

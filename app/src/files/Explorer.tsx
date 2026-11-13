@@ -1,9 +1,10 @@
-// The open plan's files, in a card always beside its pages: its work folder (plan, ledger, context,
-// diagrams and the rest) as a tree of real folder and file names; a work item's diagram
+// The open plan's files, in the sidebar at the left of its pages: its work folder (plan, ledger,
+// context, diagrams and the rest) as a tree of real folder and file names; a work item's diagram
 // files open as its diagrams. A click, or Enter, opens a file in the window; folders open and close in
-// place.
+// place. View › Files and the sidebar's own button hide it, and show it again.
 import { createContext, useContext, useMemo } from 'react';
-import { MenuItem, MenuSeparator, Surface, Text, Tree, type TreeItem } from '@envsemble/envui';
+import { IconButton, Menu, Text, Tooltip, Tree, type TreeItem } from '@envsemble/envui';
+import { IconLeftPanelClose } from '@envsemble/envui/icons/LeftPanelClose';
 import { DiagramIcon, FileIcon, FolderIcon, FolderOpenIcon } from '../ui/icons';
 import type { Document, Snapshot, Target, Work } from '../types';
 import { api } from '../api';
@@ -42,10 +43,11 @@ export interface FilesState { expanded: string[]; setExpanded(next: string[]): v
 export const FilesContext = createContext<FilesState>({ expanded: [], setExpanded: () => undefined, selected: null });
 
 /**
- * The open plan's files, always on its pages: a card with the plan's work folder as a tree, the file
- * shown marked. It keeps beside the page as it scrolls, and scrolls on its own when it is long.
+ * The open plan's files, at the left of its pages: the plan's work folder as a tree, the file shown
+ * marked. It stays in view as the page scrolls, and scrolls on its own when it is long. `hide` hides
+ * the sidebar; View › Files (`shortcut`) shows it again.
  */
-export function PlanFiles({ work }: { work: Work }) {
+export function PlanFiles({ work, hide, shortcut }: { work: Work; hide(): void; shortcut: string }) {
   const { projectId, open, notify, remote, snapshot } = useWindow();
   const { expanded, setExpanded, selected } = useContext(FilesContext);
   const index = useMemo(() => buildIndex(snapshot), [snapshot]);
@@ -70,38 +72,42 @@ export function PlanFiles({ work }: { work: Work }) {
   };
   const reveal = (path: string) => { api.reveal(projectId, path).catch(error => notify((error as Error).message, 'warning')); };
   // A folder on another computer has no files here to reveal.
-  const revealItem = (path: string) => remote ? null : <MenuItem onClick={() => reveal(path)}>Show in Folder</MenuItem>;
+  const revealItem = (path: string) => remote ? null : <Menu.Item onClick={() => reveal(path)}>Show in Folder</Menu.Item>;
   const menu = (item: Row | null) => {
     const row = item?.row;
     const entries = !row ? null
       : row.kind === 'file' ? <>
-        <MenuItem onClick={() => open(fileOpens(row.file!))}>{isDiagramFile(row.path!) ? 'Open Diagram' : 'Open'}</MenuItem>
-        {isDiagramFile(row.path!) && <MenuItem onClick={() => open(fileTarget(row.path!))}>Open as Text</MenuItem>}
+        <Menu.Item onClick={() => open(fileOpens(row.file!))}>{isDiagramFile(row.path!) ? 'Open Diagram' : 'Open'}</Menu.Item>
+        {isDiagramFile(row.path!) && <Menu.Item onClick={() => open(fileTarget(row.path!))}>Open as Text</Menu.Item>}
         {revealItem(row.path!)}
       </>
       : revealItem(row.path!);
-    return <>{entries}{entries && <MenuSeparator />}<MenuItem disabled={!expanded.length} onClick={() => setExpanded([])}>Collapse All Folders</MenuItem></>;
+    return <>{entries}{entries && <Menu.Separator />}<Menu.Item disabled={!expanded.length} onClick={() => setExpanded([])}>Collapse All Folders</Menu.Item></>;
   };
-  return <Surface as="section" className="plan-files" padding={2} aria-label={'Files of ' + workNumber(work.id)}>
-    <Text as="h2" variant="section-heading" className="plan-files-heading">Files</Text>
-    {rows.length ? <div className="plan-files-tree" style={{ blockSize: 'calc(' + rows.length + ' * var(--plan-files-row))' }}>
-      <Tree<Row> items={rows} aria-label={'Files of ' + workNumber(work.id) + ' ' + work.title} selectedId={selected} density="compact"
-        onOpen={item => activate(item)}
-        onExpandedChange={(item, value) => setOpen(item.id, value)}
-        contextMenu={menu} />
-    </div> : <p className="plan-files-empty muted">This work folder has no files.</p>}
-  </Surface>;
+  return <nav className="plan-files" aria-label={'Files of ' + workNumber(work.id)}>
+    <div className="plan-files-header">
+      <Text render={<h2 />} variant="body" className="plan-files-heading">Files</Text>
+      <Tooltip content={'Hide files (' + shortcut + ')'} side="bottom">
+        <IconButton variant="ghost" size="sm" icon={<IconLeftPanelClose />} aria-label="Hide files" onClick={hide} />
+      </Tooltip>
+    </div>
+    {rows.length ? <Tree<Row> className="plan-files-tree" items={rows} aria-label={'Files of ' + workNumber(work.id) + ' ' + work.title} value={selected} density="sm"
+      onAction={item => activate(item)}
+      onExpandedChange={(item, value) => setOpen(item.value, value)}
+      contextMenu={menu} />
+      : <Text render={<p />} variant="body-sm" emphasis="muted" className="plan-files-empty">This work folder has no files.</Text>}
+  </nav>;
 }
 
-/** Bring the keyboard to the Files card's tree (which takes focus itself and marks its active row). */
+/** Bring the keyboard to the Files sidebar's tree (which takes focus itself and marks its active row). */
 export function focusPlanFiles() {
   document.querySelector<HTMLElement>('.plan-files [role="tree"]')?.focus();
 }
 
 function treeItem(row: ExplorerRow): Row {
-  const base = { id: row.id, depth: row.depth, expandable: row.expandable, expanded: row.expanded, row, textValue: row.name };
-  if (row.kind !== 'file') return { ...base, label: row.name, icon: row.expanded ? <FolderOpenIcon className="explorer-folder" /> : <FolderIcon className="explorer-folder" />, title: row.path };
+  const base = { value: row.id, depth: row.depth, expandable: row.expandable, expanded: row.expanded, row, textValue: row.name };
+  if (row.kind !== 'file') return { ...base, label: row.name, icon: row.expanded ? <FolderOpenIcon className="explorer-folder" /> : <FolderIcon className="explorer-folder" />, tooltip: row.path };
   const diagram = isDiagramFile(row.path!) && Boolean(row.file?.workId);
   // Its whole name; its title, when it has one of its own, on hover.
-  return { ...base, label: row.name, icon: diagram ? <DiagramIcon className="explorer-diagram" /> : <FileIcon className="explorer-file" />, title: row.file && row.file.title !== row.file.name ? row.file.title + ' \u00b7 ' + row.path : row.path };
+  return { ...base, label: row.name, icon: diagram ? <DiagramIcon className="explorer-diagram" /> : <FileIcon className="explorer-file" />, tooltip: row.file && row.file.title !== row.file.name ? row.file.title + ' \u00b7 ' + row.path : row.path };
 }

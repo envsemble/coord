@@ -127,3 +127,23 @@ export function hubRowFacts(work: ProjectWork, status = hubStatus(work)): HubRow
     changed: lastChange(work),
   };
 }
+
+/**
+ * Where a plan stands among parts, as its row says it: a part is "Part 2 of #0005" (its place in its
+ * group's order, of how many); a group says how many parts it has and how many of them are closed.
+ */
+export type PartsFacts = { kind: 'part'; group: string; index: number; count: number } | { kind: 'group'; count: number; closed: number };
+export function partsFacts(work: ProjectWork, project: Project): PartsFacts | null {
+  const all = project.summary ? [...project.summary.active, ...project.summary.closed] : [];
+  if (work.partOf) {
+    const group = all.find(item => item.id === work.partOf);
+    const parts = group?.parts ?? [];
+    const index = parts.indexOf(work.id);
+    return group && index >= 0 ? { kind: 'part', group: group.id, index: index + 1, count: parts.length } : null;
+  }
+  if (work.parts?.length) {
+    const known = new Map(all.map(item => [item.id, item]));
+    return { kind: 'group', count: work.parts.length, closed: work.parts.filter(id => known.get(id)?.state === 'closed').length };
+  }
+  return null;
+}

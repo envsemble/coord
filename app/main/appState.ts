@@ -74,6 +74,10 @@ export class AppState {
   }
   setInspectorWidth(width: number | null) { this.database.setSetting('ui.inspectorWidth', width === null ? null : String(width)); }
 
+  /** Whether the reader hid the Files sidebar beside a plan, in every window. */
+  get filesHidden(): boolean { return this.database.setting('ui.filesHidden') === '1'; }
+  setFilesHidden(hidden: boolean) { this.database.setSetting('ui.filesHidden', hidden ? '1' : null); }
+
   /** The windows to open: those open when Atlas quit, and any opened since. */
   windows(): WindowRow[] {
     return (this.database.db.prepare('SELECT * FROM "window" ORDER BY id').all() as Row[]).map(row => ({

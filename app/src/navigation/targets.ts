@@ -1,5 +1,5 @@
-// What a window shows: one place at a time. A place is one of the window's own pages (the hub, the
-// Projects page, a project's statistics, a section of Settings) or something of one project (a plan, a plan's statistics, a
+// What a window shows: one place at a time. A place is one of the window's own pages (the hub, a
+// project's statistics, a section of Settings) or something of one project (a plan, a plan's statistics, a
 // diagram or a file).
 // A work item's diagrams share one place, which switches between them in place.
 import type { Document, PagePlace, Place, ProjectPlace, SettingsSection, Target, Work } from '../types';
@@ -9,13 +9,12 @@ export type { PagePlace, Place, ProjectPlace };
 
 /** The hub: every plan, or one project's. */
 export const hubPlace = (projectId: string | null = null): PagePlace => ({ page: 'hub', projectId });
-export const projectsPlace = (): PagePlace => ({ page: 'projects' });
 export const statisticsPlace = (projectId: string | null): PagePlace => ({ page: 'statistics', projectId });
 /** Settings, at one of its sections: the agents on this computer, or the computers. */
 export const settingsPlace = (section: SettingsSection = 'agents'): PagePlace => ({ page: 'settings', section });
 export const isPage = (place: Place): place is PagePlace => 'page' in place;
 /** The project a place is of: its own, the hub's filter or the statistics' project; null for none. */
-export const placeProject = (place: Place): string | null => !isPage(place) ? place.projectId : place.page === 'projects' || place.page === 'settings' ? null : place.projectId;
+export const placeProject = (place: Place): string | null => !isPage(place) ? place.projectId : place.page === 'settings' ? null : place.projectId;
 /** Where on a page the place is: the project of the hub or the statistics, or the section of Settings. */
 export const pagePart = (place: PagePlace): string => place.page === 'settings' ? place.section : placeProject(place) ?? '';
 

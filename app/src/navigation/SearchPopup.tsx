@@ -93,12 +93,12 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   // The name read out includes where it is, so many plan.md files stay apart.
   const items: CommandPaletteItem[] = results.map(entry => ({
     id: entry.id, label: entry.label, textValue: [entry.label, entry.detail, entry.snippet, ...entry.tags ?? []].filter(Boolean).join(', '), icon: icons.get(entry.id) ?? kindIcons[entry.kind], group: entry.group,
-    detail: entry.snippet || entry.tags?.length ? <><span className="search-where">{entry.detail}</span>{entry.snippet && <span className="search-snippet">{entry.snippet}</span>}{entry.tags && <TagList tags={entry.tags} className="search-tags" />}</> : entry.detail,
+    description: entry.snippet || entry.tags?.length ? <><span className="search-where">{entry.detail}</span>{entry.snippet && <span className="search-snippet">{entry.snippet}</span>}{entry.tags && <TagList tags={entry.tags} className="search-tags" />}</> : entry.detail,
   }));
 
   return <CommandPalette open onOpenChange={value => { if (!value) onClose(); }} className="search-popup" aria-label="Search"
-    query={query} onQueryChange={setQuery} items={items} placeholder="Search plans, documents, diagrams and projects" emptyLabel={text ? 'No matches' : 'No plans yet'}
-    onSelect={item => {
+    inputValue={query} onInputValueChange={setQuery} items={items} placeholder="Search plans, documents, diagrams and projects" emptyLabel={text ? 'No matches' : 'No plans yet'}
+    onAction={item => {
       const entry = byId.get(item.id);
       if (!entry) return;
       onClose();

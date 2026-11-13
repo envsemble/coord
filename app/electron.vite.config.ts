@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { defineConfig } from 'electron-vite';
 import react from '@vitejs/plugin-react';
@@ -52,23 +52,6 @@ function themeStartup(): Plugin {
 const envUISource = process.env.ENVUI_SOURCE === '1';
 const envUIRoot = envUISource ? realpathSync(resolve(import.meta.dirname, 'node_modules/@envsemble/envui')) : null;
 
-// The atlas package's plan export reads two of its files (src/packageFiles.ts): its package.json
-// (for the version it records) and dist/plan-viewer.html (the export template). Bundled into
-// out/main, those paths resolve to out/package.json and out/dist/plan-viewer.html.
-function planningFiles(): Plugin {
-  const planning = resolve(import.meta.dirname, '../packages/atlas');
-  return {
-    name: 'atlas-package-files',
-    writeBundle(options) {
-      const out = resolve(options.dir ?? dirname(options.file!), '..');
-      const { version } = JSON.parse(readFileSync(resolve(planning, 'package.json'), 'utf8')) as { version: string };
-      writeFileSync(resolve(out, 'package.json'), JSON.stringify({ type: 'module', version }, null, 2) + '\n');
-      mkdirSync(resolve(out, 'dist'), { recursive: true });
-      writeFileSync(resolve(out, 'dist/plan-viewer.html'), readFileSync(resolve(planning, 'dist/plan-viewer.html')));
-    },
-  };
-}
-
 export default defineConfig({
   main: {
     build: {
@@ -81,7 +64,6 @@ export default defineConfig({
       // ws loads these optional native speed-ups only when installed; Atlas does not ship them.
       rolldownOptions: { external: ['bufferutil', 'utf-8-validate'] },
     },
-    plugins: [planningFiles()],
   },
   preload: {
     build: {

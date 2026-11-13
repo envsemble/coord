@@ -1,6 +1,7 @@
 import { createContext, createElement, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
-import { Button, Card, EmptyState, Spinner } from '@envsemble/envui';
-import { Markdown } from '@envsemble/envui/content';
+import { Button, Card, Spinner } from '@envsemble/envui';
+import { EmptyState } from '../ui/EmptyState';
+import { Markdown } from '@envsemble/envui/markdown';
 import { ChevronRightIcon, DiagramIcon, FileIcon, FolderOpenIcon, NewWindowIcon } from '../ui/icons';
 import type { DiagramReference, Document, DocumentContent, Snapshot, Target } from '../types';
 import { api, fileUrl } from '../api';
@@ -45,8 +46,8 @@ function cards(references: DiagramReference[]): DiagramCard[] {
 function DiagramCards({ items, showWork }: { items: DiagramCard[]; showWork: boolean }) {
   const { open } = useWindowActions();
   const show = (card: DiagramCard, element?: string) => open(diagramTarget(card.workId, card.path, element ?? card.elements[0] ?? null));
-  return <div className="diagram-cards">{items.map(card => <Card key={card.key} className="diagram-card" tone="pane" padding={4}
-    heading={<span className="diagram-card-title"><DiagramIcon className="diagram-card-icon" /><span>{card.title}</span><ProvenanceBadge provenance={card.provenance} /></span>}
+  return <div className="diagram-cards">{items.map(card => <Card key={card.key} className="diagram-card" background="default" padding={4}
+    title={<span className="diagram-card-title"><DiagramIcon className="diagram-card-icon" /><span>{card.title}</span><ProvenanceBadge provenance={card.provenance} /></span>}
     meta={showWork ? workNumber(card.workId) : undefined}
     actions={<Button variant="secondary" onClick={() => show(card)}>Open diagram</Button>}>
     {card.elements.length > 0 && <p className="diagram-card-elements">{card.elements.slice(0, 8).map(element => <button type="button" key={element} className="element-chip" title={'Open the diagram at ' + element} onClick={() => show(card, element)}>{element}</button>)}

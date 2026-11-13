@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Button, EmptyState, Notice, Text } from '@envsemble/envui';
+import { Alert, Button, Text } from '@envsemble/envui';
+import { EmptyState } from '../ui/EmptyState';
 import { stepCounts } from '@envsemble/atlas/planning/ledger';
-import { ChevronRightIcon, DownloadIcon } from '../ui/icons';
+import { ChevronRightIcon } from '../ui/icons';
 import type { Document, LedgerStep, ProjectWork, Snapshot, Target, Work, WorkSession } from '../types';
 import { defaultDocument, planDocument, stepPhase } from './work';
 import { workStatisticsTarget, workTarget } from '../navigation/targets';
@@ -25,7 +26,7 @@ type WorkTarget = Extract<Target, { kind: 'work' }>;
 
 function AsideSection({ title, note, children }: { title: ReactNode; note?: ReactNode; children: ReactNode }) {
   return <section className="plan-aside-section">
-    <Text as="h2" variant="section-heading" className="plan-aside-heading">{title}{note && <span className="plan-aside-note"> · {note}</span>}</Text>
+    <Text render={<h2 />} variant="title" className="plan-aside-heading">{title}{note && <span className="plan-aside-note"> · {note}</span>}</Text>
     {children}
   </section>;
 }
@@ -76,9 +77,9 @@ function PlanAside({ work, snapshot, found, live, listed, sessions }: {
   const after = links.continuedIn.length > 0 ? <HandoffEntries items={links.continuedIn} kind="continuedIn" open={openHandoff} /> : null;
   const handoffList = (before || after) && <ol className="ledger-steps ledger-handoffs">{before}{after}</ol>;
   return <aside ref={column} className="plan-aside" aria-label="About this work">
-    {issues.length > 0 && <Notice tone={issues.some(issue => issue.level === 'error') ? 'error' : 'warning'}>{issues.map((issue, index) => <p key={index}>{issue.message}</p>)}</Notice>}
+    {issues.length > 0 && <Alert tone={issues.some(issue => issue.level === 'error') ? 'danger' : 'warning'}>{issues.map((issue, index) => <p key={index}>{issue.message}</p>)}</Alert>}
     {progress && <AsideSection title="Progress" note={progress.updated && <span title={absoluteDate(progress.updated)}>{relativeDate(progress.updated)}</span>}>
-      {progress.blocked && <Notice tone="error" className="plan-aside-blocked" title="Blocked">{progress.blocked}</Notice>}
+      {progress.blocked && <Alert tone="danger" className="plan-aside-blocked" title="Blocked">{progress.blocked}</Alert>}
       <LedgerSteps steps={progress.steps} found={found} live={live?.state} before={before} after={after} />
     </AsideSection>}
     {!progress && handoffList && <AsideSection title="Handoffs">{handoffList}</AsideSection>}
@@ -143,7 +144,7 @@ function useTick(ms: number | null) {
  * Diagrams open from their cards in the plan.
  */
 export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Snapshot; target: WorkTarget }) {
-  const { listed, activity, exportPlan } = useWindow();
+  const { listed, activity } = useWindow();
   const plan = planDocument(work);
   const reading: Document | undefined = defaultDocument(work);
   const agents = activity(work.id);
@@ -167,11 +168,10 @@ export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Sna
     <div className="work-layout">
       <div className="work-main">
         <div className="work-trail">
-          <Trail items={[{ label: workNumber(work.id) }]} />
-          <Button variant="text" className="work-export" startIcon={<DownloadIcon />} onClick={() => exportPlan(work.id)}>Export Plan…</Button>
+          <Trail work={work.id} items={[{ label: workNumber(work.id) }]} />
         </div>
         <header className="work-header">
-          <Text as="h1" variant="page-heading">{work.title}</Text>
+          <Text render={<h1 />} variant="title">{work.title}</Text>
           <StatusLine work={work} status={status} live={live} />
           {listing && <TagList tags={listing.tags ?? []} className="work-tags" />}
           {waiting && <NeedsYou work={work.id} session={waiting} />}

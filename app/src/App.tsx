@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import type { LoadedUi, WindowInfo } from './types';
 import { defaultUiState } from '../shared/contract';
 import { api } from './api';
-import { EmptyState, Spinner, TitleBar, useToast, WindowFrame } from '@envsemble/envui';
-import { AtlasMark } from '@envsemble/atlas-diagrams/mark';
+import { Scaffold, Spinner, TopBar, useToast } from '@envsemble/envui';
+import { EmptyState } from './ui/EmptyState';
 import { ErrorIcon } from './ui/icons';
 import { AtlasWindow } from './window/Window';
 import { AppActionsContext, type AppActions } from './appActions';
 import { AboutDialog } from './titleBar/AboutDialog';
+import { AtlasLogo } from './titleBar/TitleBar';
 import { Onboarding } from './onboarding/Onboarding';
 
 /**
@@ -23,7 +24,7 @@ export default function App() {
   const [failure, setFailure] = useState('');
   const [about, setAbout] = useState(false);
   const toast = useToast();
-  const warn = useCallback((message: string) => { toast.show({ message, variant: 'info' }); }, [toast]);
+  const warn = useCallback((message: string) => { toast.show({ message, tone: 'info' }); }, [toast]);
   const actions = useMemo<AppActions>(() => ({ about: () => setAbout(true) }), []);
   useEffect(() => api.onMenu(command => {
     if (command === 'about') actions.about();
@@ -44,9 +45,9 @@ export default function App() {
   }, [onboarding]);
   useEffect(() => { document.title = info && info.computer.hostId !== null ? info.computer.name + ' — Atlas' : 'Atlas'; }, [info]);
 
-  const bare = (body: ReactNode) => <WindowFrame titleBar={<TitleBar className="window-title-bar" start={<span className="title-bar-brand"><AtlasMark size={20} label="" /></span>} />}>{body}</WindowFrame>;
-  const content = failure ? bare(<main className="page-state"><EmptyState icon={<ErrorIcon />} headingLevel={1} title="Atlas could not start this window" description={failure} /></main>)
-    : !info || !ui || onboarding === null ? bare(<main className="page-state"><Spinner size="large" label="Starting Atlas" /></main>)
+  const bare = (body: ReactNode) => <Scaffold className="atlas-window" scroll="body" topBarSpan="full" topBar={<TopBar titleBar className="window-title-bar" start={<AtlasLogo />} />}>{body}</Scaffold>;
+  const content = failure ? bare(<div className="page-state"><EmptyState icon={<ErrorIcon />} headingLevel={1} title="Atlas could not start this window" description={failure} /></div>)
+    : !info || !ui || onboarding === null ? bare(<div className="page-state"><Spinner size="lg" label="Starting Atlas" /></div>)
     : onboarding ? bare(<Onboarding onDone={() => setOnboarding(false)} />)
     : <AtlasWindow info={info} initialUi={ui} />;
   return <AppActionsContext.Provider value={actions}>{content}{about && <AboutDialog onClose={() => setAbout(false)} onError={warn} />}</AppActionsContext.Provider>;

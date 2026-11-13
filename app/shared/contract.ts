@@ -25,7 +25,6 @@ export const invokeChannels = [
   'references:resolve', 'work:sessions', 'work:timeline',
   'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:openShown', 'shell:copy',
   'app:command', 'app:theme', 'app:setTheme', 'app:editor', 'app:setEditor', 'app:about',
-  'plan:export', 'plan:importChoose', 'plan:importConfirm', 'plan:importCancel',
   'computers:list', 'computers:switch', 'computers:pair', 'computers:forget',
   'access:state', 'access:update', 'access:pairingCreate', 'access:pairingRevoke', 'access:devices', 'access:deviceRevoke',
   'agents:list', 'agents:checks', 'agents:connect', 'agents:disconnect', 'agents:chooseProgram', 'agents:clearProgram', 'agents:byHand',
@@ -61,7 +60,7 @@ export type AppCommand = typeof appCommands[number];
 
 /** Menu items that need the renderer (focus, pages, dialogs drawn in the window). */
 export const menuCommands = [
-  'toggleFiles', 'quickOpen', 'openInEditor', 'newProject', 'projects', 'statistics', 'settings', 'importPlan', 'goBack', 'goForward', 'about',
+  'toggleFiles', 'quickOpen', 'openInEditor', 'newProject', 'plans', 'statistics', 'settings', 'goBack', 'goForward', 'about',
 ] as const;
 export type MenuCommand = typeof menuCommands[number];
 
@@ -127,17 +126,21 @@ export interface ProjectPlace { projectId: string; target: Target }
 export const settingsSections = ['agents', 'computers'] as const;
 export type SettingsSection = typeof settingsSections[number];
 /**
- * The window's own pages: the hub, with the plans of every project or of one (`projectId`), the
- * Projects page, a project's statistics (no project only while the computer has none), and a
+ * The window's own pages: the hub, with the plans of every project or of one (`projectId`), where
+ * projects are made and managed too, a project's statistics (no project only while the computer has none), and a
  * section of the Settings page.
  */
-export type PagePlace = { page: 'hub'; projectId: string | null } | { page: 'projects' } | { page: 'statistics'; projectId: string | null } | { page: 'settings'; section: SettingsSection };
+export type PagePlace = { page: 'hub'; projectId: string | null } | { page: 'statistics'; projectId: string | null } | { page: 'settings'; section: SettingsSection };
 /** What a window shows: one place at a time. */
 export type Place = ProjectPlace | PagePlace;
-/** A window's layout: the place it shows, and the width the reader gave a diagram's details (absent for the default). */
+/**
+ * A window's layout: the place it shows, the width the reader gave a diagram's details (absent for
+ * the default), and whether the reader hid the Files sidebar (absent while it shows).
+ */
 export interface UiState {
   place: Place;
   inspectorWidth?: number;
+  filesHidden?: boolean;
   /** Loaded while the window's computer did not answer: a place of a project not listed yet waits to be loaded again. */
   pending?: boolean;
 }
@@ -183,25 +186,6 @@ export interface AboutInfo {
   /** The Atlas home. */
   dataFolder: string;
 }
-
-interface ExportResult { path: string; bytes: number; warnings: string[] }
-export interface ImportPreview {
-  token: string;
-  file: string;
-  title: string;
-  originalId: string | null;
-  origin: string | null;
-  location: string | null;
-  exportedAt: string | null;
-  atlasVersion: string | null;
-  newId: string | null;
-  newFolder: string | null;
-  files: number;
-  bytes: number;
-  diagrams: string[];
-  warnings: string[];
-}
-interface ImportResult { workId: string; path: string; files: number; notes: string[] }
 
 /**
  * The bridge the preload script exposes to the renderer as `window.atlas`. Every method maps to
@@ -269,10 +253,6 @@ export interface AtlasBridge {
   setTheme(preference: ThemePreference): Promise<Result<void>>;
   /** The versions and the Atlas home About Atlas shows. */
   about(): Promise<Result<AboutInfo>>;
-  exportPlan(projectId: string, work: string): Promise<Result<ExportResult | null>>;
-  chooseImport(projectId: string): Promise<Result<ImportPreview | null>>;
-  confirmImport(token: string): Promise<Result<ImportResult>>;
-  cancelImport(token: string): Promise<Result<void>>;
   /** This computer and the computers this app paired with, each checked for whether it answers. */
   computers(): Promise<Result<Computer[]>>;
   /** Show another computer's projects, in this window or a new one. */

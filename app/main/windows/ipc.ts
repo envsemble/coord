@@ -2,17 +2,15 @@
 // calls with the wrong number or shape of arguments, from a subframe, or from a page that is not
 // the Atlas renderer are rejected. Results and errors cross back as structured values. Requests
 // about a project go to the host of the window's computer, this one or a paired one.
-import { createReadStream } from 'node:fs';
-import { lstat, realpath, stat, writeFile } from 'node:fs/promises';
+import { lstat, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { Readable } from 'node:stream';
 import QRCode from 'qrcode';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell, type IpcMainInvokeEvent } from 'electron';
 import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atlas/host';
 import { resolveDocument } from '@envsemble/atlas/planning';
 import { accessSettings, deviceText } from '@envsemble/atlas/host/validate';
-import { agentNames, defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AgentId, type AccessSettings, type Editor, type ImportPreview, type InvokeChannel, type LoadedUi, type PairingGrant, type Project, type PairingLinkView, type Place, type ProjectPlace, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
-import { agentId, argumentsOf, array, boolean, command, diagramPath, editor, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, place, projectId, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, token, uiState, url, workId, type Validator } from '../../shared/validate.ts';
+import { agentNames, defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AgentId, type AccessSettings, type Editor, type InvokeChannel, type LoadedUi, type PairingGrant, type Project, type PairingLinkView, type Place, type ProjectPlace, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
+import { agentId, argumentsOf, array, boolean, command, diagramPath, editor, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, place, projectId, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, uiState, url, workId, type Validator } from '../../shared/validate.ts';
 import { AtlasError, toErrorValue } from '../errors.ts';
 import type { ProjectView } from '../computers/projectView.ts';
 import type { Agents } from '../agent/agents.ts';
@@ -35,16 +33,6 @@ const grant: Validator<PairingGrant> = object<PairingGrant>({ label: nullable(de
 const folders = array(folderPath, limits.folders);
 const searchQuery = string({ min: 1, max: 200 });
 const projectChange = object<ProjectChangeRequest>({ name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), folders: optional(folders) });
-
-/** Import previews belong to the window that chose the file. */
-const pendingImports = new Map<string, { window: number; view: ProjectView }>();
-export async function dropImports(matches: (entry: { window: number; view: ProjectView }, key: string) => boolean) {
-  for (const [key, entry] of [...pendingImports]) {
-    if (!matches(entry, key)) continue;
-    pendingImports.delete(key);
-    await entry.view.request('plan.importDrop', { token: key }).catch(() => undefined);
-  }
-}
 
 /** Reveal a file or folder inside a project's folder on this computer (never outside it, never hidden parts). */
 async function revealInside(window: AtlasWindow, projectId: string, relative: string) {
@@ -135,19 +123,6 @@ function sameShown(a: ProjectPlace, b: ProjectPlace) {
   return key(a) === key(b);
 }
 
-/** Send a plan export on this computer to another computer's host, for its preview there. */
-async function sendImport(view: ProjectView, file: string) {
-  const size = (await stat(file)).size;
-  const stream = createReadStream(file);
-  let response: Response;
-  // The file stays open only while it is sent (or until sending fails, the other computer being offline).
-  try { response = await view.client.fetch(`/api/projects/${view.projectId}/imports`, 3600000, { method: 'POST', body: Readable.toWeb(stream) as ReadableStream<Uint8Array>, length: size }); }
-  finally { stream.destroy(); }
-  const value = await response.json().catch(() => null) as (Omit<ImportPreview, 'file' | 'warnings'> & { code?: string; message?: string }) | null;
-  if (!response.ok || !value || typeof value.token !== 'string') throw new AtlasError('invalid-argument', value?.message ?? 'The plan could not be sent to ' + (view.remote?.hostName ?? 'the other computer') + ' (HTTP ' + response.status + ').');
-  return value;
-}
-
 /** A command a page could misuse runs after a person's press, or once they confirm it. */
 async function confirmed(window: AtlasWindow, message: string, action: string, detail?: string) {
   if (!(await window.confirm(message, action, detail))) throw new AtlasError('cancelled', 'Cancelled.');
@@ -181,7 +156,7 @@ async function loadUi(manager: WindowManager, window: AtlasWindow): Promise<Load
   const inspectorWidth = state.inspectorWidth;
   // The window starts from this listing rather than asking for its own.
   const projects = listed as Project[] | null;
-  return { place: place ?? defaultUiState.place, ...inspectorWidth !== null && { inspectorWidth }, ...saved && !shownProject && { pending: true }, ...projects && { projects } };
+  return { place: place ?? defaultUiState.place, ...inspectorWidth !== null && { inspectorWidth }, ...state.filesHidden && { filesHidden: true }, ...saved && !shownProject && { pending: true }, ...projects && { projects } };
 }
 /** Each window's saves, applied one after another in the order they came. */
 const saving = new WeakMap<AtlasWindow, Promise<void>>();
@@ -195,6 +170,7 @@ async function saveUi(manager: WindowManager, window: AtlasWindow, ui: UiState) 
   const { state, computers } = manager.context;
   const computer = window.computer;
   state.setInspectorWidth(ui.inspectorWidth ?? null);
+  state.setFilesHidden(ui.filesHidden ?? false);
   const row = placeRow(ui.place);
   const projectRowId = row ? window.listedRow(row.projectId) : null;
   const rows = row && projectRowId !== null ? [{ projectRowId, kind: row.kind, target: row.target, active: true }] : [];
@@ -298,83 +274,12 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
         }
       },
     },
-    'plan:export': {
-      args: [projectId, workId],
-      handle: async (window, projectId: string, work: string) => {
-        const view = await window.readable(projectId);
-        const prepared = await view.request('plan.exportPrepare', { projectId: view.projectId, work });
-        try {
-          if (prepared.warnings.length) {
-            const { response } = await window.oneDialog(() => dialog.showMessageBox(window.win, { type: 'warning', title: 'Export plan', message: 'Export this plan anyway?', detail: prepared.warnings.join('\n'), buttons: ['Export', 'Cancel'], defaultId: 0, cancelId: 1 }));
-            if (response !== 0) return null;
-          }
-          const choice = await window.oneDialog(() => dialog.showSaveDialog(window.win, {
-            title: 'Export plan', buttonLabel: 'Export',
-            defaultPath: path.join(app.getPath('documents'), prepared.fileName),
-            filters: [{ name: 'Atlas plan export', extensions: ['html'] }],
-          }));
-          if (choice.canceled || !choice.filePath) return null;
-          const download = await view.client.fetch('/api/exports/' + prepared.token, 300000);
-          if (!download.ok) throw new AtlasError('unavailable', 'The export could not be downloaded from ' + (view.remote?.hostName ?? 'the host') + '. Export the plan again.');
-          const bytes = Buffer.from(await download.arrayBuffer());
-          await writeFile(choice.filePath, bytes);
-          manager.context.log.info('Plan exported', { work, bytes: bytes.length, remote: Boolean(view.remote) });
-          return { path: choice.filePath, bytes: bytes.length, warnings: prepared.warnings };
-        } finally {
-          await view.request('plan.exportDrop', { token: prepared.token }).catch(() => undefined);
-        }
-      },
-    },
-    'plan:importChoose': {
-      args: [projectId],
-      handle: async (window, projectId: string) => {
-        const view = await window.readable(projectId);
-        const choice = await window.oneDialog(() => dialog.showOpenDialog(window.win, { title: 'Import plan', buttonLabel: 'Preview', properties: ['openFile'], filters: [{ name: 'Atlas plan export', extensions: ['html'] }] }));
-        if (choice.canceled || !choice.filePaths[0]) return null;
-        const file = choice.filePaths[0];
-        let read;
-        // A folder on another computer gets the file sent to it; this computer's host reads it in place.
-        try { read = view.remote ? await sendImport(view, file) : await view.request('plan.importRead', { projectId: view.projectId, file }); } catch (error) {
-          // A file that is not a valid export, or a folder it cannot go into, is refused before anything is written.
-          if (window.win.isDestroyed()) throw new AtlasError('cancelled', (error as Error).message);
-          await dialog.showMessageBox(window.win, { type: 'error', title: 'Import plan', message: 'This file cannot be imported.', detail: (error as Error).message + '\n\nNothing was written.', buttons: ['OK'] });
-          // Already explained in the dialog; the window does not repeat it.
-          throw new AtlasError('cancelled', (error as Error).message);
-        }
-        if (window.win.isDestroyed()) { await view.request('plan.importDrop', { token: read.token }).catch(() => undefined); return null; }
-        // One preview per window: a newer one replaces (and releases) the window's previous one.
-        await dropImports(entry => entry.window === window.id);
-        pendingImports.set(read.token, { window: window.id, view });
-        const preview: ImportPreview = { ...read, file: path.basename(file), warnings: [] };
-        return preview;
-      },
-    },
-    'plan:importConfirm': {
-      args: [token],
-      handle: async (window, key: string) => {
-        const pending = pendingImports.get(key);
-        if (!pending || pending.window !== window.id || window.views.get(pending.view.projectId) !== pending.view) throw new AtlasError('invalid-argument', 'This import preview expired. Choose the file again.');
-        const view = pending.view;
-        pendingImports.delete(key);
-        // The explicit user action that writes into the planning folder; nothing is committed.
-        try { return await view.request('plan.importConfirm', { projectId: view.projectId, token: key }, { timeout: 600000 }); }
-        catch (error) {
-          if (/rolled back/i.test((error as Error).message)) await dialog.showMessageBox(window.win, { type: 'error', title: 'Import plan', message: 'The import was rolled back.', detail: (error as Error).message, buttons: ['OK'] });
-          throw error;
-        }
-      },
-    },
-    'plan:importCancel': {
-      args: [token],
-      handle: async (window, key: string) => { await dropImports((entry, entryKey) => entryKey === key && entry.window === window.id); },
-    },
     'computers:list': { args: [], handle: () => computers.computers() },
     'computers:switch': {
       args: [computer, boolean],
       handle: async (window, id: string | null, newWindow: boolean) => {
         if (id !== null && !computers.has(id)) throw new AtlasError('not-found', 'This computer is not paired. Connect to it again.');
         if (newWindow) await confirmed(window, 'Open that computer in a new window?', 'Open');
-        void dropImports(entry => entry.window === window.id);
         manager.switchComputer(window, id, newWindow);
       },
     },

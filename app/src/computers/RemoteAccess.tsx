@@ -5,8 +5,8 @@
 // also grant it Manage access, so it can pair and revoke devices itself. In a window on another
 // computer, the section manages that computer's pairings, when this app was granted Manage access there.
 import { useEffect, useState } from 'react';
-import { Badge, Button, Checkbox, ConfirmButton, GroupedRows, Input, Notice, Row, Select, Spinner, Switch, Text } from '@envsemble/envui';
-import { Code } from '@envsemble/envui/content';
+import { Alert, Badge, Button, Checkbox, ConfirmButton, List, Select, Spinner, Switch, Text, TextField } from '@envsemble/envui';
+import { Code } from '@envsemble/envui/code';
 import type { AccessSettings, AccessState, ComputerRef, PairedDevice, PairingLinkView } from '../types';
 import { api } from '../api';
 import { absoluteDate, relativeDate } from '../ui/format';
@@ -90,27 +90,27 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
     void apply(next => ({ ...next, network: { ...next.network, port: value } }));
   };
 
-  if (refused) return <Notice tone="warning" announce>{refused}</Notice>;
+  if (refused) return <Alert tone="warning" announce>{refused}</Alert>;
   return <>
-    <Text tone="muted" className="settings-description">{here
+    <Text emphasis="muted" className="settings-description">{here
       ? 'Pair your other devices, such as your laptop, to work on this computer from them: they work on its projects, create new ones, and import and export plans, as Atlas does here. Pair only your own devices.'
       : `Pair your other devices with ${computer.name}, and revoke the ones that should no longer reach it. Only Atlas on ${computer.name} changes how it is reached.`}</Text>
-    {!state ? (error ? <Notice tone="error" announce>{error}</Notice> : <Spinner label="Loading remote access" />) : <>
-      {state.problem ? <Notice tone="error" announce>{state.problem}</Notice>
-        : state.managedBy && <Notice tone="warning">Remote access on this computer is managed by {state.managedBy}. Quit it, and Atlas takes over here within a few seconds.</Notice>}
+    {!state ? (error ? <Alert tone="danger" announce>{error}</Alert> : <Spinner label="Loading remote access" />) : <>
+      {state.problem ? <Alert tone="danger" announce>{state.problem}</Alert>
+        : state.managedBy && <Alert tone="warning">Remote access on this computer is managed by {state.managedBy}. Quit it, and Atlas takes over here within a few seconds.</Alert>}
 
       {here ? <section className="access-section" aria-label="Network">
         <Switch label="Allow paired devices to connect to this computer" checked={settings!.network.enabled} disabled={busy || managed}
           onCheckedChange={enabled => void apply(next => ({ ...next, network: { ...next.network, enabled, address: next.network.address ?? address } }))} />
         <div className="access-fields">
-          <Select label="Reach this computer via" variant="outlined" value={address ?? ''} disabled={busy || managed}
+          <Select label="Reach this computer via" value={address ?? ''} disabled={busy || managed}
             onValueChange={value => { if (value) void apply(next => ({ ...next, network: { ...next.network, address: value } })); }}
-            options={state.addresses.map(entry => ({ value: entry.address, label: `${entry.label} — ${entry.address}` }))} />
-          <Input className="access-port" label="Port" inputMode="numeric" value={port} disabled={busy || managed}
-            onChange={event => setPort(event.target.value.replace(/[^0-9]/g, '').slice(0, 5))} onBlur={savePort} onKeyDown={event => { if (event.key === 'Enter') savePort(); }} />
+            items={state.addresses.map(entry => ({ value: entry.address, label: `${entry.label} — ${entry.address}` }))} />
+          <TextField className="access-port" label="Port" inputMode="numeric" value={port} disabled={busy || managed}
+            onValueChange={value => setPort(value.replace(/[^0-9]/g, '').slice(0, 5))} onBlur={savePort} onKeyDown={event => { if (event.key === 'Enter') savePort(); }} />
         </div>
-        {chosen?.kind === 'lan' && <Notice tone="warning">On a local network, the connection is not encrypted. Prefer Tailscale, which encrypts it end to end.</Notice>}
-        {chosen?.kind === 'loopback' && <Text variant="caption" tone="muted">Only Atlas on this same computer can connect through this address.</Text>}
+        {chosen?.kind === 'lan' && <Alert tone="warning">On a local network, the connection is not encrypted. Prefer Tailscale, which encrypts it end to end.</Alert>}
+        {chosen?.kind === 'loopback' && <Text variant="caption" emphasis="muted">Only Atlas on this same computer can connect through this address.</Text>}
         <p className="access-status" data-state={state.status.listening ? 'on' : state.status.error ? 'error' : 'off'} role="status">
           {state.status.listening ? `Listening on ${state.status.address}:${state.status.port}.` : state.status.error ?? 'Remote access is off.'}
         </p>
@@ -119,7 +119,7 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
       </p>}
 
       <section className="access-section" aria-label="Pair a device">
-        <Text as="h3" variant="section-heading">Pair a device</Text>
+        <Text render={<h3 />} variant="title">Pair a device</Text>
         {link && remaining > 0 ? <div className="pairing">
           {link.qrSvg && <img className="pairing-qr" src={'data:image/svg+xml;utf8,' + encodeURIComponent(link.qrSvg)} alt="QR code of the pairing link" />}
           <div className="pairing-text">
@@ -129,36 +129,36 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
             <div className="row-actions">
               {link.url && <CopyButton text={link.url} label="Copy link" />}
               <CopyButton text={link.code} label="Copy code only" />
-              <Button variant="destructive" onClick={() => void revokeLink()}>Revoke</Button>
+              <Button variant="outline" tone="danger" onClick={() => void revokeLink()}>Revoke</Button>
             </div>
-            <Text variant="caption" tone="muted">In Atlas on the other device, choose <strong>Connect to Another Atlas…</strong> in <strong>Settings › Computers</strong> and paste the link. Treat it like a password.</Text>
+            <Text variant="caption" emphasis="muted">In Atlas on the other device, choose <strong>Connect to Another Atlas…</strong> in <strong>Settings › Computers</strong> and paste the link. Treat it like a password.</Text>
           </div>
         </div> : <form className="pairing-form" onSubmit={event => { event.preventDefault(); void createLink(); }}>
-          {link && <Text tone="muted">That pairing link expired.</Text>}
-          <Input label="Device label (optional)" className="pairing-label" value={label} maxLength={80} onChange={event => setLabel(event.target.value)} placeholder="e.g. Work laptop" spellCheck={false} autoComplete="off" disabled={busy || managed} />
+          {link && <Text emphasis="muted">That pairing link expired.</Text>}
+          <TextField label="Device label (optional)" className="pairing-label" value={label} maxLength={80} onValueChange={setLabel} placeholder="e.g. Work laptop" spellCheck={false} autoComplete="off" disabled={busy || managed} />
           <fieldset className="pairing-permissions">
             <legend className="field-legend">Permissions</legend>
-            <p className="pairing-permission is-fixed"><CheckIcon className="pairing-permission-icon" /><span><strong>Use this computer</strong><span className="muted">Work on its projects, create new ones, import and export plans. Every paired device can.</span></span></p>
+            <p className="pairing-permission is-fixed"><CheckIcon className="pairing-permission-icon" /><span><strong>Use this computer</strong><span className="muted">Work on its projects and create new ones. Every paired device can.</span></span></p>
             <Checkbox label={<span><strong>Manage access</strong><span className="muted"> Create pairing links, and list and revoke paired devices.</span></span>} aria-label="Manage access"
               checked={manageAccess} disabled={busy || managed} onCheckedChange={value => setManageAccess(value === true)} />
           </fieldset>
-          {chosen?.kind === 'lan' && <Notice tone="warning" className="access-warning">This link works over a local network, where the connection is not encrypted. Someone on that network who captures the device’s traffic could use {here ? 'this computer' : computer.name} as that device until you revoke it. Prefer Tailscale.</Notice>}
+          {chosen?.kind === 'lan' && <Alert tone="warning" className="access-warning">This link works over a local network, where the connection is not encrypted. Someone on that network who captures the device’s traffic could use {here ? 'this computer' : computer.name} as that device until you revoke it. Prefer Tailscale.</Alert>}
           <div className="row-actions">
             <Button type="submit" variant="primary" pending={busy} disabled={managed || !state.status.listening}>Create pairing link</Button>
-            {!state.status.listening && <Text variant="caption" tone="muted">{here ? 'Turn remote access on first.' : `Remote access is off on ${computer.name}.`}</Text>}
+            {!state.status.listening && <Text variant="caption" emphasis="muted">{here ? 'Turn remote access on first.' : `Remote access is off on ${computer.name}.`}</Text>}
           </div>
         </form>}
       </section>
 
       <section className="access-section" aria-label="Paired devices">
-        <Text as="h3" variant="section-heading">Paired devices</Text>
-        {devices === null ? <Spinner label="Loading paired devices" /> : devices.length ? <GroupedRows className="device-list" aria-label="Paired devices">{devices.map(device => <Row key={device.deviceId}
-          title={<span className="row-title"><strong>{device.name}</strong>{device.scopes.includes('access:manage') && <Badge tone="accent">Manage access</Badge>}{device.connected && <Badge tone="success">Connected</Badge>}</span>}
-          detail={`${platforms[device.platform] ?? device.platform} · paired ${absoluteDate(device.pairedAt)}${device.lastSeenAt && !device.connected ? ' · last seen ' + relativeDate(device.lastSeenAt) : ''}`}
-          action={<ConfirmButton variant="outlined" confirmLabel="Revoke access" disabled={managed} onConfirm={() => void revokeDevice(device.deviceId)}>Revoke…</ConfirmButton>} />)}
-        </GroupedRows> : <Text tone="muted">No paired devices.</Text>}
+        <Text render={<h3 />} variant="title">Paired devices</Text>
+        {devices === null ? <Spinner label="Loading paired devices" /> : devices.length ? <List.Root className="device-list" aria-label="Paired devices">{devices.map(device => <List.Item key={device.deviceId}
+          label={<span className="row-title"><strong>{device.name}</strong>{device.scopes.includes('access:manage') && <Badge tone="primary">Manage access</Badge>}{device.connected && <Badge tone="success">Connected</Badge>}</span>}
+          description={`${platforms[device.platform] ?? device.platform} · paired ${absoluteDate(device.pairedAt)}${device.lastSeenAt && !device.connected ? ' · last seen ' + relativeDate(device.lastSeenAt) : ''}`}
+          end={<ConfirmButton variant="outline" confirmLabel="Revoke access" disabled={managed} onConfirm={() => void revokeDevice(device.deviceId)}>Revoke…</ConfirmButton>} />)}
+        </List.Root> : <Text emphasis="muted">No paired devices.</Text>}
       </section>
-      {error && <Notice tone="error" announce>{error}</Notice>}
+      {error && <Alert tone="danger" announce>{error}</Alert>}
     </>}
   </>;
 }

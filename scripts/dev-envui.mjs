@@ -6,9 +6,9 @@
 //   node scripts/dev-envui.mjs --link   only link (again, after npm replaced the link)
 //
 // ENVUI_PATH overrides the checkout location. Like Platform's `dev:envui`, it leaves package.json and
-// package-lock.json on the published version. The app, the diagram viewer and the plan viewer use
-// envUI from their own workspaces, where npm would keep the published copy beside a root link, so the
-// link replaces each workspace's copy directly.
+// package-lock.json on the published version. The app and the diagram viewer use envUI from their
+// own workspaces, where npm would keep the published copy beside a root link, so the link replaces
+// each workspace's copy directly.
 import { spawn, spawnSync } from "node:child_process";
 import {
   existsSync,
@@ -24,8 +24,8 @@ import { dirname, resolve } from "node:path";
 const atlas = resolve(import.meta.dirname, "..");
 const envUI = resolve(atlas, process.env.ENVUI_PATH ?? "../envUI");
 const library = resolve(envUI, "packages/ui");
-const consumers = ["app", "packages/atlas", "packages/diagrams"].map(
-  (workspace) => resolve(atlas, workspace, "node_modules/@envsemble/envui"),
+const consumers = ["app", "packages/diagrams"].map((workspace) =>
+  resolve(atlas, workspace, "node_modules/@envsemble/envui"),
 );
 const windows = process.platform === "win32";
 const npm = windows ? "npm.cmd" : "npm";

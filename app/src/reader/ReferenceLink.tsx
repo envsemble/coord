@@ -3,11 +3,11 @@
 // beside it; a file opens in the editor and an application's link in its application, on this
 // computer only (their paths are the host's).
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
-import { CallMerge } from '@envsemble/envui/icons/CallMerge';
-import { CallSplit } from '@envsemble/envui/icons/CallSplit';
-import { Cancel } from '@envsemble/envui/icons/Cancel';
-import { CheckCircle } from '@envsemble/envui/icons/CheckCircle';
-import { Pending } from '@envsemble/envui/icons/Pending';
+import { IconCallMerge as CallMerge } from '@envsemble/envui/icons/CallMerge';
+import { IconCallSplit as CallSplit } from '@envsemble/envui/icons/CallSplit';
+import { IconCancel as Cancel } from '@envsemble/envui/icons/Cancel';
+import { IconCheckCircle as CheckCircle } from '@envsemble/envui/icons/CheckCircle';
+import { IconPending as Pending } from '@envsemble/envui/icons/Pending';
 import type { ReferenceInput, ResolvedReference } from '../types';
 import { api } from '../api';
 import { workTarget } from '../navigation/targets';

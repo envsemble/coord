@@ -3,7 +3,7 @@
 // drawn in its brand's colour, or in the text colour where a chart's colours already carry meaning.
 import { useId } from 'react';
 import { Icon } from '@envsemble/envui';
-import { SmartToy } from '@envsemble/envui/icons/SmartToy';
+import { IconSmartToy as SmartToy } from '@envsemble/envui/icons/SmartToy';
 import { aiModel, providerNames, type Provider } from './aiModels';
 
 /** One path each in a 24-unit box: Claude's spark for Anthropic, OpenAI's blossom, Gemini's sparkle, Mistral's M and DeepSeek's whale. */

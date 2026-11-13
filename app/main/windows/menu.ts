@@ -15,7 +15,6 @@ export function buildMenu(manager: WindowManager, actions: { openLogs(): void; d
         { label: 'New &Window', accelerator: 'CmdOrCtrl+Shift+N', click: () => { manager.create(window()?.computer ?? null); } },
         { label: 'New &Project…', click: () => manager.sendMenu('newProject') },
         { type: 'separator' },
-        { label: '&Import Plan…', click: () => manager.sendMenu('importPlan') },
         // The shown file in the chosen editor, as the title bar's Open in button does; the window takes the key itself.
         { label: 'Open in &Editor', accelerator: 'CmdOrCtrl+O', click: () => manager.sendMenu('openInEditor') },
         { type: 'separator' },
@@ -34,8 +33,8 @@ export function buildMenu(manager: WindowManager, actions: { openLogs(): void; d
         { label: '&Back', accelerator: mac ? 'Cmd+[' : 'Alt+Left', click: () => manager.sendMenu('goBack') },
         { label: '&Forward', accelerator: mac ? 'Cmd+]' : 'Alt+Right', click: () => manager.sendMenu('goForward') },
         { type: 'separator' },
-        // The window's sections besides Plans.
-        { label: '&Projects', click: () => manager.sendMenu('projects') },
+        // Every plan, and all plans' statistics.
+        { label: '&Plans', click: () => manager.sendMenu('plans') },
         { label: 'S&tatistics', click: () => manager.sendMenu('statistics') },
         { type: 'separator' },
         { label: '&Search…', accelerator: 'CmdOrCtrl+P', click: () => manager.sendMenu('quickOpen') },

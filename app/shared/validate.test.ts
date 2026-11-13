@@ -44,7 +44,7 @@ test("a place is a plan, a diagram or a file of a project, or one of the window'
   assert.deepEqual(place({ page: 'hub', projectId: null }), { page: 'hub', projectId: null });
   assert.deepEqual(place({ page: 'hub', projectId }), { page: 'hub', projectId });
   assert.deepEqual(place({ page: 'statistics', projectId }), { page: 'statistics', projectId });
-  assert.deepEqual(place({ page: 'projects', projectId }), { page: 'projects' });
+  assert.deepEqual(place({ page: 'projects', projectId }), { page: 'hub', projectId: null });
   assert.deepEqual(place({ page: 'settings', section: 'computers', projectId }), { page: 'settings', section: 'computers' });
   for (const bad of [{ page: 'project', projectId }, { page: 'hub', projectId: '../x' }, { page: 'hub' }, { page: 'settings' }, { page: 'settings', section: 'theme' }, { projectId: '../x', target: { kind: 'file', path: 'a.md' } }, { projectId }, null]) assert.throws(() => place(bad), JSON.stringify(bad));
 });

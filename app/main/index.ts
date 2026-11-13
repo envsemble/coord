@@ -9,7 +9,7 @@ import { app, dialog, Menu, nativeTheme, powerMonitor, protocol, shell } from 'e
 import { atlasHome, electronDataDirectory, HomeDatabase, prepareHome } from '@envsemble/atlas/planning';
 import icon from '../build/icon.png?asset';
 import { Computers } from './computers/computers.ts';
-import { dropImports, registerIpc } from './windows/ipc.ts';
+import { registerIpc } from './windows/ipc.ts';
 import { LocalHost } from './host/localHost.ts';
 import { RotatingLog } from './log.ts';
 import { buildMenu } from './windows/menu.ts';
@@ -141,10 +141,6 @@ function start(database: HomeDatabase) {
     rendererDirectory: path.join(import.meta.dirname, '../renderer'),
   });
 
-  app.on('browser-window-created', (_event, window) => {
-    const id = window.id;
-    window.on('closed', () => { void dropImports(entry => entry.window === id); });
-  });
   app.on('web-contents-created', (_event, contents) => {
     contents.on('will-attach-webview', event => event.preventDefault());
     contents.setWindowOpenHandler(() => ({ action: 'deny' }));

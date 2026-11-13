@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { canGoBack, canGoForward, currentEntry, historyLimit, keyStep, record, samePlace, startHistory, step, type History } from './history.ts';
-import { diagramTarget, fileTarget, hubPlace, placeId, projectsPlace, scrollKey, settingsPlace, statisticsPlace, stepTarget, workTarget, type ProjectPlace } from './targets.ts';
+import { diagramTarget, fileTarget, hubPlace, placeId, scrollKey, settingsPlace, statisticsPlace, stepTarget, workTarget, type ProjectPlace } from './targets.ts';
 import type { Target } from '../types.ts';
 
 const shop = 'f-' + 'a'.repeat(32), coord = 'f-' + 'b'.repeat(32);
@@ -41,7 +41,6 @@ test("the hub's project filter, the Projects page, a project's statistics and Se
   assert.equal(samePlace(hubPlace(shop), hubPlace(shop)), true);
   assert.equal(samePlace(statisticsPlace(shop), statisticsPlace(coord)), false);
   assert.equal(samePlace(statisticsPlace(shop), hubPlace(shop)), false);
-  assert.equal(samePlace(projectsPlace(), projectsPlace()), true);
   // Each section of Settings is a step of its own, on the same page, each scrolled on its own.
   assert.equal(samePlace(settingsPlace('agents'), settingsPlace()), true);
   assert.equal(samePlace(settingsPlace('agents'), settingsPlace('computers')), false);

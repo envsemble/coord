@@ -38,7 +38,7 @@ A window has two rows at the top, GitHub style.
 **The title bar**, from the left:
 
 - the Atlas mark, then the **back** and **forward** arrows;
-- **File**: **New Window** (Ctrl+Shift+N), **New Project…**, **Import Plan…**, **Export Plan…** (while a plan is open), **Open in Editor** (Ctrl+O, while the window shows a file of this computer), **Settings…** (Ctrl+,; see [Settings](#settings)) and **Exit**;
+- **File**: **New Window** (Ctrl+Shift+N), **New Project…**, **Open in Editor** (Ctrl+O, while the window shows a file of this computer), **Settings…** (Ctrl+,; see [Settings](#settings)) and **Exit**;
 - **View**: **Zoom In** (Ctrl++), **Zoom Out** (Ctrl+-), **Actual Size** (Ctrl+0) and **Full Screen** (F11), with **Reload** and **Developer Tools** in development builds;
 - **Help**: **Open Logs** and **About Atlas**;
 - the **computer menu**, the name of the computer the window works on: this computer and the paired ones (choosing one shows its plans in this window), and **Computer settings…**, which opens **Settings › Computers** (see [Remote computers](#remote-computers));
@@ -86,7 +86,7 @@ Every plan is a row; a click anywhere on it opens the plan. A row shows:
 
 A plan's page shows:
 
-- **The breadcrumb**, the project (leading to its plans in the hub) and the plan's number, with **Export Plan…** beside it.
+- **The breadcrumb**, the project (leading to its plans in the hub) and the plan's number.
 - **The title and one status line**, with the plan's tags under it: its status (Working, Needs you, Blocked, Paused, Draft, Ready, Complete, Partially done, Superseded or Abandoned) and one fact, such as the steps done, why it is blocked, the planning step of a draft, or when closed work ended; "archived" when it is.
 - **Why it needs you**, when an agent waits: the waiting session's last message, with its harness, model and how long it has waited.
 - **The summary**, a few sentences on what the work is and where it stands.
@@ -96,8 +96,6 @@ A plan's page shows:
 - **Files**, a card at the top right of a plan and its pages, with the plan's own work folder as a tree, the file shown marked. It keeps its place as the page scrolls, or goes below the page in a narrow window. A click opens a file in the window, a diagram file as its diagram; its context menu offers **Open** (**Open Diagram**), **Open as Text**, **Show in Folder** and **Collapse All Folders**. Arrow keys, Home and End, type-ahead and Enter work in the tree; Ctrl+Shift+E brings the keyboard to it.
 
 **A plan's statistics**, from **All statistics and the timeline**, show its figures (agent time, the time at least one agent worked, tokens and sessions), its **Timeline** (a lane per session and subagent with its working stretches and its waits for you; **All**, **Last week** or **Last day**, zoom with Shift and the wheel or the arrow keys, drag to move along; also as a table, folded) and its agent time and tokens **By model and effort**.
-
-**Export Plan…** saves the plan as one self-contained HTML file that opens offline in any browser. **Import Plan…**, in **File**, imports such a file into the project shown (a plan of it, its statistics, or the hub filtered to it; with a single project, that one): it previews the file (its title, origin, the new number and folder, files and diagrams) and only then adds it as new work, without committing. A file that is not a valid export is refused before anything is written. See [plan export](../docs/plan-export.md).
 
 ## Projects
 
@@ -147,7 +145,7 @@ Until it is finished, Atlas starts with a short onboarding instead of the window
 
 **Devices that can reach** this computer, in **Settings › Computers**, lets your other devices work on this computer: choose the address (Tailscale, a local network or only this machine) and the port, then create a five-minute, one-time pairing link with a QR code. A link may grant **Manage access** (pairing and revoking devices). Revoke devices there too. In a window on another computer, the section manages that computer's pairings, when this device has Manage access there.
 
-**Connect to Another Atlas…**, under **Other computers** in **Settings › Computers**, pairs with another computer from its link. Then choose it in the computer menu to work on its projects in this window, or open it in a new window from **Other computers**, which also forgets a paired computer. On another computer you can create projects (a name only: their folders are chosen in Atlas on that computer), rename them, archive and restore them (the archive state is this device's), and export and import plans. Show in Folder and Open in Editor work only on this computer's files. See [remote access](../docs/remote-access.md).
+**Connect to Another Atlas…**, under **Other computers** in **Settings › Computers**, pairs with another computer from its link. Then choose it in the computer menu to work on its projects in this window, or open it in a new window from **Other computers**, which also forgets a paired computer. On another computer you can create projects (a name only: their folders are chosen in Atlas on that computer), rename them, and archive and restore them (the archive state is this device's). Show in Folder and Open in Editor work only on this computer's files. See [remote access](../docs/remote-access.md).
 
 ## Staying current
 
@@ -174,7 +172,7 @@ The app follows Electron's security checklist:
 
 **Help › Open Logs** opens `logs/` in the Atlas home: `atlas.log` (the app: start-up, windows and connections) and `host.log` (the Atlas host: folders, the watcher, remote access and pairings), each up to 1 MB with up to three older files. **Help › About Atlas** shows the version, the Electron, Chromium and Node.js versions, the system and the Atlas home; **Copy Details** copies what a bug report needs, without the home's path.
 
-Atlas keeps its own data in the Atlas home, `~/.atlas` (or `ATLAS_HOME`), shared with the `atlas` command: the planning folders in `planning/`, and the projects' order and state, the windows and their places, the theme, the editor, remote access and pairings, and statistics in the home database, `atlas.db`. Electron's own files stay in its per-user folder (`%APPDATA%\Atlas` on Windows, `~/.config/Atlas` on Linux). Atlas writes into a planning folder only when you import a plan, create or rename a project, or change its folders.
+Atlas keeps its own data in the Atlas home, `~/.atlas` (or `ATLAS_HOME`), shared with the `atlas` command: the planning folders in `planning/`, and the projects' order and state, the windows and their places, the theme, the editor, remote access and pairings, and statistics in the home database, `atlas.db`. Electron's own files stay in its per-user folder (`%APPDATA%\Atlas` on Windows, `~/.config/Atlas` on Linux). Atlas writes into a planning folder only when you create or rename a project, or change its folders.
 
 ## Develop
 

@@ -5,8 +5,8 @@
 // afterwards. Back and Next (Finish at the end) are buttons; each step's heading takes focus as it
 // shows, so a screen reader starts reading it.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Button, Notice, Text } from '@envsemble/envui';
-import { Code } from '@envsemble/envui/content';
+import { Alert, Button, Text } from '@envsemble/envui';
+import { Code } from '@envsemble/envui/code';
 import { AtlasMark } from '@envsemble/atlas-diagrams/mark';
 import { agentNames } from '../../shared/contract';
 import type { AgentId } from '../types';
@@ -57,7 +57,7 @@ export function Onboarding({ onDone }: { onDone(): void }) {
   // Codex asks to trust the hooks once; its warning says so instead while its configuration shows them untrusted.
   const codex = agents.agents?.find(agent => agent.id === 'codex');
   const trustHint = !connected.length || (codex?.connected && !['ready', 'untrusted'].includes(codex.check?.status ?? ''));
-  const title = (text: string) => <Text as="h1" variant="page-heading" ref={heading} tabIndex={-1} className="onboarding-title">{text}</Text>;
+  const title = (text: string) => <Text render={<h1 />} variant="title" ref={heading} tabIndex={-1} className="onboarding-title">{text}</Text>;
   let content: ReactNode;
   if (step === 'welcome') content = <>
     <AtlasMark size={56} label="" />
@@ -67,14 +67,14 @@ export function Onboarding({ onDone }: { onDone(): void }) {
   else if (step === 'agents') content = <>
     {title('Connect your agents')}
     <Text>Atlas installs its plugin into the agents you choose.</Text>
-    {agents.error && <Notice tone="warning" announce>{agents.error}</Notice>}
+    {agents.error && <Alert tone="warning" announce>{agents.error}</Alert>}
     <AgentList agents={agents} mode={{ kind: 'choose', chosen, choose: (id, yes) => setDeclined(current => yes ? current.filter(item => item !== id) : [...current, id]) }} label="Agents on this computer" />
-    {agents.agents && !agents.agents.some(agent => agent.found) && <Text tone="muted">Neither is installed yet: install one, then come back.</Text>}
+    {agents.agents && !agents.agents.some(agent => agent.found) && <Text emphasis="muted">Neither is installed yet: install one, then come back.</Text>}
   </>;
   else if (step === 'connect') content = <>
     {title(agents.busy ? 'Connecting your agents' : 'Your agents')}
     <AgentList agents={agents} mode={{ kind: 'connect', only: connecting }} label="Agents being connected" />
-    {!agents.busy && connecting.some(id => agents.activity(id).failed) && <Text tone="muted">You can also connect it later in <strong>Settings › Agents</strong>.</Text>}
+    {!agents.busy && connecting.some(id => agents.activity(id).failed) && <Text emphasis="muted">You can also connect it later in <strong>Settings › Agents</strong>.</Text>}
   </>;
   else content = <>
     {title('Start a session')}
