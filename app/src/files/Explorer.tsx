@@ -2,9 +2,10 @@
 // context, diagrams and the rest) as a tree of real folder and file names; a work item's diagram
 // files open as its diagrams. A diagram's first file opens like a folder onto its other layers (its
 // later captures and the proposals over it), listed only there. A click, or Enter, opens a file in the
-// window; folders open and close in place. Ctrl+Shift+E brings the keyboard to it.
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { Menu, Text, Tree, type TreeItem } from '@envsemble/envui';
+// window; folders open and close in place. Ctrl+Shift+E brings the keyboard to it. Its end edge
+// resizes it (envUI's resizable drawer, on the page's background), and the width is kept.
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Menu, NavigationDrawer, Text, Tree, type NavigationDrawerDestination, type TreeItem } from '@envsemble/envui';
 import { DiagramIcon, GlossaryIcon, LedgerIcon, PlanIcon } from '../ui/icons';
 import type { Document, Snapshot, Target, Work } from '../types';
 import { api } from '../api';
@@ -51,6 +52,7 @@ export const FilesContext = createContext<FilesState>({ expanded: [], setExpande
 export function PlanFiles({ work }: { work: Work }) {
   const { projectId, open, notify, remote, snapshot, files } = useWindow();
   const { expanded, setExpanded, selected } = useContext(FilesContext);
+  const { width, keepWidth } = useFilesWidth();
   const index = useMemo(() => buildIndex(snapshot), [snapshot]);
   // A diagram's layers: its later captures and the proposals over it, under its first file.
   const [diagrams, setDiagrams] = useState<DiagramEntry[]>([]);
@@ -114,14 +116,39 @@ export function PlanFiles({ work }: { work: Work }) {
       : revealItem(row.path!);
     return <>{entries}{entries && <Menu.Separator />}<Menu.Item disabled={!expanded.length} onClick={() => setExpanded([])}>Collapse All Folders</Menu.Item></>;
   };
-  return <nav className="plan-files" aria-label={'Files of ' + workNumber(work.id)}>
-    <Text render={<h2 />} variant="body" className="plan-files-heading">Files</Text>
-    {rows.length ? <Tree<Row> className="plan-files-tree" items={rows} aria-label={'Files of ' + workNumber(work.id) + ' ' + work.title} value={selected} density="sm"
-      onAction={item => activate(item)}
-      onExpandedChange={(item, value) => setOpen(item.value, value)}
-      contextMenu={menu} />
-      : <Text render={<p />} variant="body-sm" emphasis="muted" className="plan-files-empty">This work folder has no files.</Text>}
-  </nav>;
+  // The tree is the drawer's content, in its header: it has no destinations of its own.
+  return <NavigationDrawer className="plan-files" aria-label={'Files of ' + workNumber(work.id)} destinations={NO_DESTINATIONS} background="page"
+    resizable resizeLabel="Resize files" width={width} defaultWidth={DEFAULT_WIDTH} minWidth={12} maxWidth={32} onWidthChange={keepWidth}
+    header={<>
+      <Text render={<h2 />} variant="body" className="plan-files-heading">Files</Text>
+      {rows.length ? <Tree<Row> className="plan-files-tree" items={rows} aria-label={'Files of ' + workNumber(work.id) + ' ' + work.title} value={selected} density="sm"
+        onAction={item => activate(item)}
+        onExpandedChange={(item, value) => setOpen(item.value, value)}
+        contextMenu={menu} />
+        : <Text render={<p />} variant="body-sm" emphasis="muted" className="plan-files-empty">This work folder has no files.</Text>}
+    </>} />;
+}
+
+const NO_DESTINATIONS: NavigationDrawerDestination[] = [];
+const DEFAULT_WIDTH = 16;
+const WIDTH_KEY = 'atlas-files-width';
+/** The width the reader gave the files in this window's browser storage, if any (storage can be blocked). */
+function storedWidth() {
+  try {
+    const stored = Number(localStorage.getItem(WIDTH_KEY) ?? Number.NaN);
+    return Number.isFinite(stored) ? stored : undefined;
+  } catch {
+    return undefined;
+  }
+}
+/** The files' width, kept as the reader leaves it. */
+function useFilesWidth() {
+  const [width, setWidth] = useState(() => storedWidth() ?? DEFAULT_WIDTH);
+  const keepWidth = useCallback((next: number, details: { committed: boolean }) => {
+    setWidth(next);
+    if (details.committed) try { localStorage.setItem(WIDTH_KEY, String(next)); } catch { /* the width lasts this session */ }
+  }, []);
+  return { width, keepWidth };
 }
 
 /** Bring the keyboard to the plan's files (which takes focus itself and marks its active row). */

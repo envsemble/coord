@@ -126,7 +126,10 @@ body { margin: 0; }
 
 /* The plan's files, at the left of the plan and its pages (the Scaffold's navigation region), on the
    page itself: a heading, then the plan's folder as a tree, scrolling on its own when it is long. */
-.plan-files { box-sizing: border-box; display: flex; flex-direction: column; gap: var(--env-space-1); inline-size: 16rem; block-size: 100%; padding: var(--env-space-5) var(--env-space-2) var(--env-space-3) var(--env-space-3); }
+.plan-files { padding: var(--env-space-5) var(--env-space-2) var(--env-space-3) var(--env-space-3); }
+/* The drawer's header holds the tree, which takes its height and scrolls; it has no destinations. */
+.plan-files .env-navigation-drawer-header { flex: 1 1 auto; min-block-size: 0; gap: var(--env-space-1); }
+.plan-files .env-navigation-drawer-list:empty { display: none; }
 .plan-files-heading { margin: 0; padding-inline-start: var(--env-space-2); font-weight: 500; }
 .plan-files-tree { flex: 1; min-block-size: 0; overflow-y: auto; }
 .plan-files-empty { margin: 0; padding: var(--env-space-1) var(--env-space-2); }

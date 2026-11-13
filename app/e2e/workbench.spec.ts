@@ -230,6 +230,20 @@ test("the plan's files are beside its pages with the plan's own folder, open a f
   await expect(files.locator(row('f:active/0001-saved-payment-methods/plan.md'))).toHaveAttribute('aria-selected', 'true');
   await expect(files.locator('[role="treeitem"]', { hasText: '.atlas' })).toHaveCount(0);
   await expect(files.locator('[role="treeitem"][data-id^="d:active/0002-"]')).toHaveCount(0);
+  // Its end edge resizes it, and the width stays as the window shows another plan.
+  const narrow = (await sidebar.boundingBox())!.width;
+  const edge = (await sidebar.getByRole('separator', { name: 'Resize files' }).boundingBox())!;
+  await window.mouse.move(edge.x + edge.width / 2, edge.y + edge.height / 2);
+  await window.mouse.down();
+  await window.mouse.move(edge.x + edge.width / 2 + 80, edge.y + edge.height / 2, { steps: 5 });
+  await window.mouse.up();
+  const wide = (await sidebar.boundingBox())!.width;
+  expect(wide).toBeGreaterThan(narrow + 60);
+  await goHome(window);
+  await openPlan(window, 'Customer order notifications');
+  await expect.poll(async () => (await filesSidebar(window).boundingBox())?.width).toBe(wide);
+  await goHome(window);
+  await openPlan(window, 'Saved payment methods');
   // Ctrl+Shift+E brings the keyboard to the tree.
   await window.keyboard.press('Control+Shift+E');
   await expect(files.getByRole('tree')).toBeFocused();
