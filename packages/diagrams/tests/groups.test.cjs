@@ -72,6 +72,16 @@ test("a diagram groups by its packages, else by its relations with a hierarchy k
     layoutGroups({ names: IDS.slice(0, 6) }, classes(IDS), RELATIONS, []),
     [],
   );
+  // A type every element uses would draw many lines between groups: the
+  // diagram stays in one piece.
+  const hub = [...IDS, "Money"];
+  const uses = IDS.map((id) =>
+    relation(id, "Money", { stereotype: "dependency" }),
+  );
+  assert.deepEqual(
+    layoutGroups({ names: hub }, classes(hub), [...RELATIONS, ...uses], []),
+    [],
+  );
 });
 
 test("a grouped diagram draws its packages apart, with the relations between them routed and its geometry valid", async () => {

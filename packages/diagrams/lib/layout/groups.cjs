@@ -11,6 +11,8 @@
 const SMALL = 6;
 /** A group found from the relations has at least this many elements. */
 const MIN_GROUP = 3;
+/** The most of a diagram's relations that may run between groups found from them. */
+const MAX_ACROSS = 0.2;
 /** How strongly a kind of relation ties its ends to one group. */
 const WEIGHT = {
   generalization: 3,
@@ -229,6 +231,17 @@ function layoutGroups(view, classes, relations, generalizations) {
     for (const [key, list] of groups) if (list === from) groups.delete(key);
   }
   if (groups.size < 2) return [];
+  // Groups found from the relations are drawn only when they hold them: when
+  // many relations run between them (as a type every class uses), the lines
+  // between groups would crowd, and the diagram reads better in one piece.
+  const placed = new Map();
+  for (const [key, list] of groups) for (const id of list) placed.set(id, key);
+  const ends = [
+    ...relations.map((r) => [r.sourceId, r.targetId]),
+    ...generalizations.map((g) => [g.specificId, g.generalId]),
+  ];
+  const across = ends.filter(([a, b]) => placed.get(a) !== placed.get(b));
+  if (across.length > ends.length * MAX_ACROSS) return [];
   // Members in the view's order, as each group is laid out.
   const order = new Map(names.map((id, i) => [id, i]));
   for (const list of groups.values())
