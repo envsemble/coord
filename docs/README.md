@@ -18,6 +18,7 @@
 - [Diagrams](diagrams.md): Atlas's PlantUML subset, `' atlas` comments, captures with `atlas capture`, proposals, before-and-after comparisons, scenarios, and linking a diagram from a plan.
 - [Code capture](code-capture.md) and [database capture](database-capture.md): the capture adapters and their limits.
 - [Viewer](viewer.md) and [embedding](embedding.md): the viewer's behavior, and using the diagram package and its React panel elsewhere.
+- [Pages](pages.md): the views agents make in a work item's `pages/`, how Atlas builds and runs them in place, choices, and what a page may reach.
 - [Architecture](architecture.md): the parts of the diagram package and the atlas package, and the Atlas host.
 
 ## Developing Atlas

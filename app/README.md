@@ -131,6 +131,10 @@ A plan links a diagram with an ordinary Markdown link in its text (`[Order model
 
 A diagram fills the window below the title bar, with its controls over the canvas: its name, the tools, the views and a proposal's changes. Another diagram opens from the Files tree, the plan's links or Search. A capture, the proposals over it and the later captures compared with it are one diagram with layers, laid out together so switching layers moves nothing: the Files tree lists its layers under its first file, the one shown marked, and `[` and `]` step between them. The plan's breadcrumb stays above the diagram. A proposal, or a capture compared with an earlier one, opens in its change view, with its list of changes beside it. **Understand the model** opens a class diagram's scenarios beside it. Drag an element to arrange the diagram; the arrangement is kept beside it, for all its layers, and **Reset layout** lays it out again. When a file changes, the view updates and keeps its camera and selection; a diagram with problems lists them by line and column instead.
 
+## Pages
+
+A plan's agent can make pages: views in its work folder's `pages/`, such as a choice between layouts or a dashboard of measurements, written in React on envUI. A page opens in place, like a diagram, from the plan's link (shown with the page icon), from Files (its folder, whose chevron lists its files) or from the search, and fills the window beside Files under the plan's breadcrumb. It updates as the agent changes it. What you choose on a page is saved beside it, and the agent hears of it with your next message. A page that fails shows why in its place. [Pages](../docs/pages.md) says how pages run.
+
 ## Settings
 
 **File › Settings…** (Ctrl+,) opens Settings in the window, a page with two sections; back and forward step through them like other places.
@@ -159,7 +163,7 @@ Atlas watches the planning folders it shows instead of polling. Changes are coll
 
 The app follows Electron's security checklist:
 
-- The window runs with context isolation and Chromium's sandbox, without Node.js integration, `remote` or `<webview>`, under a strict content security policy: no inline or remote scripts, no `eval`, no network connections.
+- The window runs with context isolation and Chromium's sandbox, without Node.js integration, `remote` or `<webview>`, under a strict content security policy: no inline or remote scripts, no `eval`, no network connections. A work item's page runs in a frame on an origin of its own (`atlas://page`), which may query the network and reaches Atlas only through its window (see [Pages](../docs/pages.md)).
 - It talks to the main process only through `window.atlas`, a fixed list of messages whose every argument is checked (`shared/validate.ts`). Each window has its own session, whose `atlas:` protocol serves the app and only the planning folders of that window's projects.
 - Navigation away from the app and new windows are blocked; web links open in the system browser.
 - Commands a page could misuse wait for you. Right after your click, key press or tap in the window, which a page cannot fake, Atlas runs one: exiting, opening a window or the logs, turning remote access on or moving it, pairing with another computer, opening a web address in the browser, a link in its application, or a file in your editor. Otherwise it first asks in a system dialog the page cannot answer. Creating a pairing link always asks first.

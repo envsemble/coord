@@ -184,6 +184,9 @@ exports.assemble = function assemble(repository, destination, version, runtime) 
     files++; bytes += content.length;
   }
   add('plugin', 'plugin', relative => !/^tests(?:\/|$)/.test(relative));
+  // envUI's documentation, with its license, for the agents that write pages (the page guide, references/pages.md, points to it).
+  add('node_modules/@envsemble/envui/docs', 'plugin/skills/atlas/references/envui');
+  add('node_modules/@envsemble/envui', 'plugin/skills/atlas/references/envui', relative => relative === 'LICENSE');
   add('.claude-plugin', '.claude-plugin', relative => relative === 'marketplace.json');
   add('.agents', '.agents', relative => relative === 'plugins' || relative === 'plugins/marketplace.json');
   const build = version + '-' + hash.digest('hex').slice(0, 12);

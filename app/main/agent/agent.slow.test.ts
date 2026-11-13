@@ -76,7 +76,7 @@ test('the launcher passes arguments, input, output and the exit status through, 
   assert.deepEqual(JSON.parse(sh.stdout), { args, input: '{"x":1}' });
 });
 
-test('the command the app carries checks a planning folder with its diagrams', () => {
+test('the command the app carries checks a planning folder with its diagrams and pages, and the plugin carries envUI\'s documentation', () => {
   const directory = mkdtempSync(path.join(tmpdir(), 'atlas-payload-'));
   const repository = path.resolve(import.meta.dirname, '../../..');
   type Runtime = { name: string; executable: Buffer; license: Buffer };
@@ -87,6 +87,11 @@ test('the command the app carries checks a planning folder with its diagrams', (
   cpSync(path.join(repository, 'app', 'e2e', 'fixtures', 'planning'), planning, { recursive: true });
   const result = spawnSync(process.execPath, [path.join(directory, 'agent', 'command', 'bin', 'atlas.js'), 'check', planning], { encoding: 'utf8', cwd: directory });
   assert.equal(result.status, 0, result.stderr);
+  // The fixture's page is built by the command's own esbuild; the page guide's envUI documentation is beside it.
+  writeFileSync(path.join(planning, 'active', '0001-saved-payment-methods', 'pages', 'card-picker', 'page.tsx'), "import chart from 'chart.js';\nexport default () => chart;\n");
+  const broken = spawnSync(process.execPath, [path.join(directory, 'agent', 'command', 'bin', 'atlas.js'), 'check', planning], { encoding: 'utf8', cwd: directory });
+  assert.match(broken.stdout + broken.stderr, /'chart\.js' is not part of Atlas's stack/);
+  for (const file of ['index.md', 'LICENSE']) assert.ok(existsSync(path.join(directory, 'agent', 'plugin', 'skills', 'atlas', 'references', 'envui', file)), file);
 });
 
 test('the Windows uninstaller disconnects the agents connected to the agent folder, and only them', { skip: process.platform !== 'win32' && 'the uninstaller is Windows only' }, () => {

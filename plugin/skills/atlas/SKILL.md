@@ -74,6 +74,10 @@ When the work settles domain concepts, boundaries or data structure and a diagra
 
 When work in a work item changes a database's schema or a model's structure in a major way (tables or entities added, removed, split or merged, or the relations between them changed, not a column or a field alone), capture it before the change and after it, the second comparing with the first, also when nobody asked for a diagram: the pair is how the user later sees what happened.
 
+## Pages
+
+When the user should see something rather than read it (a visual choice to make, data worth looking at, a before and after), make a page: a small React view in the work item's `pages/`, on Atlas's stack (envUI and the diagram viewer), which Atlas shows in place. Make one without asking when it clearly helps, link it from the plan as a diagram is linked, and say it is there; most work needs none. A page can save the user's choices for you: act on them, and close each once it is settled. [Pages](references/pages.md) says how to write one.
+
 ## Close
 
 When the agreed completion checks pass and the outcome is in the plan (for PR delivery, the PR merged unless agreed otherwise), ask the user whether the work is finished, and close it with `work_close` only on their yes. Don't wait for them to remember: when work looks finished, say so and ask. Acceptance, implementation, PR readiness, merge and release are separate facts: state pending ones accurately. Unfinished scope stays active, or is transferred or dropped with `step` (action `remove`), telling the user why. Closing never grants merge or deployment.
