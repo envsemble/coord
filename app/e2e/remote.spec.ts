@@ -121,6 +121,12 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await expect(access.locator('.device-list li')).toContainText('Reading laptop');
   await expect(access.locator('.device-list li').getByText('Connected')).toBeVisible();
 
+  // A page of a plan there runs here, built there, with the Atlas tools of that computer.
+  await goHome(viewer);
+  await openPlan(viewer, 'Saved payment methods');
+  await viewer.locator('.prose .page-link').first().click();
+  await expect(viewer.frameLocator('iframe.page-frame').getByText('the plan has 7 steps')).toBeVisible();
+
   // Its plans are in the hub here.
   await goHome(viewer);
   await expect(hubRows(viewer)).toHaveCount(3);

@@ -54,9 +54,13 @@ test('the window is isolated and sandboxed, with a strict content security polic
       app: await get('atlas://app/index.html'),
       appEscape: await get('atlas://app/..%2Fmain%2Findex.js'),
       other: await get('atlas://elsewhere/README.md'),
+      // A page's frame has an origin of its own, which serves only the frame (and what it loads).
+      frame: await get('atlas://page/page-frame.html'),
+      frameApp: await get('atlas://page/index.html'),
+      appFrame: await get('atlas://app/page-frame.html'),
     };
   }, project);
-  expect(status).toEqual({ readme: 200, escape: 403, hidden: 403, unfollowed: 404, app: 200, appEscape: 404, other: 404 });
+  expect(status).toEqual({ readme: 200, escape: 403, hidden: 403, unfollowed: 404, app: 200, appEscape: 404, other: 404, frame: 200, frameApp: 404, appFrame: 404 });
   // The page itself cannot reach the network or read planning files with fetch.
   const fetched = await atlasWindow.evaluate(async projectId => ({
     remote: await fetch('https://example.com/').then(() => 'loaded', () => 'blocked'),
