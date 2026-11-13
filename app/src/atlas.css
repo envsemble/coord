@@ -24,8 +24,8 @@ body { margin: 0; }
 .page-state { box-sizing: border-box; min-block-size: 100%; display: grid; place-content: center; justify-items: center; gap: var(--env-space-3); color: var(--env-color-fg-muted); }
 
 /* One row at the top, the window's own title bar (envUI's TopBar in a Scaffold): the logo, back and
-   forward, Plans, File, View and Help and the computer at the start; Open in, search, record health
-   and the theme at the end, before the window buttons the system draws. The body scrolls below it. */
+   forward, Plans, File, View and Help and the computer at the start; search, record health and the
+   theme at the end, before the window buttons the system draws. The body scrolls below it. */
 .atlas-window { --app-sticky-top: 0rem; }
 /* Menus, lists, popovers, dialogs and tooltips open over the window's drag area (the title bar): the
    window would take a click there for a drag, so they are cut out of it. */

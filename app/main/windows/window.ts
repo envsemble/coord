@@ -4,7 +4,7 @@
 // its `atlas:` file protocol can only ever see the projects it follows.
 import { BrowserWindow, dialog, nativeTheme, screen, session as electronSession, shell, type Session } from 'electron';
 import type { HostClient, Project } from '@envsemble/atlas/host';
-import type { EventChannel, Place, ProjectChangeRequest, WindowInfo } from '../../shared/contract.ts';
+import type { EventChannel, ProjectChangeRequest, WindowInfo } from '../../shared/contract.ts';
 import { AtlasError } from '../errors.ts';
 import { ProjectView } from '../computers/projectView.ts';
 import { createProtocolHandler, isEntry, originOf, rendererOrigin, scheme } from './protocol.ts';
@@ -59,8 +59,6 @@ export class AtlasWindow {
   computer: string | null;
   /** The projects the window follows, by their IDs. */
   readonly views = new Map<string, ProjectView>();
-  /** The place the page last said it shows (ui:save); Open in opens only a file of it. */
-  shown: Place | null = null;
   /** Projects still being followed: a request for one waits for it. */
   private readonly opening = new Map<string, Promise<void>>();
   /** The projects of the window's computer as last listed, with their rows in the home database. */

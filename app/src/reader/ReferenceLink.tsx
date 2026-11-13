@@ -95,7 +95,7 @@ export function ReferenceLink({ found, children }: { found: Found; children: Rea
   if (!answer) return <>{children}</>;
   const { input } = found;
   if (input.kind === 'path') {
-    if (answer.file && !remote) return <Action run={() => { api.openReference(projectId, input).catch(failed); }} title={'Open in your editor: ' + answer.file.path + (answer.file.line ? ':' + answer.file.line : '')}>{children}</Action>;
+    if (answer.file && !remote) return <Action run={() => { api.openReference(projectId, input).catch(failed); }} title={'Open in VS Code: ' + answer.file.path + (answer.file.line ? ':' + answer.file.line : '')}>{children}</Action>;
     return answer.url ? <Action run={() => openUrl(answer.url!)} title={answer.url}>{children}</Action> : <>{children}</>;
   }
   if (!answer.url) return <>{children}</>;

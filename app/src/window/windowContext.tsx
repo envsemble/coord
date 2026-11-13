@@ -68,13 +68,12 @@ export function useWindowActions(): WindowActions {
   return value;
 }
 
-/** A link to a target; `rowTarget` makes it cover its interactive row (envUI), without being dragged away as a link. */
-export function TargetLink({ target, children, className, title, id, underline = false, rowTarget = false }: { target: Target; children: ReactNode; className?: string; title?: string; id?: string; underline?: boolean; rowTarget?: boolean }) {
+/** A link to a target. */
+export function TargetLink({ target, children, className, title, id, underline = false }: { target: Target; children: ReactNode; className?: string; title?: string; id?: string; underline?: boolean }) {
   const { open } = useWindowActions();
   const activate = (event: MouseEvent) => {
     event.preventDefault();
     open(target);
   };
-  return <Link id={id} href="#" underline={underline} className={className} title={title} onClick={activate}
-    {...(rowTarget && { 'data-row-target': '', draggable: false })}>{children}</Link>;
+  return <Link id={id} href="#" underline={underline} className={className} title={title} onClick={activate}>{children}</Link>;
 }

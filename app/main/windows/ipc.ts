@@ -9,8 +9,8 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell, typ
 import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atlas/host';
 import { resolveDocument } from '@envsemble/atlas/planning';
 import { accessSettings, deviceText } from '@envsemble/atlas/host/validate';
-import { agentNames, defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AgentId, type AccessSettings, type InvokeChannel, type LoadedUi, type PairingGrant, type Project, type PairingLinkView, type Place, type ProjectPlace, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
-import { agentId, argumentsOf, array, boolean, command, diagramPath, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, place, projectId, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, uiState, url, workId, type Validator } from '../../shared/validate.ts';
+import { agentNames, defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AgentId, type AccessSettings, type InvokeChannel, type LoadedUi, type PairingGrant, type Project, type PairingLinkView, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
+import { agentId, argumentsOf, array, boolean, command, diagramPath, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectId, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, uiState, url, workId, type Validator } from '../../shared/validate.ts';
 import { AtlasError, toErrorValue } from '../errors.ts';
 import type { ProjectView } from '../computers/projectView.ts';
 import type { Agents } from '../agent/agents.ts';
@@ -68,7 +68,7 @@ const within = (folder: string, candidate: string) => {
 };
 
 /** Open the file a path reference names, as the host resolves it in the project's folders: never a path the page names itself. */
-async function openReference(manager: WindowManager, window: AtlasWindow, projectId: string, reference: ReferenceInput) {
+async function openReference(window: AtlasWindow, projectId: string, reference: ReferenceInput) {
   thisComputer(window, 'Files');
   if (reference.kind !== 'path') throw new AtlasError('invalid-argument', 'Only a file reference opens in the editor.');
   const view = await window.readable(projectId);
@@ -191,7 +191,7 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
     // All plans: the projects this window's computer has active, as the app keeps them.
     'projects:statistics': { args: [nullable(isoTime), nullable(isoTime), statisticsUnit], handle: async (window, from: string | null, to: string | null, unit: 'day' | 'week') => remoteErrors(window.client().request('projects.statistics', { projectIds: [...await window.activeProjects()], from, to, unit }, { timeout: 30000 })) },
     'ui:load': { args: [], handle: window => loadUi(manager, window) },
-    'ui:save': { args: [uiState], handle: (window, state: UiState) => { window.shown = state.place; return queueSave(manager, window, state); } },
+    'ui:save': { args: [uiState], handle: (window, state: UiState) => queueSave(manager, window, state) },
     'shell:reveal': { args: [projectId, relativePath], handle: (window, projectId: string, file: string) => revealInside(window, projectId, file) },
     'shell:openExternal': {
       args: [url],
@@ -205,7 +205,7 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
         await shell.openExternal(external ?? application!);
       },
     },
-    'shell:openReference': { args: [projectId, referenceInput], handle: (window, projectId: string, reference: ReferenceInput) => openReference(manager, window, projectId, reference) },
+    'shell:openReference': { args: [projectId, referenceInput], handle: (window, projectId: string, reference: ReferenceInput) => openReference(window, projectId, reference) },
     'shell:copy': { args: [string({ min: 1, max: 10000 })], handle: (_window, text: string) => { clipboard.writeText(text); } },
     'app:theme': { args: [], handle: () => manager.context.state.theme },
     // Every window follows the native theme through prefers-color-scheme, so one change reaches them all.

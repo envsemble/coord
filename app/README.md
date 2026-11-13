@@ -171,7 +171,7 @@ The app follows Electron's security checklist:
 
 **Help › Open Logs** opens `logs/` in the Atlas home: `atlas.log` (the app: start-up, windows and connections) and `host.log` (the Atlas host: folders, the watcher, remote access and pairings), each up to 1 MB with up to three older files. **Help › About Atlas** shows the version, the Electron, Chromium and Node.js versions, the system and the Atlas home; **Copy Details** copies what a bug report needs, without the home's path.
 
-Atlas keeps its own data in the Atlas home, `~/.atlas` (or `ATLAS_HOME`), shared with the `atlas` command: the planning folders in `planning/`, and the projects' order and state, the windows and their places, the theme, the editor, remote access and pairings, and statistics in the home database, `atlas.db`. Electron's own files stay in its per-user folder (`%APPDATA%\Atlas` on Windows, `~/.config/Atlas` on Linux). Atlas writes into a planning folder only when you create or rename a project, or change its folders.
+Atlas keeps its own data in the Atlas home, `~/.atlas` (or `ATLAS_HOME`), shared with the `atlas` command: the planning folders in `planning/`, and the projects' order and state, the windows and their places, the theme, remote access and pairings, and statistics in the home database, `atlas.db`. Electron's own files stay in its per-user folder (`%APPDATA%\Atlas` on Windows, `~/.config/Atlas` on Linux). Atlas writes into a planning folder only when you create or rename a project, or change its folders.
 
 ## Develop
 

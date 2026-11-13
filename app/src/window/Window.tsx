@@ -11,7 +11,7 @@ import { ThemeMenu } from '../titleBar/ThemeMenu';
 import { ErrorIcon, SearchIcon, WarningIcon } from '../ui/icons';
 import type { MenuCommand } from '../../shared/contract';
 import type { Issue, LoadedUi, OpenProjectChange, Project, ProjectChangeRequest, SettingsSection, Snapshot, SnapshotWork, Target, Work, WindowInfo } from '../types';
-import { api, AtlasError } from '../api';
+import { api } from '../api';
 import { documentTarget, hubPlace, isPage, placeId, placeProject, scrollKey, settingsPlace, statisticsPlace, workTarget, type Place, type ProjectPlace } from '../navigation/targets';
 import { samePath, siblingProject } from '../reader/links';
 import { canGoBack, canGoForward, currentEntry, keyStep, record, samePlace, startHistory, step } from '../navigation/history';

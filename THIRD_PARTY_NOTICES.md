@@ -12,8 +12,6 @@ The interface icons are envUI's Material Symbols. The reusable viewer imports th
 
 The AI providers' marks beside model names in the app's statistics (Claude's spark for Anthropic, the OpenAI blossom, the Gemini sparkle, Mistral AI's M and the DeepSeek whale) are SVG paths from [Simple Icons](https://github.com/simple-icons/simple-icons) under CC0 1.0: release 16.35.0, and 15.22.0 for OpenAI's, the last release that included it. Only the path data is copied, in `app/src/ui/ModelName.tsx`. The marks are trademarks of their owners and only identify their models; showing them implies no endorsement or affiliation.
 
-The editors' marks in the app's Open in button (Visual Studio Code's, also for VS Code Insiders, Cursor's, Windsurf's and Zed's) are SVG paths from [Simple Icons](https://github.com/simple-icons/simple-icons) under CC0 1.0: release 16.35.0, and 12.4.0 for Visual Studio Code's, the last release that included it. Only the path data is copied, in `app/src/ui/EditorMark.tsx`. The marks are trademarks of their owners and only identify their editors; showing them implies no endorsement or affiliation.
-
 Vite 8.3.3 and its React plugin 6.1.2 provide the development server and Fast Refresh under their upstream MIT licenses, distributed with the npm dependencies. They are not bundled into offline HTML or required by the library at runtime.
 
 fflate 0.8.3 supplies the compressed export archive and offline decompression. Its MIT license is in packages/diagrams/licenses/fflate-LICENSE and retained in bundled code notices. Shiki 4.5.0 highlights snippets at build time; its MIT license is in packages/diagrams/licenses/shiki-LICENSE. Shiki's runtime, WebAssembly and grammars are not shipped as browser runtime dependencies.
