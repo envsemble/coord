@@ -178,7 +178,7 @@ export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Sna
           {summary && <p className="work-summary">{summary}</p>}
         </header>
         {implementing && <NowSection sessions={sessions!.sessions} />}
-        {implementing && reading && <button type="button" className="plan-fold-toggle" aria-expanded={planOpen} aria-controls="plan-reading" onClick={() => setPlanOpen(!planOpen)}><ChevronRightIcon className="plan-fold-icon" />{reading === plan ? 'Plan' : reading.name}</button>}
+        {implementing && reading && <Button variant="text" className="plan-fold-toggle" aria-expanded={planOpen} aria-controls="plan-reading" startIcon={<ChevronRightIcon className="plan-fold-icon" />} onClick={() => setPlanOpen(!planOpen)}>{reading === plan ? 'Plan' : reading.name}</Button>}
         {reading ? (!implementing || planOpen) && <div id="plan-reading"><Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} plan={reading === plan} /></div>
           : <EmptyState className="page-empty" title="Nothing to read here" description="This work item has no plan." />}
       </div>

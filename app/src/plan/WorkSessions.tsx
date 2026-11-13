@@ -2,7 +2,7 @@
 // model and effort, its state, when it was last active and its agent time; and, while the plan needs
 // the person, the waiting session's message. Read from the host as the plan's activity changes.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Button } from '@envsemble/envui';
+import { Button, Link } from '@envsemble/envui';
 import { Markdown } from '@envsemble/envui/markdown';
 import type { WorkCommit, WorkSession, WorkTimeline } from '../types';
 import { api } from '../api';
@@ -88,7 +88,7 @@ const messageComponents = {
 };
 function MessageWebLink({ href, children }: { href: string; children?: ReactNode }) {
   const { notify } = useWindow();
-  return <a href="#" title={href} onClick={event => { event.preventDefault(); api.openExternal(href).catch(error => { if ((error as { code?: string }).code !== 'cancelled') notify((error as Error).message, 'warning'); }); }}>{children}</a>;
+  return <Link href={href} title={href} onClick={event => { event.preventDefault(); api.openExternal(href).catch(error => { if ((error as { code?: string }).code !== 'cancelled') notify((error as Error).message, 'warning'); }); }}>{children}</Link>;
 }
 
 /**

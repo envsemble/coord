@@ -1,7 +1,7 @@
 // Provenance taxonomy shared with Atlas's viewer (`describeProvenance` there): identical labels and
 // detail lines, worked out here from a diagram file's description.
 export type ProvenanceKind = 'generated' | 'proposal' | 'authored' | 'unknown';
-export type ProvenanceTone = 'accent' | 'done' | 'success' | 'neutral';
+export type ProvenanceTone = 'primary' | 'accent' | 'success' | 'neutral';
 export interface Provenance { kind: ProvenanceKind; label: string; detail: string; tone: ProvenanceTone }
 /** A capture's header, as far as provenance reads it. */
 export interface CaptureSource { capturedAt?: string; source?: { kind?: string; identity?: string }; coverage?: { status?: string } }
@@ -36,9 +36,9 @@ export function describeProvenance(diagram: ProvenanceSource | null | undefined)
     const label = diagram.profile === 'database' ? 'Generated from database' : 'Generated from code';
     const coverage = capture?.coverage?.status;
     const detail = [sourceKind(capture?.source?.kind), capture?.source?.identity, captured && 'captured ' + captured, coverage && coverage + ' coverage'].filter(Boolean).join(' · ');
-    return { kind: 'generated', label, detail, tone: 'accent' };
+    return { kind: 'generated', label, detail, tone: 'primary' };
   }
-  if (diagram.role === 'proposal') return { kind: 'proposal', label: 'Agent proposal', detail: captured ? 'Changes to source captured ' + captured : '', tone: 'done' };
+  if (diagram.role === 'proposal') return { kind: 'proposal', label: 'Agent proposal', detail: captured ? 'Changes to source captured ' + captured : '', tone: 'accent' };
   return { kind: 'authored', label: 'Agent-authored', detail: authored[diagram.profile ?? ''] ?? 'Diagram', tone: 'success' };
 }
 

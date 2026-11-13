@@ -2,6 +2,7 @@
 // "#0023 · Plans hub" (and its project's name when it is another project's), opening it; the ledger's
 // entries above and after the steps; and "continued in #0026" on closed work's status line.
 import type { MouseEvent, ReactNode } from 'react';
+import { Link } from '@envsemble/envui';
 import { IconArrowBack as ArrowBack } from '@envsemble/envui/icons/ArrowBack';
 import { IconArrowForward as ArrowForward } from '@envsemble/envui/icons/ArrowForward';
 import type { Handoff } from './handoffs';
@@ -16,7 +17,7 @@ function HandoffRef({ item, open, short = false }: { item: Handoff; open: OpenHa
   if (!item.open) return <span className="handoff-ref muted" title={title + ' (not found)'}>{text}</span>;
   const to = item.open;
   const activate = (event: MouseEvent) => { event.preventDefault(); event.stopPropagation(); open(to); };
-  return <a href="#" className="handoff-ref" title={title} draggable={false} onClick={activate}>{text}</a>;
+  return <Link href="#" underline={false} className="handoff-ref" title={title} draggable={false} onClick={activate}>{text}</Link>;
 }
 
 /** The ledger's entries for the plan's handoffs: `continues` before its steps, `continuedIn` after them; list items. */

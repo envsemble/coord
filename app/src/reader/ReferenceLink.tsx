@@ -3,6 +3,7 @@
 // beside it; a file opens in the editor and an application's link in its application, on this
 // computer only (their paths are the host's).
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { Link } from '@envsemble/envui';
 import { IconCallMerge as CallMerge } from '@envsemble/envui/icons/CallMerge';
 import { IconCallSplit as CallSplit } from '@envsemble/envui/icons/CallSplit';
 import { IconCancel as Cancel } from '@envsemble/envui/icons/Cancel';
@@ -75,7 +76,7 @@ export function PullMark({ pull }: { pull: NonNullable<ResolvedReference['pull']
 
 /** A link of the reader's own: an anchor that runs its action instead of leaving. */
 function Action({ run, title, children }: { run(): void; title?: string; children: ReactNode }) {
-  return <a href="#" title={title} onClick={(event: MouseEvent) => { event.preventDefault(); run(); }}>{children}</a>;
+  return <Link href="#" title={title} onClick={(event: MouseEvent) => { event.preventDefault(); run(); }}>{children}</Link>;
 }
 
 /** A reference the reader found: a link once it leads somewhere, plain text until then or when it leads nowhere. */

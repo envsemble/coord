@@ -9,7 +9,7 @@
 // line with the search field, which opens the search. One click opens a plan. A connected agent that does not run Atlas (Codex not trusting its hooks, say)
 // has a notice above the plans, linking to Settings › Agents, until it does.
 import { memo, useMemo, type MouseEvent } from 'react';
-import { Alert, Button, Kbd, SearchField, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
+import { Alert, Button, Kbd, Link, SearchField, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
 import { StatisticsIcon, WorkIcon } from '../ui/icons';
 import type { Project } from '../types';
@@ -87,7 +87,7 @@ const HubRow = memo(function HubRow({ item, go }: { item: HubItem; go(place: Pla
     <Table.Cell>
       <span className="hub-row-title">
         <StatusIcon status={status} />
-        <a href="#" className="hub-row-link" draggable={false} title={work.summary ?? undefined} onClick={open}>{work.title}</a>
+        <Link href="#" underline={false} className="hub-row-link" draggable={false} title={work.summary ?? undefined} onClick={open}>{work.title}</Link>
         <span className="hub-row-number">{workNumber(work.id)}</span>
         {parts && <span className="hub-row-parts" data-kind={parts.kind}>{parts.kind === 'part' ? 'Part ' + parts.index + ' of ' + workNumber(parts.group) : plural(parts.count, 'part') + (parts.closed ? ' · ' + parts.closed + ' closed' : '')}</span>}
       </span>

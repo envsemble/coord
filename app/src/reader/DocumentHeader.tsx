@@ -1,5 +1,6 @@
 // A document's metadata header (its YAML block between `---` lines), as a table above its text, so a
 // file opened from the planning folder shows all of itself: a plan's statuses and dates, a ledger's steps.
+import { DescriptionList } from '@envsemble/envui';
 
 type Value = unknown;
 
@@ -23,7 +24,7 @@ function FieldValue({ value }: { value: Value }) {
 export function DocumentHeader({ metadata }: { metadata: Record<string, unknown> }) {
   const fields = Object.entries(metadata);
   if (!fields.length) return null;
-  return <table className="document-header" aria-label="Metadata header">
-    <tbody>{fields.map(([field, value]) => <tr key={field}><th scope="row">{field}</th><td><FieldValue value={value} /></td></tr>)}</tbody>
-  </table>;
+  return <DescriptionList.Root className="document-header" layout="inline" size="sm" aria-label="Metadata header">
+    {fields.map(([field, value]) => <DescriptionList.Item key={field} label={field}><FieldValue value={value} /></DescriptionList.Item>)}
+  </DescriptionList.Root>;
 }

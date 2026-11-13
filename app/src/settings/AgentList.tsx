@@ -151,8 +151,8 @@ function AgentDetail({ agent, activity, state, mode, folder }: { agent: AgentSta
       ? <span className="agent-program">Program: <span className="agent-program-path">{agent.program}</span>
         <Button variant="text" underline className="agent-install" aria-label={'Clear the program chosen for ' + agentNames[agent.id]} onClick={() => state.clearProgram(agent.id)}>Clear</Button></span>
       : !agent.found && <Button variant="text" underline className="agent-install" aria-label={'Choose program… for ' + agentNames[agent.id]} onClick={() => state.chooseProgram(agent.id)}>Choose program…</Button>)}
-    {refused && <span className="agent-error" role="alert">{refused}</span>}
-    {activity.failed && !activity.running && <span className="agent-error" role="alert">{activity.failed.error}</span>}
+    {refused && <Alert tone="danger" announce className="agent-error">{refused}</Alert>}
+    {activity.failed && !activity.running && <Alert tone="danger" announce className="agent-error">{activity.failed.error}</Alert>}
     {mode.kind === 'manage' && folder && <ByHand agent={agent} folder={folder} />}
   </span>;
 }

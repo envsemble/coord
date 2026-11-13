@@ -64,6 +64,7 @@ function WorkOverTime({ statistics, scope }: { statistics: ProjectStatistics; sc
           {index % labelEvery === 0 && <span className="work-chart-label">{shortDate(item.start)}</span>}
         </div>)}</div>
         <svg className="work-chart-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline points={line} /></svg>
+        {/* eslint-disable-next-line envui/no-html-elements -- the tip follows the bar the pointer is over; Tooltip anchors to one element */}
         {bar && <div className="work-chart-tip" role="tooltip" data-flip={shown! > bars.length / 2 ? '' : undefined} style={{ left: (shown! + 0.5) / bars.length * 100 + '%' }}>
           <strong>{bucketName(bar.start, statistics.unit)}</strong>
           <span>{duration(bar.total)} of agent time · {duration(bar.activeMs)} at least one agent working</span>

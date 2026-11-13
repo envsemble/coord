@@ -3,7 +3,7 @@
 // that computer's projects in this window; the list also opens a computer in a new window, pairs with
 // another computer and forgets computers.
 import { useEffect, useRef, useState } from 'react';
-import { Badge, Button, ConfirmButton, IconButton, List, Menu, Spinner, Text, Tooltip } from '@envsemble/envui';
+import { Alert, Badge, Button, ConfirmButton, IconButton, List, Menu, Spinner, Text, Tooltip } from '@envsemble/envui';
 import { IconUnfoldMore as UnfoldMore } from '@envsemble/envui/icons/UnfoldMore';
 import { AddIcon, ComputerIcon, NewWindowIcon, SettingsIcon } from '../ui/icons';
 import type { Computer, ComputerRef } from '../types';
@@ -105,7 +105,7 @@ export function OtherComputers({ current }: { current: ComputerRef }) {
           </span>} />;
       })}</List.Root>}
     {paired !== null && paired.length > 0 && <p className="dialog-note">Windows that show a forgotten computer show this one instead. This computer must pair again to reach it.</p>}
-    {error && <p className="dialog-error" role="alert">{error}</p>}
+    {error && <Alert tone="danger" announce className="dialog-error">{error}</Alert>}
     {connecting && <ConnectDialog onClose={() => { setConnecting(false); reload(); }} />}
   </>;
 }

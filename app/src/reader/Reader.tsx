@@ -1,5 +1,5 @@
 import { createContext, createElement, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
-import { Button, Card, Spinner } from '@envsemble/envui';
+import { Button, Card, Link, Spinner } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
 import { Markdown } from '@envsemble/envui/markdown';
 import { ChevronRightIcon, DiagramIcon, FileIcon, FolderOpenIcon, NewWindowIcon } from '../ui/icons';
@@ -50,7 +50,7 @@ function DiagramCards({ items, showWork }: { items: DiagramCard[]; showWork: boo
     title={<span className="diagram-card-title"><DiagramIcon className="diagram-card-icon" /><span>{card.title}</span><ProvenanceBadge provenance={card.provenance} /></span>}
     meta={showWork ? workNumber(card.workId) : undefined}
     actions={<Button variant="secondary" onClick={() => show(card)}>Open diagram</Button>}>
-    {card.elements.length > 0 && <p className="diagram-card-elements">{card.elements.slice(0, 8).map(element => <button type="button" key={element} className="element-chip" title={'Open the diagram at ' + element} onClick={() => show(card, element)}>{element}</button>)}
+    {card.elements.length > 0 && <p className="diagram-card-elements">{card.elements.slice(0, 8).map(element => <Button variant="secondary" size="sm" key={element} className="element-chip" title={'Open the diagram at ' + element} onClick={() => show(card, element)}>{element}</Button>)}
       {card.elements.length > 8 && <span className="muted">+{card.elements.length - 8}</span>}</p>}
   </Card>)}</div>;
 }
@@ -80,7 +80,7 @@ function WebLink({ href, id, children }: { href: string; id?: string; children?:
   const { resolved } = useContext(ReferencesContext);
   const input = fromUrl(href);
   const pull = input ? resolved.get(referenceKey(input))?.pull : null;
-  return <><a id={id} href={href} target="_blank" rel="noreferrer">{children}<NewWindowIcon className="external-icon" /></a>{pull && <PullMark pull={pull} />}</>;
+  return <><Link id={id} href={href} target="_blank" rel="noreferrer">{children}<NewWindowIcon className="external-icon" /></Link>{pull && <PullMark pull={pull} />}</>;
 }
 
 /**
@@ -97,7 +97,7 @@ function FoldedSection({ id, children }: { id: string; children?: ReactNode }) {
 function FoldToggle({ id, children }: { id?: string; children?: ReactNode }) {
   const folds = useContext(FoldsContext);
   if (!folds || !id) return children;
-  return <button type="button" className="request-fold-toggle" aria-expanded={folds.open.has(id)} onClick={() => folds.toggle(id)}><ChevronRightIcon className="request-fold-icon" />{children}</button>;
+  return <Button variant="text" className="request-fold-toggle" aria-expanded={folds.open.has(id)} startIcon={<ChevronRightIcon className="request-fold-icon" />} onClick={() => folds.toggle(id)}>{children}</Button>;
 }
 
 export function Reader({ file, snapshot, anchor, references = noReferences, showWork = false, hideTitle, plan = false, showHeader = false }: {
@@ -192,20 +192,21 @@ export function Reader({ file, snapshot, anchor, references = noReferences, show
         const owner = target.file ? snapshotRef.current.work.find(work => work.id === target.file!.workId) : undefined;
         const route: Target | null = target.file ? documentTarget(target.file, owner, target.anchor ?? null)
           : target.work ? workTarget(target.work.id, target.anchor ?? null) : null;
-        if (href.startsWith('#') && target.anchor !== undefined) return <a id={id} href="#" onClick={event => { event.preventDefault(); scrollToHeading(target.anchor!); }}>{children}</a>;
-        if (route) return <a id={id} href="#" onClick={event => {
+        if (href.startsWith('#') && target.anchor !== undefined) return <Link id={id} href="#" onClick={event => { event.preventDefault(); scrollToHeading(target.anchor!); }}>{children}</Link>;
+        if (route) return <Link id={id} href="#" onClick={event => {
           event.preventDefault();
           if (target.file && target.file.path === file.path && target.anchor) { scrollToHeading(target.anchor); return; }
           open(route);
-        }}>{children}</a>;
+        }}>{children}</Link>;
         // A link into a sibling project of the same computer opens there.
         const across = siblingReference(href, file.path);
         const other = across && sibling(across.folder);
-        if (across && other) return <a id={id} href="#" onClick={event => { event.preventDefault(); openPath(other, across.path, across.anchor); }}>{children}</a>;
+        if (across && other) return <Link id={id} href="#" onClick={event => { event.preventDefault(); openPath(other, across.path, across.anchor); }}>{children}</Link>;
         return <span className="outside-reference" title={'Reference unavailable in this viewer: ' + href}>{children}</span>;
       },
       img: ({ src = '', alt = '' }: { src?: unknown; alt?: string }) => {
         const target = destination(typeof src === 'string' ? src : '');
+        // eslint-disable-next-line envui/no-raw-graphics -- a document's own image keeps the size its author gave it, up to the column's width
         return target.file ? <img src={fileUrl(projectId, target.file.path)} alt={alt} /> : <span className="outside-reference">Image: {alt || String(src)}</span>;
       },
     };
@@ -230,6 +231,8 @@ export function Reader({ file, snapshot, anchor, references = noReferences, show
         <ReferencesContext.Provider value={referenceScope}><FoldsContext.Provider value={folds}><ReaderMarkdown body={content.body} plugins={plugins} components={components} /></FoldsContext.Provider></ReferencesContext.Provider>
       </div>
       : content.format === 'text' ? <pre className="source-text">{content.body}</pre>
-      : <div className="attachment">{/\.(png|jpe?g|gif|webp|svg)$/i.test(file.path) ? <img src={fileUrl(projectId, file.path)} alt={file.title} /> : <EmptyState icon={<FileIcon />} title={file.name} description={bytes(file.size)} action={revealButton} />}</div>}
+      : <div className="attachment">{/\.(png|jpe?g|gif|webp|svg)$/i.test(file.path)
+        // eslint-disable-next-line envui/no-raw-graphics -- an image file of the plan shows at its own size, up to the page's width
+        ? <img src={fileUrl(projectId, file.path)} alt={file.title} /> : <EmptyState icon={<FileIcon />} title={file.name} description={bytes(file.size)} action={revealButton} />}</div>}
   </article>;
 }

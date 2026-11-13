@@ -5,7 +5,7 @@
 // also grant it Manage access, so it can pair and revoke devices itself. In a window on another
 // computer, the section manages that computer's pairings, when this app was granted Manage access there.
 import { useEffect, useState } from 'react';
-import { Alert, Badge, Button, Checkbox, ConfirmButton, List, Select, Spinner, Switch, Text, TextField } from '@envsemble/envui';
+import { Alert, Badge, Button, Checkbox, ConfirmButton, Graphic, List, Select, Spinner, Switch, Text, TextField } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/code';
 import type { AccessSettings, AccessState, ComputerRef, PairedDevice, PairingLinkView } from '../types';
 import { api } from '../api';
@@ -121,7 +121,7 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
       <section className="access-section" aria-label="Pair a device">
         <Text render={<h3 />} variant="title">Pair a device</Text>
         {link && remaining > 0 ? <div className="pairing">
-          {link.qrSvg && <img className="pairing-qr" src={'data:image/svg+xml;utf8,' + encodeURIComponent(link.qrSvg)} alt="QR code of the pairing link" />}
+          {link.qrSvg && <span className="pairing-qr"><Graphic src={'data:image/svg+xml;utf8,' + encodeURIComponent(link.qrSvg)} alt="QR code of the pairing link" size="fill" aspect={1} fit="contain" /></span>}
           <div className="pairing-text">
             <p className="pairing-expiry">Expires in {Math.floor(remaining / 60000)}:{String(Math.floor(remaining / 1000) % 60).padStart(2, '0')} · works once</p>
             <p className="pairing-grant">{link.label ? <strong>{link.label}: </strong> : null}the whole computer{link.manageAccess ? ', and Manage access' : ''}.</p>
