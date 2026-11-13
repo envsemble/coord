@@ -5,6 +5,13 @@
 import { useState, type CSSProperties } from 'react';
 import { Button, Menu } from '@envsemble/envui';
 import { IconUnfoldMore } from '@envsemble/envui/icons/UnfoldMore';
+import { IconApps } from '@envsemble/envui/icons/Apps';
+import { IconArchive } from '@envsemble/envui/icons/Archive';
+import { IconContentCopy } from '@envsemble/envui/icons/ContentCopy';
+import { IconEdit } from '@envsemble/envui/icons/Edit';
+import { IconFolder } from '@envsemble/envui/icons/Folder';
+import { IconFolderOpen } from '@envsemble/envui/icons/FolderOpen';
+import { IconInventory2 } from '@envsemble/envui/icons/Inventory2';
 import { NewProjectIcon } from '../ui/icons';
 import type { Project, ProjectChangeRequest } from '../types';
 import { api } from '../api';
@@ -43,23 +50,26 @@ export function ProjectMenu({ projects, chosen, computer, local, actions, newPro
       trigger={<Button variant="secondary" size="sm" className="hub-project" startIcon={chosen ? <ProjectAvatar project={chosen} /> : undefined} endIcon={<IconUnfoldMore />} aria-label={'Project: ' + (chosen?.name ?? 'All projects')}>
         <span className="hub-project-label">{chosen?.name ?? 'All projects'}</span>
       </Button>}>
-      <Menu.RadioGroup value={chosen?.id ?? 'all'} onValueChange={value => actions.go(hubPlace(value === 'all' ? null : value))} label="Projects">
-        <Menu.RadioItem value="all">All projects</Menu.RadioItem>
-        {active.map(project => <Menu.RadioItem key={project.id} value={project.id} icon={<ProjectAvatar project={project} />} description={facts(project)}>{project.name}</Menu.RadioItem>)}
-      </Menu.RadioGroup>
+      {/* The projects as plain items, the one shown marked in grey, each with its avatar so no row keeps an empty slot. */}
+      <Menu.Group label="Projects">
+        <Menu.Item className="project-menu-choice" aria-current={chosen ? undefined : 'true'} icon={<span className="project-avatar project-avatar-all" aria-hidden="true"><IconApps /></span>}
+          onClick={() => actions.go(hubPlace(null))}>All projects</Menu.Item>
+        {active.map(project => <Menu.Item key={project.id} className="project-menu-choice" aria-current={chosen?.id === project.id ? 'true' : undefined} icon={<ProjectAvatar project={project} />}
+          description={facts(project)} onClick={() => actions.go(hubPlace(project.id))}>{project.name}</Menu.Item>)}
+      </Menu.Group>
       {chosen && <>
         <Menu.Separator />
         <Menu.Group label={chosen.name}>
-          <Menu.Item onClick={() => setDetailed(chosen.id)}>Folders…</Menu.Item>
-          {local && <Menu.Item onClick={() => { api.reveal(chosen.id, 'planning.json').catch(failed); }}>Show in Folder</Menu.Item>}
-          <Menu.Item onClick={() => { api.copy(chosen.path).catch(failed); }}>Copy Path</Menu.Item>
-          <Menu.Item onClick={() => setRenaming(chosen)}>Rename…</Menu.Item>
-          <Menu.Item onClick={() => { change(chosen, { state: 'archived' }); actions.go(hubPlace()); }}>Archive</Menu.Item>
+          <Menu.Item icon={<IconFolder />} onClick={() => setDetailed(chosen.id)}>Folders…</Menu.Item>
+          {local && <Menu.Item icon={<IconFolderOpen />} onClick={() => { api.reveal(chosen.id, 'planning.json').catch(failed); }}>Show in Folder</Menu.Item>}
+          <Menu.Item icon={<IconContentCopy />} onClick={() => { api.copy(chosen.path).catch(failed); }}>Copy Path</Menu.Item>
+          <Menu.Item icon={<IconEdit />} onClick={() => setRenaming(chosen)}>Rename…</Menu.Item>
+          <Menu.Item icon={<IconArchive />} onClick={() => { change(chosen, { state: 'archived' }); actions.go(hubPlace()); }}>Archive</Menu.Item>
         </Menu.Group>
       </>}
       {archived.length > 0 && <>
         <Menu.Separator />
-        <Menu.Submenu label={'Archived projects (' + archived.length + ')'}>
+        <Menu.Submenu icon={<IconInventory2 />} label={'Archived projects (' + archived.length + ')'}>
           {archived.map(project => <Menu.Item key={project.id} icon={<ProjectAvatar project={project} />} onClick={() => change(project, { state: 'active' })}
             aria-label={'Restore ' + project.name} end={<span className="muted">Restore</span>}>{project.name}</Menu.Item>)}
         </Menu.Submenu>

@@ -73,7 +73,7 @@ test('a project that cannot be read at all explains why', async () => {
   const { window } = launched;
   // Its name is the folder's while its planning.json cannot be read; its statistics, from the hub filtered to it, say why.
   await expectHub(window);
-  await (await openProjectMenu(window)).getByRole('menuitemradio').nth(1).click();
+  await (await openProjectMenu(window)).getByRole('group', { name: 'Projects' }).getByRole('menuitem').nth(1).click();
   await window.locator('.hub').getByRole('button', { name: 'Statistics', exact: true }).click();
   await expect(window.getByRole('heading', { name: 'This project can’t be read' })).toBeVisible();
   await expect(window.locator('.page-empty')).toContainText('planning.json');

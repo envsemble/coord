@@ -250,13 +250,13 @@ export async function closeMenus(window: Page) {
 /** Show one project's plans in the hub, by its project menu. */
 export async function filterHub(window: Page, project: string) {
   const menu = await openProjectMenu(window);
-  await menu.getByRole('menuitemradio', { name: project, exact: true }).click();
+  await menu.getByRole('group', { name: 'Projects' }).getByRole('menuitem', { name: project, exact: true }).click();
   await expectHub(window, project);
 }
 /** The project menu lists these active projects, in this order. */
 export async function expectProjects(window: Page, names: string[]) {
   const menu = await openProjectMenu(window);
-  await expect(menu.getByRole('menuitemradio').locator('.env-menu-item-label')).toHaveText(['All projects', ...names]);
+  await expect(menu.getByRole('group', { name: 'Projects' }).getByRole('menuitem').locator('.env-menu-item-label')).toHaveText(['All projects', ...names]);
   await closeMenus(window);
 }
 /** The project menu's Archived projects, opened. */

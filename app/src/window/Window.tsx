@@ -329,6 +329,9 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
         return;
       }
       const name = [(event.ctrlKey || event.metaKey) && 'ctrl', event.shiftKey && 'shift', event.altKey && 'alt', event.key.toLowerCase()].filter(Boolean).join('+');
+      // Zoom In is Ctrl and the + key, which most keyboards type with Shift on =: the menu takes
+      // Ctrl+Shift+= and Ctrl+Plus, the window Ctrl+= without Shift, as browsers do.
+      if (name === 'ctrl+=') { event.preventDefault(); api.command('zoomIn').catch(() => undefined); return; }
       const command = shortcuts[name];
       if (!command) return;
       event.preventDefault();

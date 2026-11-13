@@ -105,10 +105,10 @@ function treeItem(row: ExplorerRow, workPath: string): Row {
   const base = { value: row.id, depth: row.depth, expandable: row.expandable, expanded: row.expanded, row, textValue: row.name };
   if (row.kind !== 'file') return { ...base, label: row.name, icon: <></>, tooltip: row.path };
   const own = (name: string) => row.path === workPath + '/' + name;
-  const icon = own('plan.md') ? <PlanIcon className="explorer-special" />
-    : own('ledger.md') ? <LedgerIcon className="explorer-special" />
-    : own('CONTEXT.md') ? <GlossaryIcon className="explorer-special" />
-    : isDiagramFile(row.path!) && row.file?.workId ? <DiagramIcon className="explorer-diagram" />
+  const icon = own('plan.md') ? <PlanIcon className="explorer-special" data-file="plan" />
+    : own('ledger.md') ? <LedgerIcon className="explorer-special" data-file="ledger" />
+    : own('CONTEXT.md') ? <GlossaryIcon className="explorer-special" data-file="glossary" />
+    : isDiagramFile(row.path!) && row.file?.workId ? <DiagramIcon className="explorer-special" data-file="diagram" />
     : <></>;
   // Its whole name; its title, when it has one of its own, on hover.
   return { ...base, label: row.name, icon, tooltip: row.file && row.file.title !== row.file.name ? row.file.title + ' \u00b7 ' + row.path : row.path };

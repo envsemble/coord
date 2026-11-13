@@ -283,7 +283,7 @@ test("the hub's project menu makes a project from a name and a folder, gives a p
   await expectHub(window);
   await expectProjects(window, ['Northwind']);
   // A project: its name, with its open plans and when it changed.
-  await expect((await openProjectMenu(window)).getByRole('menuitemradio', { name: 'Northwind', exact: true })).toContainText('open plan');
+  await expect((await openProjectMenu(window)).getByRole('group', { name: 'Projects' }).getByRole('menuitem', { name: 'Northwind', exact: true })).toContainText('open plan');
   await closeMenus(window);
   // Its planning folder and folders are in its Folders….
   const details = await projectDetails(window, 'Northwind');
@@ -467,7 +467,12 @@ test('one row at the top: the logo, back and forward, the Plans, File, View and 
   await applicationMenu(app, '&File', 'New &Project…');
   await expect(window.getByRole('dialog', { name: 'Create project' })).toBeVisible();
   await window.keyboard.press('Escape');
-  // The shortcuts: search, the plan's files taking the keyboard, back and forward.
+  // The shortcuts: zoom (Ctrl+= without Shift too), search, the plan's files taking the keyboard, back and forward.
+  const zoomLevel = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.getZoomLevel());
+  await window.keyboard.press('Control+Equal');
+  await expect.poll(zoomLevel).toBeGreaterThan(0);
+  // (The application menu takes Ctrl+0, which keys sent to the page don't reach.)
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.setZoomLevel(0));
   await window.keyboard.press('Control+P');
   await expect(searchPopup(window)).toBeVisible();
   await window.keyboard.press('Escape');
