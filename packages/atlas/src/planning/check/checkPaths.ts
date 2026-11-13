@@ -114,8 +114,9 @@ export async function checkPaths(paths: string[]): Promise<CheckResult[]> {
     }
     const diagrams = files.filter(file => /\.puml$/i.test(file));
     if (diagrams.length) result.warnings.push(...await unlinkedDiagrams(root, diagrams));
-    const pages = await everyPage(root);
-    result.errors.push(...await pageProblems(root, group.whole ? pages : group.files.map(pageOf).filter((page): page is string => page !== null && pages.includes(page))));
+    const touched = group.files.map(pageOf).filter((page): page is string => page !== null);
+    const pages = group.whole || touched.length ? await everyPage(root) : [];
+    result.errors.push(...await pageProblems(root, group.whole ? pages : touched.filter(page => pages.includes(page))));
     results.push(result);
   }
   return results;

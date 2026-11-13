@@ -90,7 +90,8 @@ export async function buildPage(root: string, folder: string): Promise<PageBuild
           builder.onLoad({ filter: /.*/ }, async args => {
             const resolved = await realpath(args.path).catch(() => args.path);
             if (readable(resolvedRoot, resolved)) return undefined;
-            return { errors: [{ text: `${path.relative(root, args.path).split(path.sep).join('/')} is not one of the planning folder's files: a page imports only files of the planning folder.` }] };
+            const named = path.relative(root, args.path);
+            return { errors: [{ text: `${path.isAbsolute(named) || named.startsWith('..') ? 'A file outside the planning folder' : named.split(path.sep).join('/')} is not one of the planning folder's files: a page imports only files of the planning folder.` }] };
           });
         },
       }],
