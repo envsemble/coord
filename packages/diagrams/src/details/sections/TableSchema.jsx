@@ -1,4 +1,4 @@
-import { DisclosureNote } from "@envsemble/envui";
+import { Disclosure } from "@envsemble/envui";
 import { ChangeMark } from "../../review/ChangeMark";
 import {
   CHANGE_LABELS,
@@ -290,13 +290,13 @@ export function TableSchema({
         </Section>
       )}
       {sql.length > 0 && (
-        <DisclosureNote title="Definition" className="detail-definition">
+        <Disclosure title="Definition" className="detail-definition">
           {sql.map((text, i) => (
             <pre key={i} className="source-code" tabIndex={0}>
               <code>{text}</code>
             </pre>
           ))}
-        </DisclosureNote>
+        </Disclosure>
       )}
     </>
   );

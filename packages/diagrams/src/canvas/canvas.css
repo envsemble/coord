@@ -7,34 +7,40 @@
 :root,
 .atlas-page,
 .atlas-panel {
-  --canvas: var(--color-canvas);
-  --surface: var(--color-surface-muted);
-  --text: var(--color-text-primary);
+  --canvas: var(--env-color-bg-field);
+  /* Nodes sit a step above the canvas: the default surface in light, the
+     filled one in dark. */
+  --surface: light-dark(var(--env-color-bg-default), var(--env-color-bg-muted));
+  --text: var(--env-color-fg-default);
   --grid: light-dark(
-    var(--color-border-strong),
-    color-mix(in srgb, var(--color-border-strong) 55%, var(--color-canvas))
+    var(--env-color-border-muted),
+    color-mix(
+      in srgb,
+      var(--env-color-border-muted) 55%,
+      var(--env-color-bg-field)
+    )
   );
-  --diagram-selection: var(--color-on-navigation-selected);
+  --diagram-selection: var(--env-color-fg-on-selected);
   --accent: color-mix(
     in srgb,
-    var(--color-on-navigation-selected) 60%,
-    var(--color-canvas)
+    var(--env-color-fg-on-selected) 60%,
+    var(--env-color-bg-field)
   );
   --diagram-border: color-mix(
     in srgb,
-    var(--color-text-muted) 60%,
-    var(--color-canvas)
+    var(--env-color-fg-muted) 60%,
+    var(--env-color-bg-field)
   );
-  --diagram-divider: var(--color-border-strong);
-  --diagram-edge: var(--color-text-muted);
-  --diagram-inheritance: var(--color-icon);
-  --diagram-label: var(--color-text-primary);
-  --diagram-muted: var(--color-text-muted);
-  --diagram-attribute: var(--color-text-muted);
+  --diagram-divider: var(--env-color-border-muted);
+  --diagram-edge: var(--env-color-fg-muted);
+  --diagram-inheritance: var(--env-color-fg-muted);
+  --diagram-label: var(--env-color-fg-default);
+  --diagram-muted: var(--env-color-fg-muted);
+  --diagram-attribute: var(--env-color-fg-muted);
   /* A proposal's changes: added, changed and removed elements. */
-  --change-added: var(--color-tone-success);
-  --change-modified: var(--color-tone-warning);
-  --change-removed: var(--color-tone-danger);
+  --change-added: var(--env-color-fg-success);
+  --change-modified: var(--env-color-fg-warning);
+  --change-removed: var(--env-color-fg-danger);
 }
 #canvas {
   position: absolute;
@@ -46,6 +52,10 @@
   background-color: var(--canvas);
   user-select: none;
 }
+/* The grid is drawn in the diagram's own coordinates, which are pixels:
+   camera.js scales it with the camera and steps its density from these
+   sizes (GRID_OVERHANG is the inset). */
+/* stylelint-disable unit-disallowed-list -- diagram coordinates are pixels */
 .canvas-grid {
   position: absolute;
   inset: -64px;
@@ -54,6 +64,7 @@
   background-size: 20px 20px;
   will-change: transform;
 }
+/* stylelint-enable unit-disallowed-list */
 #canvas.dragging {
   cursor: grabbing;
 }
@@ -65,7 +76,7 @@
   will-change: transform;
 }
 /* The canvas keeps the system typeface its layout measures names for; the controls around it use
-   envUI's Inter. */
+   envUI's Geist. */
 #world svg {
   display: block;
   overflow: visible;

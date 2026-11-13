@@ -33,7 +33,7 @@ export function DetailHeader({
         <span className="detail-icon" aria-hidden="true">
           <Icon />
         </span>
-        <Text as="h1" variant="page-heading">
+        <Text render={<h1 />} variant="title">
           {owner && <span className="detail-owner">{owner}.</span>}
           {title}
         </Text>
@@ -50,7 +50,7 @@ export function DetailHeader({
         </div>
       )}
       {description && (
-        <Text tone="muted" className="detail-description">
+        <Text emphasis="muted" className="detail-description">
           {description}
         </Text>
       )}

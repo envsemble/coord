@@ -52,7 +52,7 @@ test("provenance distinguishes generated captures, agent proposals and agent-aut
       label: "Generated from code",
       detail:
         "TypeScript · enrollment-code · captured Oct 8, 2026 · complete coverage",
-      tone: "accent",
+      tone: "primary",
     },
   );
   const database = capture(
@@ -73,7 +73,7 @@ test("provenance distinguishes generated captures, agent proposals and agent-aut
       label: "Generated from database",
       detail:
         "SQLite · semester-demo · captured Oct 8, 2026 · partial coverage",
-      tone: "accent",
+      tone: "primary",
     },
   );
   assert.deepEqual(
@@ -87,7 +87,7 @@ test("provenance distinguishes generated captures, agent proposals and agent-aut
       kind: "proposal",
       label: "Agent proposal",
       detail: "Changes to source captured Oct 8, 2026",
-      tone: "done",
+      tone: "accent",
     },
   );
   assert.equal(

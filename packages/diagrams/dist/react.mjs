@@ -1728,7 +1728,8 @@ var UMLDiagram = memo(function UMLDiagram2({
       className: `uml-diagram${focus ? " has-focus" : ""}`,
       style: { width: diagram.width, height: diagram.height },
       children: [
-        interactive && backgroundURL && /* @__PURE__ */ jsx4(
+        interactive && backgroundURL && // eslint-disable-next-line envui/no-raw-graphics -- the diagram's own bitmap backdrop, at the diagram's pixel size under its SVG geometry, not a picture at one of envUI's sizes
+        /* @__PURE__ */ jsx4(
           "img",
           {
             className: `diagram-background${bitmap ? " ready" : ""}`,
@@ -2451,19 +2452,45 @@ function useSVGExport(svgSource, theme, scope, fade = false) {
 }
 
 // src/viewer/DiagramViewer.jsx
-import {
-  Dialog,
-  EmptyState,
-  useTheme,
-  useThemePreference
-} from "@envsemble/envui";
+import { Dialog, useTheme, useThemePreference } from "@envsemble/envui";
+
+// src/ui/EmptyState.jsx
+import { createElement } from "react";
+import { Column, Text } from "@envsemble/envui";
+import { jsx as jsx6, jsxs as jsxs5 } from "react/jsx-runtime";
+function EmptyState({
+  title,
+  description,
+  headingLevel = 4,
+  className
+}) {
+  return /* @__PURE__ */ jsxs5(
+    Column,
+    {
+      gap: 2,
+      className: `atlas-empty-state${className ? ` ${className}` : ""}`,
+      children: [
+        /* @__PURE__ */ jsx6(
+          Text,
+          {
+            render: createElement(`h${headingLevel}`),
+            variant: "title",
+            className: "atlas-section-heading",
+            children: title
+          }
+        ),
+        description && /* @__PURE__ */ jsx6(Text, { variant: "body-sm", children: description })
+      ]
+    }
+  );
+}
 
 // src/ui/Panel.jsx
-import { Surface, Text } from "@envsemble/envui";
+import { Surface, Text as Text2 } from "@envsemble/envui";
 
 // src/ui/ToolButton.jsx
 import { IconButton, Tooltip as Tooltip2 } from "@envsemble/envui";
-import { jsx as jsx6 } from "react/jsx-runtime";
+import { jsx as jsx7 } from "react/jsx-runtime";
 function ToolButton({
   label,
   tooltip = label,
@@ -2473,7 +2500,7 @@ function ToolButton({
   side = "bottom",
   ...props
 }) {
-  return /* @__PURE__ */ jsx6(Tooltip2, { content: tooltip, side, children: /* @__PURE__ */ jsx6(
+  return /* @__PURE__ */ jsx7(Tooltip2, { content: tooltip, side, children: /* @__PURE__ */ jsx7(
     IconButton,
     {
       ...props,
@@ -2486,37 +2513,37 @@ function ToolButton({
 }
 
 // src/ui/icons.jsx
-import { AccountTree } from "@envsemble/envui/icons/AccountTree";
-import { Add } from "@envsemble/envui/icons/Add";
-import { ArrowBack } from "@envsemble/envui/icons/ArrowBack";
-import { Category } from "@envsemble/envui/icons/Category";
-import { ChevronLeft } from "@envsemble/envui/icons/ChevronLeft";
-import { ChevronRight } from "@envsemble/envui/icons/ChevronRight";
-import { Close } from "@envsemble/envui/icons/Close";
-import { Code } from "@envsemble/envui/icons/Code";
-import { Contrast } from "@envsemble/envui/icons/Contrast";
-import { Database } from "@envsemble/envui/icons/Database";
-import { Description } from "@envsemble/envui/icons/Description";
-import { Difference } from "@envsemble/envui/icons/Difference";
-import { Download } from "@envsemble/envui/icons/Download";
-import { EditNote } from "@envsemble/envui/icons/EditNote";
-import { FitScreen } from "@envsemble/envui/icons/FitScreen";
-import { FolderZip } from "@envsemble/envui/icons/FolderZip";
-import { Fullscreen } from "@envsemble/envui/icons/Fullscreen";
-import { FullscreenExit } from "@envsemble/envui/icons/FullscreenExit";
-import { Image } from "@envsemble/envui/icons/Image";
-import { Info } from "@envsemble/envui/icons/Info";
-import { OpenInNew } from "@envsemble/envui/icons/OpenInNew";
-import { Polyline } from "@envsemble/envui/icons/Polyline";
-import { Remove } from "@envsemble/envui/icons/Remove";
-import { RightPanelClose } from "@envsemble/envui/icons/RightPanelClose";
-import { RightPanelOpen } from "@envsemble/envui/icons/RightPanelOpen";
-import { School } from "@envsemble/envui/icons/School";
-import { Search } from "@envsemble/envui/icons/Search";
-import { TableRows } from "@envsemble/envui/icons/TableRows";
+import { IconAccountTree } from "@envsemble/envui/icons/AccountTree";
+import { IconAdd } from "@envsemble/envui/icons/Add";
+import { IconArrowBack } from "@envsemble/envui/icons/ArrowBack";
+import { IconCategory } from "@envsemble/envui/icons/Category";
+import { IconChevronLeft } from "@envsemble/envui/icons/ChevronLeft";
+import { IconChevronRight } from "@envsemble/envui/icons/ChevronRight";
+import { IconClose } from "@envsemble/envui/icons/Close";
+import { IconCode } from "@envsemble/envui/icons/Code";
+import { IconContrast } from "@envsemble/envui/icons/Contrast";
+import { IconDatabase } from "@envsemble/envui/icons/Database";
+import { IconDescription } from "@envsemble/envui/icons/Description";
+import { IconDifference } from "@envsemble/envui/icons/Difference";
+import { IconDownload } from "@envsemble/envui/icons/Download";
+import { IconEditNote } from "@envsemble/envui/icons/EditNote";
+import { IconFitScreen } from "@envsemble/envui/icons/FitScreen";
+import { IconFolderZip } from "@envsemble/envui/icons/FolderZip";
+import { IconFullscreen } from "@envsemble/envui/icons/Fullscreen";
+import { IconFullscreenExit } from "@envsemble/envui/icons/FullscreenExit";
+import { IconImage } from "@envsemble/envui/icons/Image";
+import { IconInfo } from "@envsemble/envui/icons/Info";
+import { IconOpenInNew } from "@envsemble/envui/icons/OpenInNew";
+import { IconPolyline } from "@envsemble/envui/icons/Polyline";
+import { IconRemove } from "@envsemble/envui/icons/Remove";
+import { IconRightPanelClose } from "@envsemble/envui/icons/RightPanelClose";
+import { IconRightPanelOpen } from "@envsemble/envui/icons/RightPanelOpen";
+import { IconSchool } from "@envsemble/envui/icons/School";
+import { IconSearch } from "@envsemble/envui/icons/Search";
+import { IconTableRows } from "@envsemble/envui/icons/TableRows";
 
 // src/ui/Panel.jsx
-import { jsx as jsx7, jsxs as jsxs5 } from "react/jsx-runtime";
+import { jsx as jsx8, jsxs as jsxs6 } from "react/jsx-runtime";
 function Panel({
   ref,
   open,
@@ -2532,11 +2559,11 @@ function Panel({
   ...props
 }) {
   const compact = !title && !toolbar;
-  return /* @__PURE__ */ jsxs5(
+  return /* @__PURE__ */ jsxs6(
     Surface,
     {
-      as: "aside",
-      tone: "pane",
+      render: /* @__PURE__ */ jsx8("aside", {}),
+      background: "default",
       padding: 0,
       id,
       className: `panel${open ? " open" : ""}${className ? ` ${className}` : ""}`,
@@ -2544,21 +2571,29 @@ function Panel({
       ...props,
       children: [
         resizer,
-        /* @__PURE__ */ jsxs5("div", { className: "panel-scroll", ref, children: [
-          /* @__PURE__ */ jsxs5("div", { className: `panel-header${compact ? " compact" : ""}`, children: [
+        /* @__PURE__ */ jsxs6("div", { className: "panel-scroll", ref, children: [
+          /* @__PURE__ */ jsxs6("div", { className: `panel-header${compact ? " compact" : ""}`, children: [
             toolbar,
-            !toolbar && title && /* @__PURE__ */ jsx7(Text, { as: "h2", variant: "section-heading", className: "panel-title", children: title }),
-            onClose && /* @__PURE__ */ jsx7(
+            !toolbar && title && /* @__PURE__ */ jsx8(
+              Text2,
+              {
+                render: /* @__PURE__ */ jsx8("h2", {}),
+                variant: "title",
+                className: "atlas-section-heading panel-title",
+                children: title
+              }
+            ),
+            onClose && /* @__PURE__ */ jsx8(
               ToolButton,
               {
                 className: "panel-close",
                 label: closeLabel,
-                icon: /* @__PURE__ */ jsx7(Close, {}),
+                icon: /* @__PURE__ */ jsx8(IconClose, {}),
                 onClick: onClose
               }
             )
           ] }),
-          /* @__PURE__ */ jsx7("div", { className: "panel-content", children })
+          /* @__PURE__ */ jsx8("div", { className: "panel-content", children })
         ] })
       ]
     }
@@ -2567,14 +2602,14 @@ function Panel({
 
 // src/viewer/ViewerToolbar.jsx
 import { forwardRef as forwardRef2, useMemo as useMemo4 } from "react";
-import { Text as Text3, ThemeToggle } from "@envsemble/envui";
+import { Text as Text4, ThemeToggle } from "@envsemble/envui";
 
 // src/viewer/CameraControls.jsx
 import { useSyncExternalStore } from "react";
 import { Button, ButtonGroup, Kbd, Tooltip as Tooltip3 } from "@envsemble/envui";
-import { Fragment as Fragment3, jsx as jsx8, jsxs as jsxs6 } from "react/jsx-runtime";
+import { Fragment as Fragment3, jsx as jsx9, jsxs as jsxs7 } from "react/jsx-runtime";
 function ZoomReadout({ zoom, onReset }) {
-  return /* @__PURE__ */ jsx8(Tooltip3, { content: "Reset to 100%", side: "bottom", children: /* @__PURE__ */ jsxs6(
+  return /* @__PURE__ */ jsx9(Tooltip3, { content: "Reset to 100%", side: "bottom", children: /* @__PURE__ */ jsxs7(
     Button,
     {
       id: "zoom-value",
@@ -2595,7 +2630,7 @@ function ObservedZoomReadout({ store, onReset }) {
     store.getSnapshot,
     store.getSnapshot
   );
-  return /* @__PURE__ */ jsx8(ZoomReadout, { zoom, onReset });
+  return /* @__PURE__ */ jsx9(ZoomReadout, { zoom, onReset });
 }
 function CameraControls({
   zoom,
@@ -2605,47 +2640,47 @@ function CameraControls({
   onFit,
   compact = false
 }) {
-  return /* @__PURE__ */ jsxs6(ButtonGroup, { "aria-label": "Zoom", className: "camera-controls", children: [
-    !compact && /* @__PURE__ */ jsx8(
+  return /* @__PURE__ */ jsxs7(ButtonGroup, { "aria-label": "Zoom", className: "camera-controls", children: [
+    !compact && /* @__PURE__ */ jsx9(
       ToolButton,
       {
         id: "zoom-out",
         label: "Zoom out",
-        tooltip: /* @__PURE__ */ jsxs6(Fragment3, { children: [
+        tooltip: /* @__PURE__ */ jsxs7(Fragment3, { children: [
           "Zoom out ",
-          /* @__PURE__ */ jsx8(Kbd, { children: "\u2212" })
+          /* @__PURE__ */ jsx9(Kbd, { children: "\u2212" })
         ] }),
         "aria-keyshortcuts": "-",
-        icon: /* @__PURE__ */ jsx8(Remove, {}),
+        icon: /* @__PURE__ */ jsx9(IconRemove, {}),
         onClick: () => onZoom(1 / 1.25)
       }
     ),
-    zoomStore ? /* @__PURE__ */ jsx8(ObservedZoomReadout, { store: zoomStore, onReset }) : /* @__PURE__ */ jsx8(ZoomReadout, { zoom, onReset }),
-    !compact && /* @__PURE__ */ jsx8(
+    zoomStore ? /* @__PURE__ */ jsx9(ObservedZoomReadout, { store: zoomStore, onReset }) : /* @__PURE__ */ jsx9(ZoomReadout, { zoom, onReset }),
+    !compact && /* @__PURE__ */ jsx9(
       ToolButton,
       {
         id: "zoom-in",
         label: "Zoom in",
-        tooltip: /* @__PURE__ */ jsxs6(Fragment3, { children: [
+        tooltip: /* @__PURE__ */ jsxs7(Fragment3, { children: [
           "Zoom in ",
-          /* @__PURE__ */ jsx8(Kbd, { children: "+" })
+          /* @__PURE__ */ jsx9(Kbd, { children: "+" })
         ] }),
         "aria-keyshortcuts": "+",
-        icon: /* @__PURE__ */ jsx8(Add, {}),
+        icon: /* @__PURE__ */ jsx9(IconAdd, {}),
         onClick: () => onZoom(1.25)
       }
     ),
-    /* @__PURE__ */ jsx8(
+    /* @__PURE__ */ jsx9(
       ToolButton,
       {
         id: "fit",
         label: "Fit diagram",
-        tooltip: /* @__PURE__ */ jsxs6(Fragment3, { children: [
+        tooltip: /* @__PURE__ */ jsxs7(Fragment3, { children: [
           "Fit diagram ",
-          /* @__PURE__ */ jsx8(Kbd, { children: "0" })
+          /* @__PURE__ */ jsx9(Kbd, { children: "0" })
         ] }),
         "aria-keyshortcuts": "0",
-        icon: /* @__PURE__ */ jsx8(FitScreen, {}),
+        icon: /* @__PURE__ */ jsx9(IconFitScreen, {}),
         onClick: onFit
       }
     )
@@ -2689,7 +2724,7 @@ function usePopupDismiss(onClose, ...roots) {
 }
 
 // src/viewer/ConceptSearch.jsx
-import { Fragment as Fragment4, jsx as jsx9, jsxs as jsxs7 } from "react/jsx-runtime";
+import { Fragment as Fragment4, jsx as jsx10, jsxs as jsxs8 } from "react/jsx-runtime";
 var ConceptSearch = memo3(function ConceptSearch2({
   classes,
   onChoose
@@ -2748,24 +2783,24 @@ var ConceptSearch = memo3(function ConceptSearch2({
     inputRef.current.blur();
   }
   const listOpen = showHits && hits.length > 0;
-  return /* @__PURE__ */ jsxs7("div", { ref: searchRef, className: `search${open ? " open" : ""}`, children: [
-    /* @__PURE__ */ jsx9(
+  return /* @__PURE__ */ jsxs8("div", { ref: searchRef, className: `search${open ? " open" : ""}`, children: [
+    /* @__PURE__ */ jsx10(
       ToolButton,
       {
         className: "search-toggle",
         label: "Open concept search",
-        tooltip: /* @__PURE__ */ jsxs7(Fragment4, { children: [
+        tooltip: /* @__PURE__ */ jsxs8(Fragment4, { children: [
           "Find concept ",
-          /* @__PURE__ */ jsx9(Kbd2, { children: "/" })
+          /* @__PURE__ */ jsx10(Kbd2, { children: "/" })
         ] }),
         "aria-expanded": open,
         "aria-controls": fieldId,
-        icon: /* @__PURE__ */ jsx9(Search, {}),
+        icon: /* @__PURE__ */ jsx10(IconSearch, {}),
         onClick: () => setOpen(!open)
       }
     ),
-    /* @__PURE__ */ jsxs7("div", { className: "search-field", id: fieldId, children: [
-      /* @__PURE__ */ jsx9(
+    /* @__PURE__ */ jsxs8("div", { className: "search-field", id: fieldId, children: [
+      /* @__PURE__ */ jsx10(
         SearchField,
         {
           ref: inputRef,
@@ -2804,14 +2839,14 @@ var ConceptSearch = memo3(function ConceptSearch2({
           }
         }
       ),
-      /* @__PURE__ */ jsx9(
+      /* @__PURE__ */ jsx10(
         Surface2,
         {
           ref: suggestionsRef,
           id: listId,
-          tone: "pane",
+          background: "default",
           padding: 1,
-          corners: "standard",
+          radius: "sm",
           className: `suggestions${listOpen ? " open" : ""}`,
           role: "listbox",
           "aria-label": "Concepts",
@@ -2832,24 +2867,27 @@ var ConceptSearch = memo3(function ConceptSearch2({
               inputRef.current.focus();
             }
           },
-          children: hits.map((c) => /* @__PURE__ */ jsxs7(
-            "button",
-            {
-              type: "button",
-              role: "option",
-              "aria-selected": "false",
-              className: "suggestion",
-              onClick: () => choose(c.id),
-              children: [
-                /* @__PURE__ */ jsx9("span", { className: "suggestion-name", children: c.name }),
-                c.stereotype && /* @__PURE__ */ jsxs7("span", { className: "suggestion-detail", children: [
-                  "\xAB",
-                  c.stereotype,
-                  "\xBB"
-                ] })
-              ]
-            },
-            c.id
+          children: hits.map((c) => (
+            // eslint-disable-next-line envui/no-html-elements -- an option of the go-to search's suggestions (see the field above)
+            /* @__PURE__ */ jsxs8(
+              "button",
+              {
+                type: "button",
+                role: "option",
+                "aria-selected": "false",
+                className: "suggestion",
+                onClick: () => choose(c.id),
+                children: [
+                  /* @__PURE__ */ jsx10("span", { className: "suggestion-name", children: c.name }),
+                  c.stereotype && /* @__PURE__ */ jsxs8("span", { className: "suggestion-detail", children: [
+                    "\xAB",
+                    c.stereotype,
+                    "\xBB"
+                  ] })
+                ]
+              },
+              c.id
+            )
           ))
         }
       )
@@ -2858,8 +2896,8 @@ var ConceptSearch = memo3(function ConceptSearch2({
 });
 
 // src/ui/ExportMenu.jsx
-import { Menu, MenuItem } from "@envsemble/envui";
-import { jsx as jsx10 } from "react/jsx-runtime";
+import { Menu } from "@envsemble/envui";
+import { jsx as jsx11 } from "react/jsx-runtime";
 function downloadURL(href, filename) {
   const link = document.createElement("a");
   link.href = href;
@@ -2875,21 +2913,21 @@ function downloadData(data, filename, type = "text/plain;charset=utf-8") {
   setTimeout(() => URL.revokeObjectURL(href), 1e4);
 }
 function ExportMenu({ items }) {
-  return /* @__PURE__ */ jsx10(
-    Menu,
+  return /* @__PURE__ */ jsx11(
+    Menu.Root,
     {
       "aria-label": "Export",
-      trigger: /* @__PURE__ */ jsx10(
+      trigger: /* @__PURE__ */ jsx11(
         ToolButton,
         {
           id: "export",
           label: "Export",
           tooltip: "Export the diagram or model",
-          icon: /* @__PURE__ */ jsx10(Download, {})
+          icon: /* @__PURE__ */ jsx11(IconDownload, {})
         }
       ),
-      children: items.map((item) => /* @__PURE__ */ jsx10(
-        MenuItem,
+      children: items.map((item) => /* @__PURE__ */ jsx11(
+        Menu.Item,
         {
           className: item.key,
           icon: item.icon,
@@ -2905,15 +2943,14 @@ function ExportMenu({ items }) {
 
 // src/ui/Island.jsx
 import { Surface as Surface3 } from "@envsemble/envui";
-import { jsx as jsx11 } from "react/jsx-runtime";
+import { jsx as jsx12 } from "react/jsx-runtime";
 function Island({ label, className = "", children, ...props }) {
-  return /* @__PURE__ */ jsx11(
+  return /* @__PURE__ */ jsx12(
     Surface3,
     {
-      tone: "pane",
-      corners: "pill",
+      background: "default",
+      radius: "full",
       padding: 1,
-      density: "compact",
       role: "group",
       "aria-label": label,
       className: `atlas-island${className ? ` ${className}` : ""}`,
@@ -2923,12 +2960,12 @@ function Island({ label, className = "", children, ...props }) {
   );
 }
 function IslandDivider() {
-  return /* @__PURE__ */ jsx11("span", { className: "island-divider", "aria-hidden": "true" });
+  return /* @__PURE__ */ jsx12("span", { className: "island-divider", "aria-hidden": "true" });
 }
 
 // src/ui/ViewSwitcher.jsx
 import { SegmentedControl, Select } from "@envsemble/envui";
-import { jsx as jsx12 } from "react/jsx-runtime";
+import { jsx as jsx13 } from "react/jsx-runtime";
 function ViewSwitcher({
   items,
   value,
@@ -2936,25 +2973,24 @@ function ViewSwitcher({
   label = "Diagram view",
   compact = false
 }) {
-  const options = items.map((item) => ({ value: item.key, label: item.label }));
+  const choices = items.map((item) => ({ value: item.key, label: item.label }));
   if (compact)
-    return /* @__PURE__ */ jsx12(
+    return /* @__PURE__ */ jsx13(
       Select,
       {
         className: "view-select",
         "aria-label": label,
-        options,
+        items: choices,
         value,
         onValueChange: (next) => next && onChange(next)
       }
     );
-  return /* @__PURE__ */ jsx12(
+  return /* @__PURE__ */ jsx13(
     SegmentedControl,
     {
       className: "view-switcher",
       "aria-label": label,
-      size: "compact",
-      options,
+      items: choices,
       value,
       onValueChange: onChange
     }
@@ -2962,9 +2998,9 @@ function ViewSwitcher({
 }
 
 // src/ui/AtlasMark.jsx
-import { jsx as jsx13, jsxs as jsxs8 } from "react/jsx-runtime";
+import { jsx as jsx14, jsxs as jsxs9 } from "react/jsx-runtime";
 function AtlasMark({ size = 28, label = "Atlas" }) {
-  return /* @__PURE__ */ jsxs8(
+  return /* @__PURE__ */ jsxs9(
     "svg",
     {
       width: size,
@@ -2974,8 +3010,8 @@ function AtlasMark({ size = 28, label = "Atlas" }) {
       "aria-label": label || void 0,
       "aria-hidden": label ? void 0 : true,
       children: [
-        /* @__PURE__ */ jsx13("rect", { x: "27", y: "27", width: "189", height: "188", rx: "43", fill: "#111820" }),
-        /* @__PURE__ */ jsxs8(
+        /* @__PURE__ */ jsx14("rect", { x: "27", y: "27", width: "189", height: "188", rx: "43", fill: "#111820" }),
+        /* @__PURE__ */ jsxs9(
           "g",
           {
             fill: "none",
@@ -2984,15 +3020,15 @@ function AtlasMark({ size = 28, label = "Atlas" }) {
             strokeLinecap: "round",
             strokeLinejoin: "round",
             children: [
-              /* @__PURE__ */ jsx13("path", { d: "M76 163 L120 77 L164 163" }),
-              /* @__PURE__ */ jsx13("path", { d: "M96 132 H144" })
+              /* @__PURE__ */ jsx14("path", { d: "M76 163 L120 77 L164 163" }),
+              /* @__PURE__ */ jsx14("path", { d: "M96 132 H144" })
             ]
           }
         ),
-        /* @__PURE__ */ jsxs8("g", { fill: "#fff", children: [
-          /* @__PURE__ */ jsx13("circle", { cx: "120", cy: "77", r: "18" }),
-          /* @__PURE__ */ jsx13("circle", { cx: "76", cy: "163", r: "18" }),
-          /* @__PURE__ */ jsx13("circle", { cx: "164", cy: "163", r: "18" })
+        /* @__PURE__ */ jsxs9("g", { fill: "#fff", children: [
+          /* @__PURE__ */ jsx14("circle", { cx: "120", cy: "77", r: "18" }),
+          /* @__PURE__ */ jsx14("circle", { cx: "76", cy: "163", r: "18" }),
+          /* @__PURE__ */ jsx14("circle", { cx: "164", cy: "163", r: "18" })
         ] })
       ]
     }
@@ -3000,7 +3036,7 @@ function AtlasMark({ size = 28, label = "Atlas" }) {
 }
 
 // src/viewer/ProvenanceBadge.jsx
-import { Badge, Surface as Surface4, Text as Text2 } from "@envsemble/envui";
+import { Badge, Surface as Surface4, Text as Text3 } from "@envsemble/envui";
 
 // src/viewer/provenance.js
 var MONTHS = [
@@ -3063,7 +3099,7 @@ function describeProvenance(document2) {
       kind: "generated",
       label,
       detail: captureDetail(baselineSnapshot(document2)),
-      tone: "accent"
+      tone: "primary"
     };
   } else if (document2.state === "proposal") {
     const date = formatCaptureDate(
@@ -3073,7 +3109,7 @@ function describeProvenance(document2) {
       kind: "proposal",
       label: "Agent proposal",
       detail: date ? `Changes to source captured ${date}` : "",
-      tone: "done"
+      tone: "accent"
     };
   } else if (document2.state === "authored") {
     result = {
@@ -3087,22 +3123,22 @@ function describeProvenance(document2) {
 }
 
 // src/viewer/ProvenanceBadge.jsx
-import { jsx as jsx14, jsxs as jsxs9 } from "react/jsx-runtime";
+import { jsx as jsx15, jsxs as jsxs10 } from "react/jsx-runtime";
 function ProvenanceIcon({ provenance, profile }) {
-  if (provenance.kind === "proposal") return /* @__PURE__ */ jsx14(Difference, {});
-  if (provenance.kind === "authored") return /* @__PURE__ */ jsx14(EditNote, {});
-  if (profile === "database") return /* @__PURE__ */ jsx14(Database, {});
-  if (profile === "code") return /* @__PURE__ */ jsx14(Code, {});
-  return /* @__PURE__ */ jsx14(Description, {});
+  if (provenance.kind === "proposal") return /* @__PURE__ */ jsx15(IconDifference, {});
+  if (provenance.kind === "authored") return /* @__PURE__ */ jsx15(IconEditNote, {});
+  if (profile === "database") return /* @__PURE__ */ jsx15(IconDatabase, {});
+  if (profile === "code") return /* @__PURE__ */ jsx15(IconCode, {});
+  return /* @__PURE__ */ jsx15(IconDescription, {});
 }
 function ProvenanceLabel({ document: document2 }) {
   const provenance = describeProvenance(document2);
   if (provenance.kind === "unknown") return null;
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx15(
     Badge,
     {
       tone: provenance.tone,
-      icon: /* @__PURE__ */ jsx14(ProvenanceIcon, { provenance, profile: document2?.profile }),
+      icon: /* @__PURE__ */ jsx15(ProvenanceIcon, { provenance, profile: document2?.profile }),
       children: provenance.label
     }
   );
@@ -3110,25 +3146,24 @@ function ProvenanceLabel({ document: document2 }) {
 function ProvenanceBadge({ document: document2, className = "" }) {
   const provenance = describeProvenance(document2);
   if (provenance.kind === "unknown") return null;
-  return /* @__PURE__ */ jsxs9(
+  return /* @__PURE__ */ jsxs10(
     Surface4,
     {
-      tone: "pane",
-      corners: "pill",
+      background: "default",
+      radius: "full",
       padding: 1,
-      density: "compact",
       className: `atlas-provenance${className ? ` ${className}` : ""}`,
       title: provenance.detail ? `${provenance.label} \xB7 ${provenance.detail}` : provenance.label,
       children: [
-        /* @__PURE__ */ jsx14(ProvenanceLabel, { document: document2 }),
-        provenance.detail && /* @__PURE__ */ jsx14(Text2, { as: "span", variant: "supporting", className: "provenance-detail", children: provenance.detail })
+        /* @__PURE__ */ jsx15(ProvenanceLabel, { document: document2 }),
+        provenance.detail && /* @__PURE__ */ jsx15(Text3, { render: /* @__PURE__ */ jsx15("span", {}), variant: "body-sm", className: "provenance-detail", children: provenance.detail })
       ]
     }
   );
 }
 
 // src/viewer/ViewerToolbar.jsx
-import { jsx as jsx15, jsxs as jsxs10 } from "react/jsx-runtime";
+import { jsx as jsx16, jsxs as jsxs11 } from "react/jsx-runtime";
 function exportChoices({ exports, viewKey, fields, theme, diagramURL }) {
   const sourceFile = `${exports.slug}.puml`;
   return [
@@ -3136,7 +3171,7 @@ function exportChoices({ exports, viewKey, fields, theme, diagramURL }) {
       key: "svg-download",
       label: "SVG image",
       description: `This view${fields ? " with attributes" : ""}, ${theme} theme`,
-      icon: /* @__PURE__ */ jsx15(Image, {}),
+      icon: /* @__PURE__ */ jsx16(IconImage, {}),
       onSelect: () => diagramURL && downloadURL(
         diagramURL,
         `${exports.slug}-${viewKey}${fields ? "-fields" : ""}-${theme}.svg`
@@ -3146,14 +3181,14 @@ function exportChoices({ exports, viewKey, fields, theme, diagramURL }) {
       key: "source-download",
       label: "PlantUML",
       description: "The diagram's source",
-      icon: /* @__PURE__ */ jsx15(Code, {}),
+      icon: /* @__PURE__ */ jsx16(IconCode, {}),
       onSelect: () => downloadData(exports.readText(sourceFile), sourceFile)
     },
     {
       key: "bundle-download",
       label: "Models ZIP",
       description: "Every export, with evidence and validation",
-      icon: /* @__PURE__ */ jsx15(FolderZip, {}),
+      icon: /* @__PURE__ */ jsx16(IconFolderZip, {}),
       onSelect: () => downloadData(
         exports.bundle,
         `${exports.slug}-models.zip`,
@@ -3195,34 +3230,34 @@ var ViewerToolbar = forwardRef2(function ViewerToolbar2({
     return model.classes.filter((concept) => visibleIds.has(concept.id));
   }, [model.classes, views]);
   const origin = describeProvenance(provenance);
-  return /* @__PURE__ */ jsxs10(
+  return /* @__PURE__ */ jsxs11(
     "header",
     {
       className: `atlas-overlay-top viewer-toolbar${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`,
       ref,
       children: [
-        /* @__PURE__ */ jsxs10(Island, { label: "Diagram navigation", className: "island-start", children: [
-          /* @__PURE__ */ jsx15("span", { className: "brand-mark", children: /* @__PURE__ */ jsx15(AtlasMark, { label: "" }) }),
-          /* @__PURE__ */ jsx15(
-            Text3,
+        /* @__PURE__ */ jsxs11(Island, { label: "Diagram navigation", className: "island-start", children: [
+          /* @__PURE__ */ jsx16("span", { className: "brand-mark", children: /* @__PURE__ */ jsx16(AtlasMark, { label: "" }) }),
+          /* @__PURE__ */ jsx16(
+            Text4,
             {
-              as: "span",
-              variant: "section-heading",
-              className: "island-title",
+              render: /* @__PURE__ */ jsx16("span", {}),
+              variant: "title",
+              className: "atlas-section-heading island-title",
               title: model.title,
               children: model.title
             }
           ),
-          origin.kind !== "unknown" && /* @__PURE__ */ jsx15(
+          origin.kind !== "unknown" && /* @__PURE__ */ jsx16(
             "span",
             {
               className: "island-provenance",
               title: origin.detail || void 0,
-              children: /* @__PURE__ */ jsx15(ProvenanceLabel, { document: provenance })
+              children: /* @__PURE__ */ jsx16(ProvenanceLabel, { document: provenance })
             }
           ),
-          (views.length > 1 || reviewControls) && /* @__PURE__ */ jsx15(IslandDivider, {}),
-          views.length > 1 && /* @__PURE__ */ jsx15(
+          (views.length > 1 || reviewControls) && /* @__PURE__ */ jsx16(IslandDivider, {}),
+          views.length > 1 && /* @__PURE__ */ jsx16(
             ViewSwitcher,
             {
               items: views,
@@ -3231,54 +3266,54 @@ var ViewerToolbar = forwardRef2(function ViewerToolbar2({
               compact: density > 0
             }
           ),
-          views.length > 1 && reviewControls && /* @__PURE__ */ jsx15(IslandDivider, {}),
+          views.length > 1 && reviewControls && /* @__PURE__ */ jsx16(IslandDivider, {}),
           reviewControls
         ] }),
-        /* @__PURE__ */ jsxs10(Island, { label: "Diagram tools", className: "island-end", children: [
-          /* @__PURE__ */ jsx15(ConceptSearch, { classes: searchClasses, onChoose }),
-          /* @__PURE__ */ jsx15(
+        /* @__PURE__ */ jsxs11(Island, { label: "Diagram tools", className: "island-end", children: [
+          /* @__PURE__ */ jsx16(ConceptSearch, { classes: searchClasses, onChoose }),
+          /* @__PURE__ */ jsx16(
             ToolButton,
             {
               id: "fields",
               label: "Fields",
               tooltip: fields ? "Hide attributes" : "Show attributes",
               pressed: fields,
-              icon: /* @__PURE__ */ jsx15(TableRows, {}),
+              icon: /* @__PURE__ */ jsx16(IconTableRows, {}),
               onClick: onFields
             }
           ),
-          /* @__PURE__ */ jsx15(
+          /* @__PURE__ */ jsx16(
             CameraControls,
             {
               ...{ zoomStore, onZoom, onReset, onFit },
               compact: density > 2
             }
           ),
-          /* @__PURE__ */ jsx15(IslandDivider, {}),
-          hasScenarios && /* @__PURE__ */ jsx15(
+          /* @__PURE__ */ jsx16(IslandDivider, {}),
+          hasScenarios && /* @__PURE__ */ jsx16(
             ToolButton,
             {
               id: "scenarios-toggle",
               label: "Understand the model",
               pressed: scenariosOpen && detailsOpen,
-              icon: /* @__PURE__ */ jsx15(School, {}),
+              icon: /* @__PURE__ */ jsx16(IconSchool, {}),
               onClick: onScenarios
             }
           ),
-          /* @__PURE__ */ jsx15(
+          /* @__PURE__ */ jsx16(
             ToolButton,
             {
               id: "details-toggle",
               label: detailsHidden ? "Show details" : "Hide details",
               "aria-controls": "inspector",
               "aria-expanded": detailsOpen,
-              icon: detailsHidden ? /* @__PURE__ */ jsx15(RightPanelOpen, {}) : /* @__PURE__ */ jsx15(RightPanelClose, {}),
+              icon: detailsHidden ? /* @__PURE__ */ jsx16(IconRightPanelOpen, {}) : /* @__PURE__ */ jsx16(IconRightPanelClose, {}),
               onClick: onDetails
             }
           ),
-          /* @__PURE__ */ jsx15(IslandDivider, {}),
-          themeToggle && /* @__PURE__ */ jsx15(ThemeToggle, { id: "theme-toggle" }),
-          /* @__PURE__ */ jsx15(
+          /* @__PURE__ */ jsx16(IslandDivider, {}),
+          themeToggle && /* @__PURE__ */ jsx16(ThemeToggle, { id: "theme-toggle" }),
+          /* @__PURE__ */ jsx16(
             ExportMenu,
             {
               items: exportChoices({
@@ -3290,14 +3325,14 @@ var ViewerToolbar = forwardRef2(function ViewerToolbar2({
               })
             }
           ),
-          /* @__PURE__ */ jsx15(
+          /* @__PURE__ */ jsx16(
             ToolButton,
             {
               id: "info",
               label: "About and controls",
               "aria-haspopup": "dialog",
               "aria-expanded": aboutOpen,
-              icon: /* @__PURE__ */ jsx15(Info, {}),
+              icon: /* @__PURE__ */ jsx16(IconInfo, {}),
               onClick: onAbout
             }
           )
@@ -3308,7 +3343,7 @@ var ViewerToolbar = forwardRef2(function ViewerToolbar2({
 });
 
 // src/viewer/About.jsx
-import { Kbd as Kbd3, Stack, Text as Text4 } from "@envsemble/envui";
+import { Kbd as Kbd3, Column as Column2, Text as Text5 } from "@envsemble/envui";
 
 // src/ui/DownloadLink.jsx
 import { Button as Button2 } from "@envsemble/envui";
@@ -3326,15 +3361,15 @@ function useBlobURL(data, type = "text/plain;charset=utf-8") {
 }
 
 // src/ui/DownloadLink.jsx
-import { jsx as jsx16 } from "react/jsx-runtime";
+import { jsx as jsx17 } from "react/jsx-runtime";
 function DownloadLink({ data, filename, type, children, ...props }) {
   const href = useBlobURL(data, type);
-  return /* @__PURE__ */ jsx16(
+  return /* @__PURE__ */ jsx17(
     Button2,
     {
       ...props,
       variant: "text",
-      startIcon: /* @__PURE__ */ jsx16(Download, {}),
+      startIcon: /* @__PURE__ */ jsx17(IconDownload, {}),
       ...href ? { href, download: filename } : { disabled: true },
       children
     }
@@ -3342,31 +3377,31 @@ function DownloadLink({ data, filename, type, children, ...props }) {
 }
 
 // src/viewer/About.jsx
-import { Fragment as Fragment5, jsx as jsx17, jsxs as jsxs11 } from "react/jsx-runtime";
+import { Fragment as Fragment5, jsx as jsx18, jsxs as jsxs12 } from "react/jsx-runtime";
 function About({ model, exports, provenance }) {
-  return /* @__PURE__ */ jsxs11(Stack, { gap: 4, className: "atlas-portal about-content", children: [
-    /* @__PURE__ */ jsx17(ProvenanceBadge, { document: provenance, className: "inline" }),
-    /* @__PURE__ */ jsx17(Text4, { tone: "muted", children: model.status }),
-    /* @__PURE__ */ jsx17("dl", { className: "shortcut-list", children: [
+  return /* @__PURE__ */ jsxs12(Column2, { gap: 4, className: "atlas-portal about-content", children: [
+    /* @__PURE__ */ jsx18(ProvenanceBadge, { document: provenance, className: "inline" }),
+    /* @__PURE__ */ jsx18(Text5, { emphasis: "muted", children: model.status }),
+    /* @__PURE__ */ jsx18("dl", { className: "shortcut-list", children: [
       ["Scroll or pinch", "Zoom"],
       ["Drag", "Pan"],
       [
-        /* @__PURE__ */ jsxs11(Fragment5, { children: [
-          /* @__PURE__ */ jsx17(Kbd3, { children: "+" }),
+        /* @__PURE__ */ jsxs12(Fragment5, { children: [
+          /* @__PURE__ */ jsx18(Kbd3, { children: "+" }),
           " ",
-          /* @__PURE__ */ jsx17(Kbd3, { children: "\u2212" })
+          /* @__PURE__ */ jsx18(Kbd3, { children: "\u2212" })
         ] }),
         "Zoom in or out"
       ],
-      [/* @__PURE__ */ jsx17(Kbd3, { children: "0" }), "Fit the diagram"],
-      [/* @__PURE__ */ jsx17(Kbd3, { children: "/" }), "Find a concept"],
-      [/* @__PURE__ */ jsx17(Kbd3, { children: "Esc" }), "Clear the selection"]
-    ].map(([keys, action], i) => /* @__PURE__ */ jsxs11("div", { className: "shortcut", children: [
-      /* @__PURE__ */ jsx17("dt", { children: keys }),
-      /* @__PURE__ */ jsx17("dd", { children: action })
+      [/* @__PURE__ */ jsx18(Kbd3, { children: "0" }), "Fit the diagram"],
+      [/* @__PURE__ */ jsx18(Kbd3, { children: "/" }), "Find a concept"],
+      [/* @__PURE__ */ jsx18(Kbd3, { children: "Esc" }), "Clear the selection"]
+    ].map(([keys, action], i) => /* @__PURE__ */ jsxs12("div", { className: "shortcut", children: [
+      /* @__PURE__ */ jsx18("dt", { children: keys }),
+      /* @__PURE__ */ jsx18("dd", { children: action })
     ] }, i)) }),
-    /* @__PURE__ */ jsxs11(Stack, { gap: 1, align: "start", children: [
-      /* @__PURE__ */ jsx17(
+    /* @__PURE__ */ jsxs12(Column2, { gap: 1, align: "start", children: [
+      /* @__PURE__ */ jsx18(
         DownloadLink,
         {
           data: exports.readText(`${exports.slug}-model-notes.txt`),
@@ -3374,7 +3409,7 @@ function About({ model, exports, provenance }) {
           children: "Source notes"
         }
       ),
-      /* @__PURE__ */ jsx17(
+      /* @__PURE__ */ jsx18(
         DownloadLink,
         {
           data: exports.readText(`${exports.slug}-validation.json`),
@@ -3506,14 +3541,14 @@ function useInspection({
 // src/scenarios/ScenarioPanel.jsx
 import { useMemo as useMemo6 } from "react";
 import {
+  Alert,
   Badge as Badge2,
   Button as Button3,
-  DisclosureNote,
-  Notice,
-  Stack as Stack2,
-  Text as Text5
+  Column as Column3,
+  Disclosure,
+  Text as Text6
 } from "@envsemble/envui";
-import { Fragment as Fragment6, jsx as jsx18, jsxs as jsxs12 } from "react/jsx-runtime";
+import { Fragment as Fragment6, jsx as jsx19, jsxs as jsxs13 } from "react/jsx-runtime";
 function verdict(scenario) {
   const met = scenario.result.expectationMet;
   const expected = scenario.expected === "invalid" ? "Invalid" : "Valid";
@@ -3523,51 +3558,60 @@ function verdict(scenario) {
 }
 function Examples({ examples, model, names, onInspect }) {
   const classNames = new Map(model.classes.map((c) => [c.id, c.name]));
-  return /* @__PURE__ */ jsx18(Stack2, { gap: 5, children: examples.map((scenario) => {
+  return /* @__PURE__ */ jsx19(Column3, { gap: 5, children: examples.map((scenario) => {
     const { tone, text } = verdict(scenario);
     const labels = new Map(
       scenario.instances.map((i) => [i.id, i.label || i.id])
     );
-    return /* @__PURE__ */ jsxs12(Stack2, { gap: 2, className: "example", children: [
-      /* @__PURE__ */ jsxs12("div", { className: "example-head", children: [
-        /* @__PURE__ */ jsx18(Text5, { as: "h3", variant: "section-heading", children: scenario.title }),
-        /* @__PURE__ */ jsx18(Badge2, { tone, children: text })
+    return /* @__PURE__ */ jsxs13(Column3, { gap: 2, className: "example", children: [
+      /* @__PURE__ */ jsxs13("div", { className: "example-head", children: [
+        /* @__PURE__ */ jsx19(
+          Text6,
+          {
+            render: /* @__PURE__ */ jsx19("h3", {}),
+            variant: "title",
+            className: "atlas-section-heading",
+            children: scenario.title
+          }
+        ),
+        /* @__PURE__ */ jsx19(Badge2, { tone, children: text })
       ] }),
-      scenario.description && /* @__PURE__ */ jsx18(Text5, { children: scenario.description }),
-      scenario.result.issues.map((issue, i) => /* @__PURE__ */ jsxs12(Notice, { tone: "warning", children: [
+      scenario.description && /* @__PURE__ */ jsx19(Text6, { children: scenario.description }),
+      scenario.result.issues.map((issue, i) => /* @__PURE__ */ jsxs13(Alert, { tone: "warning", children: [
         issue.message,
-        issue.elementId && names.has(issue.elementId) && /* @__PURE__ */ jsxs12(Fragment6, { children: [
+        issue.elementId && names.has(issue.elementId) && /* @__PURE__ */ jsxs13(Fragment6, { children: [
           " ",
-          /* @__PURE__ */ jsx18(
+          /* @__PURE__ */ jsx19(
             Button3,
             {
               variant: "text",
+              className: "inline-action",
               onClick: () => onInspect(issue.elementId),
               children: names.get(issue.elementId)
             }
           )
         ] })
       ] }, i)),
-      /* @__PURE__ */ jsxs12(
-        DisclosureNote,
+      /* @__PURE__ */ jsxs13(
+        Disclosure,
         {
           title: `${scenario.instances.length} instances \xB7 ${scenario.links.length} links`,
           children: [
-            /* @__PURE__ */ jsx18("ul", { className: "example-list", children: scenario.instances.map((instance) => /* @__PURE__ */ jsxs12("li", { children: [
-              /* @__PURE__ */ jsx18("strong", { children: instance.label || instance.id }),
+            /* @__PURE__ */ jsx19("ul", { className: "example-list", children: scenario.instances.map((instance) => /* @__PURE__ */ jsxs13("li", { children: [
+              /* @__PURE__ */ jsx19("strong", { children: instance.label || instance.id }),
               ": ",
               instance.classIds.map((id) => classNames.get(id) || id).join(", ")
             ] }, instance.id)) }),
-            scenario.links.length > 0 && /* @__PURE__ */ jsx18("ul", { className: "example-list", children: scenario.links.map((link, i) => /* @__PURE__ */ jsxs12("li", { children: [
+            scenario.links.length > 0 && /* @__PURE__ */ jsx19("ul", { className: "example-list", children: scenario.links.map((link, i) => /* @__PURE__ */ jsxs13("li", { children: [
               labels.get(link.sourceId) || link.sourceId,
               " \u2192",
               " ",
-              /* @__PURE__ */ jsx18("em", { children: names.get(link.relationId) || link.relationId }),
+              /* @__PURE__ */ jsx19("em", { children: names.get(link.relationId) || link.relationId }),
               " \u2192",
               " ",
               labels.get(link.targetId) || link.targetId
             ] }, i)) }),
-            scenario.result.unassessed.map((u, i) => /* @__PURE__ */ jsx18(Text5, { tone: "muted", children: u.message }, i))
+            scenario.result.unassessed.map((u, i) => /* @__PURE__ */ jsx19(Text6, { emphasis: "muted", children: u.message }, i))
           ]
         }
       )
@@ -3585,9 +3629,17 @@ function ScenarioPanel({ model, scenarios = null, onInspect }) {
   );
   const examples = scenarios?.scenarios || [];
   if (!examples.length) return null;
-  return /* @__PURE__ */ jsx18(Stack2, { gap: 6, className: "scenario-panel", children: /* @__PURE__ */ jsxs12(Stack2, { as: "section", gap: 3, "aria-label": "Examples", children: [
-    /* @__PURE__ */ jsx18(Text5, { as: "h3", variant: "caption", className: "detail-section-title", children: "Examples" }),
-    /* @__PURE__ */ jsx18(
+  return /* @__PURE__ */ jsx19(Column3, { gap: 6, className: "scenario-panel", children: /* @__PURE__ */ jsxs13(Column3, { render: /* @__PURE__ */ jsx19("section", {}), gap: 3, "aria-label": "Examples", children: [
+    /* @__PURE__ */ jsx19(
+      Text6,
+      {
+        render: /* @__PURE__ */ jsx19("h3", {}),
+        variant: "body-sm",
+        className: "detail-section-title",
+        children: "Examples"
+      }
+    ),
+    /* @__PURE__ */ jsx19(
       Examples,
       {
         examples,
@@ -3601,48 +3653,48 @@ function ScenarioPanel({ model, scenarios = null, onInspect }) {
 
 // src/details/ElementDetails.jsx
 import { memo as memo5 } from "react";
-import { Badge as Badge4, Button as Button6, DisclosureNote as DisclosureNote4, Stack as Stack5, Text as Text11 } from "@envsemble/envui";
+import { Badge as Badge4, Button as Button6, Disclosure as Disclosure4, Column as Column6, Text as Text12 } from "@envsemble/envui";
 
 // src/details/SourceEvidence.jsx
-import { Button as Button4, Card, DisclosureNote as DisclosureNote2, Stack as Stack3, Text as Text6 } from "@envsemble/envui";
+import { Button as Button4, Card, Disclosure as Disclosure2, Column as Column4, Text as Text7 } from "@envsemble/envui";
 
 // src/ui/CodeSnippet.jsx
 import { Fragment as Fragment7, memo as memo4 } from "react";
-import { jsx as jsx19, jsxs as jsxs13 } from "react/jsx-runtime";
+import { jsx as jsx20, jsxs as jsxs14 } from "react/jsx-runtime";
 var CodeSnippet = memo4(function CodeSnippet2({ snippet, label }) {
-  return /* @__PURE__ */ jsx19("pre", { className: "shiki code-snippet", tabIndex: 0, "aria-label": label, children: /* @__PURE__ */ jsx19("code", { children: snippet.lines.map((tokens, i) => /* @__PURE__ */ jsxs13(Fragment7, { children: [
-    /* @__PURE__ */ jsx19("span", { className: "code-line", "data-line": snippet.startLine + i, children: tokens.map((token, j) => /* @__PURE__ */ jsx19("span", { style: token.style, children: token.content }, j)) }),
+  return /* @__PURE__ */ jsx20("pre", { className: "shiki code-snippet", tabIndex: 0, "aria-label": label, children: /* @__PURE__ */ jsx20("code", { children: snippet.lines.map((tokens, i) => /* @__PURE__ */ jsxs14(Fragment7, { children: [
+    /* @__PURE__ */ jsx20("span", { className: "code-line", "data-line": snippet.startLine + i, children: tokens.map((token, j) => /* @__PURE__ */ jsx20("span", { style: token.style, children: token.content }, j)) }),
     i < snippet.lines.length - 1 ? "\n" : null
   ] }, i)) }) });
 });
 
 // src/details/SourceEvidence.jsx
-import { jsx as jsx20, jsxs as jsxs14 } from "react/jsx-runtime";
+import { jsx as jsx21, jsxs as jsxs15 } from "react/jsx-runtime";
 function SourceExcerpt({ source, snippet }) {
   if (!snippet)
-    return /* @__PURE__ */ jsxs14(Stack3, { gap: 2, align: "start", className: "source-excerpt", children: [
-      /* @__PURE__ */ jsx20(Text6, { children: source.claim }),
-      source.url && /* @__PURE__ */ jsx20(
+    return /* @__PURE__ */ jsxs15(Column4, { gap: 2, align: "start", className: "source-excerpt", children: [
+      /* @__PURE__ */ jsx21(Text7, { children: source.claim }),
+      source.url && /* @__PURE__ */ jsx21(
         Button4,
         {
           variant: "text",
           href: source.url,
           target: "_blank",
           rel: "noopener noreferrer",
-          endIcon: /* @__PURE__ */ jsx20(OpenInNew, {}),
+          endIcon: /* @__PURE__ */ jsx21(IconOpenInNew, {}),
           children: "View source"
         }
       )
     ] });
   const github = snippet.url?.startsWith("https://github.com/");
-  return /* @__PURE__ */ jsx20(
+  return /* @__PURE__ */ jsx21(
     Card,
     {
       padding: 3,
       className: "source-file-card",
-      heading: /* @__PURE__ */ jsx20("span", { title: source.file, children: source.file.split("/").pop() }),
+      title: /* @__PURE__ */ jsx21("span", { title: source.file, children: source.file.split("/").pop() }),
       meta: `${snippet.language} \xB7 lines ${snippet.startLine}\u2013${snippet.endLine}`,
-      actions: snippet.url ? /* @__PURE__ */ jsx20(
+      actions: snippet.url ? /* @__PURE__ */ jsx21(
         Button4,
         {
           variant: "text",
@@ -3650,11 +3702,11 @@ function SourceExcerpt({ source, snippet }) {
           target: "_blank",
           rel: "noopener noreferrer",
           "aria-label": `View ${source.title} on ${github ? "GitHub" : "its source"}`,
-          endIcon: /* @__PURE__ */ jsx20(OpenInNew, {}),
+          endIcon: /* @__PURE__ */ jsx21(IconOpenInNew, {}),
           children: github ? "View on GitHub" : "View source"
         }
       ) : void 0,
-      children: /* @__PURE__ */ jsx20(
+      children: /* @__PURE__ */ jsx21(
         CodeSnippet,
         {
           snippet,
@@ -3673,29 +3725,37 @@ function SourceEvidence({
 }) {
   const records = [...new Set(primary ? [primary, ...evidence] : evidence)].filter((id) => evidence.includes(id)).map((id) => sources.find((s) => s.id === id)).filter(Boolean);
   if (!records.length) return null;
-  return /* @__PURE__ */ jsxs14(
-    Stack3,
+  return /* @__PURE__ */ jsxs15(
+    Column4,
     {
-      as: "section",
+      render: /* @__PURE__ */ jsx21("section", {}),
       gap: 2,
       className: "source-evidence detail-section",
       "aria-label": label,
       children: [
-        label !== "Source" && /* @__PURE__ */ jsx20(Text6, { as: "h2", variant: "caption", className: "detail-section-title", children: label }),
+        label !== "Source" && /* @__PURE__ */ jsx21(
+          Text7,
+          {
+            render: /* @__PURE__ */ jsx21("h2", {}),
+            variant: "body-sm",
+            className: "detail-section-title",
+            children: label
+          }
+        ),
         records.map(
-          (source, i) => i === 0 ? /* @__PURE__ */ jsx20(
+          (source, i) => i === 0 ? /* @__PURE__ */ jsx21(
             SourceExcerpt,
             {
               source,
               snippet: snippets[source.id]
             },
             source.id
-          ) : /* @__PURE__ */ jsx20(
-            DisclosureNote2,
+          ) : /* @__PURE__ */ jsx21(
+            Disclosure2,
             {
               title: source.title,
               className: "additional-source",
-              children: /* @__PURE__ */ jsx20(SourceExcerpt, { source, snippet: snippets[source.id] })
+              children: /* @__PURE__ */ jsx21(SourceExcerpt, { source, snippet: snippets[source.id] })
             },
             source.id
           )
@@ -3706,21 +3766,21 @@ function SourceEvidence({
 }
 
 // src/details/DetailHeader.jsx
-import { Badge as Badge3, Text as Text7 } from "@envsemble/envui";
+import { Badge as Badge3, Text as Text8 } from "@envsemble/envui";
 
 // src/review/ChangeMark.jsx
-import { jsx as jsx21 } from "react/jsx-runtime";
+import { jsx as jsx22 } from "react/jsx-runtime";
 function ChangeMark({ status }) {
   if (!CHANGE_LABELS[status]) return null;
-  return /* @__PURE__ */ jsx21("span", { className: "change-mark", "data-change": status, "aria-hidden": "true", children: changeGlyph(status) });
+  return /* @__PURE__ */ jsx22("span", { className: "change-mark", "data-change": status, "aria-hidden": "true", children: changeGlyph(status) });
 }
 function ChangeBadge({ status }) {
   if (!CHANGE_LABELS[status]) return null;
-  return /* @__PURE__ */ jsx21("span", { className: "change-badge", "data-change": status, children: CHANGE_LABELS[status] });
+  return /* @__PURE__ */ jsx22("span", { className: "change-badge", "data-change": status, children: CHANGE_LABELS[status] });
 }
 
 // src/details/DetailHeader.jsx
-import { jsx as jsx22, jsxs as jsxs15 } from "react/jsx-runtime";
+import { jsx as jsx23, jsxs as jsxs16 } from "react/jsx-runtime";
 var STATUSES = {
   inferred: {
     label: "Inferred",
@@ -3740,44 +3800,44 @@ function DetailHeader({
   status,
   change,
   description,
-  icon: Icon = Category
+  icon: Icon = IconCategory
 }) {
   const evidence = change !== "added" && STATUSES[status];
-  return /* @__PURE__ */ jsxs15("header", { className: "detail-header", children: [
-    /* @__PURE__ */ jsxs15("div", { className: "detail-title", children: [
-      /* @__PURE__ */ jsx22("span", { className: "detail-icon", "aria-hidden": "true", children: /* @__PURE__ */ jsx22(Icon, {}) }),
-      /* @__PURE__ */ jsxs15(Text7, { as: "h1", variant: "page-heading", children: [
-        owner && /* @__PURE__ */ jsxs15("span", { className: "detail-owner", children: [
+  return /* @__PURE__ */ jsxs16("header", { className: "detail-header", children: [
+    /* @__PURE__ */ jsxs16("div", { className: "detail-title", children: [
+      /* @__PURE__ */ jsx23("span", { className: "detail-icon", "aria-hidden": "true", children: /* @__PURE__ */ jsx23(Icon, {}) }),
+      /* @__PURE__ */ jsxs16(Text8, { render: /* @__PURE__ */ jsx23("h1", {}), variant: "title", children: [
+        owner && /* @__PURE__ */ jsxs16("span", { className: "detail-owner", children: [
           owner,
           "."
         ] }),
         title
       ] })
     ] }),
-    (tag || change || evidence) && /* @__PURE__ */ jsxs15("div", { className: "detail-tags", children: [
-      tag && /* @__PURE__ */ jsx22(Badge3, { variant: "outline", children: tag }),
-      /* @__PURE__ */ jsx22(ChangeBadge, { status: change }),
-      evidence && /* @__PURE__ */ jsx22(Badge3, { tone: evidence.tone, title: evidence.title, children: evidence.label })
+    (tag || change || evidence) && /* @__PURE__ */ jsxs16("div", { className: "detail-tags", children: [
+      tag && /* @__PURE__ */ jsx23(Badge3, { variant: "outline", children: tag }),
+      /* @__PURE__ */ jsx23(ChangeBadge, { status: change }),
+      evidence && /* @__PURE__ */ jsx23(Badge3, { tone: evidence.tone, title: evidence.title, children: evidence.label })
     ] }),
-    description && /* @__PURE__ */ jsx22(Text7, { tone: "muted", className: "detail-description", children: description })
+    description && /* @__PURE__ */ jsx23(Text8, { emphasis: "muted", className: "detail-description", children: description })
   ] });
 }
 
 // src/details/sections/ChangedValue.jsx
-import { Fragment as Fragment8, jsx as jsx23, jsxs as jsxs16 } from "react/jsx-runtime";
+import { Fragment as Fragment8, jsx as jsx24, jsxs as jsxs17 } from "react/jsx-runtime";
 function ChangedValue({ before, after }) {
-  return /* @__PURE__ */ jsxs16(Fragment8, { children: [
-    /* @__PURE__ */ jsx23("del", { className: "change-before", children: before }),
-    /* @__PURE__ */ jsx23("span", { className: "change-arrow", "aria-hidden": "true", children: "\u2192" }),
-    /* @__PURE__ */ jsx23("span", { className: "visually-hidden", children: " changed to " }),
-    /* @__PURE__ */ jsx23("ins", { className: "change-after", children: after })
+  return /* @__PURE__ */ jsxs17(Fragment8, { children: [
+    /* @__PURE__ */ jsx24("del", { className: "change-before", children: before }),
+    /* @__PURE__ */ jsx24("span", { className: "change-arrow", "aria-hidden": "true", children: "\u2192" }),
+    /* @__PURE__ */ jsx24("span", { className: "visually-hidden", children: " changed to " }),
+    /* @__PURE__ */ jsx24("ins", { className: "change-after", children: after })
   ] });
 }
 function ChangedProperty({ name, before, after }) {
-  return /* @__PURE__ */ jsxs16("span", { children: [
-    /* @__PURE__ */ jsx23("span", { className: "change-key", children: name }),
+  return /* @__PURE__ */ jsxs17("span", { children: [
+    /* @__PURE__ */ jsx24("span", { className: "change-key", children: name }),
     " ",
-    /* @__PURE__ */ jsx23(ChangedValue, { before, after })
+    /* @__PURE__ */ jsx24(ChangedValue, { before, after })
   ] });
 }
 
@@ -3785,18 +3845,18 @@ function ChangedProperty({ name, before, after }) {
 import { Button as Button5 } from "@envsemble/envui";
 
 // src/details/sections/Section.jsx
-import { Stack as Stack4, Text as Text8 } from "@envsemble/envui";
-import { jsx as jsx24, jsxs as jsxs17 } from "react/jsx-runtime";
+import { Column as Column5, Text as Text9 } from "@envsemble/envui";
+import { jsx as jsx25, jsxs as jsxs18 } from "react/jsx-runtime";
 function Section({ title, label = title, className = "", children }) {
-  return /* @__PURE__ */ jsxs17(
-    Stack4,
+  return /* @__PURE__ */ jsxs18(
+    Column5,
     {
-      as: "section",
+      render: /* @__PURE__ */ jsx25("section", {}),
       gap: 2,
       className: `detail-section${className ? ` ${className}` : ""}`,
       "aria-label": label,
       children: [
-        /* @__PURE__ */ jsx24(Text8, { as: "h2", variant: "caption", className: "detail-section-title", children: title }),
+        /* @__PURE__ */ jsx25(Text9, { render: /* @__PURE__ */ jsx25("h2", {}), variant: "body-sm", className: "detail-section-title", children: title }),
         children
       ]
     }
@@ -3804,7 +3864,7 @@ function Section({ title, label = title, className = "", children }) {
 }
 
 // src/details/sections/CodeWhere.jsx
-import { jsx as jsx25, jsxs as jsxs18 } from "react/jsx-runtime";
+import { jsx as jsx26, jsxs as jsxs19 } from "react/jsx-runtime";
 function sourceOf(element, sources) {
   const ids = [element.primarySource, ...element.evidence || []].filter(
     Boolean
@@ -3819,26 +3879,26 @@ function CodeWhere({ element, model, snippets, change }) {
   const snippet = source && snippets?.[source.id];
   if (!file && !snippet) return null;
   const url = snippet?.url || source?.url;
-  return /* @__PURE__ */ jsxs18(Section, { title: change === "removed" ? "Where it was" : "Where in code", children: [
-    /* @__PURE__ */ jsxs18("div", { className: "code-where", children: [
-      /* @__PURE__ */ jsx25("code", { className: "code-path", title: file || void 0, children: file || source.file }),
-      location2 && /* @__PURE__ */ jsx25("span", { className: "code-lines", children: location2.startLine === location2.endLine ? `line ${location2.startLine}` : `lines ${location2.startLine}\u2013${location2.endLine}` })
+  return /* @__PURE__ */ jsxs19(Section, { title: change === "removed" ? "Where it was" : "Where in code", children: [
+    /* @__PURE__ */ jsxs19("div", { className: "code-where", children: [
+      /* @__PURE__ */ jsx26("code", { className: "code-path", title: file || void 0, children: file || source.file }),
+      location2 && /* @__PURE__ */ jsx26("span", { className: "code-lines", children: location2.startLine === location2.endLine ? `line ${location2.startLine}` : `lines ${location2.startLine}\u2013${location2.endLine}` })
     ] }),
-    snippet && /* @__PURE__ */ jsx25(
+    snippet && /* @__PURE__ */ jsx26(
       CodeSnippet,
       {
         snippet,
         label: `${file || source.title}, lines ${snippet.startLine} to ${snippet.endLine}`
       }
     ),
-    url && /* @__PURE__ */ jsx25(
+    url && /* @__PURE__ */ jsx26(
       Button5,
       {
         variant: "text",
         href: url,
         target: "_blank",
         rel: "noopener noreferrer",
-        endIcon: /* @__PURE__ */ jsx25(OpenInNew, {}),
+        endIcon: /* @__PURE__ */ jsx26(IconOpenInNew, {}),
         className: "code-source-link",
         children: url.startsWith("https://github.com/") ? "View on GitHub" : "View source"
       }
@@ -3848,8 +3908,8 @@ function CodeWhere({ element, model, snippets, change }) {
 
 // src/details/sections/Members.jsx
 import { useEffect as useEffect7, useRef as useRef6 } from "react";
-import { Text as Text9 } from "@envsemble/envui";
-import { Fragment as Fragment9, jsx as jsx26, jsxs as jsxs19 } from "react/jsx-runtime";
+import { Text as Text10 } from "@envsemble/envui";
+import { Fragment as Fragment9, jsx as jsx27, jsxs as jsxs20 } from "react/jsx-runtime";
 function useReveal(focused) {
   const ref = useRef6(null);
   useEffect7(() => {
@@ -3859,7 +3919,7 @@ function useReveal(focused) {
 }
 function FocusableRow({ focused, change, children }) {
   const ref = useReveal(focused);
-  return /* @__PURE__ */ jsx26(
+  return /* @__PURE__ */ jsx27(
     "li",
     {
       ref,
@@ -3872,16 +3932,16 @@ function FocusableRow({ focused, change, children }) {
 }
 function Described({ description, children }) {
   if (!description) return children;
-  return /* @__PURE__ */ jsxs19("span", { className: "member-text", children: [
+  return /* @__PURE__ */ jsxs20("span", { className: "member-text", children: [
     children,
-    /* @__PURE__ */ jsx26(Text9, { as: "span", variant: "supporting", className: "member-description", children: description })
+    /* @__PURE__ */ jsx27(Text10, { render: /* @__PURE__ */ jsx27("span", {}), variant: "body-sm", className: "member-description", children: description })
   ] });
 }
 function MemberRow({ member, method, profile, review, focused }) {
   const status = review ? member.changeStatus : void 0;
   const marked = status && status !== "unchanged";
   const ref = useReveal(focused);
-  return /* @__PURE__ */ jsxs19(
+  return /* @__PURE__ */ jsxs20(
     "li",
     {
       ref,
@@ -3889,23 +3949,23 @@ function MemberRow({ member, method, profile, review, focused }) {
       "data-change": marked ? status : void 0,
       "aria-current": focused ? "true" : void 0,
       children: [
-        review && /* @__PURE__ */ jsx26(ChangeMark, { status }),
-        marked && /* @__PURE__ */ jsxs19("span", { className: "visually-hidden", children: [
+        review && /* @__PURE__ */ jsx27(ChangeMark, { status }),
+        marked && /* @__PURE__ */ jsxs20("span", { className: "visually-hidden", children: [
           CHANGE_LABELS[status],
           ": "
         ] }),
-        /* @__PURE__ */ jsx26(Described, { description: member.description, children: /* @__PURE__ */ jsx26("code", { className: "signature", children: method ? member.type || `${member.name}()` : /* @__PURE__ */ jsxs19(Fragment9, { children: [
-          /* @__PURE__ */ jsxs19("span", { className: "member-name", children: [
+        /* @__PURE__ */ jsx27(Described, { description: member.description, children: /* @__PURE__ */ jsx27("code", { className: "signature", children: method ? member.type || `${member.name}()` : /* @__PURE__ */ jsxs20(Fragment9, { children: [
+          /* @__PURE__ */ jsxs20("span", { className: "member-name", children: [
             member.name,
             member.optional ? "?" : ""
           ] }),
-          member.type && /* @__PURE__ */ jsxs19("span", { className: "member-type", children: [
+          member.type && /* @__PURE__ */ jsxs20("span", { className: "member-type", children: [
             profile === "database" ? " " : ": ",
             member.type,
             member.multiplicity ? ` [${member.multiplicity}]` : ""
           ] })
         ] }) }) }),
-        member.location && /* @__PURE__ */ jsx26(
+        member.location && /* @__PURE__ */ jsx27(
           "span",
           {
             className: "member-line",
@@ -3922,8 +3982,8 @@ function Members({ element, profile, review, focus = null }) {
   if (!fields.length && !methods.length) return null;
   const marks = review && element.changeStatus === "modified";
   const fieldTitle = element.stereotype === "enum" ? "Members" : profile === "code" ? "Fields" : "Attributes";
-  return /* @__PURE__ */ jsxs19(Fragment9, { children: [
-    fields.length > 0 && /* @__PURE__ */ jsx26(Section, { title: `${fieldTitle} \xB7 ${fields.length}`, label: fieldTitle, children: /* @__PURE__ */ jsx26("ul", { className: `member-list${marks ? " marked" : ""}`, children: fields.map((member) => /* @__PURE__ */ jsx26(
+  return /* @__PURE__ */ jsxs20(Fragment9, { children: [
+    fields.length > 0 && /* @__PURE__ */ jsx27(Section, { title: `${fieldTitle} \xB7 ${fields.length}`, label: fieldTitle, children: /* @__PURE__ */ jsx27("ul", { className: `member-list${marks ? " marked" : ""}`, children: fields.map((member) => /* @__PURE__ */ jsx27(
       MemberRow,
       {
         member,
@@ -3933,7 +3993,7 @@ function Members({ element, profile, review, focus = null }) {
       },
       member.id
     )) }) }),
-    methods.length > 0 && /* @__PURE__ */ jsx26(Section, { title: `Methods \xB7 ${methods.length}`, label: "Methods", children: /* @__PURE__ */ jsx26("ul", { className: `member-list${marks ? " marked" : ""}`, children: methods.map((member) => /* @__PURE__ */ jsx26(
+    methods.length > 0 && /* @__PURE__ */ jsx27(Section, { title: `Methods \xB7 ${methods.length}`, label: "Methods", children: /* @__PURE__ */ jsx27("ul", { className: `member-list${marks ? " marked" : ""}`, children: methods.map((member) => /* @__PURE__ */ jsx27(
       MemberRow,
       {
         member,
@@ -3948,8 +4008,8 @@ function Members({ element, profile, review, focus = null }) {
 }
 
 // src/details/sections/TableSchema.jsx
-import { DisclosureNote as DisclosureNote3 } from "@envsemble/envui";
-import { Fragment as Fragment10, jsx as jsx27, jsxs as jsxs20 } from "react/jsx-runtime";
+import { Disclosure as Disclosure3 } from "@envsemble/envui";
+import { Fragment as Fragment10, jsx as jsx28, jsxs as jsxs21 } from "react/jsx-runtime";
 function foreignKeys(element, model, rollup) {
   const outgoing = (model.relations || []).filter(
     (r) => r.sourceId === element.id && Array.isArray(r.columns)
@@ -4023,32 +4083,32 @@ function TableSchema({
     ...(element.constraints || []).map((c) => c.definition),
     ...(element.triggers || []).map((t) => t.definition || t.sql)
   ].filter(Boolean);
-  return /* @__PURE__ */ jsxs20(Fragment10, { children: [
-    columns.length > 0 && /* @__PURE__ */ jsx27(Section, { title: `Columns \xB7 ${columns.length}`, label: "Columns", children: /* @__PURE__ */ jsx27("ul", { className: `member-list columns${marks ? " marked" : ""}`, children: columns.map((column) => {
+  return /* @__PURE__ */ jsxs21(Fragment10, { children: [
+    columns.length > 0 && /* @__PURE__ */ jsx28(Section, { title: `Columns \xB7 ${columns.length}`, label: "Columns", children: /* @__PURE__ */ jsx28("ul", { className: `member-list columns${marks ? " marked" : ""}`, children: columns.map((column) => {
       const status = marks ? column.changeStatus : void 0;
       const marked = status && status !== "unchanged";
-      return /* @__PURE__ */ jsxs20(
+      return /* @__PURE__ */ jsxs21(
         FocusableRow,
         {
           focused: column.id === focus,
           change: marked ? status : void 0,
           children: [
-            marks && /* @__PURE__ */ jsx27(ChangeMark, { status }),
-            marked && /* @__PURE__ */ jsxs20("span", { className: "visually-hidden", children: [
+            marks && /* @__PURE__ */ jsx28(ChangeMark, { status }),
+            marked && /* @__PURE__ */ jsxs21("span", { className: "visually-hidden", children: [
               CHANGE_LABELS[status],
               ":",
               " "
             ] }),
-            /* @__PURE__ */ jsx27(Described, { description: column.description, children: /* @__PURE__ */ jsxs20("code", { className: "signature", children: [
-              /* @__PURE__ */ jsx27("span", { className: "member-name", children: column.name }),
+            /* @__PURE__ */ jsx28(Described, { description: column.description, children: /* @__PURE__ */ jsxs21("code", { className: "signature", children: [
+              /* @__PURE__ */ jsx28("span", { className: "member-name", children: column.name }),
               " ",
-              /* @__PURE__ */ jsxs20("span", { className: "member-type", children: [
+              /* @__PURE__ */ jsxs21("span", { className: "member-type", children: [
                 column.type,
                 column.nullable ? "" : " not null",
                 column.default !== null && column.default !== void 0 ? ` default ${column.default}` : ""
               ] })
             ] }) }),
-            (column.primaryKeyOrder || column.generated) && /* @__PURE__ */ jsxs20("span", { className: "column-flags", children: [
+            (column.primaryKeyOrder || column.generated) && /* @__PURE__ */ jsxs21("span", { className: "column-flags", children: [
               column.primaryKeyOrder ? "PK" : "",
               column.generated ? " generated" : ""
             ] })
@@ -4057,29 +4117,29 @@ function TableSchema({
         column.id
       );
     }) }) }),
-    (outgoing.length > 0 || unique.length > 0 || external.length > 0) && /* @__PURE__ */ jsx27(Section, { title: "Keys", children: /* @__PURE__ */ jsxs20(
+    (outgoing.length > 0 || unique.length > 0 || external.length > 0) && /* @__PURE__ */ jsx28(Section, { title: "Keys", children: /* @__PURE__ */ jsxs21(
       "ul",
       {
         className: `member-list${outgoing.some((key) => key.status) || keyChanges.size || foreignChanges.size ? " marked" : ""}`,
         children: [
           unique.map((key) => {
             const change = keyChanges.get(key.name);
-            return /* @__PURE__ */ jsxs20(
+            return /* @__PURE__ */ jsxs21(
               "li",
               {
                 className: "member",
                 "data-change": change?.status,
                 children: [
-                  change && /* @__PURE__ */ jsx27(ChangeMark, { status: change.status }),
-                  change && /* @__PURE__ */ jsxs20("span", { className: "visually-hidden", children: [
+                  change && /* @__PURE__ */ jsx28(ChangeMark, { status: change.status }),
+                  change && /* @__PURE__ */ jsxs21("span", { className: "visually-hidden", children: [
                     CHANGE_LABELS[change.status],
                     ":",
                     " "
                   ] }),
-                  /* @__PURE__ */ jsxs20("code", { className: "signature", children: [
-                    /* @__PURE__ */ jsx27("span", { className: "member-name", children: "unique" }),
+                  /* @__PURE__ */ jsxs21("code", { className: "signature", children: [
+                    /* @__PURE__ */ jsx28("span", { className: "member-name", children: "unique" }),
                     " ",
-                    /* @__PURE__ */ jsx27("span", { className: "member-type", children: change?.status === "modified" ? /* @__PURE__ */ jsx27(
+                    /* @__PURE__ */ jsx28("span", { className: "member-type", children: change?.status === "modified" ? /* @__PURE__ */ jsx28(
                       ChangedValue,
                       {
                         before: partChange(change.before, change.after)[0],
@@ -4092,39 +4152,39 @@ function TableSchema({
               key.name
             );
           }),
-          outgoing.map(({ relation, previous, status, details, names }) => /* @__PURE__ */ jsxs20(
+          outgoing.map(({ relation, previous, status, details, names }) => /* @__PURE__ */ jsxs21(
             "li",
             {
               className: "member",
               "data-change": status && status !== "unchanged" ? status : void 0,
               children: [
-                status && /* @__PURE__ */ jsx27(ChangeMark, { status }),
-                status && CHANGE_LABELS[status] && /* @__PURE__ */ jsxs20("span", { className: "visually-hidden", children: [
+                status && /* @__PURE__ */ jsx28(ChangeMark, { status }),
+                status && CHANGE_LABELS[status] && /* @__PURE__ */ jsxs21("span", { className: "visually-hidden", children: [
                   CHANGE_LABELS[status],
                   ":",
                   " "
                 ] }),
-                /* @__PURE__ */ jsxs20("span", { className: "change-line-text", children: [
-                  /* @__PURE__ */ jsx27("code", { className: "signature", children: previous && keyText(previous) !== keyText(relation) ? /* @__PURE__ */ jsx27(
+                /* @__PURE__ */ jsxs21("span", { className: "change-line-text", children: [
+                  /* @__PURE__ */ jsx28("code", { className: "signature", children: previous && keyText(previous) !== keyText(relation) ? /* @__PURE__ */ jsx28(
                     ChangedValue,
                     {
                       before: keyText(previous),
                       after: keyText(relation)
                     }
-                  ) : /* @__PURE__ */ jsxs20(Fragment10, { children: [
-                    /* @__PURE__ */ jsx27("span", { className: "member-name", children: relation.columns.join(", ") }),
+                  ) : /* @__PURE__ */ jsxs21(Fragment10, { children: [
+                    /* @__PURE__ */ jsx28("span", { className: "member-name", children: relation.columns.join(", ") }),
                     " ",
-                    /* @__PURE__ */ jsxs20("span", { className: "member-type", children: [
+                    /* @__PURE__ */ jsxs21("span", { className: "member-type", children: [
                       "\u2192 ",
                       tables.get(relation.targetId) || relation.target,
                       referencedColumns(relation.targetColumns)
                     ] })
                   ] }) }),
-                  details.map((p) => /* @__PURE__ */ jsxs20("span", { className: "change-detail", children: [
+                  details.map((p) => /* @__PURE__ */ jsxs21("span", { className: "change-detail", children: [
                     p.key,
                     ":",
                     " ",
-                    /* @__PURE__ */ jsx27(
+                    /* @__PURE__ */ jsx28(
                       ChangedValue,
                       {
                         before: cellText(p.before, names, p.key),
@@ -4139,28 +4199,28 @@ function TableSchema({
           )),
           external.map((key) => {
             const change = foreignChanges.get(partKey(key));
-            return /* @__PURE__ */ jsxs20(
+            return /* @__PURE__ */ jsxs21(
               "li",
               {
                 className: "member",
                 "data-change": change?.status,
                 children: [
-                  change && /* @__PURE__ */ jsx27(ChangeMark, { status: change.status }),
-                  change && /* @__PURE__ */ jsxs20("span", { className: "visually-hidden", children: [
+                  change && /* @__PURE__ */ jsx28(ChangeMark, { status: change.status }),
+                  change && /* @__PURE__ */ jsxs21("span", { className: "visually-hidden", children: [
                     CHANGE_LABELS[change.status],
                     ":",
                     " "
                   ] }),
-                  /* @__PURE__ */ jsx27("code", { className: "signature", children: change?.status === "modified" ? /* @__PURE__ */ jsx27(
+                  /* @__PURE__ */ jsx28("code", { className: "signature", children: change?.status === "modified" ? /* @__PURE__ */ jsx28(
                     ChangedValue,
                     {
                       before: partChange(change.before, change.after)[0],
                       after: partChange(change.before, change.after)[1]
                     }
-                  ) : /* @__PURE__ */ jsxs20(Fragment10, { children: [
-                    /* @__PURE__ */ jsx27("span", { className: "member-name", children: key.columns.join(", ") }),
+                  ) : /* @__PURE__ */ jsxs21(Fragment10, { children: [
+                    /* @__PURE__ */ jsx28("span", { className: "member-name", children: key.columns.join(", ") }),
                     " ",
-                    /* @__PURE__ */ jsxs20("span", { className: "member-type", children: [
+                    /* @__PURE__ */ jsxs21("span", { className: "member-type", children: [
                       "\u2192 ",
                       key.target,
                       referencedColumns(key.targetColumns)
@@ -4174,13 +4234,13 @@ function TableSchema({
         ]
       }
     ) }),
-    sql.length > 0 && /* @__PURE__ */ jsx27(DisclosureNote3, { title: "Definition", className: "detail-definition", children: sql.map((text, i) => /* @__PURE__ */ jsx27("pre", { className: "source-code", tabIndex: 0, children: /* @__PURE__ */ jsx27("code", { children: text }) }, i)) })
+    sql.length > 0 && /* @__PURE__ */ jsx28(Disclosure3, { title: "Definition", className: "detail-definition", children: sql.map((text, i) => /* @__PURE__ */ jsx28("pre", { className: "source-code", tabIndex: 0, children: /* @__PURE__ */ jsx28("code", { children: text }) }, i)) })
   ] });
 }
 
 // src/details/sections/WhatChanges.jsx
-import { Text as Text10 } from "@envsemble/envui";
-import { jsx as jsx28, jsxs as jsxs21 } from "react/jsx-runtime";
+import { Text as Text11 } from "@envsemble/envui";
+import { jsx as jsx29, jsxs as jsxs22 } from "react/jsx-runtime";
 var KIND_WORDS = { "type alias": "type alias", enum: "enum" };
 var countOf = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 function contents(element, profile, except = /* @__PURE__ */ new Set()) {
@@ -4205,42 +4265,42 @@ function WhatChanges({ change, element, model, profile }) {
   ).join("; ")}.` : "";
   if (change.status === "added") {
     const file = profile === "code" ? elementFile(element, model) : null;
-    return /* @__PURE__ */ jsxs21(Section, { title: "What changes", children: [
-      /* @__PURE__ */ jsxs21(Text10, { children: [
+    return /* @__PURE__ */ jsxs22(Section, { title: "What changes", children: [
+      /* @__PURE__ */ jsxs22(Text11, { children: [
         "New ",
         kind,
         held ? ` with ${held}` : "",
         "."
       ] }),
-      movedText && /* @__PURE__ */ jsx28(Text10, { children: movedText }),
-      file && /* @__PURE__ */ jsxs21(Text10, { className: "proposed-location", children: [
+      movedText && /* @__PURE__ */ jsx29(Text11, { children: movedText }),
+      file && /* @__PURE__ */ jsxs22(Text11, { className: "proposed-location", children: [
         "Proposed in ",
-        /* @__PURE__ */ jsx28("code", { children: file }),
+        /* @__PURE__ */ jsx29("code", { children: file }),
         fileExists(model, file) ? "" : " (a new file)"
       ] })
     ] });
   }
   if (change.status === "removed")
-    return /* @__PURE__ */ jsxs21(Section, { title: "What changes", children: [
-      /* @__PURE__ */ jsxs21(Text10, { children: [
+    return /* @__PURE__ */ jsxs22(Section, { title: "What changes", children: [
+      /* @__PURE__ */ jsxs22(Text11, { children: [
         "The ",
         kind,
         " is removed",
         held ? `, with its ${held}` : "",
         "."
       ] }),
-      movedText && /* @__PURE__ */ jsx28(Text10, { children: movedText })
+      movedText && /* @__PURE__ */ jsx29(Text11, { children: movedText })
     ] });
   if (!change.properties.length && !change.members.length) return null;
-  return /* @__PURE__ */ jsx28(Section, { title: "What changes", children: /* @__PURE__ */ jsxs21("ul", { className: "change-list", children: [
-    change.properties.map((p, i) => /* @__PURE__ */ jsxs21(
+  return /* @__PURE__ */ jsx29(Section, { title: "What changes", children: /* @__PURE__ */ jsxs22("ul", { className: "change-list", children: [
+    change.properties.map((p, i) => /* @__PURE__ */ jsxs22(
       "li",
       {
         className: "change-line",
         "data-change": p.status,
         children: [
-          /* @__PURE__ */ jsx28(ChangeMark, { status: p.status }),
-          /* @__PURE__ */ jsx28("span", { className: "change-line-text", children: p.status === "modified" ? /* @__PURE__ */ jsx28(
+          /* @__PURE__ */ jsx29(ChangeMark, { status: p.status }),
+          /* @__PURE__ */ jsx29("span", { className: "change-line-text", children: p.status === "modified" ? /* @__PURE__ */ jsx29(
             ChangedProperty,
             {
               name: p.key,
@@ -4249,35 +4309,35 @@ function WhatChanges({ change, element, model, profile }) {
             }
           ) : (
             // A part of a table that is new or removed, as it reads.
-            /* @__PURE__ */ jsxs21("span", { children: [
-              /* @__PURE__ */ jsxs21("span", { className: "visually-hidden", children: [
+            /* @__PURE__ */ jsxs22("span", { children: [
+              /* @__PURE__ */ jsxs22("span", { className: "visually-hidden", children: [
                 CHANGE_LABELS[p.status],
                 ":",
                 " "
               ] }),
-              /* @__PURE__ */ jsx28("span", { className: "change-key", children: p.key }),
+              /* @__PURE__ */ jsx29("span", { className: "change-key", children: p.key }),
               " ",
-              /* @__PURE__ */ jsx28("code", { className: "signature", children: p.status === "added" ? p.after : p.before })
+              /* @__PURE__ */ jsx29("code", { className: "signature", children: p.status === "added" ? p.after : p.before })
             ] })
           ) })
         ]
       },
       `${p.key}-${i}`
     )),
-    change.members.map((m) => /* @__PURE__ */ jsxs21("li", { className: "change-line", "data-change": m.status, children: [
-      /* @__PURE__ */ jsx28(ChangeMark, { status: m.status }),
-      /* @__PURE__ */ jsxs21("span", { className: "change-line-text", children: [
-        /* @__PURE__ */ jsxs21("span", { className: "visually-hidden", children: [
+    change.members.map((m) => /* @__PURE__ */ jsxs22("li", { className: "change-line", "data-change": m.status, children: [
+      /* @__PURE__ */ jsx29(ChangeMark, { status: m.status }),
+      /* @__PURE__ */ jsxs22("span", { className: "change-line-text", children: [
+        /* @__PURE__ */ jsxs22("span", { className: "visually-hidden", children: [
           CHANGE_LABELS[m.status],
           ":",
           " "
         ] }),
         m.status === "modified" && !m.method && typeChange(m) ? (
           // A field whose type changed reads as its name and both types.
-          /* @__PURE__ */ jsxs21("code", { className: "signature", children: [
-            /* @__PURE__ */ jsx28("span", { className: "member-name", children: m.name }),
+          /* @__PURE__ */ jsxs22("code", { className: "signature", children: [
+            /* @__PURE__ */ jsx29("span", { className: "member-name", children: m.name }),
             profile === "database" ? " " : ": ",
-            /* @__PURE__ */ jsx28(
+            /* @__PURE__ */ jsx29(
               ChangedValue,
               {
                 before: typeChange(m).before,
@@ -4285,15 +4345,15 @@ function WhatChanges({ change, element, model, profile }) {
               }
             )
           ] })
-        ) : (m.status === "modified" || m.moved) && m.previous && m.previous !== m.signature ? /* @__PURE__ */ jsx28("code", { className: "signature", children: /* @__PURE__ */ jsx28(ChangedValue, { before: m.previous, after: m.signature }) }) : /* @__PURE__ */ jsx28("code", { className: "signature", children: m.signature }),
-        m.properties.filter((p) => !SIGNATURE_KEYS.includes(p.key)).map((p) => /* @__PURE__ */ jsxs21("span", { className: "change-detail", children: [
+        ) : (m.status === "modified" || m.moved) && m.previous && m.previous !== m.signature ? /* @__PURE__ */ jsx29("code", { className: "signature", children: /* @__PURE__ */ jsx29(ChangedValue, { before: m.previous, after: m.signature }) }) : /* @__PURE__ */ jsx29("code", { className: "signature", children: m.signature }),
+        m.properties.filter((p) => !SIGNATURE_KEYS.includes(p.key)).map((p) => /* @__PURE__ */ jsxs22("span", { className: "change-detail", children: [
           p.key,
           ": ",
-          /* @__PURE__ */ jsx28(ChangedValue, { before: p.before, after: p.after })
+          /* @__PURE__ */ jsx29(ChangedValue, { before: p.before, after: p.after })
         ] }, p.key)),
-        m.moved && /* @__PURE__ */ jsx28("span", { className: "change-detail", children: m.moved.from ? `Moved from ${m.moved.from}` : `Moved to ${m.moved.to}` })
+        m.moved && /* @__PURE__ */ jsx29("span", { className: "change-detail", children: m.moved.from ? `Moved from ${m.moved.from}` : `Moved to ${m.moved.to}` })
       ] }),
-      m.location && /* @__PURE__ */ jsx28(
+      m.location && /* @__PURE__ */ jsx29(
         "span",
         {
           className: "member-line",
@@ -4306,7 +4366,7 @@ function WhatChanges({ change, element, model, profile }) {
 }
 
 // src/details/ElementDetails.jsx
-import { Fragment as Fragment11, jsx as jsx29, jsxs as jsxs22 } from "react/jsx-runtime";
+import { Fragment as Fragment11, jsx as jsx30, jsxs as jsxs23 } from "react/jsx-runtime";
 var profileOf = (model) => model.document?.profile || "class";
 var changeOf = (review, element) => review && element.changeStatus && element.changeStatus !== "unchanged" ? element.changeStatus : null;
 var ConceptDetails = memo5(function ConceptDetails2({
@@ -4319,8 +4379,8 @@ var ConceptDetails = memo5(function ConceptDetails2({
   const profile = profileOf(model);
   const change = changeOf(review, concept);
   const described = change ? describeClassChange(review.rollup, concept, profile) : null;
-  return /* @__PURE__ */ jsxs22(Fragment11, { children: [
-    /* @__PURE__ */ jsx29(
+  return /* @__PURE__ */ jsxs23(Fragment11, { children: [
+    /* @__PURE__ */ jsx30(
       DetailHeader,
       {
         title: concept.name,
@@ -4331,7 +4391,7 @@ var ConceptDetails = memo5(function ConceptDetails2({
         description: concept.description
       }
     ),
-    /* @__PURE__ */ jsx29(
+    /* @__PURE__ */ jsx30(
       WhatChanges,
       {
         change: described,
@@ -4340,7 +4400,7 @@ var ConceptDetails = memo5(function ConceptDetails2({
         profile
       }
     ),
-    profile === "code" && /* @__PURE__ */ jsx29(
+    profile === "code" && /* @__PURE__ */ jsx30(
       CodeWhere,
       {
         element: concept,
@@ -4349,7 +4409,7 @@ var ConceptDetails = memo5(function ConceptDetails2({
         change
       }
     ),
-    profile === "database" ? /* @__PURE__ */ jsx29(
+    profile === "database" ? /* @__PURE__ */ jsx30(
       TableSchema,
       {
         element: concept,
@@ -4358,7 +4418,7 @@ var ConceptDetails = memo5(function ConceptDetails2({
         rollup: review?.rollup,
         focus: member
       }
-    ) : /* @__PURE__ */ jsx29(
+    ) : /* @__PURE__ */ jsx30(
       Members,
       {
         element: concept,
@@ -4367,7 +4427,7 @@ var ConceptDetails = memo5(function ConceptDetails2({
         focus: member
       }
     ),
-    profile !== "code" && profile !== "database" && /* @__PURE__ */ jsx29(
+    profile !== "code" && profile !== "database" && /* @__PURE__ */ jsx30(
       SourceEvidence,
       {
         evidence: concept.evidence,
@@ -4380,12 +4440,20 @@ var ConceptDetails = memo5(function ConceptDetails2({
   ] });
 });
 function RelationEnds({ heading, ends, onChoose }) {
-  return /* @__PURE__ */ jsxs22(Stack5, { gap: 1, className: "relation-ends", children: [
-    heading && /* @__PURE__ */ jsx29(Text11, { as: "h2", variant: "caption", className: "detail-section-title", children: heading }),
-    /* @__PURE__ */ jsx29("ul", { className: "relation-end-list", children: ends.map(([node, count, role], i) => /* @__PURE__ */ jsxs22("li", { className: "relation-end", children: [
-      role && /* @__PURE__ */ jsx29("span", { className: "relation-role", children: role }),
-      /* @__PURE__ */ jsx29(Button6, { variant: "text", onClick: () => onChoose(node.id), children: node.name }),
-      knownMultiplicity(count) && /* @__PURE__ */ jsx29(Badge4, { variant: "outline", className: "count-badge", children: count })
+  return /* @__PURE__ */ jsxs23(Column6, { gap: 1, className: "relation-ends", children: [
+    heading && /* @__PURE__ */ jsx30(
+      Text12,
+      {
+        render: /* @__PURE__ */ jsx30("h2", {}),
+        variant: "body-sm",
+        className: "detail-section-title",
+        children: heading
+      }
+    ),
+    /* @__PURE__ */ jsx30("ul", { className: "relation-end-list", children: ends.map(([node, count, role], i) => /* @__PURE__ */ jsxs23("li", { className: "relation-end", children: [
+      role && /* @__PURE__ */ jsx30("span", { className: "relation-role", children: role }),
+      /* @__PURE__ */ jsx30(Button6, { variant: "text", onClick: () => onChoose(node.id), children: node.name }),
+      knownMultiplicity(count) && /* @__PURE__ */ jsx30(Badge4, { variant: "outline", className: "count-badge", children: count })
     ] }, `${node.id}-${i}`)) })
   ] });
 }
@@ -4402,15 +4470,15 @@ function relationTag(relation) {
 function DeclaredBy({ relation, profile }) {
   const members = dependencyMembers(relation.source, relation.target);
   if (!members.length) return null;
-  return /* @__PURE__ */ jsx29(Section, { title: "Declared by", children: /* @__PURE__ */ jsx29("ul", { className: "member-list", children: members.map(({ member, method }) => /* @__PURE__ */ jsxs22(
+  return /* @__PURE__ */ jsx30(Section, { title: "Declared by", children: /* @__PURE__ */ jsx30("ul", { className: "member-list", children: members.map(({ member, method }) => /* @__PURE__ */ jsxs23(
     "li",
     {
       className: "member",
       "data-change": member.changeStatus && member.changeStatus !== "unchanged" ? member.changeStatus : void 0,
       children: [
-        /* @__PURE__ */ jsx29(ChangeMark, { status: member.changeStatus }),
-        /* @__PURE__ */ jsx29("code", { className: "signature", children: memberSignature(member, method, profile) }),
-        member.location && /* @__PURE__ */ jsx29("span", { className: "member-line", children: member.location.startLine })
+        /* @__PURE__ */ jsx30(ChangeMark, { status: member.changeStatus }),
+        /* @__PURE__ */ jsx30("code", { className: "signature", children: memberSignature(member, method, profile) }),
+        member.location && /* @__PURE__ */ jsx30("span", { className: "member-line", children: member.location.startLine })
       ]
     },
     member.id
@@ -4418,9 +4486,9 @@ function DeclaredBy({ relation, profile }) {
 }
 function ForeignKey({ relation }) {
   if (!Array.isArray(relation.columns)) return null;
-  return /* @__PURE__ */ jsxs22(Section, { title: "Columns", children: [
-    /* @__PURE__ */ jsxs22(Text11, { children: [
-      /* @__PURE__ */ jsxs22("code", { children: [
+  return /* @__PURE__ */ jsxs23(Section, { title: "Columns", children: [
+    /* @__PURE__ */ jsxs23(Text12, { children: [
+      /* @__PURE__ */ jsxs23("code", { children: [
         relation.source.name,
         "(",
         relation.columns.join(", "),
@@ -4429,12 +4497,12 @@ function ForeignKey({ relation }) {
       " ",
       "\u2192",
       " ",
-      /* @__PURE__ */ jsxs22("code", { children: [
+      /* @__PURE__ */ jsxs23("code", { children: [
         relation.target.name,
         referencedColumns(relation.targetColumns)
       ] })
     ] }),
-    (relation.onDelete || relation.onUpdate) && /* @__PURE__ */ jsx29(Text11, { tone: "muted", children: [
+    (relation.onDelete || relation.onUpdate) && /* @__PURE__ */ jsx30(Text12, { emphasis: "muted", children: [
       relation.onDelete && `On delete ${relation.onDelete.toLowerCase()}`,
       relation.onUpdate && `on update ${relation.onUpdate.toLowerCase()}`
     ].filter(Boolean).join(", ") })
@@ -4452,18 +4520,18 @@ var RelationDetails = memo5(function RelationDetails2({
   const change = changeOf(review, relation);
   const entry = change ? rowFor(review.rollup, { kind: "edge", id: relation.id }, model) : null;
   const semanticId = relation.originalId || relation.id;
-  return /* @__PURE__ */ jsxs22(Fragment11, { children: [
-    /* @__PURE__ */ jsx29(
+  return /* @__PURE__ */ jsxs23(Fragment11, { children: [
+    /* @__PURE__ */ jsx30(
       DetailHeader,
       {
         title: relationTitle(relation),
-        icon: generalization ? AccountTree : Polyline,
+        icon: generalization ? IconAccountTree : IconPolyline,
         tag: relationTag(relation),
         change,
         description: relation.description
       }
     ),
-    /* @__PURE__ */ jsx29(
+    /* @__PURE__ */ jsx30(
       RelationEnds,
       {
         ends: generalization ? [
@@ -4480,14 +4548,14 @@ var RelationDetails = memo5(function RelationDetails2({
         onChoose
       }
     ),
-    entry && entry.notes.length > 0 && /* @__PURE__ */ jsx29(Section, { title: "What changes", children: /* @__PURE__ */ jsx29("ul", { className: "change-list", children: entry.notes.map((note, i) => /* @__PURE__ */ jsxs22(
+    entry && entry.notes.length > 0 && /* @__PURE__ */ jsx30(Section, { title: "What changes", children: /* @__PURE__ */ jsx30("ul", { className: "change-list", children: entry.notes.map((note, i) => /* @__PURE__ */ jsxs23(
       "li",
       {
         className: "change-line",
         "data-change": "modified",
         children: [
-          /* @__PURE__ */ jsx29(ChangeMark, { status: "modified" }),
-          /* @__PURE__ */ jsx29("span", { className: "change-line-text", children: /* @__PURE__ */ jsx29(
+          /* @__PURE__ */ jsx30(ChangeMark, { status: "modified" }),
+          /* @__PURE__ */ jsx30("span", { className: "change-line-text", children: /* @__PURE__ */ jsx30(
             ChangedProperty,
             {
               name: note.key,
@@ -4507,13 +4575,21 @@ var RelationDetails = memo5(function RelationDetails2({
       },
       `${note.key}-${i}`
     )) }) }),
-    profile === "code" && !generalization && /* @__PURE__ */ jsx29(DeclaredBy, { relation, profile }),
-    profile === "database" && /* @__PURE__ */ jsx29(ForeignKey, { relation }),
-    generalization && (model.partitions || []).filter((set) => set.generalizations.includes(semanticId)).map((set) => /* @__PURE__ */ jsxs22(Stack5, { gap: 1, className: "generalization-set-summary", children: [
-      /* @__PURE__ */ jsx29(Text11, { as: "h2", variant: "section-heading", children: set.name }),
-      /* @__PURE__ */ jsx29(Text11, { tone: "muted", children: setConstraints(set) })
+    profile === "code" && !generalization && /* @__PURE__ */ jsx30(DeclaredBy, { relation, profile }),
+    profile === "database" && /* @__PURE__ */ jsx30(ForeignKey, { relation }),
+    generalization && (model.partitions || []).filter((set) => set.generalizations.includes(semanticId)).map((set) => /* @__PURE__ */ jsxs23(Column6, { gap: 1, className: "generalization-set-summary", children: [
+      /* @__PURE__ */ jsx30(
+        Text12,
+        {
+          render: /* @__PURE__ */ jsx30("h2", {}),
+          variant: "title",
+          className: "atlas-section-heading",
+          children: set.name
+        }
+      ),
+      /* @__PURE__ */ jsx30(Text12, { emphasis: "muted", children: setConstraints(set) })
     ] }, set.id)),
-    profile !== "code" && relation.evidence?.length > 0 && /* @__PURE__ */ jsx29(
+    profile !== "code" && relation.evidence?.length > 0 && /* @__PURE__ */ jsx30(
       SourceEvidence,
       {
         evidence: relation.evidence,
@@ -4531,17 +4607,17 @@ var GeneralizationSetDetails = memo5(function GeneralizationSetDetails2({
   snippets
 }) {
   const declared = group.type === "generalizationSet";
-  return /* @__PURE__ */ jsxs22(Fragment11, { children: [
-    /* @__PURE__ */ jsx29(
+  return /* @__PURE__ */ jsxs23(Fragment11, { children: [
+    /* @__PURE__ */ jsx30(
       DetailHeader,
       {
         title: group.name,
         tag: declared ? "Generalization set" : "Joined inheritance",
-        icon: AccountTree,
+        icon: IconAccountTree,
         description: group.description
       }
     ),
-    /* @__PURE__ */ jsx29(
+    /* @__PURE__ */ jsx30(
       RelationEnds,
       {
         heading: "Supertype",
@@ -4549,7 +4625,7 @@ var GeneralizationSetDetails = memo5(function GeneralizationSetDetails2({
         onChoose
       }
     ),
-    /* @__PURE__ */ jsx29(
+    /* @__PURE__ */ jsx30(
       RelationEnds,
       {
         heading: "Subtypes",
@@ -4557,20 +4633,20 @@ var GeneralizationSetDetails = memo5(function GeneralizationSetDetails2({
         onChoose
       }
     ),
-    declared ? /* @__PURE__ */ jsxs22(Fragment11, { children: [
-      /* @__PURE__ */ jsx29(Text11, { className: "set-constraints", children: setConstraints(group) }),
-      /* @__PURE__ */ jsxs22(DisclosureNote4, { title: "Read these constraints", children: [
-        /* @__PURE__ */ jsx29(Text11, { children: group.complete ? "Every instance of the supertype belongs to at least one subtype in this set." : "Instances of the supertype may belong to none of the subtypes in this set." }),
-        /* @__PURE__ */ jsx29(Text11, { children: group.disjoint ? "An instance cannot belong to two subtypes in this set at the same time." : "An instance may belong to more than one subtype in this set at the same time." })
+    declared ? /* @__PURE__ */ jsxs23(Fragment11, { children: [
+      /* @__PURE__ */ jsx30(Text12, { className: "set-constraints", children: setConstraints(group) }),
+      /* @__PURE__ */ jsxs23(Disclosure4, { title: "Read these constraints", children: [
+        /* @__PURE__ */ jsx30(Text12, { children: group.complete ? "Every instance of the supertype belongs to at least one subtype in this set." : "Instances of the supertype may belong to none of the subtypes in this set." }),
+        /* @__PURE__ */ jsx30(Text12, { children: group.disjoint ? "An instance cannot belong to two subtypes in this set at the same time." : "An instance may belong to more than one subtype in this set at the same time." })
       ] }),
-      group.memberIds.length < group.totalMembers && /* @__PURE__ */ jsxs22(Text11, { tone: "muted", children: [
+      group.memberIds.length < group.totalMembers && /* @__PURE__ */ jsxs23(Text12, { emphasis: "muted", children: [
         group.memberIds.length,
         " of ",
         group.totalMembers,
         " members are shown. These constraints apply to the full set."
       ] })
-    ] }) : /* @__PURE__ */ jsx29(DisclosureNote4, { title: "Read joined inheritance", children: /* @__PURE__ */ jsx29(Text11, { tone: "muted", children: "These inheritance branches share a supertype. Joining their lines does not assert completeness or disjointness. Declare a generalization set in the model to express those constraints." }) }),
-    /* @__PURE__ */ jsx29(
+    ] }) : /* @__PURE__ */ jsx30(Disclosure4, { title: "Read joined inheritance", children: /* @__PURE__ */ jsx30(Text12, { emphasis: "muted", children: "These inheritance branches share a supertype. Joining their lines does not assert completeness or disjointness. Declare a generalization set in the model to express those constraints." }) }),
+    /* @__PURE__ */ jsx30(
       SourceEvidence,
       {
         evidence: group.evidence,
@@ -4584,7 +4660,7 @@ var GeneralizationSetDetails = memo5(function GeneralizationSetDetails2({
 });
 
 // src/details/Inspector.jsx
-import { jsx as jsx30 } from "react/jsx-runtime";
+import { jsx as jsx31 } from "react/jsx-runtime";
 function Inspector({
   showScenarios,
   element,
@@ -4599,7 +4675,7 @@ function Inspector({
   onInspectScenario = onChoose
 }) {
   if (showScenarios)
-    return /* @__PURE__ */ jsx30(
+    return /* @__PURE__ */ jsx31(
       ScenarioPanel,
       {
         model,
@@ -4609,7 +4685,7 @@ function Inspector({
     );
   const review = changes?.details ?? null;
   if (element && inspected.kind === "node")
-    return /* @__PURE__ */ jsx30(
+    return /* @__PURE__ */ jsx31(
       ConceptDetails,
       {
         concept: element,
@@ -4620,7 +4696,7 @@ function Inspector({
       }
     );
   if (element && inspected.kind === "edge")
-    return /* @__PURE__ */ jsx30(
+    return /* @__PURE__ */ jsx31(
       RelationDetails,
       {
         relation: element,
@@ -4631,7 +4707,7 @@ function Inspector({
       }
     );
   if (element && inspected.kind === "group")
-    return /* @__PURE__ */ jsx30(
+    return /* @__PURE__ */ jsx31(
       GeneralizationSetDetails,
       {
         group: element,
@@ -4713,7 +4789,7 @@ function reviewedPayload(payload) {
 
 // src/viewer/useInspectorWidth.jsx
 import { useEffect as useEffect8, useLayoutEffect as useLayoutEffect7, useRef as useRef7, useState as useState7 } from "react";
-import { jsx as jsx31 } from "react/jsx-runtime";
+import { jsx as jsx32 } from "react/jsx-runtime";
 var MIN = 288;
 var MAX = 1200;
 var SHARE = 0.6;
@@ -4780,7 +4856,7 @@ function useInspectorWidth({
     } else setOwn(value);
   };
   const current = () => shown2 ?? Math.round(panelRef.current?.getBoundingClientRect().width || sizes.panel);
-  const separator = /* @__PURE__ */ jsx31(
+  const separator = /* @__PURE__ */ jsx32(
     "div",
     {
       role: "separator",
@@ -4942,27 +5018,27 @@ function useToolbarDensity(topRef, resetKey, contentKey) {
 
 // src/review/useChangeReview.jsx
 import { useCallback as useCallback4, useMemo as useMemo8, useRef as useRef10, useState as useState10 } from "react";
-import { Button as Button8, Counter as Counter2, Tooltip as Tooltip4 } from "@envsemble/envui";
+import { Badge as Badge6, Button as Button8, Tooltip as Tooltip4 } from "@envsemble/envui";
 
 // src/review/ChangesOverview.jsx
 import { memo as memo6, useEffect as useEffect9, useLayoutEffect as useLayoutEffect10, useRef as useRef9, useState as useState9 } from "react";
-import { Button as Button7, Counter, DisclosureNote as DisclosureNote5, Stack as Stack6, Text as Text12 } from "@envsemble/envui";
-import { Fragment as Fragment12, jsx as jsx32, jsxs as jsxs23 } from "react/jsx-runtime";
+import { Badge as Badge5, Button as Button7, Column as Column7, Disclosure as Disclosure5, Text as Text13 } from "@envsemble/envui";
+import { Fragment as Fragment12, jsx as jsx33, jsxs as jsxs24 } from "react/jsx-runtime";
 function Summary({ row }) {
   const { summary } = row;
-  const note = summary.note && /* @__PURE__ */ jsx32("span", { className: "change-row-note", children: summary.note });
+  const note = summary.note && /* @__PURE__ */ jsx33("span", { className: "change-row-note", children: summary.note });
   if (summary.tokens.length)
-    return /* @__PURE__ */ jsxs23(Fragment12, { children: [
-      /* @__PURE__ */ jsxs23("span", { className: "change-row-summary", children: [
-        summary.tokens.map((token, i) => /* @__PURE__ */ jsxs23("span", { className: "change-token", "data-change": token.status, children: [
-          /* @__PURE__ */ jsx32("span", { className: "change-token-glyph", "aria-hidden": "true", children: changeGlyph(token.status) }),
-          /* @__PURE__ */ jsxs23("span", { className: "visually-hidden", children: [
+    return /* @__PURE__ */ jsxs24(Fragment12, { children: [
+      /* @__PURE__ */ jsxs24("span", { className: "change-row-summary", children: [
+        summary.tokens.map((token, i) => /* @__PURE__ */ jsxs24("span", { className: "change-token", "data-change": token.status, children: [
+          /* @__PURE__ */ jsx33("span", { className: "change-token-glyph", "aria-hidden": "true", children: changeGlyph(token.status) }),
+          /* @__PURE__ */ jsxs24("span", { className: "visually-hidden", children: [
             CHANGE_LABELS[token.status],
             " "
           ] }),
           token.text
         ] }, i)),
-        summary.more > 0 && /* @__PURE__ */ jsxs23("span", { className: "change-token more", children: [
+        summary.more > 0 && /* @__PURE__ */ jsxs24("span", { className: "change-token more", children: [
           "+",
           summary.more,
           " more"
@@ -4971,10 +5047,10 @@ function Summary({ row }) {
       note
     ] });
   if (!summary.text && !summary.more) return note || null;
-  return /* @__PURE__ */ jsxs23(Fragment12, { children: [
-    /* @__PURE__ */ jsxs23("span", { className: "change-row-summary", children: [
+  return /* @__PURE__ */ jsxs24(Fragment12, { children: [
+    /* @__PURE__ */ jsxs24("span", { className: "change-row-summary", children: [
       summary.text,
-      summary.more > 0 && /* @__PURE__ */ jsxs23("span", { className: "change-token more", children: [
+      summary.more > 0 && /* @__PURE__ */ jsxs24("span", { className: "change-token more", children: [
         summary.text ? " " : "",
         "+",
         summary.more,
@@ -4985,19 +5061,19 @@ function Summary({ row }) {
   ] });
 }
 function ChangeRow({ row, active, onSelect, onHover }) {
-  const content = /* @__PURE__ */ jsxs23(Fragment12, { children: [
-    /* @__PURE__ */ jsx32(ChangeMark, { status: row.status }),
-    /* @__PURE__ */ jsxs23("span", { className: "change-row-text", children: [
-      /* @__PURE__ */ jsxs23("span", { className: "change-row-title", children: [
-        /* @__PURE__ */ jsx32("span", { className: "change-row-name", children: row.name }),
-        row.tag && /* @__PURE__ */ jsx32("span", { className: "change-row-tag", children: row.tag })
+  const content = /* @__PURE__ */ jsxs24(Fragment12, { children: [
+    /* @__PURE__ */ jsx33(ChangeMark, { status: row.status }),
+    /* @__PURE__ */ jsxs24("span", { className: "change-row-text", children: [
+      /* @__PURE__ */ jsxs24("span", { className: "change-row-title", children: [
+        /* @__PURE__ */ jsx33("span", { className: "change-row-name", children: row.name }),
+        row.tag && /* @__PURE__ */ jsx33("span", { className: "change-row-tag", children: row.tag })
       ] }),
-      /* @__PURE__ */ jsx32(Summary, { row })
+      /* @__PURE__ */ jsx33(Summary, { row })
     ] })
   ] });
   if (!row.target)
-    return /* @__PURE__ */ jsx32("li", { className: "change-row static", "data-change": row.status, children: content });
-  return /* @__PURE__ */ jsx32("li", { children: /* @__PURE__ */ jsx32(
+    return /* @__PURE__ */ jsx33("li", { className: "change-row static", "data-change": row.status, children: content });
+  return /* @__PURE__ */ jsx33("li", { children: /* @__PURE__ */ jsx33(
     "button",
     {
       type: "button",
@@ -5015,7 +5091,7 @@ function ChangeRow({ row, active, onSelect, onHover }) {
   ) });
 }
 function RowList({ rows, label, active, onSelect, onHover }) {
-  return /* @__PURE__ */ jsx32("ul", { className: "change-rows", "aria-label": label, children: rows.map((row) => /* @__PURE__ */ jsx32(
+  return /* @__PURE__ */ jsx33("ul", { className: "change-rows", "aria-label": label, children: rows.map((row) => /* @__PURE__ */ jsx33(
     ChangeRow,
     {
       row,
@@ -5031,7 +5107,7 @@ function RelationRows({ group, active, returning, onSelect, onHover }) {
   const [open, setOpen] = useState9(
     () => rows.some((r) => r.key === active || r.key === returning)
   );
-  const list = /* @__PURE__ */ jsx32(
+  const list = /* @__PURE__ */ jsx33(
     RowList,
     {
       rows,
@@ -5042,17 +5118,17 @@ function RelationRows({ group, active, returning, onSelect, onHover }) {
     }
   );
   if (rows.length <= 3)
-    return /* @__PURE__ */ jsxs23(Fragment12, { children: [
-      /* @__PURE__ */ jsx32(Text12, { as: "h4", variant: "caption", className: "change-subheading", children: "Relations" }),
+    return /* @__PURE__ */ jsxs24(Fragment12, { children: [
+      /* @__PURE__ */ jsx33(Text13, { render: /* @__PURE__ */ jsx33("h4", {}), variant: "body-sm", className: "change-subheading", children: "Relations" }),
       list
     ] });
-  return /* @__PURE__ */ jsx32(
-    DisclosureNote5,
+  return /* @__PURE__ */ jsx33(
+    Disclosure5,
     {
       className: "change-relations",
       title: `Relations \xB7 ${rows.length}`,
       open,
-      onToggle: (event) => setOpen(event.currentTarget.open),
+      onOpenChange: setOpen,
       children: list
     }
   );
@@ -5096,51 +5172,51 @@ var ChangesOverview = memo6(function ChangesOverview2({
     (rows.find((row) => row.dataset.key === request.key) || rows[0])?.focus();
   }, [handoff]);
   const source = profile === "code" ? "the code" : profile === "database" ? "the database" : "the model";
-  return /* @__PURE__ */ jsxs23(Stack6, { gap: 4, className: "changes-overview", children: [
-    /* @__PURE__ */ jsx32(Text12, { variant: "supporting", children: rollup.total ? `Compared with ${source}${baselineDate ? ` captured ${baselineDate}` : ""}.` : `No changes to ${source}${baselineDate ? ` captured ${baselineDate}` : ""}.` }),
-    rollup.conflicts.length > 0 && /* @__PURE__ */ jsxs23("section", { className: "change-group", "data-change": "conflict", children: [
-      /* @__PURE__ */ jsxs23(
-        Text12,
+  return /* @__PURE__ */ jsxs24(Column7, { gap: 4, className: "changes-overview", children: [
+    /* @__PURE__ */ jsx33(Text13, { variant: "body-sm", children: rollup.total ? `Compared with ${source}${baselineDate ? ` captured ${baselineDate}` : ""}.` : `No changes to ${source}${baselineDate ? ` captured ${baselineDate}` : ""}.` }),
+    rollup.conflicts.length > 0 && /* @__PURE__ */ jsxs24("section", { className: "change-group", "data-change": "conflict", children: [
+      /* @__PURE__ */ jsxs24(
+        Text13,
         {
-          as: "h3",
-          variant: "section-heading",
-          className: "change-group-heading",
+          render: /* @__PURE__ */ jsx33("h3", {}),
+          variant: "title",
+          className: "atlas-section-heading change-group-heading",
           children: [
             "Conflicts",
-            /* @__PURE__ */ jsx32(Counter, { value: rollup.conflicts.length })
+            /* @__PURE__ */ jsx33(Badge5, { count: rollup.conflicts.length })
           ]
         }
       ),
-      rollup.conflicts.map((conflict) => /* @__PURE__ */ jsx32(
-        DisclosureNote5,
+      rollup.conflicts.map((conflict) => /* @__PURE__ */ jsx33(
+        Disclosure5,
         {
           title: conflict.path.join(" / ") || "References",
-          children: /* @__PURE__ */ jsx32(Text12, { tone: "muted", children: conflict.reason })
+          children: /* @__PURE__ */ jsx33(Text13, { emphasis: "muted", children: conflict.reason })
         },
         conflict.id
       ))
     ] }),
-    /* @__PURE__ */ jsx32("div", { ref: list, className: "change-groups", onKeyDown: moveFocus, children: rollup.groups.map((group) => /* @__PURE__ */ jsxs23(
+    /* @__PURE__ */ jsx33("div", { ref: list, className: "change-groups", onKeyDown: moveFocus, children: rollup.groups.map((group) => /* @__PURE__ */ jsxs24(
       "section",
       {
         className: "change-group",
         "data-change": group.status,
         "aria-label": `${group.label}, ${group.elements.length + group.relations.length}`,
         children: [
-          /* @__PURE__ */ jsxs23(
-            Text12,
+          /* @__PURE__ */ jsxs24(
+            Text13,
             {
-              as: "h3",
-              variant: "section-heading",
-              className: "change-group-heading",
+              render: /* @__PURE__ */ jsx33("h3", {}),
+              variant: "title",
+              className: "atlas-section-heading change-group-heading",
               children: [
-                /* @__PURE__ */ jsx32(ChangeMark, { status: group.status }),
+                /* @__PURE__ */ jsx33(ChangeMark, { status: group.status }),
                 group.label,
-                /* @__PURE__ */ jsx32(Counter, { value: group.elements.length + group.relations.length })
+                /* @__PURE__ */ jsx33(Badge5, { count: group.elements.length + group.relations.length })
               ]
             }
           ),
-          group.elements.length > 0 && /* @__PURE__ */ jsx32(
+          group.elements.length > 0 && /* @__PURE__ */ jsx33(
             RowList,
             {
               rows: group.elements,
@@ -5150,7 +5226,7 @@ var ChangesOverview = memo6(function ChangesOverview2({
               onHover
             }
           ),
-          group.relations.length > 0 && /* @__PURE__ */ jsx32(
+          group.relations.length > 0 && /* @__PURE__ */ jsx33(
             RelationRows,
             {
               group,
@@ -5180,30 +5256,30 @@ function ChangeNavigation({
     handoff.current = null;
     back.current?.focus();
   }, [handoff]);
-  return /* @__PURE__ */ jsxs23("div", { className: "change-navigation", children: [
-    /* @__PURE__ */ jsx32(
+  return /* @__PURE__ */ jsxs24("div", { className: "change-navigation", children: [
+    /* @__PURE__ */ jsx33(
       Button7,
       {
         ref: back,
         variant: "text",
         className: "change-back",
         "aria-label": "All changes",
-        startIcon: /* @__PURE__ */ jsx32(ArrowBack, {}),
+        startIcon: /* @__PURE__ */ jsx33(IconArrowBack, {}),
         onClick: onBack,
-        children: /* @__PURE__ */ jsx32("span", { className: "change-back-label", children: "All changes" })
+        children: /* @__PURE__ */ jsx33("span", { className: "change-back-label", children: "All changes" })
       }
     ),
-    total > 0 && /* @__PURE__ */ jsxs23("span", { className: "change-stepper", role: "group", "aria-label": "Changes", children: [
-      /* @__PURE__ */ jsx32(
+    total > 0 && /* @__PURE__ */ jsxs24("span", { className: "change-stepper", role: "group", "aria-label": "Changes", children: [
+      /* @__PURE__ */ jsx33(
         ToolButton,
         {
           label: "Previous change",
-          icon: /* @__PURE__ */ jsx32(ChevronLeft, {}),
+          icon: /* @__PURE__ */ jsx33(IconChevronLeft, {}),
           "aria-disabled": position === 0 || void 0,
           onClick: () => onStep(-1)
         }
       ),
-      /* @__PURE__ */ jsxs23(
+      /* @__PURE__ */ jsxs24(
         "span",
         {
           className: "change-position",
@@ -5211,18 +5287,18 @@ function ChangeNavigation({
           "aria-atomic": "true",
           children: [
             position >= 0 ? `${position + 1} of ${total}` : `${total} ${total === 1 ? "change" : "changes"}`,
-            position >= 0 && name && /* @__PURE__ */ jsxs23("span", { className: "visually-hidden", children: [
+            position >= 0 && name && /* @__PURE__ */ jsxs24("span", { className: "visually-hidden", children: [
               ": ",
               name
             ] })
           ]
         }
       ),
-      /* @__PURE__ */ jsx32(
+      /* @__PURE__ */ jsx33(
         ToolButton,
         {
           label: "Next change",
-          icon: /* @__PURE__ */ jsx32(ChevronRight, {}),
+          icon: /* @__PURE__ */ jsx33(IconChevronRight, {}),
           "aria-disabled": position === total - 1 || void 0,
           onClick: () => onStep(1)
         }
@@ -5232,7 +5308,7 @@ function ChangeNavigation({
 }
 
 // src/review/useChangeReview.jsx
-import { Fragment as Fragment13, jsx as jsx33, jsxs as jsxs24 } from "react/jsx-runtime";
+import { Fragment as Fragment13, jsx as jsx34, jsxs as jsxs25 } from "react/jsx-runtime";
 var ROOMY_WIDTH = 1280;
 var overviewByDefault = () => typeof window !== "undefined" && window.innerWidth >= ROOMY_WIDTH;
 function useChangeReview({
@@ -5292,7 +5368,7 @@ function useChangeReview({
   const profile = model.document?.profile;
   const activeKey = current?.key;
   const content = useMemo8(
-    () => rollup ? /* @__PURE__ */ jsx33(
+    () => rollup ? /* @__PURE__ */ jsx34(
       ChangesOverview,
       {
         rollup,
@@ -5318,50 +5394,44 @@ function useChangeReview({
     position,
     total,
     /** Toolbar controls: the changes overview toggle and fading. */
-    controls: (showing) => /* @__PURE__ */ jsxs24(Fragment13, { children: [
-      /* @__PURE__ */ jsx33(
+    controls: (showing) => /* @__PURE__ */ jsxs25(Fragment13, { children: [
+      /* @__PURE__ */ jsx34(
         Tooltip4,
         {
           content: showing ? "Hide the changes" : "Show every change",
           side: "bottom",
-          children: /* @__PURE__ */ jsxs24(
+          children: /* @__PURE__ */ jsxs25(
             Button8,
             {
               variant: showing ? "primary" : "secondary",
               className: "changes-toggle",
               "aria-pressed": showing,
               "aria-label": `Changes, ${rollup.count}`,
-              startIcon: /* @__PURE__ */ jsx33(Difference, {}),
+              startIcon: /* @__PURE__ */ jsx34(IconDifference, {}),
               onClick: () => {
                 if (showing) setOverview(false);
                 else back();
               },
               children: [
-                /* @__PURE__ */ jsx33("span", { className: "collapsible-label", children: "Changes" }),
-                /* @__PURE__ */ jsx33(
-                  Counter2,
-                  {
-                    value: rollup.count,
-                    tone: showing ? "accent" : "neutral"
-                  }
-                )
+                /* @__PURE__ */ jsx34("span", { className: "collapsible-label", children: "Changes" }),
+                /* @__PURE__ */ jsx34(Badge6, { count: rollup.count })
               ]
             }
           )
         }
       ),
-      /* @__PURE__ */ jsx33(
+      /* @__PURE__ */ jsx34(
         ToolButton,
         {
           label: "Fade unchanged elements",
           pressed: fade,
-          icon: /* @__PURE__ */ jsx33(Contrast, {}),
+          icon: /* @__PURE__ */ jsx34(IconContrast, {}),
           onClick: () => setFade((value) => !value)
         }
       )
     ] }),
     /** Above a selected element's details: back to every change, previous and next. */
-    navigation: /* @__PURE__ */ jsx33(
+    navigation: /* @__PURE__ */ jsx34(
       ChangeNavigation,
       {
         position,
@@ -5378,13 +5448,13 @@ function useChangeReview({
 }
 
 // src/viewer/DiagramViewer.jsx
-import { jsx as jsx34, jsxs as jsxs25 } from "react/jsx-runtime";
+import { jsx as jsx35, jsxs as jsxs26 } from "react/jsx-runtime";
 function DiagramViewer(props) {
   const { payload, review, provenanceDocument } = reviewedPayload(props);
   if (!payload.views.length)
-    return /* @__PURE__ */ jsxs25("main", { className: "viewer-error", children: [
-      /* @__PURE__ */ jsx34(ProvenanceBadge, { document: provenanceDocument, className: "inline" }),
-      /* @__PURE__ */ jsx34(
+    return /* @__PURE__ */ jsxs26("main", { className: "viewer-error", children: [
+      /* @__PURE__ */ jsx35(ProvenanceBadge, { document: provenanceDocument, className: "inline" }),
+      /* @__PURE__ */ jsx35(
         EmptyState,
         {
           headingLevel: 1,
@@ -5393,7 +5463,7 @@ function DiagramViewer(props) {
         }
       )
     ] });
-  return /* @__PURE__ */ jsx34(
+  return /* @__PURE__ */ jsx35(
     ViewerContent,
     {
       ...payload,
@@ -5589,14 +5659,14 @@ function ViewerContent({
     }
     choose(id);
   };
-  return /* @__PURE__ */ jsxs25(
+  return /* @__PURE__ */ jsxs26(
     "div",
     {
       ref: viewerRef,
       className: `viewer${detailsOpen ? " inspecting" : ""}${changes?.fade ? " fade-unchanged" : ""}${resize.resizing ? " resizing" : ""}`,
       style: resize.style,
       children: [
-        /* @__PURE__ */ jsx34(
+        /* @__PURE__ */ jsx35(
           ViewerToolbar,
           {
             ref: toolbarRef,
@@ -5646,7 +5716,7 @@ function ViewerContent({
             onFit: () => cameraRef.current.fit()
           }
         ),
-        /* @__PURE__ */ jsx34(
+        /* @__PURE__ */ jsx35(
           DiagramCanvas,
           {
             ref: cameraRef,
@@ -5658,7 +5728,7 @@ function ViewerContent({
             onClearHover: clearHover
           }
         ),
-        /* @__PURE__ */ jsx34(
+        /* @__PURE__ */ jsx35(
           Panel,
           {
             ref: inspector,
@@ -5677,7 +5747,7 @@ function ViewerContent({
             onBlurCapture: (e) => {
               if (!e.currentTarget.contains(e.relatedTarget)) hover(null);
             },
-            children: detailsOpen && /* @__PURE__ */ jsx34(
+            children: detailsOpen && /* @__PURE__ */ jsx35(
               Inspector,
               {
                 showScenarios: scenariosOpen,
@@ -5695,14 +5765,14 @@ function ViewerContent({
             )
           }
         ),
-        /* @__PURE__ */ jsx34(
+        /* @__PURE__ */ jsx35(
           Dialog,
           {
             open: aboutOpen,
             onOpenChange: setAboutOpen,
             title: model.title,
             description: "About this diagram and its controls",
-            children: /* @__PURE__ */ jsx34(
+            children: /* @__PURE__ */ jsx35(
               About,
               {
                 model,
@@ -5728,8 +5798,8 @@ import {
   useRef as useRef12,
   useState as useState12
 } from "react";
-import { EmptyState as EmptyState2, Theme } from "@envsemble/envui";
-import { jsx as jsx35, jsxs as jsxs26 } from "react/jsx-runtime";
+import { Theme } from "@envsemble/envui";
+import { jsx as jsx36, jsxs as jsxs27 } from "react/jsx-runtime";
 function overlayClass(sections, density = 0) {
   return `atlas-overlay-top${sections ? " stacked" : ""}${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`;
 }
@@ -5737,19 +5807,19 @@ var DiagramPanel = memo7(function DiagramPanel2(props) {
   const { payload, review } = reviewedPayload(props.payload);
   if (!payload.views.length) {
     const theme = props.theme || "dark";
-    return /* @__PURE__ */ jsx35(
+    return /* @__PURE__ */ jsx36(
       Theme,
       {
         theme,
         className: "atlas-panel atlas-empty",
         "data-theme": theme,
-        children: /* @__PURE__ */ jsxs26("div", { className: "viewer", children: [
-          (props.leading || props.sections) && /* @__PURE__ */ jsxs26("div", { className: overlayClass(props.sections), children: [
-            props.sections && /* @__PURE__ */ jsx35("div", { className: "atlas-overlay-sections", children: props.sections }),
-            props.leading && /* @__PURE__ */ jsx35(Island, { label: "Diagram navigation", className: "island-start", children: /* @__PURE__ */ jsx35("div", { className: "island-leading", children: props.leading }) })
+        children: /* @__PURE__ */ jsxs27("div", { className: "viewer", children: [
+          (props.leading || props.sections) && /* @__PURE__ */ jsxs27("div", { className: overlayClass(props.sections), children: [
+            props.sections && /* @__PURE__ */ jsx36("div", { className: "atlas-overlay-sections", children: props.sections }),
+            props.leading && /* @__PURE__ */ jsx36(Island, { label: "Diagram navigation", className: "island-start", children: /* @__PURE__ */ jsx36("div", { className: "island-leading", children: props.leading }) })
           ] }),
-          /* @__PURE__ */ jsx35(
-            EmptyState2,
+          /* @__PURE__ */ jsx36(
+            EmptyState,
             {
               className: "atlas-empty-message",
               title: payload.model.title,
@@ -5760,7 +5830,7 @@ var DiagramPanel = memo7(function DiagramPanel2(props) {
       }
     );
   }
-  return /* @__PURE__ */ jsx35(
+  return /* @__PURE__ */ jsx36(
     DiagramPanelContent,
     {
       ...props,
@@ -5901,19 +5971,19 @@ function DiagramPanelContent({
   }, [hasScenarios]);
   const showViews = views.length > 1;
   const hasStart = !!leading || showViews || !!changes;
-  return /* @__PURE__ */ jsx35(Theme, { theme, className: "atlas-panel", "data-theme": theme, children: /* @__PURE__ */ jsxs26(
+  return /* @__PURE__ */ jsx36(Theme, { theme, className: "atlas-panel", "data-theme": theme, children: /* @__PURE__ */ jsxs27(
     "div",
     {
       ref: viewerRef,
       className: `viewer${detailsOpen ? " inspecting" : ""}${changes?.fade ? " fade-unchanged" : ""}${resize.resizing ? " resizing" : ""}`,
       style: resize.style,
       children: [
-        /* @__PURE__ */ jsxs26("div", { className: overlayClass(sections, density), ref: topRef, children: [
-          sections && /* @__PURE__ */ jsx35("div", { className: "atlas-overlay-sections", children: sections }),
-          hasStart && /* @__PURE__ */ jsxs26(Island, { label: "Diagram navigation", className: "island-start", children: [
-            leading && /* @__PURE__ */ jsx35("div", { className: "island-leading", children: leading }),
-            leading && (showViews || changes) && /* @__PURE__ */ jsx35(IslandDivider, {}),
-            showViews && /* @__PURE__ */ jsx35(
+        /* @__PURE__ */ jsxs27("div", { className: overlayClass(sections, density), ref: topRef, children: [
+          sections && /* @__PURE__ */ jsx36("div", { className: "atlas-overlay-sections", children: sections }),
+          hasStart && /* @__PURE__ */ jsxs27(Island, { label: "Diagram navigation", className: "island-start", children: [
+            leading && /* @__PURE__ */ jsx36("div", { className: "island-leading", children: leading }),
+            leading && (showViews || changes) && /* @__PURE__ */ jsx36(IslandDivider, {}),
+            showViews && /* @__PURE__ */ jsx36(
               ViewSwitcher,
               {
                 items: views,
@@ -5926,25 +5996,25 @@ function DiagramPanelContent({
                 }
               }
             ),
-            showViews && changes && /* @__PURE__ */ jsx35(IslandDivider, {}),
+            showViews && changes && /* @__PURE__ */ jsx36(IslandDivider, {}),
             changes?.controls(detailsOpen && showOverview)
           ] }),
-          /* @__PURE__ */ jsxs26(Island, { label: "Diagram tools", className: "island-end", children: [
-            /* @__PURE__ */ jsx35(ConceptSearch, { classes: model.classes, onChoose: choose }),
-            /* @__PURE__ */ jsx35(
+          /* @__PURE__ */ jsxs27(Island, { label: "Diagram tools", className: "island-end", children: [
+            /* @__PURE__ */ jsx36(ConceptSearch, { classes: model.classes, onChoose: choose }),
+            /* @__PURE__ */ jsx36(
               ToolButton,
               {
                 label: "Fields",
                 tooltip: fields ? "Hide attributes" : "Show attributes",
                 pressed: fields,
-                icon: /* @__PURE__ */ jsx35(TableRows, {}),
+                icon: /* @__PURE__ */ jsx36(IconTableRows, {}),
                 onClick: () => {
                   setFocusRequest(null);
                   setFields((v) => !v);
                 }
               }
             ),
-            /* @__PURE__ */ jsx35(
+            /* @__PURE__ */ jsx36(
               CameraControls,
               {
                 zoomStore,
@@ -5954,13 +6024,13 @@ function DiagramPanelContent({
                 onFit: () => camera.current?.fit()
               }
             ),
-            /* @__PURE__ */ jsx35(IslandDivider, {}),
-            hasScenarios && /* @__PURE__ */ jsx35(
+            /* @__PURE__ */ jsx36(IslandDivider, {}),
+            hasScenarios && /* @__PURE__ */ jsx36(
               ToolButton,
               {
                 label: "Understand the model",
                 pressed: scenariosOpen && detailsOpen,
-                icon: /* @__PURE__ */ jsx35(School, {}),
+                icon: /* @__PURE__ */ jsx36(IconSchool, {}),
                 onClick: () => {
                   clearHover();
                   setDetailsHidden(false);
@@ -5968,29 +6038,29 @@ function DiagramPanelContent({
                 }
               }
             ),
-            /* @__PURE__ */ jsx35(
+            /* @__PURE__ */ jsx36(
               ToolButton,
               {
                 label: detailsHidden ? "Show details" : "Hide details",
                 "aria-controls": inspectorId,
                 "aria-expanded": detailsOpen,
-                icon: detailsHidden ? /* @__PURE__ */ jsx35(RightPanelOpen, {}) : /* @__PURE__ */ jsx35(RightPanelClose, {}),
+                icon: detailsHidden ? /* @__PURE__ */ jsx36(IconRightPanelOpen, {}) : /* @__PURE__ */ jsx36(IconRightPanelClose, {}),
                 onClick: () => setDetailsHidden((v) => !v)
               }
             ),
-            onFullscreenChange && /* @__PURE__ */ jsx35(
+            onFullscreenChange && /* @__PURE__ */ jsx36(
               ToolButton,
               {
                 label: fullscreen ? "Exit fullscreen" : "Enter fullscreen",
                 variant: "secondary",
                 pressed: fullscreen,
-                icon: fullscreen ? /* @__PURE__ */ jsx35(FullscreenExit, {}) : /* @__PURE__ */ jsx35(Fullscreen, {}),
+                icon: fullscreen ? /* @__PURE__ */ jsx36(IconFullscreenExit, {}) : /* @__PURE__ */ jsx36(IconFullscreen, {}),
                 onClick: () => onFullscreenChange(!fullscreen)
               }
             )
           ] })
         ] }),
-        /* @__PURE__ */ jsx35(
+        /* @__PURE__ */ jsx36(
           DiagramCanvas,
           {
             ref: camera,
@@ -6005,7 +6075,7 @@ function DiagramPanelContent({
             onClearHover: clearHover
           }
         ),
-        /* @__PURE__ */ jsx35(
+        /* @__PURE__ */ jsx36(
           Panel,
           {
             ref: inspector,
@@ -6020,7 +6090,7 @@ function DiagramPanelContent({
             resizer: resize.separator,
             onPointerEnter: keepHover,
             onPointerLeave: () => hover(null),
-            children: detailsOpen && /* @__PURE__ */ jsx35(
+            children: detailsOpen && /* @__PURE__ */ jsx36(
               Inspector,
               {
                 showScenarios: scenariosOpen,
@@ -6044,8 +6114,8 @@ function DiagramPanelContent({
 
 // src/viewer/ViewerErrorBoundary.jsx
 import { Component } from "react";
-import { Button as Button9, EmptyState as EmptyState3 } from "@envsemble/envui";
-import { jsx as jsx36 } from "react/jsx-runtime";
+import { Alert as Alert2, Button as Button9 } from "@envsemble/envui";
+import { jsx as jsx37 } from "react/jsx-runtime";
 var ViewerErrorBoundary = class extends Component {
   constructor() {
     super(...arguments);
@@ -6060,14 +6130,14 @@ var ViewerErrorBoundary = class extends Component {
   }
   render() {
     if (this.state.failed)
-      return /* @__PURE__ */ jsx36("main", { className: "viewer-error", children: /* @__PURE__ */ jsx36(
-        EmptyState3,
+      return /* @__PURE__ */ jsx37("main", { className: "viewer-error", children: /* @__PURE__ */ jsx37(
+        Alert2,
         {
-          tone: "error",
-          headingLevel: 1,
+          tone: "danger",
+          announce: true,
           title: "The model could not be displayed",
-          description: "Rebuild the viewer from the model and check its validation report.",
-          action: /* @__PURE__ */ jsx36(Button9, { variant: "secondary", onClick: () => location.reload(), children: "Reload" })
+          actions: /* @__PURE__ */ jsx37(Button9, { variant: "secondary", onClick: () => location.reload(), children: "Reload" }),
+          children: "Rebuild the viewer from the model and check its validation report."
         }
       ) });
     return this.props.children;

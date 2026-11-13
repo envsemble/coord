@@ -39,6 +39,8 @@ function compile(entryPoint) {
     format: "cjs",
     jsx: "automatic",
     external,
+    // envUI's component modules import their style sheets; markup needs none.
+    loader: { ".css": "empty" },
     logLevel: "silent",
     write: false,
   }).outputFiles[0].text;

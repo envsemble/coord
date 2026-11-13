@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Badge, Button, DisclosureNote, Stack, Text } from "@envsemble/envui";
+import { Badge, Button, Disclosure, Column, Text } from "@envsemble/envui";
 import { SourceEvidence } from "./SourceEvidence";
 import { DetailHeader } from "./DetailHeader";
 import { GeneralizationIcon, RelationIcon } from "../ui/icons";
@@ -100,9 +100,13 @@ export const ConceptDetails = memo(function ConceptDetails({
 /** The two ends of a relation: each opens its element in the inspector. */
 function RelationEnds({ heading, ends, onChoose }) {
   return (
-    <Stack gap={1} className="relation-ends">
+    <Column gap={1} className="relation-ends">
       {heading && (
-        <Text as="h2" variant="caption" className="detail-section-title">
+        <Text
+          render={<h2 />}
+          variant="body-sm"
+          className="detail-section-title"
+        >
           {heading}
         </Text>
       )}
@@ -121,7 +125,7 @@ function RelationEnds({ heading, ends, onChoose }) {
           </li>
         ))}
       </ul>
-    </Stack>
+    </Column>
   );
 }
 
@@ -188,7 +192,7 @@ function ForeignKey({ relation }) {
         </code>
       </Text>
       {(relation.onDelete || relation.onUpdate) && (
-        <Text tone="muted">
+        <Text emphasis="muted">
           {[
             relation.onDelete && `On delete ${relation.onDelete.toLowerCase()}`,
             relation.onUpdate && `on update ${relation.onUpdate.toLowerCase()}`,
@@ -280,12 +284,16 @@ export const RelationDetails = memo(function RelationDetails({
         (model.partitions || [])
           .filter((set) => set.generalizations.includes(semanticId))
           .map((set) => (
-            <Stack gap={1} className="generalization-set-summary" key={set.id}>
-              <Text as="h2" variant="section-heading">
+            <Column gap={1} className="generalization-set-summary" key={set.id}>
+              <Text
+                render={<h2 />}
+                variant="title"
+                className="atlas-section-heading"
+              >
                 {set.name}
               </Text>
-              <Text tone="muted">{setConstraints(set)}</Text>
-            </Stack>
+              <Text emphasis="muted">{setConstraints(set)}</Text>
+            </Column>
           ))}
       {profile !== "code" && relation.evidence?.length > 0 && (
         <SourceEvidence
@@ -327,7 +335,7 @@ export const GeneralizationSetDetails = memo(function GeneralizationSetDetails({
       {declared ? (
         <>
           <Text className="set-constraints">{setConstraints(group)}</Text>
-          <DisclosureNote title="Read these constraints">
+          <Disclosure title="Read these constraints">
             <Text>
               {group.complete
                 ? "Every instance of the supertype belongs to at least one subtype in this set."
@@ -338,22 +346,22 @@ export const GeneralizationSetDetails = memo(function GeneralizationSetDetails({
                 ? "An instance cannot belong to two subtypes in this set at the same time."
                 : "An instance may belong to more than one subtype in this set at the same time."}
             </Text>
-          </DisclosureNote>
+          </Disclosure>
           {group.memberIds.length < group.totalMembers && (
-            <Text tone="muted">
+            <Text emphasis="muted">
               {group.memberIds.length} of {group.totalMembers} members are
               shown. These constraints apply to the full set.
             </Text>
           )}
         </>
       ) : (
-        <DisclosureNote title="Read joined inheritance">
-          <Text tone="muted">
+        <Disclosure title="Read joined inheritance">
+          <Text emphasis="muted">
             These inheritance branches share a supertype. Joining their lines
             does not assert completeness or disjointness. Declare a
             generalization set in the model to express those constraints.
           </Text>
-        </DisclosureNote>
+        </Disclosure>
       )}
       <SourceEvidence
         evidence={group.evidence}

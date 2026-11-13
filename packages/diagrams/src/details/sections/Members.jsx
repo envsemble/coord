@@ -34,7 +34,7 @@ export function Described({ description, children }) {
   return (
     <span className="member-text">
       {children}
-      <Text as="span" variant="supporting" className="member-description">
+      <Text render={<span />} variant="body-sm" className="member-description">
         {description}
       </Text>
     </span>

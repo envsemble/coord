@@ -108,9 +108,9 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
           <AtlasMark label="" />
         </span>
         <Text
-          as="span"
-          variant="section-heading"
-          className="island-title"
+          render={<span />}
+          variant="title"
+          className="atlas-section-heading island-title"
           title={model.title}
         >
           {model.title}

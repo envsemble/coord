@@ -279,6 +279,7 @@ export const UMLDiagram = memo(function UMLDiagram({
       style={{ width: diagram.width, height: diagram.height }}
     >
       {interactive && backgroundURL && (
+        // eslint-disable-next-line envui/no-raw-graphics -- the diagram's own bitmap backdrop, at the diagram's pixel size under its SVG geometry, not a picture at one of envUI's sizes
         <img
           className={`diagram-background${bitmap ? " ready" : ""}`}
           src={backgroundURL}

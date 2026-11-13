@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Button, Counter, Tooltip } from "@envsemble/envui";
+import { Badge, Button, Tooltip } from "@envsemble/envui";
 import { ToolButton } from "../ui/ToolButton";
 import { FadeIcon, ProposalIcon } from "../ui/icons";
 import { ChangeNavigation, ChangesOverview } from "./ChangesOverview";
@@ -130,10 +130,7 @@ export function useChangeReview({
             }}
           >
             <span className="collapsible-label">Changes</span>
-            <Counter
-              value={rollup.count}
-              tone={showing ? "accent" : "neutral"}
-            />
+            <Badge count={rollup.count} />
           </Button>
         </Tooltip>
         <ToolButton

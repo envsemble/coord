@@ -1,5 +1,5 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Button, Counter, DisclosureNote, Stack, Text } from "@envsemble/envui";
+import { Badge, Button, Column, Disclosure, Text } from "@envsemble/envui";
 import { ToolButton } from "../ui/ToolButton";
 import { BackIcon, NextIcon, PreviousIcon } from "../ui/icons";
 import { CHANGE_LABELS, changeGlyph } from "./changes";
@@ -69,6 +69,7 @@ function ChangeRow({ row, active, onSelect, onHover }) {
     );
   return (
     <li>
+      {/* eslint-disable-next-line envui/no-html-elements -- a change row: its name is the whole summary (mark, name, kind, changed members), and the list's arrow keys move between rows; List.Item names its target by the label alone */}
       <button
         type="button"
         className="change-row"
@@ -122,21 +123,21 @@ function RelationRows({ group, active, returning, onSelect, onHover }) {
   if (rows.length <= 3)
     return (
       <>
-        <Text as="h4" variant="caption" className="change-subheading">
+        <Text render={<h4 />} variant="body-sm" className="change-subheading">
           Relations
         </Text>
         {list}
       </>
     );
   return (
-    <DisclosureNote
+    <Disclosure
       className="change-relations"
       title={`Relations · ${rows.length}`}
       open={open}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
+      onOpenChange={setOpen}
     >
       {list}
-    </DisclosureNote>
+    </Disclosure>
   );
 }
 
@@ -204,8 +205,8 @@ export const ChangesOverview = memo(function ChangesOverview({
         ? "the database"
         : "the model";
   return (
-    <Stack gap={4} className="changes-overview">
-      <Text variant="supporting">
+    <Column gap={4} className="changes-overview">
+      <Text variant="body-sm">
         {rollup.total
           ? `Compared with ${source}${baselineDate ? ` captured ${baselineDate}` : ""}.`
           : `No changes to ${source}${baselineDate ? ` captured ${baselineDate}` : ""}.`}
@@ -213,20 +214,20 @@ export const ChangesOverview = memo(function ChangesOverview({
       {rollup.conflicts.length > 0 && (
         <section className="change-group" data-change="conflict">
           <Text
-            as="h3"
-            variant="section-heading"
-            className="change-group-heading"
+            render={<h3 />}
+            variant="title"
+            className="atlas-section-heading change-group-heading"
           >
             Conflicts
-            <Counter value={rollup.conflicts.length} />
+            <Badge count={rollup.conflicts.length} />
           </Text>
           {rollup.conflicts.map((conflict) => (
-            <DisclosureNote
+            <Disclosure
               key={conflict.id}
               title={conflict.path.join(" / ") || "References"}
             >
-              <Text tone="muted">{conflict.reason}</Text>
-            </DisclosureNote>
+              <Text emphasis="muted">{conflict.reason}</Text>
+            </Disclosure>
           ))}
         </section>
       )}
@@ -239,13 +240,13 @@ export const ChangesOverview = memo(function ChangesOverview({
             aria-label={`${group.label}, ${group.elements.length + group.relations.length}`}
           >
             <Text
-              as="h3"
-              variant="section-heading"
-              className="change-group-heading"
+              render={<h3 />}
+              variant="title"
+              className="atlas-section-heading change-group-heading"
             >
               <ChangeMark status={group.status} />
               {group.label}
-              <Counter value={group.elements.length + group.relations.length} />
+              <Badge count={group.elements.length + group.relations.length} />
             </Text>
             {group.elements.length > 0 && (
               <RowList
@@ -268,7 +269,7 @@ export const ChangesOverview = memo(function ChangesOverview({
           </section>
         ))}
       </div>
-    </Stack>
+    </Column>
   );
 });
 

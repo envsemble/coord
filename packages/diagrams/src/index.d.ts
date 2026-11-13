@@ -19,7 +19,8 @@ export type InspectionTarget = {
 export const DiagramViewer: ComponentType<ViewerPayload>;
 /**
  * The embeddable viewer. Its root is an envUI `Theme` driven by `theme`
- * (default "dark"); hosts load `@envsemble/envui/styles.css` and
+ * (default "dark"); the envUI components it uses bring their own
+ * styles through the host's bundler, and hosts load
  * `@envsemble/atlas-diagrams/embedded.css`. Giving it another payload of the
  * same `family` (members laid out together by `prepareDiagrams`) switches
  * in place: the camera, the view, the selection and the details stay.
@@ -69,8 +70,8 @@ export interface Provenance {
   label: string;
   /** Human-readable source, capture date and coverage, e.g. "TypeScript · shop · captured Oct 8, 2026 · complete coverage". */
   detail: string;
-  /** envUI Badge tone: generated "accent", proposal "done", authored "success", unknown "neutral". */
-  tone: "accent" | "done" | "success" | "neutral";
+  /** envUI Badge tone: generated "primary", proposal "accent", authored "success", unknown "neutral". */
+  tone: "primary" | "accent" | "success" | "neutral";
 }
 /** Accepts a viewer model's `document` metadata. */
 export function describeProvenance(

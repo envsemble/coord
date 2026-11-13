@@ -1,11 +1,11 @@
-import { Button, Card, DisclosureNote, Stack, Text } from "@envsemble/envui";
+import { Button, Card, Disclosure, Column, Text } from "@envsemble/envui";
 import { CodeSnippet } from "../ui/CodeSnippet";
 import { ExternalIcon } from "../ui/icons";
 
 function SourceExcerpt({ source, snippet }) {
   if (!snippet)
     return (
-      <Stack gap={2} align="start" className="source-excerpt">
+      <Column gap={2} align="start" className="source-excerpt">
         <Text>{source.claim}</Text>
         {source.url && (
           <Button
@@ -18,14 +18,14 @@ function SourceExcerpt({ source, snippet }) {
             View source
           </Button>
         )}
-      </Stack>
+      </Column>
     );
   const github = snippet.url?.startsWith("https://github.com/");
   return (
     <Card
       padding={3}
       className="source-file-card"
-      heading={<span title={source.file}>{source.file.split("/").pop()}</span>}
+      title={<span title={source.file}>{source.file.split("/").pop()}</span>}
       meta={`${snippet.language} · lines ${snippet.startLine}–${snippet.endLine}`}
       actions={
         snippet.url ? (
@@ -63,14 +63,18 @@ export function SourceEvidence({
     .filter(Boolean);
   if (!records.length) return null;
   return (
-    <Stack
-      as="section"
+    <Column
+      render={<section />}
       gap={2}
       className="source-evidence detail-section"
       aria-label={label}
     >
       {label !== "Source" && (
-        <Text as="h2" variant="caption" className="detail-section-title">
+        <Text
+          render={<h2 />}
+          variant="body-sm"
+          className="detail-section-title"
+        >
           {label}
         </Text>
       )}
@@ -82,15 +86,15 @@ export function SourceEvidence({
             snippet={snippets[source.id]}
           />
         ) : (
-          <DisclosureNote
+          <Disclosure
             key={source.id}
             title={source.title}
             className="additional-source"
           >
             <SourceExcerpt source={source} snippet={snippets[source.id]} />
-          </DisclosureNote>
+          </Disclosure>
         ),
       )}
-    </Stack>
+    </Column>
   );
 }

@@ -175,15 +175,22 @@ async function prepareModel({
 // The standalone viewer's stored theme preference; src/main.jsx uses the same
 // key, so envUI's startup script themes the page before the first paint.
 const THEME_STORAGE_KEY = "atlas-theme";
+// The offline file keeps envUI's comfortable scale, as src/main.jsx does, so
+// the first paint has it.
+const THEME_SCALE = "comfortable";
 const packageDirectory = (name) =>
   path.dirname(require.resolve(`${name}/package.json`, { paths: [rootPath] }));
-// The offline file has no host: it carries envUI's styles (with the Inter
+// The offline file has no host: it carries the styles of the envUI components
+// the viewer uses (each component's module imports its own, with the Geist
 // font as a data URL), the viewer styles, envUI's theme startup script in the
 // head, the app script and envUI's notices.
 async function bundleClient() {
   const app = await bundleJavaScript({
     absWorkingDir: rootPath,
     entryPoints: ["src/main.jsx"],
+    // Not written: the output path only names the script and the style sheet
+    // that envUI's component modules bring.
+    outdir: "viewer",
     bundle: true,
     format: "iife",
     platform: "browser",
@@ -195,20 +202,19 @@ async function bundleClient() {
       react: packageDirectory("react"),
       "react-dom": packageDirectory("react-dom"),
     },
+    loader: { ".woff2": "dataurl" },
     minify: true,
     charset: "utf8",
     legalComments: "inline",
     logLevel: "silent",
     write: false,
   });
+  const output = (extension) =>
+    app.outputFiles.find((file) => file.path.endsWith(extension))?.text || "";
   const styles = await bundleJavaScript({
     absWorkingDir: rootPath,
     stdin: {
-      contents: [
-        "@envsemble/envui/styles.css",
-        "./src/viewer/viewer.css",
-        "./src/canvas/canvas.css",
-      ]
+      contents: ["./src/viewer/viewer.css", "./src/canvas/canvas.css"]
         .map((file) => `@import "${file}";`)
         .join("\n"),
       resolveDir: rootPath,
@@ -216,7 +222,6 @@ async function bundleClient() {
       loader: "css",
     },
     bundle: true,
-    loader: { ".woff2": "dataurl" },
     minify: true,
     charset: "utf8",
     legalComments: "none",
@@ -225,9 +230,10 @@ async function bundleClient() {
   });
   const envUI = packageDirectory("@envsemble/envui");
   const notices = [
+    ["envUI", "LICENSE"],
     ["envUI runtime dependencies", "licenses/Runtime-Dependencies-LICENSE.txt"],
     ["Material Symbols", "licenses/Material-Symbols-LICENSE.txt"],
-    ["Inter font", "licenses/Inter-LICENSE.txt"],
+    ["Geist font", "licenses/Geist-LICENSE.txt"],
   ]
     .map(
       ([title, file]) =>
@@ -238,11 +244,13 @@ async function bundleClient() {
   const { createThemeBootstrapScript } =
     await import("@envsemble/envui/theme-bootstrap");
   return {
-    app: app.outputFiles[0].text,
-    styles: styles.outputFiles[0].text,
+    app: output(".js"),
+    // envUI's styles first; its cascade layers rank below the viewer's own.
+    styles: output(".css") + styles.outputFiles[0].text,
     notices,
     themeBootstrap: createThemeBootstrapScript({
       storageKey: THEME_STORAGE_KEY,
+      scale: THEME_SCALE,
     }),
   };
 }

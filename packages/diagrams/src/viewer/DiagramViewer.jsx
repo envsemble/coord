@@ -11,12 +11,8 @@ import { DiagramCanvas } from "../canvas/DiagramCanvas";
 import { useSVGExport } from "../canvas/useSVGExport";
 import { sameTarget } from "../canvas/interaction";
 import { indexViewerModel } from "../model/viewerModelIndex";
-import {
-  Dialog,
-  EmptyState,
-  useTheme,
-  useThemePreference,
-} from "@envsemble/envui";
+import { Dialog, useTheme, useThemePreference } from "@envsemble/envui";
+import { EmptyState } from "../ui/EmptyState";
 import { Panel } from "../ui/Panel";
 import { ViewerToolbar } from "./ViewerToolbar";
 import { About } from "./About";

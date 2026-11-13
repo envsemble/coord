@@ -13,7 +13,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { EmptyState, Theme } from "@envsemble/envui";
+import { Theme } from "@envsemble/envui";
+import { EmptyState } from "../ui/EmptyState";
 import { DiagramCanvas } from "../canvas/DiagramCanvas";
 import { indexViewerModel } from "../model/viewerModelIndex";
 import { sameTarget } from "../canvas/interaction";

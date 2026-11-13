@@ -25,8 +25,8 @@ export function Panel({
   const compact = !title && !toolbar;
   return (
     <Surface
-      as="aside"
-      tone="pane"
+      render={<aside />}
+      background="default"
       padding={0}
       id={id}
       className={`panel${open ? " open" : ""}${className ? ` ${className}` : ""}`}
@@ -38,7 +38,11 @@ export function Panel({
         <div className={`panel-header${compact ? " compact" : ""}`}>
           {toolbar}
           {!toolbar && title && (
-            <Text as="h2" variant="section-heading" className="panel-title">
+            <Text
+              render={<h2 />}
+              variant="title"
+              className="atlas-section-heading panel-title"
+            >
               {title}
             </Text>
           )}

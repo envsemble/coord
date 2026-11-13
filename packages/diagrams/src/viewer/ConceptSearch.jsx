@@ -91,6 +91,7 @@ export const ConceptSearch = memo(function ConceptSearch({
         onClick={() => setOpen(!open)}
       />
       <div className="search-field" id={fieldId}>
+        {/* eslint-disable-next-line envui/no-html-elements -- a go-to search, not a value: choosing a concept selects it on the canvas and clears the query; Combobox keeps the chosen option as its value and has no search icon */}
         <SearchField
           ref={inputRef}
           label="Find concept"
@@ -129,12 +130,13 @@ export const ConceptSearch = memo(function ConceptSearch({
             }
           }}
         />
+        {/* eslint-disable-next-line envui/no-html-elements -- the go-to search's suggestions (see the field above) */}
         <Surface
           ref={suggestionsRef}
           id={listId}
-          tone="pane"
+          background="default"
           padding={1}
-          corners="standard"
+          radius="sm"
           className={`suggestions${listOpen ? " open" : ""}`}
           role="listbox"
           aria-label="Concepts"
@@ -157,6 +159,7 @@ export const ConceptSearch = memo(function ConceptSearch({
           }}
         >
           {hits.map((c) => (
+            // eslint-disable-next-line envui/no-html-elements -- an option of the go-to search's suggestions (see the field above)
             <button
               key={c.id}
               type="button"

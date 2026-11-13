@@ -50,7 +50,7 @@ async function smoke() {
   const prepared = viewers.get("order.puml")!;
   const built = await buildViewer({ prepared, file: files[0] });
   const provenance: Provenance = describeProvenance(prepared.model.document);
-  const tone: "accent" | "done" | "success" | "neutral" = provenance.tone;
+  const tone: "primary" | "accent" | "success" | "neutral" = provenance.tone;
   void tone;
   describeProvenance(undefined);
   return (
