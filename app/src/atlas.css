@@ -142,7 +142,16 @@ body { margin: 0; }
    or is one of them, staying in view as the page scrolls with the body, as the panes' own scrolling
    would where the panes had the window's height. */
 .plan-frame-parts > .parts-rail { position: sticky; inset-block-start: 0; padding: var(--env-space-6) var(--env-space-4); }
-.plan-frame > :is(.env-panes-main, .env-panes-supporting) { overflow: visible; }
+.plan-frame > .env-panes-main { overflow: visible; }
+/* Below the panes' split the rail is envUI's sheet: pinned to the window under the title bar, as envUI
+   pins it where the document scrolls, rather than to the end of a long page. */
+@container env-panes (width < 52.5rem) {
+  .plan-frame > .env-panes-supporting { position: fixed; z-index: var(--env-z-modal); }
+  .plan-frame > .env-panes-backdrop { position: fixed; inset-block-start: max(env(titlebar-area-height, 0rem), var(--env-title-bar-height)); z-index: var(--env-z-backdrop); }
+}
+@container env-panes (37.5rem <= width < 52.5rem) {
+  .plan-frame > .env-panes-supporting { inset-block-start: max(env(titlebar-area-height, 0rem), var(--env-title-bar-height)); }
+}
 .parts-trigger { margin: var(--env-space-4) var(--env-space-5) 0; }
 .parts-rail { display: grid; gap: var(--env-space-2); }
 .parts-rail-heading { margin: 0; padding-inline: var(--env-space-2); font-weight: 500; }
