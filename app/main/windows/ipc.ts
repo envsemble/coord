@@ -184,6 +184,7 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
     'project:diagramIndex': { args: [projectId], handle: async (window, projectId: string) => (await window.readable(projectId)).request('project.diagramIndex', { projectId }) },
     // A page: its build, the files it writes and the Atlas tools it calls, on the project's computer.
     'project:page': { args: [projectId, pagePath], handle: async (window, projectId: string, folder: string) => remoteErrors((await window.readable(projectId)).request('project.page', { projectId, path: folder }, { timeout: 60000 })) },
+    'project:readText': { args: [projectId, relativePath], handle: async (window, projectId: string, file: string) => remoteErrors((await window.readable(projectId)).request('project.readText', { projectId, path: file })) },
     'project:write': { args: [projectId, relativePath, fileContent], handle: async (window, projectId: string, file: string, content: string) => remoteErrors((await window.readable(projectId)).request('project.write', { projectId, path: file, content })) },
     'project:tool': { args: [projectId, toolName, toolInput], handle: async (window, projectId: string, name: string, input: Record<string, unknown>) => remoteErrors((await window.readable(projectId)).request('project.tool', { projectId, name, input }, { timeout: 60000 })) },
     // What a planning file references, a work item's sessions and its time, from the project's computer.

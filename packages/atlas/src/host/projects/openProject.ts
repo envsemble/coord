@@ -3,7 +3,7 @@
 // answers every request about that folder from it.
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { readDocument, workStatistics, writeDocument, type HomeDatabase } from '../../planning/index.ts';
+import { readDocument, readText, workStatistics, writeDocument, type HomeDatabase } from '../../planning/index.ts';
 import { buildPage } from '../../planning/pages/pages.ts';
 import { callTool } from '../../cli/commands/mcp.ts';
 import { PlanningReader } from '../../planning/reading/reader.ts';
@@ -207,6 +207,8 @@ export class OpenProject {
     if (!(await exists(folder))) throw new HostError('not-found', 'This page is not in the planning folder any more.');
     return buildPage(this.root, folder);
   }
+  /** A file as text, for a page. */
+  readText(relative: string) { return readText(this.root, relative); }
   /** Write a file a page asked for (its choices, its data). The watcher then reports the change. */
   write(relative: string, content: string) { return writeDocument(this.root, relative, content); }
   /** Run an Atlas tool for a page, in this planning folder. */

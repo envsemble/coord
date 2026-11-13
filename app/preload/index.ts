@@ -38,6 +38,7 @@ const api: AtlasBridge = {
   references: (projectId, work, path) => call('project:references', projectId, work, path),
   diagramIndex: projectId => call('project:diagramIndex', projectId),
   page: (projectId, path) => call('project:page', projectId, path),
+  readText: (projectId, path) => call('project:readText', projectId, path),
   writeFile: (projectId, path, content) => call('project:write', projectId, path, content),
   tool: (projectId, name, input) => call('project:tool', projectId, name, input),
   projectStatistics: (projectId, from, to, unit) => call('project:statistics', projectId, from, to, unit),

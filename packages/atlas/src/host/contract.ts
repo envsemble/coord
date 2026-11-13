@@ -279,6 +279,8 @@ export interface Methods {
   'project.diagramIndex': { params: { projectId: string }; result: DiagramIndexEntry[] };
   /** Build a page (`path`: its folder, `<work>/pages/<name>`) for a window to run: its code, or why it does not build. */
   'project.page': { params: { projectId: string; path: string }; result: PageBuild };
+  /** A file of the planning folder as text, whatever its kind (a page's data, an SVG), at most 4 MB. */
+  'project.readText': { params: { projectId: string; path: string }; result: string };
   /** Write a text file in the planning folder (a page's choices or data), making its folders. */
   'project.write': { params: { projectId: string; path: string; content: string }; result: null };
   /** Run one of the Atlas tools agents use (work_status, step and the rest) in the project's planning folder, for a page. */
@@ -315,6 +317,7 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'project.references': 'computer',
   'project.diagramIndex': 'computer',
   'project.page': 'computer',
+  'project.readText': 'computer',
   'project.write': 'computer',
   'project.tool': 'computer',
   'access.state': 'access:manage',

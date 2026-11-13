@@ -42,6 +42,7 @@ export const api: Omit<Unwrapped, 'snapshot'> & { snapshot(projectId: string): P
   references: (projectId, work, path) => unwrap(bridge().references(projectId, work, path)),
   diagramIndex: projectId => unwrap(bridge().diagramIndex(projectId)),
   page: (projectId, path) => unwrap(bridge().page(projectId, path)),
+  readText: (projectId, path) => unwrap(bridge().readText(projectId, path)),
   writeFile: (projectId, path, content) => unwrap(bridge().writeFile(projectId, path, content)),
   tool: (projectId, name, input) => unwrap(bridge().tool(projectId, name, input)),
   projectStatistics: (projectId, from, to, unit) => unwrap(bridge().projectStatistics(projectId, from, to, unit)),

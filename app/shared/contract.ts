@@ -20,7 +20,7 @@ export type {
 export const invokeChannels = [
   'window:info',
   'projects:list', 'projects:create', 'search:query', 'projects:chooseFolder', 'projects:update', 'project:open', 'project:close',
-  'project:snapshot', 'project:work', 'project:document', 'project:diagrams', 'project:diagram', 'project:arrangement', 'project:arrange', 'project:references', 'project:diagramIndex', 'project:page', 'project:write', 'project:tool',
+  'project:snapshot', 'project:work', 'project:document', 'project:diagrams', 'project:diagram', 'project:arrangement', 'project:arrange', 'project:references', 'project:diagramIndex', 'project:page', 'project:readText', 'project:write', 'project:tool',
   'project:statistics', 'projects:statistics', 'ui:load', 'ui:save',
   'references:resolve', 'work:sessions', 'work:timeline',
   'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:copy',
@@ -213,6 +213,8 @@ export interface AtlasBridge {
   diagramIndex(projectId: string): Promise<Result<DiagramIndexEntry[]>>;
   /** Build a page, by its folder in the planning folder (`<work>/pages/<name>`), for its frame to run. */
   page(projectId: string, path: string): Promise<Result<PageBuild>>;
+  /** A file of the planning folder as text, whatever its kind, for a page. */
+  readText(projectId: string, path: string): Promise<Result<string>>;
   /** Write a text file in the planning folder, for a page. */
   writeFile(projectId: string, path: string, content: string): Promise<Result<null>>;
   /** Run an Atlas tool (work_status, step and the rest) in the project's planning folder, for a page. */

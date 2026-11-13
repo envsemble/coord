@@ -47,7 +47,7 @@ export function PageView({ work, folder, name }: { work: Work; folder: string; n
   // What the frame asks of Atlas.
   const answer = useCallback(async (request: Request): Promise<unknown> => {
     switch (request.method) {
-      case 'read': return (await api.document(projectId, request.params.path)).body;
+      case 'read': return api.readText(projectId, request.params.path);
       case 'write': return api.writeFile(projectId, request.params.path, request.params.content);
       case 'tool': {
         const outcome = await api.tool(projectId, request.params.name, request.params.input);

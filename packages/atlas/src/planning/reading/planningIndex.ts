@@ -87,6 +87,12 @@ async function resolveInside(resolvedRoot: string, relative: string) {
   if (!(await stat(actual)).isFile()) throw new PlanningError('Choose a file to read.', 400);
   return actual;
 }
+/** A file of a planning folder as text (UTF-8), whatever its kind, found as readDocument finds it. */
+export async function readText(root: string, relative: string): Promise<string> {
+  const filename = await resolveDocument(root, relative);
+  if ((await stat(filename)).size > readableLimit) throw new PlanningError('This file is too large to read as text.', 413);
+  return (await readFile(filename, 'utf8')).replace(/^﻿/, '');
+}
 /**
  * Write a text file in a planning folder (a page's choices or data), as readDocument reads one: a
  * path inside it, outside hidden and excluded folders. Its folders are made, and the file is

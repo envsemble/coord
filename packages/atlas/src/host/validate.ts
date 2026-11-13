@@ -168,6 +168,7 @@ export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['p
   'project.references': object({ projectId, work: nullable(workId), path: relativePath }),
   'project.diagramIndex': object({ projectId }),
   'project.page': object({ projectId, path: pagePath }),
+  'project.readText': object({ projectId, path: relativePath }),
   'project.write': object({ projectId, path: relativePath, content: fileContent }),
   'project.tool': object({ projectId, name: toolName, input: toolInput }),
   'access.state': none,
