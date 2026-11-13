@@ -81,6 +81,7 @@ test('a capture, its later captures and its proposals are one diagram with layer
   await expect(title).toHaveText('Checkout · captured TypeScript');
   await expect(window.getByRole('button', { name: /^Changes, \d+$/ })).toHaveCount(0);
   await expect(window.locator('.diagrams .viewer.fade-unchanged')).toHaveCount(0);
+  await expect(window.getByRole('button', { name: 'Show changes' })).toHaveCount(0);
   // Each switch is a step: Back returns to the layer before.
   await window.keyboard.press('Alt+ArrowLeft');
   await expect(title).toHaveText('Checkout · alternative: methods on the customer');
@@ -118,6 +119,20 @@ test('a proposal opens on its changes: a change chosen or stepped to is selected
   await expect(overview).toBeHidden();
   await changes.click();
   await expect(overview).toBeVisible();
+  // With its changes off, the proposal shows plainly where it stood: no marks, no removed elements, no Changes.
+  const added = node(window, 'SavedPaymentMethod').first();
+  const place = await added.getAttribute('transform');
+  const shown = window.getByRole('button', { name: 'Show changes' });
+  await shown.click();
+  await expect(shown).toHaveAttribute('aria-pressed', 'false');
+  await expect(window.locator('.diagrams [data-change]:not([data-change="unchanged"])')).toHaveCount(0);
+  await expect(changes).toHaveCount(0);
+  await expect(overview).toHaveCount(0);
+  await expect(window.locator('.diagrams .viewer.fade-unchanged')).toHaveCount(0);
+  await expect(added).toHaveAttribute('transform', place ?? '');
+  await shown.click();
+  await expect(changes).toHaveAttribute('aria-pressed', 'true');
+  await expect(window.locator('.diagrams .node[data-change="added"][data-name="SavedPaymentMethod"]').first()).toBeVisible();
 
   // Down from the last new type reaches the folded relations' summary, not a hidden row inside.
   await row('SavedPaymentMethod').focus();

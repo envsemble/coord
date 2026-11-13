@@ -1,7 +1,7 @@
 import { reviewedPayload } from "./reviewedPayload";
 import { useOverlayInsets } from "./useOverlayInsets";
 import { useToolbarDensity } from "./useToolbarDensity";
-import { memo, useMemo, useRef } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import { Theme } from "@envsemble/envui";
 import { EmptyState } from "../ui/EmptyState";
 import { DiagramCanvas } from "../canvas/DiagramCanvas";
@@ -14,6 +14,7 @@ import { useArrangement } from "./useArrangement";
 import { createZoomStore } from "./zoomStore";
 import { useViewerState } from "./useViewerState";
 import { SidePanel } from "./SidePanel";
+import { ChangesSwitch } from "../review/ChangesSwitch";
 
 // The overlay's first row starts with the host's own navigation (`sections`),
 // when there is any; the diagram's navigation island then takes a row below.
@@ -27,9 +28,10 @@ function overlayClass(sections, density = 0) {
 // keeps the camera, the view and the selection. The panel's root is an envUI
 // Theme, so the host's `theme` drives envUI's tokens inside it (and in the
 // popups envUI portals out of it). Memoized, so a host re-rendering with the
-// same props leaves the viewer alone.
+// same props leaves the viewer alone. A reader can turn a proposal's changes
+// off and see it plainly; the choice holds while the panel stays mounted.
 export const DiagramPanel = memo(function DiagramPanel(props) {
-  const { payload, review } = reviewedPayload(props.payload);
+  const { payload, review, plain } = reviewedPayload(props.payload);
   if (!payload.views.length) {
     const theme = props.theme || "dark";
     return (
@@ -65,21 +67,27 @@ export const DiagramPanel = memo(function DiagramPanel(props) {
       {...props}
       payload={payload}
       review={review}
+      plain={plain}
       identity={props.payload.family || payload.model.id}
     />
   );
 });
 function DiagramPanelContent({
-  payload,
+  payload: changeView,
   theme = "dark",
   focus = null,
   leading,
   sections,
-  review = null,
+  review: changeReview = null,
+  plain = null,
   identity,
   arrangement = null,
   onArrange,
 }) {
+  const [changesShown, setChangesShown] = useState(true);
+  const plainly = plain && !changesShown;
+  const payload = plainly ? plain : changeView;
+  const review = plainly ? null : changeReview;
   const { model, views, scenarios = null } = payload;
   const camera = useRef(null),
     zoomStore = useMemo(createZoomStore, []);
@@ -102,10 +110,10 @@ function DiagramPanelContent({
   const density = useToolbarDensity(
     topRef,
     identity,
-    `${views.map((v) => v.key).join()}:${!!review}`,
+    `${views.map((v) => v.key).join()}:${!!plain}:${changesShown}`,
   );
   const showViews = views.length > 1;
-  const hasStart = !!leading || showViews || !!changes;
+  const hasStart = !!leading || showViews || !!plain;
   return (
     <Theme theme={theme} className="atlas-panel" data-theme={theme}>
       <div
@@ -117,7 +125,7 @@ function DiagramPanelContent({
           {hasStart && (
             <Island label="Diagram navigation" className="island-start">
               {leading && <div className="island-leading">{leading}</div>}
-              {leading && (showViews || changes) && <IslandDivider />}
+              {leading && (showViews || plain) && <IslandDivider />}
               {showViews && (
                 <ViewSwitcher
                   items={views}
@@ -126,7 +134,13 @@ function DiagramPanelContent({
                   onChange={state.changeView}
                 />
               )}
-              {showViews && changes && <IslandDivider />}
+              {showViews && plain && <IslandDivider />}
+              {plain && (
+                <ChangesSwitch
+                  shown={changesShown}
+                  onChange={setChangesShown}
+                />
+              )}
               {changes?.controls(panel === "changes", () =>
                 state.togglePanel("changes"),
               )}

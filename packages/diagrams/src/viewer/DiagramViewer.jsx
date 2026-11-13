@@ -13,11 +13,13 @@ import { useOverlayInsets } from "./useOverlayInsets";
 import { useToolbarDensity } from "./useToolbarDensity";
 import { useViewerState } from "./useViewerState";
 import { SidePanel } from "./SidePanel";
+import { ChangesSwitch } from "../review/ChangesSwitch";
 
 // A proposal shows its change view, its review data travelling as an extra
-// prop, and the provenance of the proposal itself.
+// prop, and the provenance of the proposal itself. A reader can turn its
+// changes off and see it plainly.
 export function DiagramViewer(props) {
-  const { payload, review, provenanceDocument } = reviewedPayload(props);
+  const { payload, review, plain, provenanceDocument } = reviewedPayload(props);
   if (!payload.views.length)
     return (
       <main className="viewer-error">
@@ -34,6 +36,7 @@ export function DiagramViewer(props) {
       {...payload}
       focus={props.focus}
       review={review}
+      plain={plain}
       provenanceDocument={provenanceDocument}
     />
   );
@@ -47,15 +50,24 @@ function useOptionalThemePreference() {
     return null;
   }
 }
-function ViewerContent({
-  model,
-  views,
-  exports: exportData,
-  scenarios = null,
-  focus = null,
-  review = null,
-  provenanceDocument,
-}) {
+function ViewerContent({ plain = null, ...changeView }) {
+  const [changesShown, setChangesShown] = useState(true);
+  const plainly = plain && !changesShown;
+  const {
+    model,
+    views,
+    exports: exportData,
+    scenarios = null,
+    focus = null,
+    review = null,
+    provenanceDocument,
+  } = plainly
+    ? {
+        ...plain,
+        focus: changeView.focus,
+        provenanceDocument: changeView.provenanceDocument,
+      }
+    : changeView;
   const exports = useArtifactArchive(exportData);
   const preference = useOptionalThemePreference();
   const ambientTheme = useTheme();
@@ -68,7 +80,7 @@ function ViewerContent({
   const fitInsets = useOverlayInsets(viewerRef, toolbarRef);
   const density = useToolbarDensity(
     toolbarRef,
-    `${model.id}:${views.map((v) => v.key).join()}:${!!review}`,
+    `${model.id}:${views.map((v) => v.key).join()}:${!!plain}:${changesShown}`,
   );
   const state = useViewerState({
     model,
@@ -76,7 +88,7 @@ function ViewerContent({
     scenarios,
     review,
     focus,
-    identity: model.id,
+    identity: changeView.model.id,
     cameraRef,
   });
   const { view, diagram, changes, panel } = state;
@@ -94,9 +106,16 @@ function ViewerContent({
       <ViewerToolbar
         ref={toolbarRef}
         density={density}
-        reviewControls={changes?.controls(panel === "changes", () =>
-          state.togglePanel("changes"),
-        )}
+        reviewControls={
+          plain && (
+            <>
+              <ChangesSwitch shown={changesShown} onChange={setChangesShown} />
+              {changes?.controls(panel === "changes", () =>
+                state.togglePanel("changes"),
+              )}
+            </>
+          )
+        }
         provenance={provenanceDocument}
         hasScenarios={!!scenarios}
         scenariosOpen={panel === "scenarios"}

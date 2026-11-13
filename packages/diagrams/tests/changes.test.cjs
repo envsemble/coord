@@ -174,6 +174,7 @@ test("panels show the Changes overview and step through changes; the report is g
   ]) {
     assert(html.includes('aria-label="Changes, 5"'));
     assert(html.includes('aria-label="Fade unchanged elements"'));
+    assert(html.includes('aria-label="Show changes"'));
     assert(html.includes("fade-unchanged"));
     for (const removed of [
       ">Baseline<",

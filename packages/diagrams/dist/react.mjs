@@ -2350,6 +2350,7 @@ import { IconFitScreen } from "@envsemble/envui/icons/FitScreen";
 import { IconFolderZip } from "@envsemble/envui/icons/FolderZip";
 import { IconImage } from "@envsemble/envui/icons/Image";
 import { IconInfo } from "@envsemble/envui/icons/Info";
+import { IconPalette } from "@envsemble/envui/icons/Palette";
 import { IconRemove } from "@envsemble/envui/icons/Remove";
 import { IconRestartAlt } from "@envsemble/envui/icons/RestartAlt";
 import { IconSchool } from "@envsemble/envui/icons/School";
@@ -2974,7 +2975,7 @@ function reviewedPayload(payload) {
   const comparison = payload.comparison;
   const document2 = payload.model.document;
   if (!comparison)
-    return { payload, review: null, provenanceDocument: document2 };
+    return { payload, review: null, plain: null, provenanceDocument: document2 };
   let review = reviews.get(comparison);
   if (!review) {
     const capturedAt = document2?.snapshots?.find(
@@ -2990,6 +2991,7 @@ function reviewedPayload(payload) {
       comparison: void 0
     },
     review,
+    plain: { ...payload, comparison: void 0 },
     provenanceDocument: document2
   };
 }
@@ -3877,14 +3879,29 @@ function SidePanel({ state, model, scenarios }) {
   );
 }
 
+// src/review/ChangesSwitch.jsx
+import { jsx as jsx23 } from "react/jsx-runtime";
+function ChangesSwitch({ shown: shown2, onChange }) {
+  return /* @__PURE__ */ jsx23(
+    ToolButton,
+    {
+      label: "Show changes",
+      tooltip: shown2 ? "Show the diagram plainly" : "Colour what the proposal changes",
+      pressed: shown2,
+      icon: /* @__PURE__ */ jsx23(IconPalette, {}),
+      onClick: () => onChange(!shown2)
+    }
+  );
+}
+
 // src/viewer/DiagramViewer.jsx
-import { jsx as jsx23, jsxs as jsxs16 } from "react/jsx-runtime";
+import { Fragment as Fragment9, jsx as jsx24, jsxs as jsxs16 } from "react/jsx-runtime";
 function DiagramViewer(props) {
-  const { payload, review, provenanceDocument } = reviewedPayload(props);
+  const { payload, review, plain, provenanceDocument } = reviewedPayload(props);
   if (!payload.views.length)
     return /* @__PURE__ */ jsxs16("main", { className: "viewer-error", children: [
-      /* @__PURE__ */ jsx23(ProvenanceBadge, { document: provenanceDocument, className: "inline" }),
-      /* @__PURE__ */ jsx23(
+      /* @__PURE__ */ jsx24(ProvenanceBadge, { document: provenanceDocument, className: "inline" }),
+      /* @__PURE__ */ jsx24(
         EmptyState,
         {
           headingLevel: 1,
@@ -3893,12 +3910,13 @@ function DiagramViewer(props) {
         }
       )
     ] });
-  return /* @__PURE__ */ jsx23(
+  return /* @__PURE__ */ jsx24(
     ViewerContent,
     {
       ...payload,
       focus: props.focus,
       review,
+      plain,
       provenanceDocument
     }
   );
@@ -3910,15 +3928,22 @@ function useOptionalThemePreference() {
     return null;
   }
 }
-function ViewerContent({
-  model,
-  views,
-  exports: exportData,
-  scenarios = null,
-  focus = null,
-  review = null,
-  provenanceDocument
-}) {
+function ViewerContent({ plain = null, ...changeView }) {
+  const [changesShown, setChangesShown] = useState10(true);
+  const plainly = plain && !changesShown;
+  const {
+    model,
+    views,
+    exports: exportData,
+    scenarios = null,
+    focus = null,
+    review = null,
+    provenanceDocument
+  } = plainly ? {
+    ...plain,
+    focus: changeView.focus,
+    provenanceDocument: changeView.provenanceDocument
+  } : changeView;
   const exports = useArtifactArchive(exportData);
   const preference = useOptionalThemePreference();
   const ambientTheme = useTheme();
@@ -3930,7 +3955,7 @@ function ViewerContent({
   const fitInsets = useOverlayInsets(viewerRef, toolbarRef);
   const density = useToolbarDensity(
     toolbarRef,
-    `${model.id}:${views.map((v) => v.key).join()}:${!!review}`
+    `${model.id}:${views.map((v) => v.key).join()}:${!!plain}:${changesShown}`
   );
   const state = useViewerState({
     model,
@@ -3938,7 +3963,7 @@ function ViewerContent({
     scenarios,
     review,
     focus,
-    identity: model.id,
+    identity: changeView.model.id,
     cameraRef
   });
   const { view, diagram, changes, panel } = state;
@@ -3954,15 +3979,18 @@ function ViewerContent({
       ref: viewerRef,
       className: `viewer${panel ? " with-panel" : ""}${changes?.fade ? " fade-unchanged" : ""}`,
       children: [
-        /* @__PURE__ */ jsx23(
+        /* @__PURE__ */ jsx24(
           ViewerToolbar,
           {
             ref: toolbarRef,
             density,
-            reviewControls: changes?.controls(
-              panel === "changes",
-              () => state.togglePanel("changes")
-            ),
+            reviewControls: plain && /* @__PURE__ */ jsxs16(Fragment9, { children: [
+              /* @__PURE__ */ jsx24(ChangesSwitch, { shown: changesShown, onChange: setChangesShown }),
+              changes?.controls(
+                panel === "changes",
+                () => state.togglePanel("changes")
+              )
+            ] }),
             provenance: provenanceDocument,
             hasScenarios: !!scenarios,
             scenariosOpen: panel === "scenarios",
@@ -3985,7 +4013,7 @@ function ViewerContent({
             onFit: () => cameraRef.current.fit()
           }
         ),
-        /* @__PURE__ */ jsx23(
+        /* @__PURE__ */ jsx24(
           DiagramCanvas,
           {
             ref: cameraRef,
@@ -4001,15 +4029,15 @@ function ViewerContent({
             onClearHover: state.clearHover
           }
         ),
-        /* @__PURE__ */ jsx23(SidePanel, { state, model, scenarios }),
-        /* @__PURE__ */ jsx23(
+        /* @__PURE__ */ jsx24(SidePanel, { state, model, scenarios }),
+        /* @__PURE__ */ jsx24(
           Dialog,
           {
             open: aboutOpen,
             onOpenChange: setAboutOpen,
             title: model.title,
             description: "About this diagram and its controls",
-            children: /* @__PURE__ */ jsx23(
+            children: /* @__PURE__ */ jsx24(
               About,
               {
                 model,
@@ -4025,7 +4053,7 @@ function ViewerContent({
 }
 
 // src/viewer/DiagramPanel.jsx
-import { memo as memo4, useMemo as useMemo9, useRef as useRef8 } from "react";
+import { memo as memo4, useMemo as useMemo9, useRef as useRef8, useState as useState12 } from "react";
 import { Theme } from "@envsemble/envui";
 
 // src/viewer/useArrangement.js
@@ -5356,15 +5384,15 @@ function useArrangement(base, arrangement, onArrange) {
 }
 
 // src/viewer/DiagramPanel.jsx
-import { Fragment as Fragment9, jsx as jsx24, jsxs as jsxs17 } from "react/jsx-runtime";
+import { Fragment as Fragment10, jsx as jsx25, jsxs as jsxs17 } from "react/jsx-runtime";
 function overlayClass(sections, density = 0) {
   return `atlas-overlay-top${sections ? " stacked" : ""}${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`;
 }
 var DiagramPanel = memo4(function DiagramPanel2(props) {
-  const { payload, review } = reviewedPayload(props.payload);
+  const { payload, review, plain } = reviewedPayload(props.payload);
   if (!payload.views.length) {
     const theme = props.theme || "dark";
-    return /* @__PURE__ */ jsx24(
+    return /* @__PURE__ */ jsx25(
       Theme,
       {
         theme,
@@ -5372,10 +5400,10 @@ var DiagramPanel = memo4(function DiagramPanel2(props) {
         "data-theme": theme,
         children: /* @__PURE__ */ jsxs17("div", { className: "viewer", children: [
           (props.leading || props.sections) && /* @__PURE__ */ jsxs17("div", { className: overlayClass(props.sections), children: [
-            props.sections && /* @__PURE__ */ jsx24("div", { className: "atlas-overlay-sections", children: props.sections }),
-            props.leading && /* @__PURE__ */ jsx24(Island, { label: "Diagram navigation", className: "island-start", children: /* @__PURE__ */ jsx24("div", { className: "island-leading", children: props.leading }) })
+            props.sections && /* @__PURE__ */ jsx25("div", { className: "atlas-overlay-sections", children: props.sections }),
+            props.leading && /* @__PURE__ */ jsx25(Island, { label: "Diagram navigation", className: "island-start", children: /* @__PURE__ */ jsx25("div", { className: "island-leading", children: props.leading }) })
           ] }),
-          /* @__PURE__ */ jsx24(
+          /* @__PURE__ */ jsx25(
             EmptyState,
             {
               className: "atlas-empty-message",
@@ -5387,27 +5415,33 @@ var DiagramPanel = memo4(function DiagramPanel2(props) {
       }
     );
   }
-  return /* @__PURE__ */ jsx24(
+  return /* @__PURE__ */ jsx25(
     DiagramPanelContent,
     {
       ...props,
       payload,
       review,
+      plain,
       identity: props.payload.family || payload.model.id
     }
   );
 });
 function DiagramPanelContent({
-  payload,
+  payload: changeView,
   theme = "dark",
   focus = null,
   leading,
   sections,
-  review = null,
+  review: changeReview = null,
+  plain = null,
   identity,
   arrangement = null,
   onArrange
 }) {
+  const [changesShown, setChangesShown] = useState12(true);
+  const plainly = plain && !changesShown;
+  const payload = plainly ? plain : changeView;
+  const review = plainly ? null : changeReview;
   const { model, views, scenarios = null } = payload;
   const camera = useRef8(null), zoomStore = useMemo9(createZoomStore, []);
   const viewerRef = useRef8(null), topRef = useRef8(null);
@@ -5426,22 +5460,22 @@ function DiagramPanelContent({
   const density = useToolbarDensity(
     topRef,
     identity,
-    `${views.map((v) => v.key).join()}:${!!review}`
+    `${views.map((v) => v.key).join()}:${!!plain}:${changesShown}`
   );
   const showViews = views.length > 1;
-  const hasStart = !!leading || showViews || !!changes;
-  return /* @__PURE__ */ jsx24(Theme, { theme, className: "atlas-panel", "data-theme": theme, children: /* @__PURE__ */ jsxs17(
+  const hasStart = !!leading || showViews || !!plain;
+  return /* @__PURE__ */ jsx25(Theme, { theme, className: "atlas-panel", "data-theme": theme, children: /* @__PURE__ */ jsxs17(
     "div",
     {
       ref: viewerRef,
       className: `viewer${panel ? " with-panel" : ""}${changes?.fade ? " fade-unchanged" : ""}`,
       children: [
         /* @__PURE__ */ jsxs17("div", { className: overlayClass(sections, density), ref: topRef, children: [
-          sections && /* @__PURE__ */ jsx24("div", { className: "atlas-overlay-sections", children: sections }),
+          sections && /* @__PURE__ */ jsx25("div", { className: "atlas-overlay-sections", children: sections }),
           hasStart && /* @__PURE__ */ jsxs17(Island, { label: "Diagram navigation", className: "island-start", children: [
-            leading && /* @__PURE__ */ jsx24("div", { className: "island-leading", children: leading }),
-            leading && (showViews || changes) && /* @__PURE__ */ jsx24(IslandDivider, {}),
-            showViews && /* @__PURE__ */ jsx24(
+            leading && /* @__PURE__ */ jsx25("div", { className: "island-leading", children: leading }),
+            leading && (showViews || plain) && /* @__PURE__ */ jsx25(IslandDivider, {}),
+            showViews && /* @__PURE__ */ jsx25(
               ViewSwitcher,
               {
                 items: views,
@@ -5450,14 +5484,21 @@ function DiagramPanelContent({
                 onChange: state.changeView
               }
             ),
-            showViews && changes && /* @__PURE__ */ jsx24(IslandDivider, {}),
+            showViews && plain && /* @__PURE__ */ jsx25(IslandDivider, {}),
+            plain && /* @__PURE__ */ jsx25(
+              ChangesSwitch,
+              {
+                shown: changesShown,
+                onChange: setChangesShown
+              }
+            ),
             changes?.controls(
               panel === "changes",
               () => state.togglePanel("changes")
             )
           ] }),
           /* @__PURE__ */ jsxs17(Island, { label: "Diagram tools", className: "island-end", children: [
-            /* @__PURE__ */ jsx24(
+            /* @__PURE__ */ jsx25(
               CameraControls,
               {
                 zoomStore,
@@ -5467,31 +5508,31 @@ function DiagramPanelContent({
                 onFit: () => camera.current?.fit()
               }
             ),
-            onArrange && arranged.arranged && /* @__PURE__ */ jsx24(
+            onArrange && arranged.arranged && /* @__PURE__ */ jsx25(
               ToolButton,
               {
                 label: "Reset layout",
                 tooltip: "Lay the diagram out again, as Atlas arranges it",
-                icon: /* @__PURE__ */ jsx24(IconRestartAlt, {}),
+                icon: /* @__PURE__ */ jsx25(IconRestartAlt, {}),
                 onClick: arranged.reset
               }
             ),
-            scenarios && /* @__PURE__ */ jsxs17(Fragment9, { children: [
-              /* @__PURE__ */ jsx24(IslandDivider, {}),
-              /* @__PURE__ */ jsx24(
+            scenarios && /* @__PURE__ */ jsxs17(Fragment10, { children: [
+              /* @__PURE__ */ jsx25(IslandDivider, {}),
+              /* @__PURE__ */ jsx25(
                 ToolButton,
                 {
                   label: "Understand the model",
                   pressed: panel === "scenarios",
                   "aria-controls": "side-panel",
-                  icon: /* @__PURE__ */ jsx24(IconSchool, {}),
+                  icon: /* @__PURE__ */ jsx25(IconSchool, {}),
                   onClick: () => state.togglePanel("scenarios")
                 }
               )
             ] })
           ] })
         ] }),
-        /* @__PURE__ */ jsx24(
+        /* @__PURE__ */ jsx25(
           DiagramCanvas,
           {
             ref: camera,
@@ -5507,7 +5548,7 @@ function DiagramPanelContent({
             onClearHover: state.clearHover
           }
         ),
-        /* @__PURE__ */ jsx24(SidePanel, { state, model, scenarios })
+        /* @__PURE__ */ jsx25(SidePanel, { state, model, scenarios })
       ]
     }
   ) });
@@ -5516,7 +5557,7 @@ function DiagramPanelContent({
 // src/viewer/ViewerErrorBoundary.jsx
 import { Component } from "react";
 import { Alert as Alert2, Button as Button5 } from "@envsemble/envui";
-import { jsx as jsx25 } from "react/jsx-runtime";
+import { jsx as jsx26 } from "react/jsx-runtime";
 var ViewerErrorBoundary = class extends Component {
   constructor() {
     super(...arguments);
@@ -5531,13 +5572,13 @@ var ViewerErrorBoundary = class extends Component {
   }
   render() {
     if (this.state.failed)
-      return /* @__PURE__ */ jsx25("main", { className: "viewer-error", children: /* @__PURE__ */ jsx25(
+      return /* @__PURE__ */ jsx26("main", { className: "viewer-error", children: /* @__PURE__ */ jsx26(
         Alert2,
         {
           tone: "danger",
           announce: true,
           title: "The model could not be displayed",
-          actions: /* @__PURE__ */ jsx25(Button5, { variant: "secondary", onClick: () => location.reload(), children: "Reload" }),
+          actions: /* @__PURE__ */ jsx26(Button5, { variant: "secondary", onClick: () => location.reload(), children: "Reload" }),
           children: "Rebuild the viewer from the model and check its validation report."
         }
       ) });

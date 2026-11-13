@@ -15,6 +15,7 @@ export { IconFitScreen as FitIcon } from "@envsemble/envui/icons/FitScreen";
 export { IconFolderZip as ArchiveIcon } from "@envsemble/envui/icons/FolderZip";
 export { IconImage as ImageIcon } from "@envsemble/envui/icons/Image";
 export { IconInfo as AboutIcon } from "@envsemble/envui/icons/Info";
+export { IconPalette as ChangeColorsIcon } from "@envsemble/envui/icons/Palette";
 export { IconRemove as ZoomOutIcon } from "@envsemble/envui/icons/Remove";
 export { IconRestartAlt as ResetLayoutIcon } from "@envsemble/envui/icons/RestartAlt";
 export { IconSchool as ScenariosIcon } from "@envsemble/envui/icons/School";
