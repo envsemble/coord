@@ -5,10 +5,10 @@
 // project's statistics or Settings. A plan and its pages have the plan's own files at their left,
 // and the parts of the work it belongs to in a rail at their right.
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { Alert, Breadcrumbs, Button, Kbd, Panes, Popover, Scaffold, Spinner, TopBar, useToast } from '@envsemble/envui';
+import { Alert, Breadcrumbs, Button, Panes, Popover, Scaffold, Spinner, TopBar, useToast } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
 import { ThemeMenu } from '../titleBar/ThemeMenu';
-import { ErrorIcon, SearchIcon, WarningIcon } from '../ui/icons';
+import { ErrorIcon, WarningIcon } from '../ui/icons';
 import type { MenuCommand } from '../../shared/contract';
 import type { Issue, LoadedUi, OpenProjectChange, Project, ProjectChangeRequest, SettingsSection, Snapshot, SnapshotWork, Target, Work, WindowInfo } from '../types';
 import { api } from '../api';
@@ -18,6 +18,7 @@ import { canGoBack, canGoForward, currentEntry, keyStep, record, samePlace, star
 import { workNumber } from '../ui/format';
 import { FilesContext, focusPlanFiles, nodeForTarget, placeWork, PlanFiles, type FilesState } from '../files/Explorer';
 import { SearchPopup } from '../navigation/SearchPopup';
+import { SearchButton } from '../navigation/SearchButton';
 import type { SearchDestination } from '../navigation/search';
 import { PlanPage } from '../plan/PlanPage';
 import { PartsRail, partsGroup } from '../plan/PartsRail';
@@ -25,7 +26,7 @@ import { FilePage } from '../reader/FilePage';
 import { Hub, type HubFilters } from '../hub/Hub';
 import { NewProjectDialog, type ProjectActions } from '../projects/ProjectDialogs';
 import { Gone, Page } from '../ui/Page';
-import { modifierKey, TitleBarStart, type WindowMenus } from '../titleBar/TitleBar';
+import { TitleBarStart, type WindowMenus } from '../titleBar/TitleBar';
 import { revealIds } from '../files/explorerModel';
 import { ReadingContext, WindowContext, type Notify, type OpenOptions, type WindowActions, type WindowReading } from './windowContext';
 import { arrived, liveActivity } from '../plan/agentTime';
@@ -48,7 +49,6 @@ const keepsHistoryKeys = 'input, textarea, select, [contenteditable]:not([conten
 /** What the mouse's back and forward buttons only close: open menus, lists and dialogs. */
 const keepsHistoryButtons = '[role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
 /** Whether the hub's search field has focus. */
-const inSearchField = () => Boolean(document.activeElement?.closest('.hub-search'));
 const popupOpen = () => Boolean(document.activeElement?.closest(keepsHistoryButtons)) || [...document.querySelectorAll(keepsHistoryButtons)].some(element => element.checkVisibility());
 
 /**
@@ -245,32 +245,10 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   }, [projectPlace?.projectId, node?.id]);
 
   // ---- Commands -----------------------------------------------------------------------------------
-  // The search popup and its query, which the hub's search field shows and types into too.
+  // The search popup and its query.
   const [search, setSearch] = useState<string | null>(null);
-  // Focus the hub's field gets back, as the search closes or the window comes forward again, does not
-  // open the search; focus moved into it by the user does. Leaving the field ends that.
-  const searchQuiet = useRef(false);
-  // Whether the search opened from the hub's field, where focus returns as it closes.
-  const searchOpen = useRef<{ fromField: boolean } | null>(null);
-  /** Open the search, with a query typed (none keeps what it has); `focused`: the hub's field took focus. */
-  const openSearch = useCallback((query?: string, focused = false) => {
-    if (focused && searchQuiet.current) return;
-    searchOpen.current ??= { fromField: inSearchField() };
-    setSearch(current => query ?? current ?? '');
-  }, []);
-  const closeSearch = useCallback(() => { searchQuiet.current = searchOpen.current?.fromField ?? false; searchOpen.current = null; setSearch(null); }, []);
-  /** The hub's field lost focus: to the user moving on, not to the window going to the background. */
-  const windowAway = useRef(false);
-  const searchFieldLeft = useCallback(() => { if (document.hasFocus() && !windowAway.current) searchQuiet.current = false; }, []);
-  // Away from the hub, its field is gone: shown again, focus moved into it opens the search.
-  useEffect(() => { if (!hubShown) searchQuiet.current = false; }, [hubShown]);
-  useEffect(() => {
-    const away = () => { windowAway.current = true; if (inSearchField()) searchQuiet.current = true; };
-    const back = () => { windowAway.current = false; };
-    window.addEventListener('blur', away);
-    window.addEventListener('focus', back);
-    return () => { window.removeEventListener('blur', away); window.removeEventListener('focus', back); };
-  }, []);
+  const openSearch = useCallback(() => setSearch(current => current ?? ''), []);
+  const closeSearch = useCallback(() => setSearch(null), []);
   const [creatingProject, setCreatingProject] = useState(false);
   const [hubFilters, setHubFilters] = useState<HubFilters>({ state: 'open' });
   const projectOf = useCallback((projectId: string | null) => projects?.find(project => project.id === projectId), [projects]);
@@ -483,7 +461,7 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   const searchScope = useMemo(() => projectPlace && reading && readSnapshot ? { projectId: reading, snapshot: readSnapshot } : null, [Boolean(projectPlace), reading, readSnapshot]);
 
   let content;
-  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.projectId} filters={hubFilters} setFilters={setHubFilters} go={go} query={search ?? ''} search={openSearch} left={searchFieldLeft} platform={info.platform}
+  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.projectId} filters={hubFilters} setFilters={setHubFilters} go={go} search={openSearch} platform={info.platform}
     computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} newProject={() => setCreatingProject(true)} />;
   else if (isPage(placed) && placed.page === 'settings') content = <SettingsPage section={placed.section} computer={info.computer} go={showSettings} />;
   // All plans' statistics: every active project together.
@@ -501,7 +479,7 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
     topBar={<TopBar titleBar className="window-title-bar"
       start={<TitleBarStart info={info} menus={menus} onError={warn} />}
       actions={<>
-        {/* On the hub, its own search field is the search. */}
+        {/* On the hub, its own search button is the search. */}
         {!hubShown && <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />}
         {scope && read && <Health issues={read.snapshot.issues} open={work => go({ projectId: scope.projectId, target: workTarget(work) })} />}
         <ThemeMenu />
@@ -628,15 +606,6 @@ function PlanFrame({ work, snapshot, children }: { work: Work | null; snapshot: 
     </Panes.Main>
     <Panes.Supporting label={'Parts of ' + workNumber(group.id)} className="plan-frame-parts"><PartsRail group={group} shown={work.id} /></Panes.Supporting>
   </Panes.Root>;
-}
-
-/** The title bar's search: plans, documents, diagrams and projects (away from the hub, whose search field opens the same). */
-function SearchButton({ platform, onClick }: { platform: string; onClick(): void }) {
-  // envUI's search trigger, on the title bar's own colour: the icon, its label and the shortcut's keys at its end.
-  return <Button variant="ghost" className="search-button" startIcon={<SearchIcon />} end={<span className="search-button-keys"><Kbd keys={[modifierKey(platform), 'P']} /></span>}
-    onClick={onClick} aria-label="Search" aria-keyshortcuts={platform === 'darwin' ? 'Meta+P' : 'Control+P'}>
-    <span className="search-button-label">Search</span>
-  </Button>;
 }
 
 /** Record health of the shown project: problems in its planning records, each linking to its work item. */

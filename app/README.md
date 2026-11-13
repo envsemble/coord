@@ -41,7 +41,7 @@ A window has one row at the top, its title bar, from the left:
 - **View**: **Zoom In** (Ctrl++), **Zoom Out** (Ctrl+-), **Actual Size** (Ctrl+0) and **Full Screen** (F11), with **Reload** and **Developer Tools** in development builds;
 - **Help**: **Open Logs** and **About Atlas**;
 - the **computer menu**, the name of the computer the window works on: this computer and the paired ones (choosing one shows its plans in this window), and **Computer settings…**, which opens **Settings › Computers** (see [Remote computers](#remote-computers));
-- at the right: **Search** (Ctrl+P; on the hub its own search field takes its place), record-health notes when the shown project has any, the theme menu (**Match the system**, **Light** or **Dark**, for every window) and the system's window buttons.
+- at the right: **Search** (Ctrl+P; on the hub its own **Search every project** takes its place), record-health notes when the shown project has any, the theme menu (**Match the system**, **Light** or **Dark**, for every window) and the system's window buttons.
 
 Alt opens the menus from the keyboard (Alt+P, Alt+F, Alt+V, Alt+H). Empty space in the title bar moves the window, and a double click maximizes it.
 
@@ -51,7 +51,7 @@ Alt opens the menus from the keyboard (Alt+P, Alt+F, Alt+V, Alt+H). Empty space 
 
 **New Window** opens another window on the same computer; Ctrl+Shift+W closes one. Windows open at quit come back at the next start, each with its size, position and place; so does the last window closed. A window whose paired computer does not answer at the start shows the hub at once and its place when the computer answers.
 
-**The search** (Ctrl+P, **Search**, or the hub's search field) searches every active project of the computer: plans, ledger steps, documents with their headings and text, diagrams and their elements, glossary terms and projects. A plan's tags match as words, and `tag:0.8.0` keeps only the plans tagged `0.8.0` (with words, those that also match them); plans show their tags. Results come grouped by kind, each with its project and plan, and open where they are: a plan, a document at its heading, a diagram at its element, a project's plans in the hub.
+**The search** (Ctrl+P, **Search**, or the hub's **Search every project**) searches every active project of the computer: plans, ledger steps, documents with their headings and text, diagrams and their elements, glossary terms and projects. A plan's tags match as words, and `tag:0.8.0` keeps only the plans tagged `0.8.0` (with words, those that also match them); plans show their tags. Results come grouped by kind, each with its project and plan, and open where they are: a plan, a document at its heading, a diagram at its element, a project's plans in the hub.
 
 | Shortcut                 | Action                                 |
 | ------------------------ | -------------------------------------- |
@@ -68,7 +68,7 @@ Alt opens the menus from the keyboard (Alt+P, Alt+F, Alt+V, Alt+H). Empty space 
 
 The hub lists every plan of the computer's active projects, grouped by status, in this order: **Needs you** (an agent asked for you: a question, a decision or work to review), **Working** (an agent is on it: in a turn, or waiting on something else, such as CI), **Blocked**, **Paused** (implementation started, nobody on it), **Drafts**, **Ready** (accepted, not started) and, when asked for, **Closed**. Each group lists the latest change first; only groups with plans show.
 
-Its heading line holds the title (**Plans**, or the project's name when filtered), **Statistics** (all plans', or the project's), the search field, which opens the search with what you type and never filters the list, the project menu (**All projects**, or one active project; see [Projects](#projects)) and the state filter (**Open**, **Closed** or **All**, each with its count). The project chosen is part of the place, so back and forward and a plan's breadcrumb set it.
+Its heading line holds the title (**Plans**, or the project's name when filtered), **Statistics** (all plans', or the project's), **Search every project**, the title bar's search in the same style, which opens the search and never filters the list, the project menu (**All projects**, or one active project; see [Projects](#projects)) and the state filter (**Open**, **Closed** or **All**, each with its count). The project chosen is part of the place, so back and forward and a plan's breadcrumb set it.
 
 Every plan is a row; a click anywhere on it opens the plan. A row shows:
 

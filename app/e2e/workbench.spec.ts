@@ -43,20 +43,20 @@ test('a window opens on the hub: every plan of every active project, grouped by 
   await expect(window.getByRole('button', { name: 'Back', exact: true })).not.toHaveAttribute('aria-disabled', 'true');
 });
 
-test("the hub's search field opens the search with what is typed and never filters the hub; the project and state filters narrow its plans; on a plan the search finds its project's documents", async () => {
+test("the hub's search button opens the search and it never filters the hub; the project and state filters narrow its plans; on a plan the search finds its project's documents", async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
   addProject(home.dataDirectory, 'coord', 'Coord');
   launched = await launch({ dataDirectory: home.dataDirectory });
   const { window } = launched;
   await expect(hubRows(window)).toHaveCount(6);
-  // The title bar has no search of its own on the hub: the hub's field is the search.
+  // The title bar has no search of its own on the hub: the hub's button, in its style, is the search.
   await expect(titleBar(window).getByRole('button', { name: 'Search', exact: true })).toHaveCount(0);
-  const field = window.getByRole('searchbox', { name: 'Search' });
+  const trigger = window.getByRole('button', { name: 'Search every project' });
   const popup = searchPopup(window);
   const input = popup.getByRole('combobox');
   // A click opens the search; what is typed goes there, and the hub's list stays as it is.
-  await field.click();
+  await trigger.click();
   await expect(popup).toBeVisible();
   await window.keyboard.type('payment');
   await expect(input).toHaveValue('payment');
@@ -64,38 +64,18 @@ test("the hub's search field opens the search with what is typed and never filte
   await expect(hubRows(window)).toHaveCount(6);
   await window.keyboard.press('Escape');
   await expect(popup).toHaveCount(0);
-  // Focus back in the field does not open it again; typing there does, carrying what was typed over.
-  await expect(field).toBeFocused();
-  await window.waitForTimeout(600);
-  await expect(popup).toHaveCount(0);
-  await expect(field).toHaveValue('');
-  // Nor does the window going to the background and coming back, which focuses the field again.
-  await field.evaluate(element => {
-    globalThis.dispatchEvent(new Event('blur'));
-    element.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
-    globalThis.dispatchEvent(new Event('focus'));
-    element.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-  });
-  await window.waitForTimeout(400);
-  await expect(popup).toHaveCount(0);
-  // Moving away from the field and back into it does.
-  await window.keyboard.press('Tab');
-  await expect(field).not.toBeFocused();
-  await window.keyboard.press('Shift+Tab');
-  await expect(popup).toBeVisible();
-  await window.keyboard.press('Escape');
-  await expect(field).toBeFocused();
+  await expect(trigger).toBeFocused();
+  // Enter on it opens it again, empty.
+  await window.keyboard.press('Enter');
+  await expect(input).toHaveValue('');
   await window.keyboard.type('fulfil coord');
-  await expect(input).toHaveValue('fulfil coord');
   await expect(hubRows(window)).toHaveCount(6);
   await popup.getByRole('option', { name: /Order fulfilment model.*Coord/ }).click();
   await expect(window.locator('.work-page h1')).toHaveText('Order fulfilment model');
   await expect(window.locator('.work-page .breadcrumb')).toContainText('Coord');
-  // Focusing the field from the keyboard opens it too.
   await goHome(window);
-  await window.getByRole('searchbox', { name: 'Search' }).focus();
+  await window.keyboard.press('Control+P');
   await expect(popup).toBeVisible();
-  await expect(input).toHaveValue('');
   // From the hub it finds plans, not documents.
   await input.fill('payments-cons');
   await expect(popup.getByRole('option')).toHaveCount(0);

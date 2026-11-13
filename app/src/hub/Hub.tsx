@@ -9,7 +9,7 @@
 // line with the search field, which opens the search. One click opens a plan. A connected agent that does not run Atlas (Codex not trusting its hooks, say)
 // has a notice above the plans, linking to Settings › Agents, until it does.
 import { memo, useMemo, type MouseEvent } from 'react';
-import { Alert, Button, Kbd, Link, Row, SearchField, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
+import { Alert, Button, Link, Row, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
 import { StatisticsIcon, WorkIcon } from '../ui/icons';
 import type { Project } from '../types';
@@ -25,7 +25,7 @@ import { ModelName } from '../ui/ModelName';
 import { continuation } from '../plan/handoffs';
 import { ContinuedIn } from '../plan/HandoffLinks';
 import { Page } from '../ui/Page';
-import { modifierKey } from '../titleBar/TitleBar';
+import { SearchButton } from '../navigation/SearchButton';
 import { AgentTime, Waited } from '../plan/LiveAgentTime';
 import { unreported, type LiveActivity } from '../plan/agentTime';
 
@@ -114,14 +114,10 @@ function rowKey(item: HubItem) {
   return key;
 }
 
-export function Hub({ projects, error, filter: asked, filters, setFilters, go, query, search, left, platform, computer, local, actions, newProject }: {
+export function Hub({ projects, error, filter: asked, filters, setFilters, go, search, platform, computer, local, actions, newProject }: {
   projects: Project[] | null; error: string; filter: string | null; filters: HubFilters; setFilters(filters: HubFilters): void; go(place: Place): void;
-  /** The search's query while it is open; the field shows it. */
-  query: string;
-  /** Open the search with what was typed (none: what it has); `focused`: the field took focus (the window decides whether that opens it). */
-  search(query?: string, focused?: boolean): void;
-  /** The search field lost focus. */
-  left(): void;
+  /** Open the search. */
+  search(): void;
   /** The computer's platform, for the search's shortcut keys. */
   platform: string;
   /** The window's computer, its name, and whether it is this one (whose folders can be chosen), for the project menu. */
@@ -158,10 +154,8 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, q
   return <Page className="hub" title={filtered?.name ?? 'Plans'} controlSize="sm"
     actions={<Button variant="secondary" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered?.id ?? null))}>Statistics</Button>}
     toolbar={<Row wrap align="center" justify="between" gap={3}>
-      {/* The search opens the search popup with what is typed, and never filters this list. */}
-      <SearchField className="hub-search" size="sm" label="Search" placeholder="Search every project" value={query} aria-haspopup="dialog" showLabel={false}
-        aria-keyshortcuts={platform === 'darwin' ? 'Meta+P' : 'Control+P'} suffix={query ? undefined : <Kbd keys={[modifierKey(platform), 'P']} />}
-        onValueChange={search} onFocus={() => search(undefined, true)} onBlur={left} onClick={() => search()} />
+      {/* The title bar's search, here: it opens the search popup, and never filters this list. */}
+      <SearchButton className="hub-search" platform={platform} label="Search every project" onClick={search} />
       <Row align="center" gap={2}>
       <ProjectMenu projects={projects} chosen={filtered} computer={computer} local={local} actions={actions} newProject={newProject} />
       <SegmentedControl aria-label="Plan state" size="sm" value={filters.state} onValueChange={state => setFilters({ ...filters, state: state as HubState })}
