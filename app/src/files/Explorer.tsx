@@ -57,7 +57,8 @@ export function PlanFiles({ work }: { work: Work }) {
     return [top, ...open ? visibleRows(index, expandedSet, work.path).map(row => ({ ...row, depth: row.depth + 1 })) : []].map(row => treeItem(row, work.path));
   }, [index, expandedSet, work.path]);
   // A file opens as a file, a diagram file of the work item as its diagram.
-  const fileOpens = (file: Document) => documentTarget(file, isDiagramFile(file.path) ? work : undefined);
+  // A plan's plan.md opens as the plan, a diagram as a diagram, any other file on its page.
+  const fileOpens = (file: Document) => documentTarget(file, work);
   const setOpen = (id: string, value: boolean) => {
     // The plan's folder is open unless folded; the others are folded unless opened.
     if (id === folderNodeId(work.path)) { setExpanded(value ? expanded.filter(item => item !== folded(id)) : [...expanded, folded(id)]); return; }

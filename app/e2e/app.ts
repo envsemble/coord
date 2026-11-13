@@ -342,7 +342,7 @@ export async function showFiles(window: Page) {
 }
 
 /** The name of the file the window shows: the last part of its breadcrumb. */
-export const shownFile = (window: Page) => window.locator('.file-page .breadcrumb [aria-current="page"]');
+export const shownFile = (window: Page) => window.locator('.file-page .file-name');
 
 /** Open a document of the open plan's project by its name, through the search. */
 export async function openDocument(window: Page, name: string) {

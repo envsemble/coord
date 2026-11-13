@@ -298,10 +298,6 @@ body { margin: 0; }
 /* Reader */
 .reader { min-inline-size: 0; }
 /* A file's metadata header, above its text: field names muted, values as written. */
-.document-header { margin-block-end: var(--env-space-4); font-size: var(--env-font-size-body-sm); }
-.document-header th { padding-inline-end: var(--env-space-4); color: var(--env-color-fg-muted); font-weight: 500; text-align: start; vertical-align: top; white-space: nowrap; }
-.document-header td { overflow-wrap: anywhere; }
-.document-header-entries { margin: 0; padding-inline-start: var(--env-space-4); }
 .reader-loading { display: grid; place-content: center; padding-block: var(--env-space-8); }
 .prose :is(h1, h2, h3, h4, h5, h6) { scroll-margin-block-start: calc(var(--atlas-sticky-top, var(--app-sticky-top, 0px)) + var(--env-space-4)); }
 .prose img { max-inline-size: 100%; }
@@ -333,6 +329,9 @@ body { margin: 0; }
 .layer-marker { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; padding-inline-start: var(--env-space-1); }
 .layer-marker-icon { display: inline-flex; color: var(--env-color-fg-muted); }
 .layer-marker-title { min-inline-size: 0; max-inline-size: 18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline-end: var(--env-space-2); }
+
+/* A file page: the file name beside its title, quietly, its path on hover. */
+.file-page .file-name { color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); font-weight: var(--env-font-weight-regular); }
 
 /* Statistics */
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--env-space-3); }

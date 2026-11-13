@@ -260,13 +260,17 @@ test("the plan's files are beside its pages with the plan's own folder, open a f
   await expect(sidebar).toBeVisible();
   await files.locator(row('f:active/0001-saved-payment-methods/CONTEXT.md')).click();
   await expect(files.locator(row('f:active/0001-saved-payment-methods/CONTEXT.md'))).toHaveAttribute('aria-selected', 'true');
-  // The file is on the page as the plan is: the breadcrumb (Plans, project, plan, file) with Show in folder beside it, no file card.
-  await expect(window.locator('.file-page .breadcrumb')).toHaveText(/^Plans.*Northwind.*#0001.*CONTEXT\.md$/);
+  // The file is on the page as the plan is: under its plan's breadcrumb (Plans, project, plan), not a crumb of its own, its name below its title, with Show in folder beside it.
+  await expect(window.locator('.file-page .breadcrumb')).toHaveText(/^Plans.*Northwind.*#0001$/);
+  await expect(window.locator('.file-page .file-name')).toHaveText('CONTEXT.md');
   await expect(window.locator('.file-page').getByRole('button', { name: 'Show in folder' })).toBeVisible();
   await expect(window.locator('.file-page .reader .prose')).toBeVisible();
   await expect(window.locator('.reader-toolbar')).toHaveCount(0);
+  // plan.md opens as the plan itself, not as a file.
+  await files.locator(row('f:active/0001-saved-payment-methods/plan.md')).click();
+  await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
+  await expect(window.locator('.file-page')).toHaveCount(0);
   // The plan's statistics page has it too; the hub has none.
-  await window.getByRole('button', { name: '#0001' }).click();
   await window.locator('.plan-aside').getByRole('link', { name: 'All statistics and the timeline' }).click();
   await expect(sidebar).toBeVisible();
   await goHome(window);

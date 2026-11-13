@@ -12,7 +12,6 @@ import { bytes } from '../ui/format';
 import { useWindow, useWindowActions } from '../window/windowContext';
 import { appSchemes, fromUrl, referenceKey, rehypeReferences, type Found } from './references';
 import { PullMark, ReferenceLink, ReferencesContext, useCollectedReferences, useResolvedReferences } from './ReferenceLink';
-import { DocumentHeader } from './DocumentHeader';
 
 /** The diagrams a document links to, refetched when the folder's files change. */
 export function useReferences(file: Document | undefined, workId: string | null | undefined, enabled = true) {
@@ -92,9 +91,8 @@ function FoldToggle({ id, children }: { id?: string; children?: ReactNode }) {
   return <Button variant="text" className="request-fold-toggle" aria-expanded={folds.open.has(id)} startIcon={<ChevronRightIcon className="request-fold-icon" />} onClick={() => folds.toggle(id)}>{children}</Button>;
 }
 
-export function Reader({ file, snapshot, anchor, references = noReferences, hideTitle, plan = false, showHeader = false }: {
+export function Reader({ file, snapshot, anchor, references = noReferences, hideTitle, plan = false }: {
   file: Document; snapshot: Snapshot; anchor: string | null; references?: DiagramReference[];
-  /** The file as it is: its metadata header shown as a table above its text. */ showHeader?: boolean;
   /** A level-one heading repeating the page title is omitted. */ hideTitle?: string;
   /** A work item's plan: its request shows folded. */ plan?: boolean;
 }) {
@@ -198,7 +196,6 @@ export function Reader({ file, snapshot, anchor, references = noReferences, hide
     {error ? <EmptyState icon={<FileIcon />} title="Unable to open this file" description={error} action={revealButton} />
       : !content ? <div className="reader-loading"><Spinner label="Loading the document" /></div>
       : content.format === 'markdown' ? <div className="prose">
-        {showHeader && content.metadata && <DocumentHeader metadata={content.metadata} />}
         <ReferencesContext.Provider value={referenceScope}><FoldsContext.Provider value={folds}><ReaderMarkdown body={content.body} plugins={plugins} components={components} /></FoldsContext.Provider></ReferencesContext.Provider>
       </div>
       : content.format === 'text' ? <pre className="source-text">{content.body}</pre>

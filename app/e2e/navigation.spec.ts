@@ -8,7 +8,7 @@ const homes: string[] = [];
 test.afterEach(async () => { await close(launched); launched = undefined; for (const home of homes.splice(0)) removeDirectory(home); });
 
 /** What the window shows: the hub, a work item, a file or a diagram. */
-const shows = (window: Page) => window.locator('.hub h1, .work-page h1, .file-page .breadcrumb [aria-current="page"], .diagrams .diagram-title').first();
+const shows = (window: Page) => window.locator('.hub h1, .work-page h1, .file-page .file-name, .diagrams .diagram-title').first();
 /** The last step of a work item's trail: its number. */
 const trailEnd = (window: Page) => window.locator('.work-page .breadcrumb [aria-current="page"]');
 /** Shows the work item Saved payment methods (#0001), or Customer order notifications (#0003). */
@@ -154,8 +154,10 @@ test('a long plan scrolls below the title bar, going back finds it where it was 
   // A file chosen in the Files sidebar opens on the page, the sidebar staying beside it; Alt+← goes back to the plan.
   await openPlan(window, 'Customer order notifications');
   const files = await showFiles(window);
+  // A plan's ledger opens as the plan shows it: on the plan page.
   await files.locator('[role="treeitem"][data-id="f:active/0003-customer-notifications/ledger.md"]').click();
-  await expect(shownFile(window)).toHaveText('ledger.md');
+  await expect(window.locator('.work-page h1')).toHaveText('Customer order notifications');
+  await expect(window.locator('.file-page')).toHaveCount(0);
   await expect(files.locator('[role="treeitem"][data-id="f:active/0003-customer-notifications/ledger.md"]')).toHaveAttribute('aria-selected', 'true');
   await window.keyboard.press('Alt+ArrowLeft');
   await expect(window.locator('.work-page h1')).toHaveText('Customer order notifications');

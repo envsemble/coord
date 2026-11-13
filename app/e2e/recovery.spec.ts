@@ -28,7 +28,7 @@ test('a crashed window reloads showing what it showed', async () => {
   // renderer stuck in its crash handler, so the process never ends.)
   await app.evaluate(({ BrowserWindow }) => { process.kill(BrowserWindow.getAllWindows()[0].webContents.getOSProcessId(), 'SIGKILL'); });
   // Playwright's page object ends with the crashed renderer, so read the reloaded page from main.
-  const shown = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.executeJavaScript("document.querySelector('.file-page .breadcrumb [aria-current=page]')?.textContent ?? ''").catch(() => ''));
+  const shown = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.executeJavaScript("document.querySelector('.file-page .file-name')?.textContent ?? ''").catch(() => ''));
   let restored = '';
   for (let attempt = 0; attempt < 40 && restored !== 'inventory-schema.md'; attempt++) {
     await new Promise(resolve => setTimeout(resolve, 500));

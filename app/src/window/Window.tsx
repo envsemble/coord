@@ -595,8 +595,12 @@ function ProjectContent({ place, folder, project, scope, read, statisticsTrail }
         : <PlanFrame work={item} snapshot={snapshot}>{target.view === 'statistics' ? <Suspense fallback={loadingPage}><WorkStatisticsPage work={item} /></Suspense> : <PlanPage work={item} snapshot={snapshot} target={target} />}</PlanFrame>;
     } else {
       const file = snapshot.documents.find(document => document.path === target.path);
-      const page = !file ? <Gone title="This file no longer exists" detail={target.path} /> : <FilePage file={file} snapshot={snapshot} anchor={target.anchor ?? null} />;
-      content = <PlanFrame work={placeWork(target, snapshot)} snapshot={snapshot}>{page}</PlanFrame>;
+      // A plan's plan.md and ledger.md are the plan page, as Atlas shows them, however they are opened.
+      const planned = file && snapshot.work.find(entry => entry.id === file.workId && (entry.currentPlan === file.path || file.category === 'ledger'));
+      const page = !file ? <Gone title="This file no longer exists" detail={target.path} />
+        : planned ? <PlanPage work={planned} snapshot={snapshot} target={{ kind: 'work', work: planned.id, anchor: target.anchor ?? null }} />
+        : <FilePage file={file} snapshot={snapshot} anchor={target.anchor ?? null} />;
+      content = <PlanFrame work={planned ?? placeWork(target, snapshot)} snapshot={snapshot}>{page}</PlanFrame>;
     }
   }
   return <WindowContext.Provider value={scope}><ReadingContext.Provider value={read}>
