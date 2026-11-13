@@ -41,6 +41,7 @@ Paths are relative to the page's folder, or to the planning folder when they sta
 
 - `page`: the page's `name`, `folder`, `work` (`id`, `title`, `path`) and `project`.
 - `read(path)`, `readJSON(path)`, `write(path, text)`, `writeJSON(path, value)`: files anywhere in the planning folder.
+- `url(path)`: an address for a file of the planning folder, for an image to load as it is (`<img src={url('../../references/shot.webp')} />`); importing it bundles it into the page instead.
 - `useFile(path)`, `useJSON(path)`: a file as `{ value, error, loading }`, read again when it changes.
 - `tool(name, input)`: the Atlas tools you use (`work_status`, `step`, `work_search` and the rest), with the same input; a refusal throws.
 - `Diagram`: a diagram of the work item, as Atlas draws it: `<Diagram path="../../diagrams/orders.puml" height="32rem" />`.

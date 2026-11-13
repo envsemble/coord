@@ -30,6 +30,14 @@ export function resolve(path: string): string {
   return resolved;
 }
 
+/**
+ * An address for a file of the planning folder, for an image, a video or a font to load directly:
+ * `<img src={url('../../references/shot.png')} />`.
+ */
+export function url(path: string): string {
+  return 'atlas://planning/' + connected().page.project.id + '/' + resolve(path).split('/').map(encodeURIComponent).join('/');
+}
+
 /** A text file's contents. */
 export async function read(path: string): Promise<string> { return await connected().request('read', { path: resolve(path) }) as string; }
 /** A JSON file's value. */
