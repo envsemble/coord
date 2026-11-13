@@ -4,7 +4,7 @@
 // place. Ctrl+Shift+E brings the keyboard to it.
 import { createContext, useContext, useMemo } from 'react';
 import { Menu, Text, Tree, type TreeItem } from '@envsemble/envui';
-import { DiagramIcon, FileIcon, FolderIcon, FolderOpenIcon } from '../ui/icons';
+import { DiagramIcon, GlossaryIcon, LedgerIcon, PlanIcon } from '../ui/icons';
 import type { Document, Snapshot, Target, Work } from '../types';
 import { api } from '../api';
 import { buildIndex, fileNodeId, folderNodeId, revealIds, visibleRows, type ExplorerRow } from './explorerModel';
@@ -54,7 +54,7 @@ export function PlanFiles({ work }: { work: Work }) {
   const rows = useMemo(() => {
     const id = folderNodeId(work.path), open = !expandedSet.has(folded(id));
     const top: ExplorerRow = { id, kind: 'folder', name: work.path.slice(work.path.lastIndexOf('/') + 1), path: work.path, depth: 0, expandable: true, expanded: open };
-    return [top, ...open ? visibleRows(index, expandedSet, work.path).map(row => ({ ...row, depth: row.depth + 1 })) : []].map(treeItem);
+    return [top, ...open ? visibleRows(index, expandedSet, work.path).map(row => ({ ...row, depth: row.depth + 1 })) : []].map(row => treeItem(row, work.path));
   }, [index, expandedSet, work.path]);
   // A file opens as a file, a diagram file of the work item as its diagram.
   const fileOpens = (file: Document) => documentTarget(file, isDiagramFile(file.path) ? work : undefined);
@@ -97,10 +97,19 @@ export function focusPlanFiles() {
   document.querySelector<HTMLElement>('.plan-files [role="tree"]')?.focus();
 }
 
-function treeItem(row: ExplorerRow): Row {
+/**
+ * A row of the tree. Only the files Atlas reads for what they are have an icon: the plan, its ledger,
+ * its glossary and its diagrams; every other row keeps the icon's room empty, so the names line up.
+ */
+function treeItem(row: ExplorerRow, workPath: string): Row {
   const base = { value: row.id, depth: row.depth, expandable: row.expandable, expanded: row.expanded, row, textValue: row.name };
-  if (row.kind !== 'file') return { ...base, label: row.name, icon: row.expanded ? <FolderOpenIcon className="explorer-folder" /> : <FolderIcon className="explorer-folder" />, tooltip: row.path };
-  const diagram = isDiagramFile(row.path!) && Boolean(row.file?.workId);
+  if (row.kind !== 'file') return { ...base, label: row.name, icon: <></>, tooltip: row.path };
+  const own = (name: string) => row.path === workPath + '/' + name;
+  const icon = own('plan.md') ? <PlanIcon className="explorer-special" />
+    : own('ledger.md') ? <LedgerIcon className="explorer-special" />
+    : own('CONTEXT.md') ? <GlossaryIcon className="explorer-special" />
+    : isDiagramFile(row.path!) && row.file?.workId ? <DiagramIcon className="explorer-diagram" />
+    : <></>;
   // Its whole name; its title, when it has one of its own, on hover.
-  return { ...base, label: row.name, icon: diagram ? <DiagramIcon className="explorer-diagram" /> : <FileIcon className="explorer-file" />, tooltip: row.file && row.file.title !== row.file.name ? row.file.title + ' \u00b7 ' + row.path : row.path };
+  return { ...base, label: row.name, icon, tooltip: row.file && row.file.title !== row.file.name ? row.file.title + ' \u00b7 ' + row.path : row.path };
 }

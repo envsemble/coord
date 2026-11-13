@@ -11,6 +11,7 @@ export { IconClose as CloseIcon } from '@envsemble/envui/icons/Close';
 export { IconComputer as ComputerIcon } from '@envsemble/envui/icons/Computer';
 export { IconContentCopy as CopyIcon } from '@envsemble/envui/icons/ContentCopy';
 export { IconDescription as FileIcon } from '@envsemble/envui/icons/Description';
+export { IconDictionary as GlossaryIcon } from '@envsemble/envui/icons/Dictionary';
 export { IconDoNotDisturbOn as AbandonedIcon } from '@envsemble/envui/icons/DoNotDisturbOn';
 export { IconDownload as DownloadIcon } from '@envsemble/envui/icons/Download';
 export { IconEditNote as DraftIcon } from '@envsemble/envui/icons/EditNote';
