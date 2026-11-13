@@ -442,6 +442,15 @@ export interface DiagramScene {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
   generalizationGroups?: DiagramGeneralizationGroup[];
+  /** A diagram's packages, each a region round its elements (its members' ids), named in its top left. */
+  packages?: {
+    name: string;
+    members: string[];
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }[];
 }
 export interface PreparedView {
   key: string;

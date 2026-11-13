@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DiagramPanel, ViewerErrorBoundary } from '@envsemble/atlas-diagrams/react';
 import type { ViewerPayload } from '@envsemble/atlas-diagrams';
 import '@envsemble/atlas-diagrams/embedded.css';
@@ -87,21 +87,34 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
     return () => { current = false; };
   }, [projectId, selected, expected, work.id, diagrams, entry?.valid]);
 
-  // The arrangement the layers share, read again as the folder's files change.
-  const arranging = entry?.valid ? entry.family ?? entry.path : '';
+  // The arrangement the layers share, read again as the folder's files change. A scenario is not arranged.
+  const arranging = entry?.valid && entry.role !== 'scenario' ? entry.family ?? entry.path : '';
   const [arrangement, setArrangement] = useState<{ root: string; positions: Record<string, [number, number]> | null } | null>(null);
+  // Saves under way, and how many were made: a read begun before the last save ended may predate it.
+  const writes = useRef({ pending: 0, made: 0 });
   useEffect(() => {
     if (!arranging) return;
     let current = true;
+    const made = writes.current.made;
     api.arrangement(projectId, work.id, arranging).then(positions => {
-      if (current) setArrangement(previous => previous?.root === arranging && JSON.stringify(previous.positions) === JSON.stringify(positions) ? previous : { root: arranging, positions });
-    }).catch(() => { if (current) setArrangement({ root: arranging, positions: null }); });
+      if (!current || writes.current.pending || writes.current.made !== made) return;
+      setArrangement(previous => previous?.root === arranging && JSON.stringify(previous.positions) === JSON.stringify(positions) ? previous : { root: arranging, positions });
+    }).catch(() => { if (current && !writes.current.made) setArrangement({ root: arranging, positions: null }); });
     return () => { current = false; };
   }, [projectId, work.id, arranging, files]);
+  // The elements the family's layers draw: an element removed from them leaves the arrangement when it is next saved.
+  const elements = useMemo(() => new Set([...(loaded?.payloads.values() ?? [])].flatMap(item => [
+    ...item.model.classes, ...((item.comparison?.changeView?.model.classes as { id: string }[] | undefined) ?? []),
+  ].map(element => element.id))), [loaded]);
   const arrange = useCallback((positions: Record<string, [number, number]> | null) => {
     if (!arranging) return;
-    api.arrange(projectId, work.id, arranging, positions).catch(error => notify('The arrangement could not be saved: ' + (error as Error).message, 'warning'));
-  }, [projectId, work.id, arranging, notify]);
+    const kept = positions && Object.fromEntries(Object.entries(positions).filter(([id]) => elements.has(id)));
+    writes.current.pending++; writes.current.made++;
+    setArrangement({ root: arranging, positions: kept });
+    api.arrange(projectId, work.id, arranging, kept)
+      .catch(error => notify('The arrangement could not be saved: ' + (error as Error).message, 'warning'))
+      .finally(() => { writes.current.pending--; });
+  }, [projectId, work.id, arranging, notify, elements]);
 
   const layers = useMemo(() => familyLayers(listed, selected), [listed, selected]);
   const select = useCallback((next: string) => retarget(diagramTarget(work.id, next)), [retarget, work.id]);
@@ -109,7 +122,9 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
   useEffect(() => {
     if (!layers.length) return;
     const key = (event: KeyboardEvent) => {
-      if ((event.key !== '[' && event.key !== ']') || event.ctrlKey || event.metaKey || event.altKey || event.defaultPrevented || typing(event.target)) return;
+      // AltGr, which some layouts need for [ and ], reports Ctrl and Alt together on Windows.
+      const altGraph = event.ctrlKey && event.altKey;
+      if ((event.key !== '[' && event.key !== ']') || (!altGraph && (event.ctrlKey || event.altKey)) || event.metaKey || event.defaultPrevented || typing(event.target)) return;
       const next = stepLayer(layers, selected, event.key === ']' ? 1 : -1);
       if (!next || next === selected) return;
       event.preventDefault();
@@ -129,13 +144,13 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
   const payload = entry?.valid === false ? undefined : loaded?.payloads.get(selected);
   const focus = useMemo(() => payload && target.element ? { kind: 'node' as const, id: elementId(payload.model, target.element) } : null, [payload, target.element]);
   // Drawn once the arrangement is read, so the automatic layout does not show first.
-  const positions = arrangement?.root === arranging ? arrangement.positions : undefined;
+  const positions = !arranging ? null : arrangement?.root === arranging ? arrangement.positions : undefined;
   const empty = diagrams && !listed.length && !selected;
 
   return <section className="diagrams" aria-label="Work diagrams">
     <div className="diagrams-canvas">
       {payload && positions !== undefined ? <ViewerErrorBoundary key={payload.family ?? selected} resetKey={payload.model.document?.revision.id}>
-        <DiagramPanel payload={payload} theme={theme} focus={focus} leading={marker} arrangement={positions} onArrange={arrange} />
+        <DiagramPanel payload={payload} theme={theme} focus={focus} leading={marker} arrangement={positions} onArrange={arranging ? arrange : undefined} />
       </ViewerErrorBoundary>
       : <>
         {marker && <div className="diagrams-islands">

@@ -8,6 +8,8 @@ const elk = new ELK();
 
 /** The room between two groups, on top of each one's own padding. */
 const GROUP_GAP = 96;
+/** The room round a package's elements, and its name's above them (as arrange.mjs keeps it). */
+const PACKAGE_MARGIN = 16;
 /** The room a package's name takes above its elements. */
 const PACKAGE_HEADER = 22;
 /** How wide than tall the packed groups aim to be. */
@@ -72,13 +74,14 @@ async function layoutGrouped(
 ) {
   const clusterOf = new Map();
   clusters.forEach((c, i) => c.members.forEach((id) => clusterOf.set(id, i)));
-  // An element outside every package is a group of its own.
+  // The elements outside every package are one group of their own, laid out
+  // together as a small diagram of their relations.
   const all = [...clusters];
-  for (const id of view.names)
-    if (!clusterOf.has(id)) {
-      clusterOf.set(id, all.length);
-      all.push({ id: `group-${all.length}`, name: null, members: [id] });
-    }
+  const loose = view.names.filter((id) => !clusterOf.has(id));
+  if (loose.length) {
+    for (const id of loose) clusterOf.set(id, all.length);
+    all.push({ id: `group-${all.length}`, name: null, members: loose });
+  }
   const within = (a, b) => clusterOf.get(a) === clusterOf.get(b);
   const ends = (g) => [g.specificId, g.generalId];
   // Each group as a small diagram of its own relations.
@@ -168,12 +171,13 @@ async function layoutGrouped(
     // The region sits inside the group's padding, round its elements.
     if (part.cluster.name) {
       const own = d.nodes;
-      const x0 = Math.min(...own.map((n) => n.x)) - 16,
-        y0 = Math.min(...own.map((n) => n.y)) - 16 - PACKAGE_HEADER,
-        x1 = Math.max(...own.map((n) => n.x + n.width)) + 16,
-        y1 = Math.max(...own.map((n) => n.y + n.height)) + 16;
+      const x0 = Math.min(...own.map((n) => n.x)) - PACKAGE_MARGIN,
+        y0 = Math.min(...own.map((n) => n.y)) - PACKAGE_MARGIN - PACKAGE_HEADER,
+        x1 = Math.max(...own.map((n) => n.x + n.width)) + PACKAGE_MARGIN,
+        y1 = Math.max(...own.map((n) => n.y + n.height)) + PACKAGE_MARGIN;
       packages.push({
         name: part.cluster.name,
+        members: part.cluster.members,
         x: round(x0 + dx),
         y: round(y0 + dy),
         width: round(x1 - x0),
@@ -214,13 +218,7 @@ async function layoutGrouped(
     edges,
   };
   const diagram = route(composed, {});
-  // The router may shift the scene to keep it inside its padding.
-  if (diagram.offset && diagram.packages)
-    diagram.packages = diagram.packages.map((p) => ({
-      ...p,
-      x: round(p.x + diagram.offset.x),
-      y: round(p.y + diagram.offset.y),
-    }));
+  // The router shifts the packages with everything else when it must.
   delete diagram.offset;
   const check = {
     nodes: view.names.length,

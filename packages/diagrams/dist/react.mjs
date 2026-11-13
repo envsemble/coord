@@ -4041,6 +4041,8 @@ var JUNCTION = 28;
 var PADDING = 28;
 var PLACE_GAP = 40;
 var NUDGE = 8;
+var PACKAGE_MARGIN = 16;
+var PACKAGE_HEADER = 22;
 var REGION = 64;
 var DX = [1, 0, -1, 0];
 var DY = [0, 1, 0, -1];
@@ -4947,6 +4949,19 @@ function arrangeScene(scene, positions = {}, options = {}) {
   let edges = scene.edges.map((e) => changed.get(e.id) || e);
   let outGroups = newGroups;
   let outNodes = nodes;
+  const placedNodes = new Map(nodes.map((n) => [n.id, n]));
+  let packages = (scene.packages || []).map((p) => {
+    const own = (p.members || []).map((id) => placedNodes.get(id)).filter(Boolean);
+    if (!own.length) return p;
+    const px0 = Math.min(...own.map((n) => n.x)) - PACKAGE_MARGIN, py0 = Math.min(...own.map((n) => n.y)) - PACKAGE_MARGIN - PACKAGE_HEADER, px1 = Math.max(...own.map((n) => n.x + n.width)) + PACKAGE_MARGIN, py1 = Math.max(...own.map((n) => n.y + n.height)) + PACKAGE_MARGIN;
+    return {
+      ...p,
+      x: round(px0),
+      y: round(py0),
+      width: round(px1 - px0),
+      height: round(py1 - py0)
+    };
+  });
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   const take = (x, y, w = 0, h = 0) => {
     x0 = Math.min(x0, x);
@@ -4955,6 +4970,7 @@ function arrangeScene(scene, positions = {}, options = {}) {
     y1 = Math.max(y1, y + h);
   };
   for (const n of nodes) take(n.x, n.y, n.width, n.height);
+  for (const p of packages) take(p.x, p.y, p.width, p.height);
   for (const item of [...edges, ...outGroups]) {
     for (const d of item.paths || [])
       for (const p of parsePath(d)) take(p.x, p.y);
@@ -4979,12 +4995,18 @@ function arrangeScene(scene, positions = {}, options = {}) {
     }));
     edges = edges.map(moveItem);
     outGroups = outGroups.map(moveItem);
+    packages = packages.map((p) => ({
+      ...p,
+      x: round(p.x + dx),
+      y: round(p.y + dy)
+    }));
   }
   return {
     ...scene,
     nodes: outNodes,
     edges,
     ...scene.generalizationGroups ? { generalizationGroups: outGroups } : {},
+    ...scene.packages ? { packages } : {},
     width: round(x1 + dx + PADDING),
     height: round(y1 + dy + PADDING),
     offset: { x: dx, y: dy }
@@ -4994,6 +5016,10 @@ function arrangeScene(scene, positions = {}, options = {}) {
 // src/viewer/useArrangement.js
 var EDGE = 28;
 var same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+var tenth = (n) => Math.round(n * 10) / 10;
+var rounded = (positions) => Object.fromEntries(
+  Object.entries(positions).map(([id, [x, y]]) => [id, [tenth(x), tenth(y)]])
+);
 function useArrangement(base, arrangement, onArrange) {
   const [positions, setPositions] = useState11(arrangement ?? null);
   const lastSaved = useRef7(arrangement ?? null);
@@ -5006,18 +5032,20 @@ function useArrangement(base, arrangement, onArrange) {
     () => positions ? arrangeScene(base, positions, { place: true }) : base,
     [base, positions]
   );
+  const dragging = useRef7(null);
   const [drag, setDrag] = useState11(null);
   const shown2 = useMemo8(
     () => drag?.at ? arrangeScene(scene, { [drag.id]: drag.at }) : scene,
     [scene, drag]
   );
-  const latest = useRef7({ scene, shown: shown2, drag, positions });
-  latest.current = { scene, shown: shown2, drag, positions };
+  const latest = useRef7({ scene, positions });
+  latest.current = { scene, positions };
   const save = useCallback6(
     (next) => {
-      lastSaved.current = next;
-      setPositions(next);
-      onArrange?.(next);
+      const value = next && rounded(next);
+      lastSaved.current = value;
+      setPositions(value);
+      onArrange?.(value);
     },
     [onArrange]
   );
@@ -5027,41 +5055,40 @@ function useArrangement(base, arrangement, onArrange) {
         const id = target?.closest?.("[data-node-id]")?.dataset.nodeId;
         const node = latest.current.scene.nodes.find((n) => n.id === id);
         if (!node) return false;
-        setDrag({
+        dragging.current = {
           id,
           grab: [point.x - node.x, point.y - node.y],
           at: null
-        });
+        };
+        setDrag(dragging.current);
         return true;
       },
       move(point) {
-        setDrag(
-          (current) => current && {
-            ...current,
-            at: [
-              Math.max(EDGE, point.x - current.grab[0]),
-              Math.max(EDGE, point.y - current.grab[1])
-            ]
-          }
-        );
+        const current = dragging.current;
+        if (!current) return;
+        dragging.current = {
+          ...current,
+          at: [
+            Math.max(EDGE, point.x - current.grab[0]),
+            Math.max(EDGE, point.y - current.grab[1])
+          ]
+        };
+        setDrag(dragging.current);
       },
       end(moved) {
-        const { shown: shown3, drag: drag2, positions: positions2 } = latest.current;
+        const current = dragging.current;
+        dragging.current = null;
         setDrag(null);
-        if (moved && drag2?.at)
-          save({ ...positions2 || {}, ...positionsOf(shown3) });
+        if (!moved || !current?.at) return;
+        const { scene: scene2, positions: positions2 } = latest.current;
+        const placed = arrangeScene(scene2, { [current.id]: current.at });
+        save({ ...positions2 || {}, ...positionsOf(placed) });
       }
     } : null,
     [onArrange, save]
   );
   const reset = useCallback6(() => save(null), [save]);
-  return {
-    diagram: shown2,
-    elementDrag,
-    arranged: !!positions,
-    moving: drag?.id ?? null,
-    reset
-  };
+  return { diagram: shown2, elementDrag, arranged: !!positions, reset };
 }
 
 // src/viewer/DiagramPanel.jsx

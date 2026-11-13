@@ -13,9 +13,9 @@ const SMALL = 6;
 const MIN_GROUP = 3;
 /** The most of a diagram's relations that may run between groups found from them. */
 const MAX_ACROSS = 0.2;
-/** How strongly a kind of relation ties its ends to one group. */
+/** How strongly a kind of relation ties its ends to one group (a generalization
+ * puts its ends in one group outright). */
 const WEIGHT = {
-  generalization: 3,
   whole: 2,
   association: 1.5,
   dependency: 0.5,
@@ -120,10 +120,10 @@ function louvain(count, edges) {
  */
 function layoutGroups(view, classes, relations, generalizations) {
   const names = view.names;
-  if (names.length <= SMALL) return [];
   const packaged = names.filter((id) => classes.get(id)?.namespace);
   if (packaged.length) {
-    // Each package is a group; an element outside every package stands alone.
+    // Each package is a group, whatever the diagram's size; the elements
+    // outside every package are laid out together beside them.
     const byPackage = new Map();
     for (const id of packaged) {
       const name = classes.get(id).namespace;
@@ -136,6 +136,8 @@ function layoutGroups(view, classes, relations, generalizations) {
       members,
     }));
   }
+  // A small diagram without packages is one group.
+  if (names.length <= SMALL) return [];
   // A hierarchy is one node to begin with, so it stays in one group.
   const index = new Map(names.map((id, i) => [id, i]));
   const parent = names.map((_, i) => i);

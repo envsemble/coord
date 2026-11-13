@@ -139,4 +139,34 @@ Audit ..> Payment
   );
   assert(billed.paths[0].startsWith("M"));
   assert(billed.labels.some((l) => l.text === "billed by" && l.x > 0));
+  // An element dragged away takes its package's region with it.
+  const { arrangeScene } = require("../src/canvas/arrange.mjs");
+  const customer = nodes.get("Customer");
+  const moved = arrangeScene(scene, {
+    Customer: [customer.x + 600, customer.y + 400],
+  });
+  const region = moved.packages.find((p) => p.name === "Sales");
+  assert(
+    inside(
+      region,
+      moved.nodes.find((n) => n.id === "Customer"),
+    ),
+  );
+  assert(region.width > sales.width);
+});
+
+test("a small diagram's packages are drawn too", async () => {
+  const { prepared } = await atlas.prepareDiagrams({
+    files: [
+      {
+        path: "small.puml",
+        text: "@startuml\npackage A {\n  class One\n}\npackage B {\n  class Two\n}\nOne --> Two\n@enduml\n",
+      },
+    ],
+  });
+  const scene = prepared.get("small.puml").payload.views[0].diagram;
+  assert.deepEqual(
+    scene.packages.map((p) => p.name),
+    ["A", "B"],
+  );
 });

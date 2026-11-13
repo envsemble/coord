@@ -79,7 +79,6 @@ export const workId = string({ min: 6, max: 32, pattern: /^work-[0-9]{4,}$/ });
 export const isoTime = string({ min: 20, max: 40, pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/ });
 /** A diagram file's path in its work folder, relative and inside it. */
 export const diagramPath = string({ min: 6, max: pathLimit, pattern: /^(?![\\/])(?![a-zA-Z]:)(?!.*(?:^|\/)\.\.(?:\/|$)).+\.puml$/i });
-/** A project's ID, as the project list gives it: `f-` and 32 hex digits. */
 /** The most elements an arrangement places. */
 export const arrangementLimit = 5000;
 /**
@@ -98,6 +97,7 @@ export const diagramPositions: Validator<Record<string, [number, number]>> = (va
   }
   return positions;
 };
+/** A project's ID, as the project list gives it: `f-` and 32 hex digits. */
 export const projectId = string({ min: 34, max: 34, pattern: /^f-[a-f0-9]{32}$/ });
 export const deviceId = string({ min: 8, max: 64, pattern: /^d-[a-f0-9]{32}$/ });
 

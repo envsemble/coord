@@ -26,6 +26,10 @@ const PADDING = 28;
 const PLACE_GAP = 40;
 // The spacing between routes that would otherwise share a line.
 const NUDGE = 8;
+// A package's region: the room round its elements, and above them for its
+// name (as the grouped layout draws it).
+const PACKAGE_MARGIN = 16;
+const PACKAGE_HEADER = 22;
 // How far past its two ends a route's search grid reaches first.
 const REGION = 64;
 // Directions, which double as box sides: a side's number is the direction
@@ -1172,6 +1176,26 @@ export function arrangeScene(scene, positions = {}, options = {}) {
   let edges = scene.edges.map((e) => changed.get(e.id) || e);
   let outGroups = newGroups;
   let outNodes = nodes;
+  // A package's region follows its elements: round them, with room for its
+  // name above them.
+  const placedNodes = new Map(nodes.map((n) => [n.id, n]));
+  let packages = (scene.packages || []).map((p) => {
+    const own = (p.members || [])
+      .map((id) => placedNodes.get(id))
+      .filter(Boolean);
+    if (!own.length) return p;
+    const px0 = Math.min(...own.map((n) => n.x)) - PACKAGE_MARGIN,
+      py0 = Math.min(...own.map((n) => n.y)) - PACKAGE_MARGIN - PACKAGE_HEADER,
+      px1 = Math.max(...own.map((n) => n.x + n.width)) + PACKAGE_MARGIN,
+      py1 = Math.max(...own.map((n) => n.y + n.height)) + PACKAGE_MARGIN;
+    return {
+      ...p,
+      x: round(px0),
+      y: round(py0),
+      width: round(px1 - px0),
+      height: round(py1 - py0),
+    };
+  });
 
   // Size, and the shift that keeps everything inside the padding.
   let x0 = Infinity,
@@ -1185,6 +1209,7 @@ export function arrangeScene(scene, positions = {}, options = {}) {
     y1 = Math.max(y1, y + h);
   };
   for (const n of nodes) take(n.x, n.y, n.width, n.height);
+  for (const p of packages) take(p.x, p.y, p.width, p.height);
   for (const item of [...edges, ...outGroups]) {
     for (const d of item.paths || [])
       for (const p of parsePath(d)) take(p.x, p.y);
@@ -1212,12 +1237,18 @@ export function arrangeScene(scene, positions = {}, options = {}) {
     }));
     edges = edges.map(moveItem);
     outGroups = outGroups.map(moveItem);
+    packages = packages.map((p) => ({
+      ...p,
+      x: round(p.x + dx),
+      y: round(p.y + dy),
+    }));
   }
   return {
     ...scene,
     nodes: outNodes,
     edges,
     ...(scene.generalizationGroups ? { generalizationGroups: outGroups } : {}),
+    ...(scene.packages ? { packages } : {}),
     width: round(x1 + dx + PADDING),
     height: round(y1 + dy + PADDING),
     offset: { x: dx, y: dy },

@@ -2,7 +2,7 @@
 // planning index lists them), described with their roles, families and problems, and prepared for
 // the viewer. A diagram is identified by its path in the work folder. Plans link diagrams with
 // ordinary Markdown links (see diagramLinks.ts).
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import atlas, { type DiagramFile, type DiagramProblem, type DiagramSummary, type ViewerPayload } from '@envsemble/atlas-diagrams';
@@ -86,6 +86,8 @@ interface Read { files: DiagramFile[]; oversized: string[]; key: string }
 export class DiagramCatalog {
   private described = new Map<string, DiagramEntry[]>();
   private layouts = new Map<string, Promise<Map<string, ViewerPayload>>>();
+  /** The arrangement saves under way, by file. */
+  private saving = new Map<string, Promise<void>>();
   readonly planningRoot: string;
   constructor(planningRoot: string) { this.planningRoot = planningRoot; }
 
@@ -180,15 +182,23 @@ export class DiagramCatalog {
     try { return diagramPositions((JSON.parse(text) as { positions?: unknown }).positions, 'positions'); }
     catch { return null; }
   }
-  /** Saves a diagram's arrangement (written whole, then moved into place), or removes it with null. */
+  /**
+   * Saves a diagram's arrangement (written whole, then moved into place), or removes it with null.
+   * Saves of one file go one after another, so the last one asked for is the one kept.
+   */
   async arrange(snapshot: PlanningIndex, workId: string, diagram: string, positions: Record<string, [number, number]> | null): Promise<void> {
     const file = await this.sidecar(snapshot, workId, diagram);
-    if (positions === null) { await rm(file, { force: true }); return; }
-    const temporary = file + '.' + process.pid + '.tmp';
-    try {
-      await writeFile(temporary, JSON.stringify({ positions: diagramPositions(positions, "positions") }, null, 1) + '\n', 'utf8');
-      await rename(temporary, file);
-    } finally { await rm(temporary, { force: true }); }
+    const write = async () => {
+      if (positions === null) { await rm(file, { force: true }); return; }
+      const temporary = file + '.' + randomUUID() + '.tmp';
+      try {
+        await writeFile(temporary, JSON.stringify({ positions: diagramPositions(positions, 'positions') }, null, 1) + '\n', 'utf8');
+        await rename(temporary, file);
+      } finally { await rm(temporary, { force: true }); }
+    };
+    const next = (this.saving.get(file) ?? Promise.resolve()).catch(() => undefined).then(write);
+    this.saving.set(file, next);
+    try { await next; } finally { if (this.saving.get(file) === next) this.saving.delete(file); }
   }
 
   /** The diagrams a document links to, each under the heading its link sits under. */

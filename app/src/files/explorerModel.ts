@@ -42,7 +42,7 @@ export function buildIndex(snapshot: Pick<Snapshot, 'folders' | 'documents' | 'w
   };
   for (const folder of snapshot.folders) addFolder(folder);
   for (const document of snapshot.documents) {
-    if (/.layout.json$/i.test(document.path)) continue;
+    if (/\.layout\.json$/i.test(document.path)) continue;
     addFolder(parent(document.path));
     const siblings = files.get(parent(document.path)) ?? [];
     siblings.push(document);
