@@ -1,6 +1,6 @@
 # Atlas desktop app
 
-![The Atlas hub on the computer Workstation: seven open plans of the projects Northwind, Platform and Field app, grouped as Working (one plan an agent is on now, with its model, agent time and tokens), Blocked with their reasons, Paused and Drafts, each with its project, steps done and when it changed](../assets/hub.png)
+![The Atlas hub on the computer Workstation: three open plans of the project Northwind, grouped as Blocked (Customer order notifications, with why it is blocked), Paused (Saved payment methods, with the step now worked on, Claude Opus 5.5 and two other models, its agent time and tokens) and Drafts (Order fulfilment model), each with its project, steps done and when it changed; the title bar holds Plans, File, View and Help and the computer menu, and the heading line the search, the project menu and the Open, Closed and All filter](../assets/hub.png)
 
 Atlas is a desktop app for your Atlas projects and their plans. Every window opens on the hub, one list of every plan of the computer's projects, and shows one place at a time: the hub, a plan, its statistics, a diagram, a file, statistics or Settings. Discuss changes with your agent in chat; the agent edits the records, and Atlas shows them as they change.
 
@@ -81,7 +81,7 @@ Every plan is a row; a click anywhere on it opens the plan. A row shows:
 
 ## A plan
 
-![A plan in Atlas: Saved payment methods, #0001 of Northwind, Working with 2 of 7 steps under its breadcrumb; its Outcome and Scope, and a diagram card, Checkout · captured TypeScript, Generated from code, with its elements, under the heading Current checkout. Beside it the side column: Progress (2 of 7 steps done, 5 left, planning steps done in their own colour, the step in progress), Continues #0004 Inventory reservations at checkout, the session working on it, and Statistics (Claude Opus 5.5 with Claude Sonnet 4.5 and Claude Haiku 5.5, 4 h 33 min 3 s of agent time, 13.8M tokens). At the left the Files sidebar with the work folder, plan.md marked; Open in VS Code in the title bar](../assets/plan.png)
+![A plan in Atlas: Saved payment methods, #0001 of Northwind, under the breadcrumb Plans › Northwind › #0001, Paused with 2 of 7 steps; its Outcome and Scope, and a diagram card, Checkout · captured TypeScript, Generated from code, with its elements, under the heading Current checkout. At the left the Files sidebar with the work folder, plan.md marked; at the right the side column: Progress (2 of 7 steps done, 5 left, the step in progress), Continues #0004 Inventory reservations at checkout, the steps, and Statistics (Claude Opus 5.5 with Claude Sonnet 4.5 and Claude Haiku 5.5, 4 h 8 min of agent time, 13.8M tokens); Open in VS Code and Search in the title bar](../assets/plan.png)
 
 A plan's page shows:
 

@@ -10,7 +10,7 @@
 
 **Atlas is where your coding agents' plans live.** When you design something with an agent, the plan, its steps, the decisions behind it and the diagrams that explain it are written into a planning folder on your computer instead of disappearing with the chat. Every agent session that works in your project finds them again, keeps them current as it works, and you follow all of it in one desktop app.
 
-![The Atlas hub on the computer Workstation: seven open plans of the projects Northwind, Platform and Field app, grouped as Working (one plan an agent is on now, with its model, agent time and tokens), Blocked with their reasons, Paused and Drafts, each with its project, steps done and when it changed](assets/hub.png)
+![The Atlas hub on the computer Workstation: three open plans of the project Northwind, grouped as Blocked (Customer order notifications, with why it is blocked), Paused (Saved payment methods, with the step now worked on, Claude Opus 5.5 and two other models, its agent time and tokens) and Drafts (Order fulfilment model), each with its project, steps done and when it changed; the title bar holds Plans, File, View and Help and the computer menu, and the heading line the search, the project menu and the Open, Closed and All filter](assets/hub.png)
 
 ## Why bother
 
@@ -31,7 +31,7 @@ Atlas fixes that without changing how you work with your agent:
 2. **Implement.** Say "atlas implement". The agent starts the accepted plan with its steps, marks each one as it goes, reviews its work, and delivers it the way the plan says: commits, a branch, or a pull request that passes CI. When the work looks finished, it asks you before closing it.
 3. **Follow along.** Atlas shows the plan with its summary, its steps and what is left, the diagrams under the headings they explain, the sessions that worked on it, and what it cost.
 
-![A plan in Atlas: Saved payment methods, Working, with its outcome and scope; beside it its progress (planning steps done in their own colour, the step being worked on, the steps left), the work it continues, the session working on it and its statistics by model; and its files](assets/plan.png)
+![A plan in Atlas: Saved payment methods, #0001 of Northwind, under the breadcrumb Plans › Northwind › #0001, Paused with 2 of 7 steps; its Outcome and Scope, and a diagram card, Checkout · captured TypeScript, Generated from code, with its elements, under the heading Current checkout. At the left the Files sidebar with the work folder, plan.md marked; at the right the side column: Progress (2 of 7 steps done, 5 left, the step in progress), Continues #0004 Inventory reservations at checkout, the steps, and Statistics (Claude Opus 5.5 with Claude Sonnet 4.5 and Claude Haiku 5.5, 4 h 8 min of agent time, 13.8M tokens); Open in VS Code and Search in the title bar](assets/plan.png)
 
 Atlas works with **Claude Code** and **Codex** through its plugin: tools for the planning state, three skills (`atlas`, `atlas-grill` and `atlas-implement`), and hooks that check every planning edit and measure the session as it works. You never have to tell the agent to update its plan or report its time.
 
