@@ -72,6 +72,8 @@ When the user asks to review projects or bring Atlas up to date:
 
 When the work settles domain concepts, boundaries or data structure and a diagram would help you and the user understand it the same way, make one, without waiting to be asked; plain UI or tooling work gets none. Build it on a capture of the existing code or database where there is one, rather than from memory. [Diagrams](references/diagrams.md) says how to write each kind.
 
+When work in a work item changes a database's schema or a model's structure in a major way (tables or entities added, removed, split or merged, or the relations between them changed, not a column or a field alone), capture it before the change and after it, the second comparing with the first, also when nobody asked for a diagram: the pair is how the user later sees what happened.
+
 ## Close
 
 When the agreed completion checks pass and the outcome is in the plan (for PR delivery, the PR merged unless agreed otherwise), ask the user whether the work is finished, and close it with `work_close` only on their yes. Don't wait for them to remember: when work looks finished, say so and ask. Acceptance, implementation, PR readiness, merge and release are separate facts: state pending ones accurately. Unfinished scope stays active, or is transferred or dropped with `step` (action `remove`), telling the user why. Closing never grants merge or deployment.

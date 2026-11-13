@@ -4,7 +4,7 @@ Diagrams are `.puml` files in a work item, in Atlas's subset of PlantUML. Write 
 
 ## When to make one
 
-Make a diagram when the work settles domain concepts, boundaries or data structure and a picture would help the user and you understand it the same way; plain UI or tooling work gets none. When the work changes existing code or a database, capture it and build proposals on the capture, so the diagram starts from the real structure instead of a remembered one.
+Make a diagram when the work settles domain concepts, boundaries or data structure and a picture would help the user and you understand it the same way; plain UI or tooling work gets none. When the work changes existing code or a database, capture it and build proposals on the capture, so the diagram starts from the real structure instead of a remembered one. A major change to a schema or a model's structure (tables or entities added, removed, split or merged, or their relations changed) gets a `before` and an `after` capture even when no diagram was asked for: they record what the work changed.
 
 ## Where it goes
 
@@ -99,7 +99,7 @@ atlas capture capture.json --work work-0012 --name before
 atlas capture capture.json --work work-0012 --name after --compares before.puml
 ```
 
-Without `--name` the file is `diagrams/<identity>-<date>.puml`; `--out <file>` writes elsewhere; an existing file needs `--force`. The command prints a JSON summary; exit 1 means the capture failed or was refused (the reason is on stderr). A capture is frozen: never edit it. At the start of implementing a plan that changes captured code or data, capture `before`; at the end capture `after --compares before.puml`.
+Without `--name` the file is `diagrams/<identity>-<date>.puml`; `--out <file>` writes elsewhere; an existing file needs `--force`. The command prints a JSON summary; exit 1 means the capture failed or was refused (the reason is on stderr). A capture is frozen: never edit it. Before work changes a schema or a model's structure in a major way, capture `before`, writing the source configuration first if there is none; when the change is made, capture `after --compares before.puml`. Link the pair from the plan, where it says what changed.
 
 ## Proposals
 
