@@ -7,7 +7,7 @@ import { checkPaths } from '../check/checkPaths.ts';
 import { temporary } from '../../cli/testing.ts';
 
 function planning(t: test.TestContext) {
-  const root = temporary(t);
+  const root = path.join(temporary(t), 'planning');
   const page = path.join(root, 'active', '0001-cart', 'pages', 'layout');
   mkdirSync(page, { recursive: true });
   writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'shop', folders: [], work_items: [{ id: 'work-0001', path: 'active/0001-cart', current_plan: null }] }));
@@ -39,6 +39,13 @@ test('a page builds on the stack alone, from its folder: the imports the frame s
   writeFileSync(path.join(page, 'page.tsx'), "import chart from 'chart.js';\nexport default function Page() { return <div>{String(chart)}</div>; }\n");
   const refused = await buildPage(root, page);
   assert.ok(!refused.ok && /'chart\.js' is not part of Atlas's stack/.test(refused.problems[0].text));
+  // Nothing from outside the planning folder is built into a page, by a relative path or an absolute one.
+  writeFileSync(path.join(root, '..', 'secret.json'), '{ "key": "x" }');
+  for (const from of ['../../../../../secret.json', path.join(root, '..', 'secret.json').split(path.sep).join('/')]) {
+    writeFileSync(path.join(page, 'page.tsx'), `import secret from '${from}';\nexport default function Page() { return <div>{secret.key}</div>; }\n`);
+    const outside = await buildPage(root, page);
+    assert.ok(!outside.ok && /not one of the planning folder's files/.test(outside.problems[0].text), JSON.stringify(outside));
+  }
   writeFileSync(path.join(page, 'page.tsx'), 'export default function Page() { return <div>; }\n');
   const [checked] = await checkPaths([path.join(page, 'options.json')]);
   assert.match(checked.errors.join('\n'), /^active\/0001-cart\/pages\/layout\/page\.tsx:1:\d+: /m);

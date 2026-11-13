@@ -38,10 +38,15 @@ export function PageView({ work, folder, name }: { work: Work; folder: string; n
   const showBuild = useCallback((result: PageBuild) => {
     latest.current.build = result;
     setBuild(result);
+    setFailure(null);
     if (result.ok) send({ type: 'build', code: result.code, css: result.css, imports: result.imports, build: ++builds.current });
   }, [send]);
+  // Builds can finish out of order: only the latest one asked for shows.
+  const asked = useRef(0);
   const rebuild = useCallback(() => {
-    api.page(projectId, folder).then(showBuild, (error: unknown) => setFailure(error instanceof Error ? error.message : String(error)));
+    const request = ++asked.current;
+    api.page(projectId, folder).then(result => { if (request === asked.current) showBuild(result); },
+      (error: unknown) => { if (request === asked.current) setFailure(error instanceof Error ? error.message : String(error)); });
   }, [projectId, folder, showBuild]);
 
   // What the frame asks of Atlas.
@@ -61,7 +66,7 @@ export function PageView({ work, folder, name }: { work: Work; folder: string; n
       }
       case 'open': {
         const path = request.params.path;
-        const page = pageAt(path, snapshot.work);
+        const page = pageAt(path, snapshot);
         const document = snapshot.documents.find(item => item.path === path);
         const owner = document && snapshot.work.find(item => item.id === document.workId);
         if (page) open(pageTarget(page.folder));
@@ -73,6 +78,9 @@ export function PageView({ work, folder, name }: { work: Work; folder: string; n
     }
   }, [projectId, work.id, work.path, snapshot, open]);
 
+  // The frame's requests are answered with what the window shows now.
+  const answering = useRef(answer);
+  answering.current = answer;
   // The frame is started when its document loads: again if it reloads.
   const started = useCallback(() => {
     const target = frame.current?.contentWindow;
@@ -84,13 +92,13 @@ export function PageView({ work, folder, name }: { work: Work; folder: string; n
       const message = event.data;
       // A page that fails shows why in its frame.
       if (message.type !== 'request') return;
-      answer(message).then(value => send({ type: 'answer', id: message.id, ok: true, value }),
+      answering.current(message).then(value => send({ type: 'answer', id: message.id, ok: true, value }),
         (error: unknown) => send({ type: 'answer', id: message.id, ok: false, error: error instanceof Error ? error.message : String(error) }));
     };
     const init: FrameInit = { type: 'atlas-page:init', page: info, theme };
     target.postMessage(init, '*', [channel.port2]);
     if (latest.current.build?.ok) showBuild(latest.current.build); else rebuild();
-  }, [answer, info, theme, send, showBuild, rebuild]);
+  }, [info, theme, send, showBuild, rebuild]);
 
   useEffect(() => () => { port.current?.close(); }, []);
   useEffect(() => { send({ type: 'theme', theme }); }, [theme, send]);

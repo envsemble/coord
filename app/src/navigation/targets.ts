@@ -36,11 +36,12 @@ export const isDiagramFile = (path: string) => /\.puml$/i.test(path);
  * opens as a file target naming its folder.
  */
 export const pageTarget = (folder: string): Target => fileTarget(folder);
-/** The page folder a work item has at `path`, if `path` is one (`<work>/pages/<name>`). */
-export function pageAt(path: string, work: readonly Work[]): { folder: string; name: string; work: Work } | null {
+/** The page folder a work item has at `path`, if `path` is one (`<work>/pages/<name>`, not a file there). */
+export function pageAt(path: string, snapshot: { work: readonly Work[]; documents: readonly Document[] }): { folder: string; name: string; work: Work } | null {
   const match = /^(.+)\/pages\/([^/]+)$/.exec(path.replace(/\/+$/, ''));
-  const owner = match ? work.find(item => item.path === match[1]) : undefined;
-  return match && owner ? { folder: match[0], name: match[2], work: owner } : null;
+  const owner = match ? snapshot.work.find(item => item.path === match[1]) : undefined;
+  if (!match || !owner || snapshot.documents.some(document => document.path === match[0])) return null;
+  return { folder: match[0], name: match[2], work: owner };
 }
 
 /**

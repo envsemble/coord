@@ -27,7 +27,7 @@ export function placeWork(target: Target | undefined, snapshot: Snapshot): Work 
 export function nodeForTarget(target: Target | undefined, snapshot: Snapshot): { id: string; reveal: string[] } | null {
   if (!target) return null;
   // A page is its folder's row.
-  if (target.kind === 'file' && pageAt(target.path, snapshot.work)) return { id: folderNodeId(target.path), reveal: revealIds(target.path) };
+  if (target.kind === 'file' && pageAt(target.path, snapshot)) return { id: folderNodeId(target.path), reveal: revealIds(target.path) };
   if (target.kind === 'file') return { id: fileNodeId(target.path), reveal: revealIds(target.path) };
   if (target.kind === 'work' || target.kind === 'diagram') {
     const work = snapshot.work.find(item => item.id === target.work);

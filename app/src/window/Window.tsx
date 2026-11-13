@@ -405,7 +405,7 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
       const snapshot = known ?? await api.snapshot(projectId);
       const file = snapshot.documents.find(document => samePath(document.path, path, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths));
       const work = snapshot.work.find(item => samePath(item.path, path.replace(/\/$/, ''), snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths));
-      const page = pageAt(path, snapshot.work);
+      const page = pageAt(path, snapshot);
       const target = file ? documentTarget(file, snapshot.work.find(item => item.id === file.workId), anchor) : page ? pageTarget(page.folder) : work ? workTarget(work.id, anchor) : null;
       if (!target) { release(); notify('This document is not in ' + (projectOf(projectId)?.name ?? 'that project') + ': ' + path, 'warning'); return; }
       go({ projectId, target });
@@ -459,7 +459,7 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
     else void openPath(destination.projectId, destination.path, destination.anchor);
   }, [go, openPath]);
   // A diagram or a page fills the body.
-  const fills = Boolean(readSnapshot) && (projectPlace?.target.kind === 'diagram' || (projectPlace?.target.kind === 'file' && pageAt(projectPlace.target.path, readSnapshot!.work) !== null));
+  const fills = Boolean(readSnapshot) && (projectPlace?.target.kind === 'diagram' || (projectPlace?.target.kind === 'file' && pageAt(projectPlace.target.path, readSnapshot!) !== null));
   /** The project the search lists the documents and diagrams of: the one a plan, diagram or file of shows. */
   const searchScope = useMemo(() => projectPlace && reading && readSnapshot ? { projectId: reading, snapshot: readSnapshot } : null, [Boolean(projectPlace), reading, readSnapshot]);
 
@@ -574,9 +574,9 @@ function ProjectContent({ place, folder, project, scope, read, statisticsTrail }
       content = !item ? <div className="page-state" aria-busy="true"><Spinner size="lg" label="Reading the plan" /></div>
         : target.kind === 'diagram' ? <div className="work-page is-diagrams"><Suspense fallback={loadingPage}><DiagramsView key={item.id} work={item} target={target} /></Suspense></div>
         : <PlanFrame work={item} snapshot={snapshot}>{target.view === 'statistics' ? <Suspense fallback={loadingPage}><WorkStatisticsPage work={item} /></Suspense> : <PlanPage work={item} snapshot={snapshot} target={target} />}</PlanFrame>;
-    } else if (pageAt(target.path, snapshot.work)) {
+    } else if (pageAt(target.path, snapshot)) {
       // A work item's page fills the window beside Files, as a diagram does.
-      const page = pageAt(target.path, snapshot.work)!;
+      const page = pageAt(target.path, snapshot)!;
       content = !snapshot.documents.some(document => document.path.startsWith(page.folder + '/')) ? <PlanFrame work={page.work} snapshot={snapshot}><Gone title="This page no longer exists" detail={target.path} /></PlanFrame>
         : <div className="work-page is-page"><Suspense fallback={loadingPage}><PageView key={page.folder} work={page.work} folder={page.folder} name={page.name} /></Suspense></div>;
     } else {

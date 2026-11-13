@@ -3,7 +3,7 @@
 // data. Atlas builds the page here, where its files are, and the window that shows it runs the
 // build in a frame of its own, which supplies the stack (React, envUI, the diagram viewer and
 // `@envsemble/atlas-page`), so a page needs nothing installed.
-import { readdir, stat } from 'node:fs/promises';
+import { readdir, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 /** The files a page's folder may start from, in the order tried. */
@@ -15,12 +15,17 @@ export const choicesFile = 'choices.json';
 export const stackModule = /^(?:react(?:\/jsx-runtime|\/jsx-dev-runtime)?|react-dom(?:\/client)?|@envsemble\/envui(?:\/(?:code|markdown|diff|messages|icons\/[A-Za-z0-9]+))?|@envsemble\/atlas-diagrams\/react|@envsemble\/atlas-page)$/;
 const stackNames = 'react, react-dom, @envsemble/envui (with its code, markdown, diff and messages entries and its icons), @envsemble/atlas-diagrams/react and @envsemble/atlas-page';
 
-/** A page's folder, relative to the planning folder: `<work path>/pages/<name>`. */
-export const pageFolder = /^(.+)\/pages\/([^/]+)$/;
 /** The page a planning-folder path is in, if any: its folder, relative to the planning folder. */
 export function pageOf(relative: string): string | null {
   const match = /^(.+?\/pages\/[^/]+)(?:\/|$)/.exec(relative.split(path.sep).join('/'));
   return match ? match[1] : null;
+}
+
+/** Whether `child` is inside `parent`, outside hidden and build folders: where a page's files may be. */
+function readable(parent: string, child: string) {
+  const relative = path.relative(parent, child);
+  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)
+    && !relative.split(path.sep).some(part => part.startsWith('.') || ['node_modules', '__pycache__', 'dist', 'build'].includes(part));
 }
 
 export interface PageProblem { file: string | null; line: number | null; column: number | null; text: string }
@@ -58,6 +63,10 @@ const esbuild = () => loaded ??= import('esbuild');
  */
 export async function buildPage(root: string, folder: string): Promise<PageBuild> {
   const relative = (file: string) => path.relative(root, path.resolve(folder, file)).split(path.sep).join('/');
+  // A page and everything it builds from are files of the planning folder, as Atlas's readers reach them.
+  const resolvedRoot = await realpath(root);
+  const resolvedFolder = await realpath(folder).catch(() => null);
+  if (!resolvedFolder || !readable(resolvedRoot, resolvedFolder)) return { ok: false, problems: [{ file: relative('.'), line: null, column: null, text: 'A page is a folder inside the planning folder.' }] };
   const entry = await pageEntry(folder);
   if (!entry) return { ok: false, problems: [{ file: relative('.'), line: null, column: null, text: `A page starts from ${pageEntries[0]} in its folder (or ${pageEntries.slice(1).join(', ')}), exporting its component as the default.` }] };
   const { build } = await esbuild();
@@ -72,10 +81,16 @@ export async function buildPage(root: string, folder: string): Promise<PageBuild
         setup(builder) {
           // Bare imports are the stack's, which the frame supplies, and nothing else.
           builder.onResolve({ filter: /^[^./]/ }, args => {
-            if (path.isAbsolute(args.path)) return undefined;
+            if (path.isAbsolute(args.path) || /^[a-zA-Z]:/.test(args.path)) return undefined;
             if (stackModule.test(args.path)) return { path: args.path, external: true };
             refused.push({ file: relative(args.importer), line: null, column: null, text: `'${args.path}' is not part of Atlas's stack: a page imports only ${stackNames}, and its own files.` });
             return { path: args.path, external: true };
+          });
+          // Files only from the planning folder: what a page imports is sent to the window that shows it.
+          builder.onLoad({ filter: /.*/ }, async args => {
+            const resolved = await realpath(args.path).catch(() => args.path);
+            if (readable(resolvedRoot, resolved)) return undefined;
+            return { errors: [{ text: `${path.relative(root, args.path).split(path.sep).join('/')} is not one of the planning folder's files: a page imports only files of the planning folder.` }] };
           });
         },
       }],

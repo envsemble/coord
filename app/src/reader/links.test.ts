@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveLink, siblingProject, siblingReference } from './links.ts';
 import type { Document, Work } from '../types.ts';
-import { documentTarget, hubPlace, placeId, scrollKey, statisticsPlace, workTarget } from '../navigation/targets.ts';
+import { documentTarget, hubPlace, pageAt, placeId, scrollKey, statisticsPlace, workTarget } from '../navigation/targets.ts';
 
 const file = { path: 'active/0001-example/docs/decision.md' } as Document;
 const work = { path: 'active/0001-example', id: 'work-0001' } as Work;
@@ -22,6 +22,17 @@ test('links to a plan open the work item, and to other documents, its ledger too
   assert.equal(id(documentTarget(plan, owner, 'a')), id(documentTarget(plan, owner)), 'a plan is one thing, wherever it was opened');
   assert.notEqual(id(documentTarget(nested, owner)), id(documentTarget(plan, owner)));
   assert.notEqual(id(documentTarget(plan, owner)), id(documentTarget(plan, owner), 'f-' + 'b'.repeat(32)), 'another project, another thing');
+});
+
+test('a link to a folder of a work item\'s pages/ is a page; a file in pages/ stays a file', () => {
+  const owner = { id: 'work-0001', path: 'active/0001-example' } as Work;
+  const documents = [{ path: 'active/0001-example/pages/layout/page.tsx' }, { path: 'active/0001-example/pages/notes.md' }] as Document[];
+  assert.equal(resolveLink('pages/layout', 'active/0001-example/plan.md', documents, [owner]).page, 'active/0001-example/pages/layout');
+  assert.equal(resolveLink('pages/layout/', 'active/0001-example/plan.md', documents, [owner]).page, 'active/0001-example/pages/layout');
+  assert.equal(resolveLink('pages/notes.md', 'active/0001-example/plan.md', documents, [owner]).page, undefined);
+  assert.deepEqual(pageAt('active/0001-example/pages/layout', { work: [owner], documents })?.name, 'layout');
+  assert.equal(pageAt('active/0001-example/pages/notes.md', { work: [owner], documents }), null);
+  assert.equal(pageAt('references/app/pages/home', { work: [owner], documents }), null);
 });
 
 test('a work item and the hub keep their own scroll positions', () => {
