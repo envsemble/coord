@@ -4045,6 +4045,7 @@ var PACKAGE_MARGIN = 16;
 var PACKAGE_HEADER = 22;
 var REGION = 64;
 var CELL = 96;
+var RANK = 0.1;
 var TRACK = 10;
 var SHARED = 12;
 var CROSSING = 240;
@@ -4146,6 +4147,34 @@ function preferredAlong(box, side, other) {
   if (from <= to) return (from + to) / 2;
   const c = alongY(side) ? centreOf(other).y : centreOf(other).x;
   return clamp(c, lo, hi);
+}
+function spread(items, lo, hi) {
+  const n = items.length;
+  const gap = n > 1 ? Math.min(PORT_GAP, Math.max(0, hi - lo) / (n - 1)) : 0;
+  const top = Math.max(lo, hi - (n - 1) * gap);
+  const blocks = [];
+  items.forEach((item, i) => {
+    let block = {
+      total: (item.pref - i * gap) * item.weight,
+      weight: item.weight,
+      count: 1
+    };
+    while (blocks.length && blocks[blocks.length - 1].total / blocks[blocks.length - 1].weight >= block.total / block.weight) {
+      const last = blocks.pop();
+      block = {
+        total: last.total + block.total,
+        weight: last.weight + block.weight,
+        count: last.count + block.count
+      };
+    }
+    blocks.push(block);
+  });
+  const out = [];
+  for (const block of blocks) {
+    const v = clamp(block.total / block.weight, lo, top);
+    for (let k = 0; k < block.count; k++) out.push(v + out.length * gap);
+  }
+  return out;
 }
 function freePlace(pref, taken, lo, hi, gap) {
   const clear = (v) => taken.every((t) => Math.abs(t - v) >= gap - 0.01);
@@ -4335,7 +4364,7 @@ function search(from, fromDir, to, arrival, obstacles, region, occupied) {
       for (let k = near; k < flat.length && flatAt[k] < y1 + TRACK - 0.5; k++)
         extra += Math.max(0, Math.min(x2, flat[k].x1) - Math.max(x1, flat[k].x0)) * (SHARED - 1);
       for (let k = firstAt(uprightAt, x1 + 1e-6); k < upright.length; k++) {
-        if (uprightAt[k] >= x2) break;
+        if (uprightAt[k] > x2 + 1e-6) break;
         if (y1 > upright[k].y0 && y1 < upright[k].y1) extra += CROSSING;
       }
     } else {
@@ -4346,7 +4375,7 @@ function search(from, fromDir, to, arrival, obstacles, region, occupied) {
           Math.min(y2, upright[k].y1) - Math.max(y1, upright[k].y0)
         ) * (SHARED - 1);
       for (let k = firstAt(flatAt, y1 + 1e-6); k < flat.length; k++) {
-        if (flatAt[k] >= y2) break;
+        if (flatAt[k] > y2 + 1e-6) break;
         if (x1 > flat[k].x0 && x1 < flat[k].x1) extra += CROSSING;
       }
     }
@@ -4728,15 +4757,17 @@ function placeLabels(tasks, boxes, fixedLabels, allSegments) {
           return true;
         };
         let chosen = null, lowest = Infinity;
-        candidates.forEach((c, rank) => {
+        for (let rank = 0; rank < candidates.length; rank++) {
+          if (rank * RANK >= lowest) break;
+          const c = candidates[rank];
           const r = {
             x: c.x,
             y: c.y,
             width: label.width,
             height: label.height
           };
-          if (boxes.some((o) => overlapping(r, o, 2))) return;
-          let cost = rank * 2;
+          if (boxes.some((o) => overlapping(r, o, 2))) continue;
+          let cost = rank * RANK;
           for (const o of occupied) if (overlapping(r, o, 2)) cost += 400;
           for (const [a, b] of allSegments)
             if (rectTouchesSegment(r, a, b, 1)) cost += 120;
@@ -4746,7 +4777,7 @@ function placeLabels(tasks, boxes, fixedLabels, allSegments) {
             lowest = cost;
             chosen = c;
           }
-        });
+        }
         if (!chosen)
           for (let tier = 0; tier < 4 && !chosen; tier++)
             chosen = candidates.find((c) => fits(c, tier)) || null;
@@ -4900,8 +4931,7 @@ function arrangeScene(scene, positions = {}, options = {}) {
     const box = byId.get(id);
     if (!box || !p) return;
     const side = sideOf(box, p);
-    if (side >= 0)
-      addEnd(box, side, { pref: alongY(side) ? p.y : p.x, weight: 1e6 });
+    if (side >= 0) addEnd(box, side, { pref: alongY(side) ? p.y : p.x });
   };
   for (const r of plain)
     if (!r.reroute && r.points.length) {
@@ -4929,17 +4959,18 @@ function arrangeScene(scene, positions = {}, options = {}) {
     const used = sides.get(box.id + "\0" + side)?.items.length || 0;
     return Math.floor((hi - lo) / PORT_GAP) + 1 - used;
   };
-  const endOf = (box, primary, other) => {
+  const endOf = (box, primary, other, order = "") => {
     let side = primary;
     if (room(box, primary) <= 0) {
       const o = centreOf(other), c = centreOf(box);
       const second = alongY(primary) ? o.y >= c.y ? 1 : 3 : o.x >= c.x ? 0 : 2;
-      if (room(box, second) > room(box, primary)) side = second;
+      if (room(box, second) > 0) side = second;
     }
     const end = { box, side, along: null };
     addEnd(box, side, {
       pref: preferredAlong(box, side, other),
       weight: 1,
+      order,
       end
     });
     return end;
@@ -4947,7 +4978,10 @@ function arrangeScene(scene, positions = {}, options = {}) {
   for (const r of plain)
     if (r.reroute && !r.route) {
       const s = byId.get(r.edge.source), t = byId.get(r.edge.target);
-      r.ends = [endOf(s, facing(s, t), t), endOf(t, facing(t, s), s)];
+      r.ends = [
+        endOf(s, facing(s, t), t, r.edge.id),
+        endOf(t, facing(t, s), s, r.edge.id)
+      ];
     }
   for (const t of trees)
     if (t.reroute) {
@@ -4974,24 +5008,52 @@ function arrangeScene(scene, positions = {}, options = {}) {
       };
       t.side = side;
       t.trunk = [junction, port];
-      addEnd(box, side, { pref: along, weight: 1e6 });
+      addEnd(box, side, { pref: along });
       for (const m of t.members) {
         const s = byId.get(m.edge.source);
-        m.end = endOf(s, facing(s, pointBox(junction)), pointBox(junction));
+        m.end = endOf(
+          s,
+          facing(s, pointBox(junction)),
+          pointBox(junction),
+          m.id
+        );
       }
     }
   for (const { box, side, items } of sides.values()) {
     if (!items.some((item) => item.end)) continue;
     const [lo, hi] = sideSpan(box, side);
-    const taken = items.filter((item) => !item.end).map((item) => item.pref);
-    const fresh = items.filter((item) => item.end).sort((a, b) => a.pref - b.pref);
     const gap = Math.min(
       PORT_GAP,
       Math.max(0, hi - lo) / Math.max(1, items.length - 1)
     );
+    const fixed = items.filter((item) => !item.end).map((item) => item.pref).sort((p, q) => p - q);
+    const stretches = [];
+    let start = lo;
+    for (const f of fixed) {
+      stretches.push({ lo: start, hi: f - gap, items: [] });
+      start = f + gap;
+    }
+    stretches.push({ lo: start, hi, items: [] });
+    const open = stretches.filter((st) => st.hi >= st.lo - 0.01);
+    const fresh = items.filter((item) => item.end).sort(
+      (p, q) => p.pref - q.pref || (p.order < q.order ? -1 : p.order > q.order ? 1 : 0)
+    );
+    const capacity = (st) => Math.floor((st.hi - st.lo) / Math.max(gap, 1e-6)) + 1;
     for (const item of fresh) {
-      item.end.along = round(freePlace(item.pref, taken, lo, hi, gap));
-      taken.push(item.end.along);
+      const ranked = open.map((st) => ({
+        st,
+        away: item.pref < st.lo ? st.lo - item.pref : item.pref > st.hi ? item.pref - st.hi : 0
+      })).sort((p, q) => p.away - q.away);
+      const home = ranked.find(({ st }) => st.items.length < capacity(st))?.st;
+      if (home) home.items.push(item);
+      else item.end.along = round(freePlace(item.pref, fixed, lo, hi, gap));
+    }
+    for (const st of open) {
+      if (!st.items.length) continue;
+      const at = spread(st.items, st.lo, Math.max(st.lo, st.hi));
+      st.items.forEach((item, k) => {
+        item.end.along = round(at[k]);
+      });
     }
   }
   const terminal = (end) => {
@@ -5020,23 +5082,21 @@ function arrangeScene(scene, positions = {}, options = {}) {
   );
   const routed = [];
   for (const { r, from, to } of pending) {
-    {
-      r.route = routeBetween(
-        { ...from, dir: r.ends[0].side },
-        { ...to, arrival: arrivalInto(r.ends[1].side) },
-        boxes,
-        [r.ends[0].box, r.ends[1].box],
-        everythingBox,
-        occupied
-      );
-      occupied.add(r.route);
-      routed.push({
-        points: r.route,
-        movable: true,
-        stubs: [from.length, to.length],
-        owner: r
-      });
-    }
+    r.route = routeBetween(
+      { ...from, dir: r.ends[0].side },
+      { ...to, arrival: arrivalInto(r.ends[1].side) },
+      boxes,
+      [r.ends[0].box, r.ends[1].box],
+      everythingBox,
+      occupied
+    );
+    occupied.add(r.route);
+    routed.push({
+      points: r.route,
+      movable: true,
+      stubs: [from.length, to.length],
+      owner: r
+    });
   }
   for (const t of trees)
     if (t.reroute) {

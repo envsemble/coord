@@ -124,7 +124,8 @@ async function layoutGrouped(
   for (const g of generalizations) tie(g.specificId, g.generalId, 2);
   const order = packingOrder(parts.length, ties);
   // Many relations between two groups need room to run apart, with their
-  // labels: the gap grows with the most relations between any two.
+  // labels: the gap, one for all the groups, grows with the most between any
+  // two (a generalization, which ties them more, counting as two).
   const most = Math.max(0, ...[...ties.values()]);
   const gap = GROUP_GAP + PER_RELATION * Math.max(0, Math.ceil(most) - 2);
   const header = (part) => (part.cluster.name ? PACKAGE_HEADER : 0);
