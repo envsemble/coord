@@ -249,7 +249,7 @@ body { margin: 0; }
    than the room below them, with its scrollbar shown while the pointer is over it. It keeps its
    scrolling to itself only when it has something to scroll, so a wheel over a short column still
    moves the page. */
-.plan-aside { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--env-space-6)); display: grid; align-content: start; gap: var(--env-space-6); max-block-size: calc(100dvh - var(--env-title-bar-height) - var(--atlas-sticky-top) - var(--env-space-6)); overflow-y: auto; scrollbar-width: thin; scrollbar-gutter: stable; scrollbar-color: transparent transparent; padding-inline-end: var(--env-space-2); padding-block-end: var(--env-space-6); }
+.plan-aside { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--env-space-6)); display: grid; align-content: start; gap: var(--env-space-6); max-block-size: calc(100dvh - max(env(titlebar-area-height, 0rem), var(--env-title-bar-height)) - var(--atlas-sticky-top) - var(--env-space-6)); overflow-y: auto; scrollbar-width: thin; scrollbar-gutter: stable; scrollbar-color: transparent transparent; padding-inline-end: var(--env-space-2); padding-block-end: var(--env-space-6); }
 .plan-aside:is(:hover, :focus-within) { scrollbar-color: var(--env-color-border-default) transparent; }
 .plan-aside[data-scrolls] { overscroll-behavior: contain; }
 .plan-aside-section { display: grid; gap: var(--env-space-2); }
@@ -304,7 +304,7 @@ body { margin: 0; }
 /* A plan's diagrams: the canvas fills the panel. */
 .diagrams { position: relative; display: flex; flex: 1; flex-direction: column; min-block-size: 22rem; }
 /* Full view covers the window below its title bar, which keeps the window buttons and moves the window. */
-.diagrams.fullscreen { position: fixed; inset: calc(env(titlebar-area-height, 0px) + var(--env-title-bar-height)) 0 0 0; z-index: var(--env-z-supporting-pane); min-block-size: 0; border: 0; background: var(--env-color-bg-page); }
+.diagrams.fullscreen { position: fixed; inset: max(env(titlebar-area-height, 0rem), var(--env-title-bar-height)) 0 0 0; z-index: var(--env-z-supporting-pane); min-block-size: 0; border: 0; background: var(--env-color-bg-page); }
 .diagrams-canvas { position: relative; flex: 1; min-block-size: 0; isolation: isolate; }
 .diagrams-state { position: absolute; inset: 0; display: grid; place-content: center; padding: var(--env-space-6); background: var(--env-color-bg-page); }
 .diagrams-state > * { max-inline-size: 30rem; }

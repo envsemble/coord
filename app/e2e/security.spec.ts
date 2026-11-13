@@ -41,7 +41,7 @@ test('the window is isolated and sandboxed, with a strict content security polic
   // A plan of the project shows, so the window follows its folder. It opens by a click from the page,
   // which is no person's press, so none is pending below.
   await hubRows(atlasWindow, 'Customer order notifications').first().getByRole('link', { name: 'Customer order notifications', exact: true }).evaluate(link => (link as HTMLElement).click());
-  await expect(atlasWindow.locator('.work-header h1')).toHaveText('Customer order notifications');
+  await expect(atlasWindow.locator('.work-page h1')).toHaveText('Customer order notifications');
   // Requests through the window's own session, as its pages make them.
   const status = await app.evaluate(async ({ BrowserWindow }, projectId) => {
     const session = BrowserWindow.getAllWindows()[0].webContents.session;

@@ -9,7 +9,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type ElectronApplication, type Locator, type Page } from '@playwright/test';
 import type { AtlasBridge } from '../shared/contract.ts';
-import { close, expectProjects, goHome, hubRows, launch, launchProject, openPlan, openProjects, projectAction, projectDetails, projectRow, removeDirectory, showArchived, temporaryDirectory, windowTitles, type Launched } from './app';
+import { close, expectProjects, goHome, hubRows, launch, launchProject, openPlan, openProjectMenu, expectArchived, projectAction, projectDetails, removeDirectory, temporaryDirectory, windowTitles, type Launched } from './app';
 
 // Remote access's status line: the device list's confirm buttons announce through live regions of their own.
 const accessStatus = (section: Locator) => section.getByRole('status').and(section.locator('.access-status'));
@@ -127,8 +127,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
 
   // A project created from here is made on that computer, and both see it. Its workspace folders
   // are paths there, chosen in Atlas there: here it gets a name only, and its folders are not changed.
-  await openProjects(viewer);
-  await viewer.getByRole('button', { name: 'New project', exact: true }).click();
+  await (await openProjectMenu(viewer)).getByRole('menuitem', { name: 'New Project…', exact: true }).click();
   const create = viewer.getByRole('dialog', { name: 'Create project' });
   await create.getByLabel('Project name').fill('Coord');
   await expect(create.getByLabel('Folder')).toHaveCount(0);
@@ -150,23 +149,19 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await viewer.getByRole('dialog', { name: 'Rename project' }).getByLabel('Name').fill('Coord platform');
   await viewer.getByRole('dialog', { name: 'Rename project' }).getByRole('button', { name: 'Rename' }).click();
   await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Coord platform']);
-  // ...while archiving is this app's own (done from a plan of it, which the window then goes back to).
+  // ...while archiving is this app's own: the project leaves the menu's projects for its archived ones,
+  // and its plans leave the hub, while that computer still lists it as before. A plan of it, shown
+  // before, is still shown when back steps to it.
   await goHome(viewer);
   await openPlan(viewer, 'Customer order notifications');
-  await openProjects(viewer);
+  await goHome(viewer);
   await projectAction(viewer, 'Northwind', 'Archive');
   await expectProjects(viewer, ['Coord platform']);
-  await showArchived(viewer);
-  await expectProjects(viewer, ['Northwind'], 'Archived projects');
-  await viewer.waitForTimeout(500);
-  await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Coord platform']);
-  // An archived project is seen only there: its name leads nowhere, and its plans are left out of the hub.
-  await expect(projectRow(viewer, 'Northwind', 'Archived projects').getByRole('button', { name: 'Northwind', exact: true })).toHaveCount(0);
-  await goHome(viewer);
+  await expectArchived(viewer, ['Northwind']);
   await expect(hubRows(viewer, 'Customer order notifications')).toHaveCount(0);
-  await viewer.getByRole('button', { name: 'Back', exact: true }).click();
-  await viewer.getByRole('button', { name: 'Back', exact: true }).click();
-  await expect(viewer.locator('.work-header h1')).toHaveText('Customer order notifications');
+  await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Coord platform']);
+  for (let step = 0; step < 3; step++) await viewer.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(viewer.locator('.work-page h1')).toHaveText('Customer order notifications');
 
   // With Manage access, this Atlas pairs and revokes devices of that computer, but cannot change how it is reached.
   await viewer.bringToFront();
@@ -179,7 +174,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await expect(remoteAccess.locator('.pairing-link')).toBeVisible();
   await remoteAccess.getByRole('button', { name: 'Revoke', exact: true }).click();
   await viewer.getByRole('button', { name: 'Back', exact: true }).click();
-  await expect(viewer.locator('.work-header h1')).toHaveText('Customer order notifications');
+  await expect(viewer.locator('.work-page h1')).toHaveText('Customer order notifications');
 
   // Switching to this computer, which has no projects, and back.
   await viewer.getByRole('button', { name: /^Computer:/ }).click();
@@ -188,7 +183,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await viewer.getByRole('button', { name: /^Computer:/ }).click();
   await viewer.getByRole('menu', { name: /^Computer/ }).getByRole('menuitemradio').filter({ hasText: /127\.0\.0\.1/ }).click();
   // What it showed of that computer comes back with it.
-  await expect(viewer.locator('.work-header h1')).toHaveText('Customer order notifications');
+  await expect(viewer.locator('.work-page h1')).toHaveText('Customer order notifications');
   // Its files and applications' links do not open here: they are that computer's.
   const refused = await viewer.evaluate(async () => {
     const bridge = (window as unknown as { atlas: Record<string, (...args: unknown[]) => Promise<{ ok: boolean; value?: { id: string }[]; error?: { code: string } }>> }).atlas;
@@ -202,7 +197,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await close(reading);
   reading = await launch({ dataDirectory: readerData });
   await expect(reading.window.getByRole('button', { name: /^Computer:/ })).toContainText(name);
-  await expect(reading.window.locator('.work-header h1')).toHaveText('Customer order notifications');
+  await expect(reading.window.locator('.work-page h1')).toHaveText('Customer order notifications');
   await expect.poll(() => projectNames(reading!.window).then(names => names.sort())).toEqual(['Coord platform', 'Northwind (archived)']);
 
   // Started while that computer cannot be reached, the window shows at once, on the hub, and keeps its
@@ -218,11 +213,11 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   expect(Date.now() - restarted).toBeLessThan(12_000);
   // The hub, still listing that computer's projects (a request waits for it up to 20 s) or saying they can't be listed.
   await expect(reading.window.locator('.hub').or(reading.window.getByRole('progressbar', { name: 'Loading the plans' }))).toBeVisible();
-  await expect(reading.window.locator('.work-header')).toHaveCount(0);
+  await expect(reading.window.locator('.work-page')).toHaveCount(0);
   await reading.window.waitForTimeout(600);
   await allow.click();
   await expect(accessStatus(access)).toHaveText(`Listening on 127.0.0.1:${port}.`);
-  await expect(reading.window.locator('.work-header h1')).toHaveText('Customer order notifications', { timeout: 60_000 });
+  await expect(reading.window.locator('.work-page h1')).toHaveText('Customer order notifications', { timeout: 60_000 });
 
   // Revoking the device ends its access at once; the window keeps the last view and says why.
   await expect(reading.window.locator('.reader .prose')).toContainText('Outcome');
@@ -232,7 +227,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await access.getByRole('button', { name: 'Revoke access' }).click();
   await expect(access.getByText('No paired devices.')).toBeVisible();
   await expect(reading.window.getByRole('alert')).toContainText('was revoked');
-  await expect(reading.window.locator('.work-header h1')).toHaveText('Customer order notifications');
+  await expect(reading.window.locator('.work-page h1')).toHaveText('Customer order notifications');
 
   // Forgetting the computer shows this computer in its windows, and nothing about the other computer is kept.
   const last = reading.window;

@@ -45,6 +45,9 @@ test('the picker lists diagrams by family, one short line each, and switches bet
   const { window, app } = launched;
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 900));
   await openDiagrams(window, 'Checkout · captured TypeScript');
+  // The canvas takes the window's width, as the details open beside the change view.
+  await window.getByRole('button', { name: 'Hide files' }).click();
+  await expect(window.getByRole('button', { name: 'Show files' })).toBeVisible();
   // The picker names the diagram's origin.
   await expect(window.locator('.diagram-picker-button')).toContainText('Generated from code');
   await window.locator('.diagram-picker-button').click();
@@ -246,7 +249,7 @@ test('a class diagram opens from its card with its scenarios as its guide and a 
   await window.keyboard.press('Escape');
   await expect(window.locator('.diagrams.fullscreen')).toHaveCount(0);
   await window.keyboard.press('Alt+ArrowLeft');
-  await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
+  await expect(window.locator('.work-page h1')).toHaveText('Order fulfilment model');
 
   // A chip opens the diagram at its element.
   await card.locator('.element-chip', { hasText: 'Shipment' }).click();
@@ -255,7 +258,7 @@ test('a class diagram opens from its card with its scenarios as its guide and a 
   const details = window.locator('.inspector.open');
   await expect(details.getByRole('heading', { level: 1 })).toHaveText('Shipment');
   await window.keyboard.press('Alt+ArrowLeft');
-  await expect(window.locator('.work-header h1')).toHaveText('Order fulfilment model');
+  await expect(window.locator('.work-page h1')).toHaveText('Order fulfilment model');
   // A link in the text opens the diagram too, at the element its fragment names.
   await window.locator('.prose a', { hasText: 'orders' }).first().click();
   await expect(window.locator('.diagram-picker-title')).toHaveText('Fulfilment · conceptual model');
