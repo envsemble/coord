@@ -14,7 +14,7 @@
     0 0.5rem 1.5rem -0.5rem
       oklch(from var(--env-color-bg-page) calc(l * 0.2) c h / 0.28);
   --atlas-gutter: var(--env-space-3);
-  /* Code in the details: envUI's code typeface and size, which its code
+  /* Code in panels: envUI's code typeface and size, which its code
      styles define, with the same values where the host loads none. */
   --atlas-font-code: var(
     --env-code-font-family,
@@ -24,7 +24,6 @@
     monospace
   );
   --atlas-font-size-code: var(--env-code-font-size, 0.8125rem);
-  --inspector-width: clamp(20rem, 38cqw, 30rem);
 }
 .atlas-panel {
   margin: 0;
@@ -90,8 +89,8 @@
 .atlas-provenance {
   --env-control-height: var(--env-control-height-sm);
 }
-/* A heading a step below the title type, for panel titles and headings
-   inside the details. */
+/* A heading a step below the title type, for panel titles and the headings
+   inside panels. */
 .atlas-panel .atlas-section-heading {
   font-size: calc(var(--env-font-size-title) - 0.125rem);
 }
@@ -146,72 +145,6 @@
 .atlas-panel .zoom-readout {
   min-width: 4rem;
 }
-/* Concept search: an inline field, or a toggle with a popup when crowded. */
-/* In a crowded toolbar the field opens below the whole tools island. */
-.atlas-panel .search {
-  display: flex;
-  align-items: center;
-}
-.atlas-panel .search-toggle {
-  display: none;
-}
-.atlas-panel .search-field {
-  position: relative;
-  width: clamp(10rem, 20cqw, 15rem);
-}
-.atlas-panel .suggestions {
-  display: none;
-  position: absolute;
-  z-index: var(--env-z-popup);
-  top: calc(100% + var(--env-space-2));
-  left: 0;
-  width: max-content;
-  min-width: 100%;
-  max-width: 20rem;
-  max-height: 18rem;
-  overflow: auto;
-  box-shadow: var(--atlas-elevation);
-}
-.atlas-panel .suggestions.open {
-  display: grid;
-  gap: 0.125rem;
-}
-.atlas-panel .suggestion {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--env-space-3);
-  min-height: 2.25rem;
-  padding: var(--env-space-2) var(--env-space-3);
-  border: 0;
-  border-radius: var(--env-radius-row-inner);
-  background: transparent;
-  color: var(--env-color-fg-default);
-  font: var(--env-type-body-sm);
-  text-align: start;
-  cursor: pointer;
-  transition: background-color var(--env-motion-duration-fast)
-    var(--env-motion-ease);
-}
-.atlas-panel .suggestion:hover,.atlas-panel
-.suggestion:focus-visible {
-  background: var(--env-color-bg-neutral-subtle-hover);
-}
-.atlas-panel .suggestion:active {
-  background: var(--env-color-bg-neutral-subtle-pressed);
-}
-.atlas-panel .suggestion:focus-visible {
-  outline: 0.125rem solid var(--env-color-border-focus);
-  outline-offset: -0.125rem;
-}
-.atlas-panel .suggestion-name {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.atlas-panel .suggestion-detail {
-  flex: none;
-  color: var(--env-color-fg-muted);
-}
 
 /* Provenance: where a model came from, as a badge and a detail line. */
 .atlas-panel .atlas-provenance {
@@ -238,8 +171,8 @@
   white-space: nowrap;
 }
 
-/* Floating panes beside the canvas: the inspector. Its content scrolls
-   inside it, so the resize handle on its inner edge stays in place. */
+/* The pane beside the canvas: a proposal’s changes, or the scenarios. Its
+   content scrolls below its header. */
 .atlas-panel .panel {
   display: none;
   position: absolute;
@@ -263,50 +196,6 @@
   overscroll-behavior: contain;
   border-radius: inherit;
 }
-/* The handle straddles the pane's inner edge; a line shows on hover (after a
-   moment, as envUI's sidebar's) and focus, and while dragging. */
-.atlas-panel .panel-resize {
-  position: absolute;
-  /* Above the sticky header. */
-  z-index: calc(var(--env-z-raised) + 2);
-  top: 0;
-  bottom: 0;
-  left: -0.3125rem;
-  width: 0.625rem;
-  cursor: col-resize;
-  touch-action: none;
-  outline: none;
-}
-.atlas-panel .panel-resize::after {
-  content: "";
-  position: absolute;
-  top: var(--env-space-5);
-  bottom: var(--env-space-5);
-  left: calc(50% - 0.0625rem);
-  width: 0.125rem;
-  border-radius: 0.0625rem;
-  background: transparent;
-  transition: background-color var(--env-motion-duration-fast)
-    var(--env-motion-ease);
-}
-.atlas-panel .panel-resize:hover::after {
-  background: var(--env-color-border-muted-hover);
-  transition-delay: var(--env-motion-duration-medium);
-}
-.atlas-panel .panel-resize:focus-visible::after,.atlas-panel
-.viewer.resizing .panel-resize::after {
-  background: var(--env-color-border-focus);
-  transition-delay: 0s;
-}
-/* While the details are resized, the width follows the pointer and no text
-   is selected. */
-.atlas-panel .viewer.resizing {
-  cursor: col-resize;
-  user-select: none;
-}
-.atlas-panel .viewer.resizing .panel {
-  user-select: none;
-}
 .atlas-panel .panel-header {
   position: sticky;
   top: 0;
@@ -319,60 +208,15 @@
     var(--env-space-5);
   background: var(--env-color-bg-default);
 }
-/* Without a title, the close button floats over the content's top corner on a
-   pane-coloured backing, and stays there while the content scrolls. */
-.atlas-panel .panel-header.compact {
-  top: var(--env-space-3);
-  width: fit-content;
-  margin: var(--env-space-3) var(--env-space-3)
-    calc(-1 * (var(--env-control-height) + var(--env-space-3))) auto;
-  padding: 0;
-  border-radius: var(--env-radius-full);
+.atlas-panel .panel-title {
+  flex: 1 1 auto;
+  margin: 0;
 }
 .atlas-panel .panel-content {
   display: flex;
   flex-direction: column;
   gap: var(--env-space-4);
   padding: var(--env-space-2) var(--env-space-5) var(--env-space-5);
-}
-.atlas-panel .panel-header.compact + .panel-content {
-  padding-top: var(--env-space-5);
-}
-.atlas-panel .panel-header.compact + .panel-content > .detail-header:first-child {
-  padding-inline-end: calc(var(--env-control-height) + var(--env-space-1));
-}
-.atlas-panel .inspector {
-  width: min(var(--inspector-width), calc(100% - 2 * var(--atlas-gutter)));
-}
-
-/* Inspector content. */
-.atlas-panel .detail-header {
-  display: grid;
-  gap: var(--env-space-3);
-}
-.atlas-panel .detail-title {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--env-space-2);
-}
-.atlas-panel .detail-icon {
-  display: inline-grid;
-  flex: none;
-  padding-top: 0.0625rem;
-  color: var(--env-color-fg-muted);
-  font-size: 1.25rem;
-}
-.atlas-panel .detail-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--env-space-2);
-}
-.atlas-panel .detail-owner {
-  color: var(--env-color-fg-muted);
-  font-weight: 400;
-}
-.atlas-panel .detail-description {
-  white-space: pre-wrap;
 }
 /* Text read by assistive technology, not shown. */
 .atlas-panel .visually-hidden {
@@ -537,20 +381,6 @@
   font: var(--env-type-body-sm);
   font-style: italic;
 }
-
-/* Above a changed element's details: back, previous and next. */
-.atlas-panel .change-navigation {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--env-space-2);
-  min-width: 0;
-}
-.atlas-panel .change-back {
-  flex: none;
-  white-space: nowrap;
-}
 .atlas-panel .change-stepper {
   display: inline-flex;
   flex: none;
@@ -563,157 +393,6 @@
   font: var(--env-type-body-sm);
   font-variant-numeric: tabular-nums;
   text-align: center;
-}
-
-/* Details: titled sections, change lists and code places. */
-.atlas-panel .detail-section {
-  padding-top: var(--env-space-4);
-  border-top: 0.0625rem solid var(--env-color-border-muted);
-}
-.atlas-panel .detail-section-title {
-  color: var(--env-color-fg-muted);
-  font-weight: 500;
-  letter-spacing: 0.02em;
-}
-.atlas-panel .change-list,.atlas-panel
-.member-list,.atlas-panel
-.relation-end-list {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.atlas-panel .change-list {
-  gap: var(--env-space-2);
-}
-.atlas-panel .change-line {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--env-space-2);
-  color: var(--env-color-fg-default);
-  font: var(--env-type-body-sm);
-}
-.atlas-panel .change-line-text {
-  display: grid;
-  flex: 1;
-  gap: 0.125rem;
-  min-width: 0;
-}
-.atlas-panel .change-key,.atlas-panel
-.change-detail {
-  color: var(--env-color-fg-muted);
-}
-.atlas-panel .change-before {
-  color: var(--env-color-fg-muted);
-  text-decoration: line-through;
-}
-.atlas-panel .change-after {
-  text-decoration: none;
-}
-.atlas-panel .change-arrow {
-  margin: 0 var(--env-space-1);
-  color: var(--env-color-fg-muted);
-}
-.atlas-panel .signature {
-  min-width: 0;
-  color: var(--env-color-fg-default);
-  font: var(--atlas-font-size-code) / 1.55 var(--atlas-font-code);
-  overflow-wrap: anywhere;
-}
-.atlas-panel [data-change] > .change-line-text > .signature,.atlas-panel
-.member[data-change] > .signature,.atlas-panel
-.member[data-change] > .member-text > .signature {
-  color: var(--change-color);
-}
-.atlas-panel .member[data-change="removed"] .signature,.atlas-panel
-.change-line[data-change="removed"] .signature {
-  text-decoration: line-through;
-}
-.atlas-panel .member-list {
-  gap: 0;
-}
-.atlas-panel .member {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--env-space-2);
-  padding: 0.3125rem 0;
-  border-bottom: 0.0625rem solid
-    color-mix(in srgb, var(--env-color-border-muted) 60%, transparent);
-}
-.atlas-panel .member:last-child {
-  border-bottom: 0;
-}
-/* The member a focus asked for, such as a plan's link to it. */
-.atlas-panel .member.focused {
-  border-radius: var(--env-radius-sm);
-  background: color-mix(
-    in srgb,
-    var(--env-color-border-focus) 14%,
-    transparent
-  );
-  box-shadow: inset 0.1875rem 0 0 var(--env-color-border-focus);
-  padding-inline-start: var(--env-space-2);
-}
-.atlas-panel .member > .signature {
-  flex: 1;
-}
-/* A described member: its signature, and its description below it. */
-.atlas-panel .member-text {
-  display: grid;
-  flex: 1;
-  gap: 0.125rem;
-  min-width: 0;
-}
-.atlas-panel .member-description {
-  color: var(--env-color-fg-muted);
-}
-.atlas-panel .member-list.marked .member:not([data-change]) {
-  padding-inline-start: calc(1.125rem + var(--env-space-2));
-}
-.atlas-panel .member-type,.atlas-panel
-.column-flags {
-  color: var(--env-color-fg-muted);
-}
-.atlas-panel .member-line {
-  flex: none;
-  color: var(--env-color-fg-muted);
-  font: var(--atlas-font-size-code) / 1.55 var(--atlas-font-code);
-  font-variant-numeric: tabular-nums;
-}
-.atlas-panel .member-line::before {
-  content: "L";
-}
-.atlas-panel .column-flags {
-  flex: none;
-  font: var(--env-type-body-sm);
-}
-.atlas-panel .proposed-location code {
-  font: 0.92em var(--atlas-font-code);
-  overflow-wrap: anywhere;
-}
-.atlas-panel .code-where {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0 var(--env-space-3);
-}
-.atlas-panel .code-path {
-  min-width: 0;
-  color: var(--env-color-fg-default);
-  font: var(--atlas-font-size-code) / 1.5 var(--atlas-font-code);
-  overflow-wrap: anywhere;
-}
-.atlas-panel .code-lines {
-  flex: none;
-  color: var(--env-color-fg-muted);
-  font: var(--env-type-body-sm);
-}
-.atlas-panel .code-source-link {
-  justify-self: start;
-}
-.atlas-panel .relation-ends {
-  gap: var(--env-space-1);
 }
 
 /* Scenarios: the examples of a class diagram. */
@@ -737,70 +416,6 @@
   margin: 0;
   padding-inline-start: var(--env-space-4);
   font: var(--env-type-body-sm);
-}
-.atlas-panel .relation-role {
-  min-width: 4.5rem;
-  color: var(--env-color-fg-muted);
-  font: var(--env-type-body-sm);
-}
-.atlas-panel .relation-end {
-  display: flex;
-  align-items: center;
-  gap: var(--env-space-2);
-  border-bottom: 0.0625rem solid var(--env-color-border-muted);
-}
-.atlas-panel .relation-end .count-badge {
-  margin-inline-start: auto;
-}
-.atlas-panel .relation-end:last-child {
-  border-bottom: 0;
-}
-.atlas-panel .source-code {
-  margin: 0;
-  padding: var(--env-space-3);
-  overflow: auto;
-  border-radius: var(--env-radius-sm);
-  background: var(--env-color-bg-field);
-  color: var(--env-color-fg-default);
-  font: var(--atlas-font-size-code) / 1.6 var(--atlas-font-code);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.atlas-panel .source-code:focus-visible,.atlas-panel
-.code-snippet:focus-visible {
-  outline: 0.125rem solid var(--env-color-border-focus);
-  outline-offset: 0.125rem;
-}
-/* Prepared source excerpts keep their source line numbers. */
-.atlas-panel .code-snippet {
-  margin: 0;
-  padding: var(--env-space-2) 0;
-  overflow: auto;
-  border-radius: var(--env-radius-sm);
-  background: var(--env-color-bg-field);
-  color: var(--env-color-fg-default);
-  font: var(--atlas-font-size-code) / 1.65 var(--atlas-font-code);
-  tab-size: 2;
-}
-.atlas-panel .code-line::before {
-  content: attr(data-line);
-  display: inline-block;
-  position: sticky;
-  left: 0;
-  width: 2.75rem;
-  padding: 0 var(--env-space-3) 0 var(--env-space-2);
-  margin-right: var(--env-space-2);
-  color: var(--env-color-fg-muted);
-  background: var(--env-color-bg-field);
-  text-align: right;
-  user-select: none;
-}
-/* light-dark() follows the colour scheme envUI's theme sets. GitHub's light
-   and dark themes share their font styles. */
-.atlas-panel .shiki .code-line > span {
-  color: light-dark(var(--shiki-light), var(--shiki-dark));
-  font-style: var(--shiki-dark-font-style, var(--shiki-light-font-style));
-  font-weight: var(--shiki-dark-font-weight, var(--shiki-light-font-weight));
 }
 .atlas-panel .shortcut-list {
   display: grid;
@@ -846,33 +461,6 @@
   margin: 15vh auto;
   padding: var(--env-space-5);
 }
-
-/* Measured density: when the islands no longer fit on one row, search
-   collapses to a button whose field opens below it. */
-.atlas-panel .atlas-overlay-top.tight .search-toggle {
-  display: inline-flex;
-}
-.atlas-panel .atlas-overlay-top.tight .search-field {
-  display: none;
-  position: absolute;
-  z-index: var(--env-z-popup);
-  top: calc(100% + var(--env-space-2));
-  right: 0;
-  width: min(20rem, calc(100cqw - 2 * var(--env-space-2)));
-  padding: var(--env-space-2);
-  border-radius: var(--env-radius-lg);
-  background: var(--env-color-bg-default);
-  box-shadow: var(--atlas-elevation);
-}
-.atlas-panel .atlas-overlay-top.tight .search.open .search-field {
-  display: block;
-}
-.atlas-panel .atlas-overlay-top.tight .suggestions {
-  left: 0;
-  right: 0;
-  width: auto;
-  max-width: none;
-}
 .atlas-panel .atlas-overlay-top.tight .island-title,.atlas-panel
 .atlas-overlay-top.tight .collapsible-label {
   display: none;
@@ -898,16 +486,11 @@
   .atlas-panel .atlas-overlay-top.stacked > .island-end {
     grid-area: 3 / 1;
   }
-  .atlas-panel .panel,.atlas-panel
-  .inspector {
+  .atlas-panel .panel {
     left: var(--env-space-2);
     right: var(--env-space-2);
     width: auto;
     max-height: calc(100% - var(--atlas-top-inset, 4rem) - var(--env-space-2));
-  }
-  /* Spanning the width, the details cannot be resized. */
-  .atlas-panel .panel-resize {
-    display: none;
   }
   .atlas-panel .island-title,.atlas-panel
   .collapsible-label {
@@ -920,16 +503,8 @@
     display: none;
   }
 }
-/* A narrow inspector keeps its change navigation on one row: back becomes an icon. */
-@container atlas-viewer (max-width: 960px) {
-  .atlas-panel .change-back-label {
-    display: none;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .atlas-panel .diagram-element,.atlas-panel
-  .suggestion {
+  .atlas-panel .diagram-element {
     transition: none;
   }
 }

@@ -25,16 +25,6 @@
   "diagrams": [
     {
       "view": "comparison",
-      "fields": false,
-      "valid": true,
-      "issues": [],
-      "multiplicityLabels": 3,
-      "maxMultiplicityDistance": 47,
-      "generalizationGroups": 0
-    },
-    {
-      "view": "comparison",
-      "fields": true,
       "valid": true,
       "issues": [],
       "multiplicityLabels": 3,

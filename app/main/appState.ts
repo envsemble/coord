@@ -4,7 +4,7 @@
 // theme and the width the reader gave a diagram's details. Windows stay in the database when Atlas
 // quits, and open again at the next start; a window closed by hand is removed with its places.
 import type { HomeDatabase } from '@envsemble/atlas/planning';
-import { limits, type Place, type ThemePreference } from '../shared/contract.ts';
+import { type Place, type ThemePreference } from '../shared/contract.ts';
 import { target as savedTarget } from '../shared/validate.ts';
 
 export interface Bounds { x: number; y: number; width: number; height: number }
@@ -59,13 +59,6 @@ export class AppState {
     return value === 'light' || value === 'dark' ? value : 'system';
   }
   setTheme(theme: ThemePreference) { this.database.setSetting('theme', theme === 'system' ? null : theme); }
-
-  /** The width the reader gave a diagram's details, or null for the default. */
-  get inspectorWidth(): number | null {
-    const value = Number(this.database.setting('ui.inspectorWidth'));
-    return Number.isInteger(value) && value >= limits.inspectorMin && value <= limits.inspectorMax ? value : null;
-  }
-  setInspectorWidth(width: number | null) { this.database.setSetting('ui.inspectorWidth', width === null ? null : String(width)); }
 
   /** The windows to open: those open when Atlas quit, and any opened since. */
   windows(): WindowRow[] {

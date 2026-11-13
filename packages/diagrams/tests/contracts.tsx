@@ -60,8 +60,6 @@ async function smoke() {
         payload={prepared.payload}
         theme="dark"
         leading={<select aria-label="Diagram" />}
-        fullscreen={false}
-        onFullscreenChange={(next: boolean) => void next}
       />
       <ProvenanceBadge document={prepared.model.document} />
       <UMLDiagram diagram={built.views[0].diagram} />

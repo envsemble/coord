@@ -274,12 +274,12 @@ export function createCamera({
     canvas.classList.remove("dragging");
   }
 
-  function restoreView(key, fields, focusIds = []) {
+  function restoreView(key, focusIds = []) {
     cancelMotion();
     clearPointers();
     if (activeKey) cameras.set(activeKey, { ...camera });
     initialFocus = focusIds;
-    activeKey = `${key}:${fields}`;
+    activeKey = key;
     if (cameras.has(activeKey)) {
       snapTo(cameras.get(activeKey));
     } else initialCamera();

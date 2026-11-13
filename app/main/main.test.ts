@@ -52,9 +52,6 @@ test('windows, their places per computer and the shared settings are kept in the
     assert.equal(new AppState(database).theme, 'dark');
     state.setTheme('system');
     assert.equal(database.setting('theme'), null);
-    assert.equal(state.inspectorWidth, null);
-    state.setInspectorWidth(480);
-    assert.equal(state.inspectorWidth, 480);
     // A window on this computer with places of a local project, and places of a paired computer's project it showed before.
     const local = database.addProject(path.join(directory, 'planning', 'shop'), 'Shop');
     database.db.prepare('INSERT INTO paired_computer (id, host_id, name, origin, device_id, token, paired_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('c1', 'host-0001', 'Laptop', 'http://100.64.0.2:7346', 'd-' + 'a'.repeat(32), Buffer.from('plain:x'), '2026-10-15T00:00:00.000Z');

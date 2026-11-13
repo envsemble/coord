@@ -187,7 +187,6 @@ test("a standalone viewer offers its diagram's exports", async () => {
   const labels = exportChoices({
     exports: prepared.payload.exports,
     viewKey: prepared.payload.views[0].key,
-    fields: false,
     theme: "light",
   }).map((choice) => choice.label);
   assert.deepEqual(labels, ["SVG image", "PlantUML", "Models ZIP"]);

@@ -319,22 +319,20 @@ body { margin: 0; }
 
 /* A plan's diagrams: the canvas fills the panel. */
 .diagrams { position: relative; display: flex; flex: 1; flex-direction: column; min-block-size: 22rem; }
-/* Full view covers the window below its title bar, which keeps the window buttons and moves the window. */
-.diagrams.fullscreen { position: fixed; inset: max(env(titlebar-area-height, 0rem), var(--env-title-bar-height)) 0 0 0; z-index: var(--env-z-supporting-pane); min-block-size: 0; border: 0; background: var(--env-color-bg-page); }
 .diagrams-canvas { position: relative; flex: 1; min-block-size: 0; isolation: isolate; }
 .diagrams-state { position: absolute; inset: 0; display: grid; place-content: center; padding: var(--env-space-6); background: var(--env-color-bg-page); }
 .diagrams-state > * { max-inline-size: 30rem; }
 .diagram-problems { margin: var(--env-space-3) 0 0; padding-inline-start: 1.25rem; text-align: start; }
-/* While a diagram loads, the switcher and the picker are where the diagram's overlay puts them. */
+/* While a diagram loads, its layer marker is where the diagram's overlay puts it. */
 .diagrams-islands { position: absolute; inset-block-start: var(--atlas-gutter); inset-inline-start: var(--atlas-gutter); z-index: var(--env-z-raised); display: grid; justify-items: start; gap: var(--env-space-2); }
 @media (max-width: 40rem) {
   .diagrams-islands { gap: var(--env-space-1); }
 }
 .diagrams-notices { position: absolute; inset-block-end: 3.5rem; inset-inline-start: 50%; z-index: calc(var(--env-z-raised) + 1); display: grid; gap: var(--env-space-2); inline-size: min(35rem, calc(100% - 2rem)); transform: translateX(-50%); }
-.diagram-picker-button { min-inline-size: 0; max-inline-size: min(28rem, 60vw); }
-.diagram-picker-title { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* A long title gives way; the model's origin stays whole beside it. */
-.diagram-picker-button > .env-badge { flex: none; }
+/* A diagram's layers: its icon, the segments, and the layer shown, whose long name gives way. */
+.layer-marker { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; padding-inline-start: var(--env-space-1); }
+.layer-marker-icon { display: inline-flex; color: var(--env-color-fg-muted); }
+.layer-marker-title { min-inline-size: 0; max-inline-size: 18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline-end: var(--env-space-2); }
 
 /* Statistics */
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--env-space-3); }

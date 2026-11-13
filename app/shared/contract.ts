@@ -124,17 +124,16 @@ export type SettingsSection = typeof settingsSections[number];
 export type PagePlace = { page: 'hub'; projectId: string | null } | { page: 'statistics'; projectId: string | null } | { page: 'settings'; section: SettingsSection };
 /** What a window shows: one place at a time. */
 export type Place = ProjectPlace | PagePlace;
-/** A window's layout: the place it shows, and the width the reader gave a diagram's details (absent for the default). */
+/** A window's layout: the place it shows. */
 export interface UiState {
   place: Place;
-  inspectorWidth?: number;
   /** Loaded while the window's computer did not answer: a place of a project not listed yet waits to be loaded again. */
   pending?: boolean;
 }
 export const defaultUiState: UiState = { place: { page: 'hub', projectId: null } };
 /** A window's layout as it loads, with its computer's projects as listed for it when the computer answered: the window starts from them. */
 export interface LoadedUi extends UiState { projects?: Project[] }
-export const limits = { path: 2048, folders: 20, inspectorMin: 240, inspectorMax: 1200 } as const;
+export const limits = { path: 2048, folders: 20 } as const;
 /** A folder's full path: from a drive or a share on Windows, from the root elsewhere. */
 export const fullPath = /^(?:[a-zA-Z]:[\\/]|\\\\[^\\/]|\/)/;
 

@@ -1,9 +1,6 @@
 // envUI's bundled Material Symbols, named for what they mean in the viewer.
 // Each icon is an individual import, so bundles carry only the icons used.
-export { IconAccountTree as GeneralizationIcon } from "@envsemble/envui/icons/AccountTree";
 export { IconAdd as ZoomInIcon } from "@envsemble/envui/icons/Add";
-export { IconArrowBack as BackIcon } from "@envsemble/envui/icons/ArrowBack";
-export { IconCategory as ConceptIcon } from "@envsemble/envui/icons/Category";
 export { IconChevronLeft as PreviousIcon } from "@envsemble/envui/icons/ChevronLeft";
 export { IconChevronRight as NextIcon } from "@envsemble/envui/icons/ChevronRight";
 export { IconClose as CloseIcon } from "@envsemble/envui/icons/Close";
@@ -16,15 +13,7 @@ export { IconDownload as DownloadIcon } from "@envsemble/envui/icons/Download";
 export { IconEditNote as AuthoredIcon } from "@envsemble/envui/icons/EditNote";
 export { IconFitScreen as FitIcon } from "@envsemble/envui/icons/FitScreen";
 export { IconFolderZip as ArchiveIcon } from "@envsemble/envui/icons/FolderZip";
-export { IconFullscreen as FullscreenIcon } from "@envsemble/envui/icons/Fullscreen";
-export { IconFullscreenExit as ExitFullscreenIcon } from "@envsemble/envui/icons/FullscreenExit";
 export { IconImage as ImageIcon } from "@envsemble/envui/icons/Image";
 export { IconInfo as AboutIcon } from "@envsemble/envui/icons/Info";
-export { IconOpenInNew as ExternalIcon } from "@envsemble/envui/icons/OpenInNew";
-export { IconPolyline as RelationIcon } from "@envsemble/envui/icons/Polyline";
 export { IconRemove as ZoomOutIcon } from "@envsemble/envui/icons/Remove";
-export { IconRightPanelClose as HideDetailsIcon } from "@envsemble/envui/icons/RightPanelClose";
-export { IconRightPanelOpen as ShowDetailsIcon } from "@envsemble/envui/icons/RightPanelOpen";
 export { IconSchool as ScenariosIcon } from "@envsemble/envui/icons/School";
-export { IconSearch as SearchIcon } from "@envsemble/envui/icons/Search";
-export { IconTableRows as FieldsIcon } from "@envsemble/envui/icons/TableRows";

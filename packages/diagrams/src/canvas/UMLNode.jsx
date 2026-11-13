@@ -60,7 +60,8 @@ function MemberText({ member, x, y, method }) {
 export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
   const target = { kind: "node", id: node.id };
   const methods = node.methods || [];
-  const header = node.attributes.length || methods.length ? 66 : node.height;
+  // The header holds the name, below a proposal's change tag.
+  const header = node.attributes.length || methods.length ? 56 : node.height;
   const change = isChanged(node.changeStatus) ? node.changeStatus : null;
   const tag = change && CHANGE_TAGS[change];
   const tagWidth = tag ? tag.length * 6.4 + 12 : 0;
@@ -127,20 +128,9 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
           </text>
         </g>
       )}
-      {node.stereotype && (
-        <text
-          x={node.width / 2}
-          y={header / 2 - 10}
-          textAnchor="middle"
-          fill="var(--diagram-muted,#59636e)"
-          fontSize="11.5"
-        >
-          «{node.stereotype}»
-        </text>
-      )}
       <text
         x={node.width / 2}
-        y={header / 2 + (node.stereotype ? 13 : 5)}
+        y={header / 2 + 8}
         textAnchor="middle"
         fill="var(--text,#1f2328)"
         fontSize="15"
@@ -153,7 +143,7 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
       {(node.attributes.length > 0 || methods.length > 0) && (
         <>
           <path
-            d={`M0 66 H${node.width}`}
+            d={`M0 56 H${node.width}`}
             stroke="var(--diagram-divider,#d1d9e0)"
           />
           <g
@@ -166,14 +156,14 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
                 key={attribute.id || i}
                 member={attribute}
                 x={14}
-                y={85 + i * 20}
+                y={75 + i * 20}
               />
             ))}
           </g>
           {methods.length > 0 && (
             <>
               <path
-                d={`M0 ${node.attributes.length ? 76 + node.attributes.length * 20 : 66} H${node.width}`}
+                d={`M0 ${node.attributes.length ? 66 + node.attributes.length * 20 : 56} H${node.width}`}
                 stroke="var(--diagram-divider,#d1d9e0)"
               />
               <g
@@ -189,8 +179,8 @@ export function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
                     x={14}
                     y={
                       (node.attributes.length
-                        ? 97 + node.attributes.length * 20
-                        : 85) +
+                        ? 87 + node.attributes.length * 20
+                        : 75) +
                       i * 20
                     }
                   />

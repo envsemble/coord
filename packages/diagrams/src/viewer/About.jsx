@@ -19,7 +19,6 @@ export function About({ model, exports, provenance }) {
             "Zoom in or out",
           ],
           [<Kbd>0</Kbd>, "Fit the diagram"],
-          [<Kbd>/</Kbd>, "Find a concept"],
           [<Kbd>Esc</Kbd>, "Clear the selection"],
         ].map(([keys, action], i) => (
           <div className="shortcut" key={i}>

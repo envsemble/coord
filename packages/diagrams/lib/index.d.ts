@@ -436,7 +436,6 @@ export interface DiagramGeneralizationGroup {
 export interface DiagramScene {
   key: string;
   title: string;
-  fields: boolean;
   width: number;
   height: number;
   initialFocus: string[];
@@ -449,18 +448,9 @@ export interface PreparedView {
   label: string;
   title: string;
   nodeIds: string[];
+  /** The view drawn, its elements with their attributes and methods. */
   diagram: DiagramScene;
-  diagramFields: DiagramScene;
   svg?: string;
-  svgFields?: string;
-}
-export interface HighlightedExcerpt {
-  language: string;
-  startLine: number;
-  endLine: number;
-  code: string;
-  url: string | null;
-  lines: { content: string; style: Record<string, string> }[][];
 }
 export interface ExportData {
   slug: string;
@@ -472,16 +462,12 @@ export interface ViewerPayload {
   model: ViewerModel & { validation: ValidationReport };
   views: Pick<
     PreparedView,
-    "key" | "label" | "title" | "nodeIds" | "diagram" | "diagramFields"
+    "key" | "label" | "title" | "nodeIds" | "diagram"
   >[];
   exports: ExportData;
-  snippets: Record<string, HighlightedExcerpt>;
   comparison?: {
-    baseline: Pick<ViewerPayload, "model" | "views" | "snippets" | "exports">;
-    changeView?: Pick<
-      ViewerPayload,
-      "model" | "views" | "snippets" | "exports"
-    >;
+    baseline: Pick<ViewerPayload, "model" | "views" | "exports">;
+    changeView?: Pick<ViewerPayload, "model" | "views" | "exports">;
     changes: SemanticComparison;
     /** Always empty: there is no merging. */
     conflicts: never[];

@@ -4,8 +4,6 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 const { transformSync } = require("esbuild");
-const { renderToStaticMarkup } = require("react-dom/server");
-const { createElement } = require("react");
 const { prepareViews } = require("../lib/layout/prepareViews.cjs");
 const { layoutDiagram } = require("../lib/layout/layoutDiagram.cjs");
 const { validateDiagram } = require("../lib/layout/validateDiagram.cjs");
@@ -22,11 +20,6 @@ new vm.Script(
   ).code,
 ).runInContext(context);
 const { focusedElements } = context.module.exports;
-const { loadComponents: loadComponent } = require("./loadComponents.cjs");
-const { GeneralizationSetDetails } = loadComponent(
-  "src/details/ElementDetails.jsx",
-);
-const { indexViewerModel } = loadComponent("src/model/viewerModelIndex.js");
 // Enrollment and its two generalization sets, as the viewer's model: the
 // layout joins inheritance that shares a supertype, labelled by its set.
 function createEnrollmentModel() {
@@ -122,14 +115,13 @@ function createEnrollmentModel() {
     ],
   };
 }
-async function scene(model, settings, fields = false) {
+async function scene(model, settings) {
   const [view] = prepareViews(model, settings);
   const { diagram } = await layoutDiagram(
     view,
     new Map(model.classes.map((c) => [c.id, c])),
     view.edges,
     view.generalizations,
-    fields,
   );
   validateDiagram(diagram, model);
   return { model, diagram };
@@ -140,44 +132,6 @@ const pathEnd = (path) =>
     .map(Number)
     .slice(-2);
 
-test("set inspection explains its constraints and keeps anonymous joins semantically neutral", async () => {
-  const { model: project, views } = createEnrollmentModel();
-  const { model, diagram } = await scene(project, views);
-  const index = indexViewerModel(model, diagram.generalizationGroups);
-  const group = index.getElement({ kind: "group", id: "enrollment-state" });
-  const html = renderToStaticMarkup(
-    createElement(GeneralizationSetDetails, {
-      group,
-      model,
-      snippets: {},
-      onChoose: () => {},
-    }),
-  );
-  assert(
-    html.includes("Enrollment state") &&
-      html.includes("Active") &&
-      html.includes("Suspended"),
-  );
-  assert(
-    html.includes(
-      "Every instance of the supertype belongs to at least one subtype",
-    ),
-  );
-  assert(html.includes("cannot belong to two subtypes"));
-  const neutral = renderToStaticMarkup(
-    createElement(GeneralizationSetDetails, {
-      group: { ...group, type: "generalizationJoin" },
-      model,
-      snippets: {},
-      onChoose: () => {},
-    }),
-  );
-  assert(
-    neutral.includes(
-      "Joining their lines does not assert completeness or disjointness",
-    ),
-  );
-});
 test("geometry validation rejects disconnected trunks", async () => {
   const { model: project, views } = createEnrollmentModel();
   const { model, diagram } = await scene(project, views);
@@ -188,8 +142,8 @@ test("geometry validation rejects disconnected trunks", async () => {
 
 test("the enrollment pattern joins both sides of a supertype with one arrow per named set", async () => {
   const { model: project, views } = createEnrollmentModel();
-  for (const fields of [false, true]) {
-    const { diagram } = await scene(project, views, fields);
+  {
+    const { diagram } = await scene(project, views);
     assert.equal(
       diagram.edges.length,
       4,

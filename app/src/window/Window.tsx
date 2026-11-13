@@ -183,7 +183,6 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
       setWindowState(current => current.history.entries.length > 1 || samePlace(current.ui.place, loaded.place) ? current : { ui: { ...current.ui, place: loaded.place }, history: startHistory(loaded.place) });
     }, () => undefined);
   }, [projects]);
-  const setInspectorWidth = useCallback((width: number) => setWindowState(current => current.ui.inspectorWidth === width ? current : { ...current, ui: { ...current.ui, inspectorWidth: width } }), []);
 
   /** The project whose folder the window reads: that of a plan, diagram or file, or of the statistics. */
   const reading = isPage(place) ? (place.page === 'statistics' ? place.projectId : null) : place.projectId;
@@ -449,9 +448,8 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
       sibling: folder => siblingProject(projectsRef.current ?? [], reading, folder),
       openPath: (other, path, anchor) => { void openPathRef.current(other, path, anchor); },
       notify, remote: info.computer.hostId === null ? null : { hostId: info.computer.hostId, hostName: info.computer.name },
-      inspectorWidth: ui.inspectorWidth ?? null, setInspectorWidth,
     };
-  }, [reading, projectName, go, notify, info.computer, ui.inspectorWidth, setInspectorWidth]);
+  }, [reading, projectName, go, notify, info.computer]);
   const summary = owner?.summary;
   const read = useMemo<WindowReading | null>(() => readSnapshot && {
     snapshot: readSnapshot, revision: readFolder?.change?.revision ?? 0, files: readFolder?.files ?? 0,

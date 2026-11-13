@@ -1,5 +1,5 @@
 // Reviewing a proposal: changes rolled up per element, the change view's
-// marks, the details that explain a change, and less noise on the canvas.
+// marks, and less noise on the canvas.
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { createElement } = require("react");
@@ -110,7 +110,7 @@ test("the change view keeps removed members in place and marks every change", as
       .changeStatus,
     "unchanged",
   );
-  const scene = view.views[0].diagramFields;
+  const scene = view.views[0].diagram;
   const node = scene.nodes.find((n) => n.id === CHECKOUT);
   assert(
     node.attributes.some(
@@ -122,15 +122,12 @@ test("the change view keeps removed members in place and marks every change", as
     [...view.views[0].diagram.initialFocus].sort(),
     [CHECKOUT, LEGACY, VAULT].sort(),
   );
-  for (const diagram of [view.views[0].diagram, scene])
-    validateDiagram(diagram);
+  validateDiagram(scene);
 });
 
 test("changes roll up per element: types with their members, then relations, without the model root", async () => {
   const payload = await preparedProposal();
-  const { rollupChanges, rowFor, describeClassChange } = loadComponents(
-    "src/review/changes.js",
-  );
+  const { rollupChanges, rowFor } = loadComponents("src/review/changes.js");
   const rollup = rollupChanges(
     payload.comparison,
     payload.comparison.changeView.model,
@@ -165,70 +162,6 @@ test("changes roll up per element: types with their members, then relations, wit
   assert.equal(uses.tag, "");
   assert.equal(uses.summary.text, "via vault");
   assert.equal(rowFor(rollup, { kind: "node", id: CHECKOUT }), checkout);
-  const element = payload.comparison.changeView.model.classes.find(
-    (c) => c.id === CHECKOUT,
-  );
-  const described = describeClassChange(rollup, element, "code");
-  assert.deepEqual(
-    described.members.map((m) => [m.status, m.signature, m.previous]),
-    [
-      ["modified", "total: Money", "total: number"],
-      ["removed", "legacy: Legacy", null],
-      ["added", "vault: Vault", null],
-      ["added", "pay(methodId: string): Promise<void>", null],
-    ],
-  );
-  assert.equal(described.members[0].location.startLine, 4);
-});
-
-test("details explain a change: its members and where it lives, without capture noise", async () => {
-  const payload = await preparedProposal();
-  const { rollupChanges } = loadComponents("src/review/changes.js");
-  const { ConceptDetails } = loadComponents("src/details/ElementDetails.jsx");
-  const view = payload.comparison.changeView;
-  const review = { rollup: rollupChanges(payload.comparison, view.model) };
-  const render = (id) =>
-    renderToStaticMarkup(
-      createElement(ConceptDetails, {
-        concept: view.model.classes.find((c) => c.id === id),
-        model: view.model,
-        snippets: view.snippets,
-        review,
-      }),
-    );
-  const changed = render(CHECKOUT);
-  assert(changed.includes(">Changed<"));
-  assert(changed.includes("What changes"));
-  // A field whose type changed reads as its name with both types.
-  assert.match(
-    changed,
-    /total<\/span>: <del class="change-before">number<\/del>.*<ins class="change-after">Money<\/ins>/,
-  );
-  assert(changed.includes("legacy: Legacy"));
-  assert(changed.includes("Where in code"));
-  assert(changed.includes("src/checkout/Checkout.ts"));
-  assert(changed.includes("lines 2–20"));
-  for (const noise of [
-    "observed",
-    "Capture ·",
-    "Mappings",
-    "Definition",
-    "diagnostic",
-  ])
-    assert(!changed.includes(noise), noise);
-  // A new class says where it goes when its evidence names a file.
-  const added = render(VAULT);
-  assert(added.includes(">New<"));
-  assert(added.includes("New interface with 1 method."));
-  assert(
-    added.includes(
-      "Proposed in <code>src/payments/Vault.ts</code> (a new file)",
-    ),
-  );
-  assert(!added.includes("Where in code"));
-  const removed = render(LEGACY);
-  assert(removed.includes(">Removed<"));
-  assert(removed.includes("The class is removed."));
 });
 
 test("panels show the Changes overview and step through changes; the report is gone", async () => {
@@ -275,14 +208,8 @@ test("panels show the Changes overview and step through changes; the report is g
   );
   assert(overview.includes('aria-current="true"'));
   const navigation = renderToStaticMarkup(
-    createElement(ChangeNavigation, {
-      position: 1,
-      total: 5,
-      onBack() {},
-      onStep() {},
-    }),
+    createElement(ChangeNavigation, { position: 1, total: 5, onStep() {} }),
   );
-  assert(navigation.includes("All changes"));
   assert(navigation.includes("2 of 5"));
   assert(navigation.includes('aria-label="Previous change"'));
   assert(navigation.includes('aria-label="Next change"'));
@@ -290,7 +217,7 @@ test("panels show the Changes overview and step through changes; the report is g
 
 test("the canvas marks changes in its own geometry, so exports and the backdrop keep them", async () => {
   const payload = await preparedProposal();
-  const scene = payload.comparison.changeView.views[0].diagramFields;
+  const scene = payload.comparison.changeView.views[0].diagram;
   const svg = renderSVG(scene);
   assert(
     svg.includes(">New<") &&
@@ -333,9 +260,10 @@ test("unnamed dependencies and missing counts add no labels to the canvas", asyn
     relationLabel({ name: "notifies", stereotype: "dependency" }),
     "notifies",
   );
+  // A stereotype is not drawn.
   assert.equal(
     relationLabel({ name: "placed with", stereotype: "mediation" }),
-    "«mediation»\nplaced with",
+    "placed with",
   );
   assert.equal(relationLabel({ name: "", stereotype: "" }), null);
   // A count that is written keeps its label; one that is not adds none.
@@ -378,10 +306,10 @@ test("the layout and the viewer agree on known counts and uninformative names", 
       relationLabel({ name, stereotype: "" }) !== null,
       name,
     );
-  // A generic name gives way to the stereotype alone.
+  // A generic name draws no label, whatever the stereotype.
   assert.equal(
     relationLabel({ name: "Association", stereotype: "mediation" }),
-    "«mediation»",
+    null,
   );
 });
 
@@ -458,47 +386,6 @@ test("diagram proposals group each change under its class or relation, by name",
 
 const tokensOf = (row) =>
   row.summary.tokens.map((t) => `${t.status} ${t.text}`);
-function renderDetails({ view, rollup }, id) {
-  const { ConceptDetails } = loadComponents("src/details/ElementDetails.jsx");
-  return renderToStaticMarkup(
-    createElement(ConceptDetails, {
-      concept: view.model.classes.find((c) => c.id === id),
-      model: view.model,
-      snippets: {},
-      review: { rollup },
-    }),
-  );
-}
-
-test("an attribute's change reads by its name and type", async () => {
-  const { describeClassChange } = loadComponents("src/review/changes.js");
-  const retyped = await diagramProposal(
-    ENROLLMENT,
-    ENROLLMENT.replace("name : String", "name : Text"),
-  );
-  const person = retyped.view.model.classes.find((c) => c.id === "Person");
-  assert.deepEqual(
-    describeClassChange(retyped.rollup, person, "class").members.map((m) => [
-      m.status,
-      m.previous,
-      m.signature,
-    ]),
-    [["modified", "name: String", "name: Text"]],
-  );
-  assert.match(
-    renderDetails(retyped, "Person"),
-    /name<\/span>: <del class="change-before">String<\/del>.*<ins class="change-after">Text<\/ins>/,
-  );
-  const counted = await diagramProposal(
-    ENROLLMENT,
-    ENROLLMENT.replace("name : String", "name : String [0..1]"),
-  );
-  assert.match(
-    renderDetails(counted, "Person"),
-    /name: String<\/code>.*multiplicity: <del class="change-before">none<\/del>.*<ins class="change-after">0..1<\/ins>/,
-  );
-});
-
 const KNOWS = `${ENROLLMENT}
 Person "0..*" -- "0..*" Person : knows`;
 test("a relation changed in place is laid out once, also on one class, and the baseline keeps its own labels", async () => {
@@ -582,36 +469,4 @@ test("a class moved to another package says so", async () => {
     rollup.groups.map((g) => [g.label, g.elements.map(tokensOf)]),
     [["Changed", [["modified namespace: none → people"]]]],
   );
-});
-
-test("a table's keys list each foreign key once, with its change", async () => {
-  const tables = (updatedBy) => `entity orders {
-  *id : integer <<PK>>
-  --
-  *created_by : integer <<FK>>
-  *updated_by : integer <<FK>>
-}
-entity users {
-  *id : integer <<PK>>
-}
-entity accounts {
-  *id : integer <<PK>>
-}
-users ||--o{ orders : created_by
-${updatedBy} ||--o{ orders : updated_by`;
-  const { view, rollup } = await diagramProposal(
-    tables("users"),
-    tables("accounts"),
-  );
-  const keys = renderDetails({ view, rollup }, "orders").split(">Keys<")[1];
-  const rows = keys.slice(0, keys.indexOf("</ul>")).split("<li").slice(1);
-  assert(
-    rows.some((r) => r.includes("created_by") && !r.includes("data-change")),
-  );
-  // A key to another table is another key: the old one goes, the new comes.
-  const marked = (change, text) =>
-    rows.some((r) => r.includes(`data-change="${change}"`) && r.includes(text));
-  assert.equal(rows.length, 3);
-  assert(marked("added", "→ accounts(id)"));
-  assert(marked("removed", "→ users(id)"));
 });

@@ -96,28 +96,12 @@ async function check() {
   const dataLine = application.match(/^\s*(const MODEL=.*)\r?$/m)?.[1];
   assert(dataLine, "Missing embedded model and export data");
   const embedded = new vm.Script(
-    `${dataLine}\n;({MODEL,VIEWS,EXPORTS,SNIPPETS,COMPARISON})`,
+    `${dataLine}\n;({MODEL,VIEWS,EXPORTS,COMPARISON})`,
   ).runInNewContext({});
   assert(
     embedded.COMPARISON?.changes.changes.length,
     "Missing the proposal's changes",
   );
-  const snippets = Object.entries(embedded.SNIPPETS);
-  assert(snippets.length, "Missing offline source previews");
-  for (const [id, snippet] of snippets) {
-    assert(
-      embedded.MODEL.sources.some((s) => s.id === id),
-      `A preview without its source: ${id}`,
-    );
-    assert.equal(
-      snippet.lines
-        .map((line) => line.map((token) => token.content).join(""))
-        .join("\n"),
-      snippet.code,
-      `Highlighted code changed: ${id}`,
-    );
-    assert.equal(snippet.endLine - snippet.startLine + 1, snippet.lines.length);
-  }
   assert.equal(
     JSON.stringify(embedded.MODEL, null, 2),
     built.artifacts.get("shop-model-evidence.json"),
@@ -128,7 +112,6 @@ async function check() {
   );
   for (const view of embedded.VIEWS) {
     validateDiagram(view.diagram, embedded.MODEL);
-    validateDiagram(view.diagramFields, embedded.MODEL);
   }
   for (const [, href] of html.matchAll(/\bhref="([^"$]+)"/g)) {
     if (href.startsWith("downloads/"))

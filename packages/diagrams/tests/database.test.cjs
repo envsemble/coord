@@ -138,13 +138,12 @@ test("SQLite captures write tables, keys and exact counts as an entity diagram, 
     undated(await captureSQLite({ file, identity: "fixture" })),
     undated(text),
   );
-  // The viewer draws it, its tables' SQL highlighted as their source.
+  // The viewer draws it.
   const { prepared } = await prepareDiagrams({
     files: [{ path: "schema.puml", text }],
   });
   const { payload } = prepared.get("schema.puml");
   assert.equal(payload.model.document.profile, "database");
-  assert.equal(payload.snippets["source:badge"].language, "sql");
   assert(payload.views[0].diagram.edges.length === 2);
   const scoped = read(
     await captureSQLite({

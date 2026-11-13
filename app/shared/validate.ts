@@ -46,7 +46,6 @@ export const place: Validator<Place> = (value, at = 'place') => {
 /** A window's layout as the window saves it. */
 export const uiState: Validator<UiState> = object<UiState>({
   place,
-  inspectorWidth: optional(integer(limits.inspectorMin, limits.inspectorMax)),
 });
 
 /**

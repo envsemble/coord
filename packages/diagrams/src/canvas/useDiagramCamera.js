@@ -32,7 +32,7 @@ export function useDiagramCamera({
     callbacks.current = { onZoom, onTap, onMotion, insets };
   }, [onZoom, onTap, onMotion, insets]);
   useLayoutEffect(() => {
-    controls.restoreView(diagram.key, diagram.fields, diagram.initialFocus);
+    controls.restoreView(diagram.key, diagram.initialFocus);
   }, [controls, diagram]);
   useLayoutEffect(() => {
     if (focusRequest?.ids)

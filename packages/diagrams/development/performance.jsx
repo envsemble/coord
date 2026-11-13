@@ -63,7 +63,6 @@ function fixture(count) {
   return {
     key: `stress-${count}`,
     title: `${count} classes with attributes`,
-    fields: true,
     initialFocus: [],
     width: columns * 300,
     height: Math.ceil(count / columns) * 330,

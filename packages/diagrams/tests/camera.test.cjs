@@ -97,7 +97,7 @@ function harness({ reducedMotion = false, insets } = {}) {
     },
     ...(insets ? { insets } : {}),
   });
-  controls.restoreView("runtime", false);
+  controls.restoreView("runtime");
   const detach = controls.attach();
   function read() {
     const m = world.style.transform.match(
@@ -333,9 +333,9 @@ test("navigation cancels animation, restores cameras, and unmount cleans up", ()
   h.settle();
   const savedPose = h.world.style.transform;
   h.wheel(-40);
-  h.controls.restoreView("backend", false);
+  h.controls.restoreView("backend");
   assert.equal(h.frames.size, 0);
-  h.controls.restoreView("runtime", false);
+  h.controls.restoreView("runtime");
   assert.equal(h.world.style.transform, savedPose);
   h.canvas.emit("pointerdown", {
     button: 0,

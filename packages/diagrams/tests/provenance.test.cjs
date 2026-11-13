@@ -123,11 +123,11 @@ test("embedded panel floats its controls, below the host's sections, and leaves 
   const html = renderToStaticMarkup(
     createElement(DiagramPanel, {
       payload,
-      leading: createElement("span", { id: "host-picker" }, "Model picker"),
+      leading: createElement("span", { id: "host-layers" }, "Layers"),
     }),
   );
-  assert(html.includes('id="host-picker"'));
-  // The host's picker names the model's origin; the panel draws no chip.
+  assert(html.includes('id="host-layers"'));
+  // The host names the model's origin; the panel draws no chip.
   assert(!html.includes("Agent-authored"));
   assert(!html.includes("atlas-provenance"));
   // The model report is gone; a diagram without scenarios has no guide.
@@ -135,16 +135,10 @@ test("embedded panel floats its controls, below the host's sections, and leaves 
   assert(!html.includes("Understand the model"));
   // A single view needs no view switcher.
   assert(!html.includes('aria-label="Diagram view"'));
-  assert(!html.includes("fullscreen"));
+  // No full view, search, attributes toggle or details: only the camera.
+  for (const removed of ["fullscreen", "Search", "Fields", "Hide details"])
+    assert(!html.includes(removed), removed);
   assert(!ISO.test(html), "raw ISO timestamps stay out of the UI");
-  const fullscreen = renderToStaticMarkup(
-    createElement(DiagramPanel, {
-      payload,
-      fullscreen: true,
-      onFullscreenChange() {},
-    }),
-  );
-  assert(fullscreen.includes('aria-label="Exit fullscreen"'));
   // The host's sections come first, at the top left with the tools; the
   // diagram's navigation takes the row below.
   const stacked = renderToStaticMarkup(

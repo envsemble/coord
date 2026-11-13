@@ -11,21 +11,18 @@ const round = (n) => Number(n.toFixed(2));
 // dependency has the first, and some relations are named only the second.
 // Repeated on each edge they say nothing the line does not.
 const GENERIC_NAMES = new Set(["declared type use", "association"]);
-// Stereotypes the line style (a dependency's dashed open arrow) or the profile
-// (every relation between tables is a foreign key) already shows.
-const IMPLIED_STEREOTYPES = new Set(["dependency", "foreign key"]);
-/** The relation's name label, or null when it would carry no information. */
+/**
+ * The relation's name label, or null when it would carry no information. A
+ * stereotype is not drawn: the line's style shows a dependency, and diagrams
+ * stay plain.
+ */
 function relationLabel(relation) {
   const name =
     typeof relation.name === "string" &&
     !GENERIC_NAMES.has(relation.name.trim().toLowerCase())
-      ? relation.name
+      ? relation.name.trim()
       : "";
-  const stereotype = IMPLIED_STEREOTYPES.has(relation.stereotype)
-    ? ""
-    : relation.stereotype;
-  const lines = [stereotype ? "«" + stereotype + "»" : "", name.trim() && name];
-  return lines.filter(Boolean).join("\n") || null;
+  return name || null;
 }
 /** The box a label's text needs: a count at a relation's end, or a name. */
 function labelSize(text, end) {
@@ -241,13 +238,7 @@ function alignInheritanceBars(graph, groups, routedEdges, direction) {
     for (const [id, sections] of originals) routes.get(id).sections = sections;
   }
 }
-async function layoutDiagram(
-  view,
-  classes,
-  relations,
-  generalizations,
-  fields = false,
-) {
+async function layoutDiagram(view, classes, relations, generalizations) {
   const allEdges = [
     ...generalizations.map((g) => ({
       ...g,
@@ -362,25 +353,22 @@ async function layoutDiagram(
             view.direction === "DOWN"
               ? (Math.max(ports.left, ports.right) + 1) * 28
               : 0,
-            ...(fields
-              ? [
-                  ...c.attributes,
-                  ...(c.methods || []),
-                  ...(c.measureMembers || []),
-                ].map(
-                  (a) =>
-                    `${a.name} : ${a.type} [${a.multiplicity || ""}]`.length *
-                      7.5 +
-                    28,
-                )
-              : []),
+            ...[
+              ...c.attributes,
+              ...(c.methods || []),
+              ...(c.measureMembers || []),
+            ].map(
+              (a) =>
+                `${a.name} : ${a.type} [${a.multiplicity || ""}]`.length * 7.5 +
+                28,
+            ),
           ),
           height: Math.max(
-            fields && (c.attributes.length || c.methods?.length)
-              ? 70 +
+            c.attributes.length || c.methods?.length
+              ? 60 +
                   (c.attributes.length + (c.methods?.length || 0)) * 20 +
                   (c.attributes.length && c.methods?.length ? 12 : 0)
-              : 74,
+              : 56,
             view.direction === "DOWN"
               ? 0
               : (Math.max(ports.left, ports.right) + 1) * 28,
@@ -515,7 +503,6 @@ async function layoutDiagram(
   const diagram = {
     key: view.key,
     title: view.title,
-    fields,
     width: round(result.width),
     height: round(result.height),
     initialFocus: view.focusNames.map((name) => classes.get(name).id),
@@ -533,8 +520,8 @@ async function layoutDiagram(
           y: round(n.y),
           width: round(n.width),
           height: round(n.height),
-          attributes: fields ? c.attributes : [],
-          methods: fields ? c.methods || [] : [],
+          attributes: c.attributes,
+          methods: c.methods || [],
         };
       }),
     generalizationGroups: groups.map((g) => ({

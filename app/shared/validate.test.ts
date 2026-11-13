@@ -54,11 +54,6 @@ test('window state is checked deeply', () => {
   const state = uiState({ place: { projectId, target: { kind: 'work', work: 'work-0001' } }, sidebar: { visible: false, width: 300 }, tabs: { items: [], active: null } });
   assert.deepEqual(state, { place: { projectId, target: { kind: 'work', work: 'work-0001' } } }, 'the sidebar and the tabs are gone');
   assert.throws(() => uiState({ tabs: { items: [], active: null } }), /place/);
-  // The width of a diagram's details is kept when the reader chose one.
-  assert.equal(uiState({ ...defaultUiState, inspectorWidth: 480 }).inspectorWidth, 480);
-  assert.equal('inspectorWidth' in uiState(defaultUiState), false);
-  assert.throws(() => uiState({ ...defaultUiState, inspectorWidth: 20 }), /inspectorWidth/);
-  assert.throws(() => uiState({ ...defaultUiState, inspectorWidth: 480.5 }), /inspectorWidth/);
 });
 
 test("a project's folder is a full path of the computer", () => {

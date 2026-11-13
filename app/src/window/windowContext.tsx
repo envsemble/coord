@@ -32,9 +32,6 @@ export interface WindowActions {
   notify: Notify;
   /** Set when the project is on another computer: its files are not on this one. */
   remote: { hostId: string; hostName: string } | null;
-  /** The width the reader gave a diagram's details, kept with the window's layout; null for the default. */
-  inspectorWidth: number | null;
-  setInspectorWidth(width: number): void;
 }
 /** What changes of a project as its folder is read again and the projects are listed again. */
 export interface WindowReading {

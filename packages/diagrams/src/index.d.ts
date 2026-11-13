@@ -23,13 +23,13 @@ export const DiagramViewer: ComponentType<ViewerPayload>;
  * styles through the host's bundler, and hosts load
  * `@envsemble/atlas-diagrams/embedded.css`. Giving it another payload of the
  * same `family` (members laid out together by `prepareDiagrams`) switches
- * in place: the camera, the view, the selection and the details stay.
+ * in place: the camera, the view and the selection stay.
  */
 export const DiagramPanel: ComponentType<{
   payload: ViewerPayload;
   theme?: "dark" | "light";
   focus?: InspectionTarget | { kind: "view"; id: string };
-  /** Host content rendered at the start of the floating top-left toolbar island (e.g. a diagram picker). */
+  /** Host content rendered at the start of the floating top-left toolbar island (e.g. a family's layer marker). */
   leading?: ReactNode;
   /**
    * The host's own navigation (such as a work item's sections), shown first
@@ -37,17 +37,6 @@ export const DiagramPanel: ComponentType<{
    * island moves to a row below it.
    */
   sections?: ReactNode;
-  /** Whether the host currently shows the panel fullscreen. */
-  fullscreen?: boolean;
-  /** When provided, a fullscreen toggle button appears in the top-right island. */
-  onFullscreenChange?(next: boolean): void;
-  /**
-   * The details' width in pixels that the reader chose, kept by the host;
-   * null or absent for the default. Clamped to what the panel's width allows.
-   */
-  inspectorWidth?: number | null;
-  /** Called with the width once the reader has resized the details (by pointer or keyboard). */
-  onInspectorWidthChange?(width: number): void;
 }>;
 /** How many changes a proposal's payload lists, as its Changes button counts them; null for other payloads. */
 export function changeCount(

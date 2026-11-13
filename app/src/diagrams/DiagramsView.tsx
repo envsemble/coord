@@ -1,74 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { DiagramPanel, ViewerErrorBoundary, changeCount } from '@envsemble/atlas-diagrams/react';
+import { DiagramPanel, ViewerErrorBoundary } from '@envsemble/atlas-diagrams/react';
 import type { ViewerPayload } from '@envsemble/atlas-diagrams';
 import '@envsemble/atlas-diagrams/embedded.css';
 import type { DiagramEntry, Target, Work } from '../types';
 import { api } from '../api';
 import { diagramTarget } from '../navigation/targets';
 import { selectDiagram } from './diagramSelection';
-import { elementId, modelSummary } from '@envsemble/atlas/planning/provenance';
-import { Alert, Button, Menu, Spinner, Surface, useThemePreference } from '@envsemble/envui';
+import { familyLayers, stepLayer } from './layers';
+import { LayerMarker } from './LayerMarker';
+import { elementId } from '@envsemble/atlas/planning/provenance';
+import { Alert, Spinner, Surface, useThemePreference } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
-import { IconExpandMore as ExpandMore } from '@envsemble/envui/icons/ExpandMore';
 import { DiagramIcon } from '../ui/icons';
-import { ProvenanceBadge } from '../ui/badges';
 import { useWindow } from '../window/windowContext';
 
 type DiagramTarget = Extract<Target, { kind: 'diagram' }>;
-
-const byTitle = (a: DiagramEntry, b: DiagramEntry) => a.title.localeCompare(b.title, undefined, { numeric: true });
-const problemCount = (diagram: DiagramEntry) => diagram.problems.filter(problem => problem.severity === 'error').length;
-/**
- * The picker's groups: each family (a capture, the later captures compared with it and the
- * proposals over them) under its first capture's title; the other diagrams, each class diagram with
- * the scenarios that exemplify it after it; and the diagrams that have problems.
- */
-function pickerGroups(diagrams: DiagramEntry[]): { key: string; title: string; items: DiagramEntry[] }[] {
-  const valid = diagrams.filter(diagram => diagram.valid);
-  const groups: { key: string; title: string; items: DiagramEntry[] }[] = [];
-  const roots = [...new Set(valid.flatMap(diagram => diagram.family ? [diagram.family] : []))];
-  for (const root of roots) {
-    const members = valid.filter(diagram => diagram.family === root);
-    const order = (diagram: DiagramEntry) => diagram.path === root ? 0 : diagram.role === 'capture' ? 1 : 2;
-    members.sort((a, b) => order(a) - order(b) || (a.capturedAt ?? '').localeCompare(b.capturedAt ?? '') || byTitle(a, b));
-    groups.push({ key: 'family:' + root, title: members[0].title, items: members });
-  }
-  const alone = valid.filter(diagram => !diagram.family);
-  const scenarios = alone.filter(diagram => diagram.role === 'scenario' && alone.some(other => other.path === diagram.scenarioOf));
-  const others = alone.filter(diagram => !scenarios.includes(diagram)).sort(byTitle)
-    .flatMap(diagram => [diagram, ...scenarios.filter(scenario => scenario.scenarioOf === diagram.path).sort(byTitle)]);
-  if (others.length) groups.push({ key: 'diagrams', title: 'Diagrams', items: others });
-  const invalid = diagrams.filter(diagram => !diagram.valid).sort(byTitle);
-  if (invalid.length) groups.push({ key: 'problems', title: 'With problems', items: invalid });
-  return groups;
-}
-function describe(diagram: DiagramEntry, diagrams: DiagramEntry[], payload: ViewerPayload | undefined) {
-  if (!diagram.valid) { const count = problemCount(diagram); return count === 1 ? '1 problem' : count + ' problems'; }
-  if (diagram.role === 'scenario') return 'Scenario of ' + (diagrams.find(other => other.path === diagram.scenarioOf)?.title ?? diagram.scenarioOf);
-  return modelSummary(diagram, changeCount(payload));
-}
-/**
- * The one chooser of what the Diagrams section shows: a compact menu of the work item's diagrams, by
- * family. A proposal says how many changes it makes once it is here, so alternatives read apart. Its
- * owner keeps whether it is open: the picker moves into the drawn diagram's toolbar when the diagram
- * arrives, and a menu opened while it loaded stays open there.
- */
-function DiagramPicker({ diagrams, selected, payloads, open, onOpenChange, onSelect }: {
-  diagrams: DiagramEntry[]; selected: string; payloads: Map<string, ViewerPayload>; open: boolean; onOpenChange(open: boolean): void; onSelect(path: string): void;
-}) {
-  const current = diagrams.find(diagram => diagram.path === selected);
-  return <Menu.Root aria-label="Choose a diagram" align="start" className="diagram-menu" open={open} onOpenChange={onOpenChange}
-    trigger={<Button variant="secondary" className="diagram-picker-button" startIcon={<DiagramIcon />} endIcon={<ExpandMore />}>
-      <span className="diagram-picker-title">{current?.title ?? (selected ? 'Unavailable diagram' : 'Choose a diagram')}</span>
-      {current && <ProvenanceBadge provenance={current.provenance} />}
-    </Button>}>
-    <Menu.RadioGroup value={selected} onValueChange={onSelect}>
-      {pickerGroups(diagrams).map(group => <Menu.Group key={group.key} label={group.title}>
-        {group.items.map(diagram => <Menu.RadioItem key={diagram.path} value={diagram.path} description={describe(diagram, diagrams, payloads.get(diagram.path)) || undefined}>{diagram.title}</Menu.RadioItem>)}
-      </Menu.Group>)}
-    </Menu.RadioGroup>
-  </Menu.Root>;
-}
 
 /** A diagram's payload as the host answers: with the payloads of the rest of its family, laid out together. */
 type Answer = ViewerPayload & { siblings?: { path: string; payload: ViewerPayload }[] };
@@ -79,7 +25,6 @@ function loadedFrom(path: string, answer: Answer, revisions: string): Loaded {
   return { payloads: new Map<string, ViewerPayload>([[path, payload], ...siblings.map(item => [item.path, item.payload] as [string, ViewerPayload])]), revisions };
 }
 
-const noPayloads = new Map<string, ViewerPayload>();
 const noDiagrams: DiagramEntry[] = [];
 
 /** What is wrong with a diagram that cannot be drawn, line by line. */
@@ -90,22 +35,24 @@ function Problems({ diagram }: { diagram: DiagramEntry }) {
   </>} />;
 }
 
+/** Whether a key press belongs to a field, where `[` and `]` are typed. */
+const typing = (target: EventTarget | null) => target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
+
 /**
- * A work item's diagram, one of its `.puml` files, filling the window below its top rows. A capture
- * and the proposals over it arrive together, laid out once, so choosing another of them shows it at
- * once in the same panel, with nothing moving; another diagram loads. Its controls start at the top
- * left; the way back to the plan is the window's Back.
+ * A work item's diagram, one of its `.puml` files, filling the window below its top rows. A capture,
+ * the later captures compared with it and the proposals over it are one diagram with layers: they
+ * arrive together, laid out once, so another layer shows at once in the same panel with nothing
+ * moving. The layer marker and `[` and `]` switch layers; each switch is a step Back returns from.
+ * Another diagram opens from the Files tree, a plan's link or Search.
  */
 export function DiagramsView({ work, target }: { work: Work; target: DiagramTarget }) {
-  const { projectId, retarget, files, inspectorWidth, setInspectorWidth } = useWindow();
+  const { projectId, retarget, files } = useWindow();
   const { theme } = useThemePreference();
   const [diagrams, setDiagrams] = useState<DiagramEntry[] | null>(null);
   const [listError, setListError] = useState('');
   const [diagramError, setDiagramError] = useState<{ path: string; message: string } | null>(null);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
-  const [fullscreen, setFullscreen] = useState(false);
   const [shown, setShown] = useState('');
-  const [pickerOpen, setPickerOpen] = useState(false);
   const listed = diagrams ?? noDiagrams;
   const selected = selectDiagram(listed, shown, target.path || '');
   const entry = listed.find(diagram => diagram.path === selected);
@@ -139,37 +86,40 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
     return () => { current = false; };
   }, [projectId, selected, expected, work.id, diagrams, entry?.valid]);
 
-  useEffect(() => {
-    if (!fullscreen) return;
-    const key = (event: KeyboardEvent) => { if (event.key === 'Escape' && !event.defaultPrevented) setFullscreen(false); };
-    window.addEventListener('keydown', key);
-    document.body.classList.add('has-fullscreen');
-    return () => { window.removeEventListener('keydown', key); document.body.classList.remove('has-fullscreen'); };
-  }, [fullscreen]);
-
-  // The viewer draws again only when what it is given changes: the picker and the element in focus
-  // stay the same objects while nothing of theirs does.
+  const layers = useMemo(() => familyLayers(listed, selected), [listed, selected]);
   const select = useCallback((next: string) => retarget(diagramTarget(work.id, next)), [retarget, work.id]);
-  const payloads = loaded?.payloads ?? noPayloads;
-  const picker = useMemo(() => listed.length > 0 || selected ? <DiagramPicker diagrams={listed} selected={selected} payloads={payloads} open={pickerOpen} onOpenChange={setPickerOpen} onSelect={select} /> : null,
-    [listed, selected, payloads, pickerOpen, select]);
+  // `[` and `]` step to the previous and next layer, as the marker's tooltip says.
+  useEffect(() => {
+    if (!layers.length) return;
+    const key = (event: KeyboardEvent) => {
+      if ((event.key !== '[' && event.key !== ']') || event.ctrlKey || event.metaKey || event.altKey || event.defaultPrevented || typing(event.target)) return;
+      const next = stepLayer(layers, selected, event.key === ']' ? 1 : -1);
+      if (!next || next === selected) return;
+      event.preventDefault();
+      select(next);
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [layers, selected, select]);
+
+  // The viewer draws again only when what it is given changes: the marker and the element in focus
+  // stay the same objects while nothing of theirs does.
+  const marker = useMemo(() => layers.length ? <LayerMarker layers={layers} value={selected} onChange={select} /> : null, [layers, selected, select]);
   const error = diagramError?.path === selected ? diagramError.message : '';
   const notices = [listError, error].filter(Boolean);
   const payload = entry?.valid === false ? undefined : loaded?.payloads.get(selected);
   const focus = useMemo(() => payload && target.element ? { kind: 'node' as const, id: elementId(payload.model, target.element) } : null, [payload, target.element]);
   const empty = diagrams && !listed.length && !selected;
 
-  return <section className={'diagrams' + (fullscreen ? ' fullscreen' : '')} aria-label="Work diagrams">
+  return <section className="diagrams" aria-label="Work diagrams">
     <div className="diagrams-canvas">
       {payload ? <ViewerErrorBoundary key={payload.family ?? selected} resetKey={payload.model.document?.revision.id}>
-        <DiagramPanel payload={payload} theme={theme} focus={focus}
-          leading={picker} fullscreen={fullscreen} onFullscreenChange={setFullscreen}
-          inspectorWidth={inspectorWidth} onInspectorWidthChange={setInspectorWidth} />
+        <DiagramPanel payload={payload} theme={theme} focus={focus} leading={marker} />
       </ViewerErrorBoundary>
       : <>
-        <div className="diagrams-islands">
-          {picker && <Surface background="default" radius="full" padding={1} className="diagrams-island">{picker}</Surface>}
-        </div>
+        {marker && <div className="diagrams-islands">
+          <Surface background="default" radius="full" padding={1} className="diagrams-island">{marker}</Surface>
+        </div>}
         {!diagrams ? <div className="diagrams-state"><Spinner label="Loading diagrams" /></div>
           : empty ? <div className="diagrams-state"><EmptyState icon={<DiagramIcon />} title="No diagrams yet" description="Diagrams appear here when your agent writes PlantUML (.puml) files into this work folder; the atlas skill tells it how." /></div>
           : entry && !entry.valid ? <div className="diagrams-state"><Problems diagram={entry} /></div>

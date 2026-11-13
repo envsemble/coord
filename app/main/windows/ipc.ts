@@ -116,10 +116,9 @@ async function loadUi(manager: WindowManager, window: AtlasWindow): Promise<Load
   const saved = state.places(window.rowId, computerId).find(row => row.active);
   const shownProject = saved ? window.projectIdOfRow(saved.projectRowId) : null;
   const place = saved && shownProject ? savedPlace(shownProject, saved) : null;
-  const inspectorWidth = state.inspectorWidth;
   // The window starts from this listing rather than asking for its own.
   const projects = listed as Project[] | null;
-  return { place: place ?? defaultUiState.place, ...inspectorWidth !== null && { inspectorWidth }, ...saved && !shownProject && { pending: true }, ...projects && { projects } };
+  return { place: place ?? defaultUiState.place, ...saved && !shownProject && { pending: true }, ...projects && { projects } };
 }
 /** Each window's saves, applied one after another in the order they came. */
 const saving = new WeakMap<AtlasWindow, Promise<void>>();
@@ -132,7 +131,6 @@ function queueSave(manager: WindowManager, window: AtlasWindow, ui: UiState) {
 async function saveUi(manager: WindowManager, window: AtlasWindow, ui: UiState) {
   const { state, computers } = manager.context;
   const computer = window.computer;
-  state.setInspectorWidth(ui.inspectorWidth ?? null);
   const row = placeRow(ui.place);
   const projectRowId = row ? window.listedRow(row.projectId) : null;
   const rows = row && projectRowId !== null ? [{ projectRowId, kind: row.kind, target: row.target, active: true }] : [];
