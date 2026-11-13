@@ -140,7 +140,7 @@ function useTick(ms: number | null) {
 
 /**
  * A work item: its plan (or, without one, its README or first document). The breadcrumb names its
- * project and number, with Export Plan… beside it; then the title, the status line, why it needs you
+ * project and number; then the title, the status line, why it needs you
  * when it does, and the plan's summary. Beside it the work's progress, its sessions and statistics.
  * Diagrams open from their cards in the plan.
  */

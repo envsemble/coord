@@ -287,7 +287,7 @@ test("the Files sidebar is beside a plan's pages with the plan's own folder, ope
   await expect(window.locator('.file-page .breadcrumb')).toHaveText(/^Plans.*Northwind.*#0001.*CONTEXT\.md$/);
   await expect(window.locator('.file-page').getByRole('button', { name: 'Show in folder' })).toBeVisible();
   await expect(window.locator('.file-page .reader .prose')).toBeVisible();
-  await expect(window.locator('.file-surface, .reader-toolbar')).toHaveCount(0);
+  await expect(window.locator('.reader-toolbar')).toHaveCount(0);
   // The plan's statistics page has it too; the hub has none.
   await window.getByRole('button', { name: '#0001' }).click();
   await window.locator('.plan-aside').getByRole('link', { name: 'All statistics and the timeline' }).click();

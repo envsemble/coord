@@ -147,8 +147,8 @@ function StatisticsView({ read, revision, trail, scope, all }: {
 }
 
 /**
- * A project's statistics, a page of their own from its row on the Projects page (or the hub filtered
- * to it), under its breadcrumb (`trail`: Projects, the project).
+ * A project's statistics, a page of their own from the hub filtered to the project, under its
+ * breadcrumb (`trail`: Plans, the project).
  */
 export function ProjectStatisticsPage({ trail }: { trail: ReactNode }) {
   const { projectId, revision } = useWindow();

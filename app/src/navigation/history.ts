@@ -1,5 +1,5 @@
 // Back and forward, as in a browser: what a window showed, in order, and where it is now. An entry is
-// a place: the hub (with its project filter), the Projects page, a project's statistics, a section
+// a place: the hub (with its project filter), a project's statistics, a section
 // of Settings, a work item's plan at its heading, a diagram at its element, or a file at its heading.
 // The history lives in memory while the window is open.
 import { isPage, pagePart, type Place } from './targets';

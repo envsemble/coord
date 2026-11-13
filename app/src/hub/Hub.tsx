@@ -110,7 +110,7 @@ const HubRow = memo(function HubRow({ item, go }: { item: HubItem; go(place: Pla
 const rowKeys = new WeakMap<HubItem, string>();
 function rowKey(item: HubItem) {
   let key = rowKeys.get(item);
-  if (key === undefined) rowKeys.set(item, key = JSON.stringify([item.project.id, item.project.name, item.work, item.activity, item.status.key]));
+  if (key === undefined) rowKeys.set(item, key = JSON.stringify([item.project.id, item.project.name, item.work, item.activity, item.status.key, partsFacts(item.work, item.project)]));
   return key;
 }
 

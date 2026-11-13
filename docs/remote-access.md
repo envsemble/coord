@@ -23,7 +23,7 @@ On the computer whose projects you want to reach, open **Settings › Computers*
 3. **Port** is 7346 unless you change it (1024–65535).
 4. **Pair a device** asks for what the pairing link grants, before it creates the link:
    - **Device label** (optional) names the device in **Paired devices**, for example "Work laptop". Without one, the device's own computer name is used.
-   - **Use this computer** is what every paired device gets: working on this computer's projects and their plans, with their sessions and references, creating projects, and importing and exporting plans.
+   - **Use this computer** is what every paired device gets: working on this computer's projects and their plans, with their sessions and references, and creating projects.
    - **Manage access** (off unless you tick it) also lets the device create pairing links and list and revoke paired devices. Tick it for the device you manage a headless `atlas serve` from.
 
    On a local-network address, the step warns again that the connection is not encrypted.

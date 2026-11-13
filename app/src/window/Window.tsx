@@ -309,9 +309,12 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   const filesShown = !ui.filesHidden;
   const focusFiles = useRef(false);
   const toggleFiles = useCallback(() => {
-    focusFiles.current = !filesShown;
-    setFilesHidden(filesShown);
-  }, [filesShown, setFilesHidden]);
+    if (!filesWork) return;
+    const hiding = filesShown;
+    focusFiles.current = !hiding;
+    setFilesHidden(hiding);
+    if (hiding && document.activeElement?.closest('.plan-files')) requestAnimationFrame(() => document.querySelector<HTMLElement>('.files-show')?.focus());
+  }, [filesWork, filesShown, setFilesHidden]);
   useEffect(() => {
     if (!focusFiles.current || !filesShown) return;
     focusFiles.current = false;
@@ -629,8 +632,8 @@ function ProjectContent({ place, folder, project, scope, read, statisticsTrail }
     if (target.kind === 'work' || target.kind === 'diagram') {
       const item = snapshot.work.find(entry => entry.id === target.work);
       content = !item ? <div className="page-state" aria-busy="true"><Spinner size="lg" label="Reading the plan" /></div>
-        : <PlanFrame work={item} snapshot={snapshot} filled={target.kind === 'diagram'}>{target.kind === 'diagram' ? <div className="work-page is-diagrams"><Suspense fallback={loadingPage}><DiagramsView key={item.id} work={item} target={target} /></Suspense></div>
-          : target.view === 'statistics' ? <Suspense fallback={loadingPage}><WorkStatisticsPage work={item} /></Suspense> : <PlanPage work={item} snapshot={snapshot} target={target} />}</PlanFrame>;
+        : target.kind === 'diagram' ? <div className="work-page is-diagrams"><Suspense fallback={loadingPage}><DiagramsView key={item.id} work={item} target={target} /></Suspense></div>
+        : <PlanFrame work={item} snapshot={snapshot}>{target.view === 'statistics' ? <Suspense fallback={loadingPage}><WorkStatisticsPage work={item} /></Suspense> : <PlanPage work={item} snapshot={snapshot} target={target} />}</PlanFrame>;
     } else {
       const file = snapshot.documents.find(document => document.path === target.path);
       const page = !file ? <Gone title="This file no longer exists" detail={target.path} /> : <FilePage file={file} snapshot={snapshot} anchor={target.anchor ?? null} />;
@@ -647,15 +650,15 @@ function ProjectContent({ place, folder, project, scope, read, statisticsTrail }
 }
 
 /**
- * A page of a plan (the plan, its statistics, a diagram, a file): with the parts rail beside it, in
- * envUI's supporting pane, when the work item is made of parts or is one of them. In a narrow window
- * the rail is a sheet that Parts opens.
+ * A page of a plan (the plan, its statistics, a file): with the parts rail beside it, in envUI's
+ * supporting pane, when the work item is made of parts or is one of them. In a narrow window the rail
+ * is a sheet that Parts opens. A diagram fills the window instead.
  */
-function PlanFrame({ work, snapshot, filled = false, children }: { work: Work | null; snapshot: Snapshot; filled?: boolean; children: ReactNode }) {
+function PlanFrame({ work, snapshot, children }: { work: Work | null; snapshot: Snapshot; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const group = partsGroup(work, snapshot);
   if (!group || !work) return children;
-  return <Panes.Root behavior="supporting" open={open} onOpenChange={setOpen} defaultWidth={18} className={'plan-frame' + (filled ? ' is-filled' : '')}>
+  return <Panes.Root behavior="supporting" open={open} onOpenChange={setOpen} defaultWidth={18} className="plan-frame">
     <Panes.Main label={work.title} className="plan-frame-page">
       <Panes.Trigger variant="secondary" size="sm" className="parts-trigger">Parts</Panes.Trigger>
       {children}

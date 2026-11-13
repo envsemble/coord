@@ -35,7 +35,7 @@ test('each new place shown follows the current entry; the same place again adds 
   assert.deepEqual(step(step(stepped, -1)!.history, 1)!.place, found);
 });
 
-test("the hub's project filter, the Projects page, a project's statistics and Settings' sections are places too", () => {
+test("the hub's project filter, a project's statistics and Settings' sections are places too", () => {
   assert.equal(samePlace(hub, hubPlace()), true);
   assert.equal(samePlace(hub, hubPlace(shop)), false, 'filtering the hub to a project is a step');
   assert.equal(samePlace(hubPlace(shop), hubPlace(shop)), true);

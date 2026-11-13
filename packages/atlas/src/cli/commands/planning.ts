@@ -72,7 +72,7 @@ export async function project(args: string[], out: Output) {
   if (!values.name) throw new UsageError('the following arguments are required: --name', line);
   const created = await createHomeProject({ name: values.name, folders: (lists.folder ?? []).map(folder => path.resolve(folder)) });
   if (flags.has('json')) { print(out, created); return 0; }
-  out.stdout(`Created the project ${created.name} in ${created.planningFolder}` + (created.folders.length ? `, covering ${created.folders.join(', ')}.` : '; it covers no folders yet (add them on the Projects page or in its planning.json).'));
+  out.stdout(`Created the project ${created.name} in ${created.planningFolder}` + (created.folders.length ? `, covering ${created.folders.join(', ')}.` : '; it covers no folders yet (add them from the project menu of the app’s plans, or in its planning.json).'));
   return 0;
 }
 

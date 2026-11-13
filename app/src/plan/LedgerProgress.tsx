@@ -3,7 +3,6 @@
 // name for assistive technology. The steps a plan proposes while it is designed follow the planning
 // steps, dimmed under a "Proposed" label, outside the progress. While an agent works on the plan, the step in progress pulses, in
 // the list and in the bar; while one waits for the person, it turns amber.
-// The plan export viewer draws the same markup (packages/atlas/viewer/ui.tsx), without activity.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { stepCounts, stepSummary } from '@envsemble/atlas/planning/ledger';
 import type { LedgerStep, LedgerStepStatus, StepCounts } from '@envsemble/atlas/planning/types';

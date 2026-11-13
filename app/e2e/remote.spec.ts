@@ -1,6 +1,6 @@
 // Remote access between two copies of Atlas: one turns remote access on, the other pairs with a
 // one-time link and then works on the first computer's projects as if they were local: their plans in
-// its hub, listed on its Projects page (archived its own way), read, renamed and created there, and
+// its hub, listed in its hub's project menu (archived its own way), read, renamed and created there, and
 // switching between computers. Both run on this machine with their own homes; the
 // first listens on 127.0.0.1, since CI runners have no Tailscale.
 import { existsSync, readFileSync } from 'node:fs';

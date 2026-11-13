@@ -139,10 +139,10 @@ body { margin: 0; }
 .plan-files-empty { margin: 0; padding: var(--env-space-1) var(--env-space-2); }
 .files-show { position: absolute; inset-block-start: var(--env-space-3); inset-inline-start: var(--env-space-3); z-index: var(--env-z-raised); }
 /* The parts rail: envUI's supporting pane beside a plan and its pages when the work is made of parts
-   or is one of them, staying in view as the page scrolls; over a diagram the panes fill the body. */
+   or is one of them, staying in view as the page scrolls with the body, as the panes' own scrolling
+   would where the panes had the window's height. */
 .plan-frame-parts > .parts-rail { position: sticky; inset-block-start: 0; padding: var(--env-space-6) var(--env-space-4); }
-.plan-frame.is-filled { flex: 1; block-size: 100%; min-block-size: 0; }
-.plan-frame.is-filled > .plan-frame-page { display: flex; flex-direction: column; min-block-size: 0; }
+.plan-frame > :is(.env-panes-main, .env-panes-supporting) { overflow: visible; }
 .parts-trigger { margin: var(--env-space-4) var(--env-space-5) 0; }
 .parts-rail { display: grid; gap: var(--env-space-2); }
 .parts-rail-heading { margin: 0; padding-inline: var(--env-space-2); font-weight: 500; }
@@ -288,8 +288,6 @@ body { margin: 0; }
 .outside-reference { border-block-end: 0.0625rem dashed var(--env-color-fg-disabled); cursor: help; }
 .source-text { margin: 0; font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: var(--env-font-size-body-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
 .attachment img { max-inline-size: 100%; }
-/* The plan export viewer shows a file in a card, with its name and size above it. */
-.file-surface { overflow: hidden; }
 .reader-boxed .prose, .reader-boxed .source-text, .reader-boxed .attachment { padding: var(--env-space-5) var(--env-space-6) var(--env-space-6); }
 .reader-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--env-space-3); padding: var(--env-space-2) var(--env-space-3) var(--env-space-2) var(--env-space-5); border-block-end: 0.0625rem solid var(--env-color-border-default); }
 .reader-name { display: inline-flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; }

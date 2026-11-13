@@ -14,7 +14,7 @@ Every planning folder has its own `AGENTS.md` (what is true, what to keep), whic
 - At session start Atlas names the session's project, its planning folder and its active work. Without that context, call `where`: it lists every active project in the home and marks the ones the session belongs to.
 - A session belongs to the project whose folder it is in (the deepest folder wins when they nest), or whose planning folder it is in. A location the user gives wins.
 - **Several match:** ask the user which project to plan in, and pass its planning folder to the tools (`planningFolder`).
-- **None matches:** ask which project the work belongs to. For a listed project, offer to add this folder to it (in the app's Projects page, or in its `planning.json`); otherwise offer to [set up a project](#set-up-a-project). A request about Atlas itself or several projects is [work across projects](#work-across-projects).
+- **None matches:** ask which project the work belongs to. For a listed project, offer to add this folder to it (in the project menu of the app's plans, or in its `planning.json`); otherwise offer to [set up a project](#set-up-a-project). A request about Atlas itself or several projects is [work across projects](#work-across-projects).
 - Stay in that project. Ordinary coding never waits for planning.
 
 ## When to plan
@@ -53,7 +53,7 @@ Atlas measures time, tokens and models for the work items a session touches; not
 
 ## Set up a project
 
-A project is a name and its folders, such as `~/work/shop`. Check with `where` that no project covers the work already; then, with the user's agreement, call `project_create` with the name and the folders. It makes the planning folder with its first commit, and sessions in those folders belong to it from then on. The user can also create one, and add folders later, on the app's Projects page.
+A project is a name and its folders, such as `~/work/shop`. Check with `where` that no project covers the work already; then, with the user's agreement, call `project_create` with the name and the folders. It makes the planning folder with its first commit, and sessions in those folders belong to it from then on. The user can also create one, and add folders later, on the project menu of the app's plans.
 
 ## Work across projects
 

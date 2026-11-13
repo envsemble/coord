@@ -93,7 +93,7 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
   if (refused) return <Alert tone="warning" announce>{refused}</Alert>;
   return <>
     <Text emphasis="muted" className="settings-description">{here
-      ? 'Pair your other devices, such as your laptop, to work on this computer from them: they work on its projects, create new ones, and import and export plans, as Atlas does here. Pair only your own devices.'
+      ? 'Pair your other devices, such as your laptop, to work on this computer from them: they work on its projects and create new ones, as Atlas does here. Pair only your own devices.'
       : `Pair your other devices with ${computer.name}, and revoke the ones that should no longer reach it. Only Atlas on ${computer.name} changes how it is reached.`}</Text>
     {!state ? (error ? <Alert tone="danger" announce>{error}</Alert> : <Spinner label="Loading remote access" />) : <>
       {state.problem ? <Alert tone="danger" announce>{state.problem}</Alert>
