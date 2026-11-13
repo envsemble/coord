@@ -92,6 +92,8 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
   const [arrangement, setArrangement] = useState<{ root: string; positions: Record<string, [number, number]> | null } | null>(null);
   // Saves under way, and how many were made: a read begun before the last save ended may predate it.
   const writes = useRef({ pending: 0, made: 0 });
+  // A save that fails writes no file, so no change reads the arrangement again: this does.
+  const [reread, setReread] = useState(0);
   useEffect(() => {
     if (!arranging) return;
     let current = true;
@@ -99,11 +101,12 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
     const made = writes.current.made, during = writes.current.pending > 0;
     const fresh = () => current && !during && !writes.current.pending && writes.current.made === made;
     api.arrangement(projectId, work.id, arranging).then(positions => {
-      if (!fresh()) return;
-      setArrangement(previous => previous?.root === arranging && JSON.stringify(previous.positions) === JSON.stringify(positions) ? previous : { root: arranging, positions });
+      if (!current) return;
+      // Only an arrangement shown for this diagram can be newer than the read.
+      setArrangement(previous => previous?.root === arranging && (!fresh() || JSON.stringify(previous.positions) === JSON.stringify(positions)) ? previous : { root: arranging, positions });
     }).catch(() => { if (current) setArrangement(previous => previous?.root === arranging ? previous : { root: arranging, positions: null }); });
     return () => { current = false; };
-  }, [projectId, work.id, arranging, files]);
+  }, [projectId, work.id, arranging, files, reread]);
   // The elements the family's layers draw: an element removed from them leaves the arrangement when it is next saved.
   const elements = useMemo(() => new Set([...(loaded?.payloads.values() ?? [])].flatMap(item => [
     ...item.model.classes, ...((item.comparison?.changeView?.model.classes as { id: string }[] | undefined) ?? []),
@@ -114,8 +117,8 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
     writes.current.pending++; writes.current.made++;
     setArrangement({ root: arranging, positions: kept });
     api.arrange(projectId, work.id, arranging, kept)
-      .catch(error => notify('The arrangement could not be saved: ' + (error as Error).message, 'warning'))
-      .finally(() => { writes.current.pending--; });
+      .then(() => true, error => { notify('The arrangement could not be saved: ' + (error as Error).message, 'warning'); return false; })
+      .then(saved => { writes.current.pending--; if (!saved) setReread(count => count + 1); });
   }, [projectId, work.id, arranging, notify, elements]);
 
   const layers = useMemo(() => familyLayers(listed, selected), [listed, selected]);
