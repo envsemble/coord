@@ -12,21 +12,21 @@ import { defaultSize, type Bounds, type WindowRow } from '../appState.ts';
 import type { WindowManager } from './windowManager.ts';
 
 /** envUI's canvas colour in the window's theme, shown until the page paints. */
-const windowBackground = () => nativeTheme.shouldUseDarkColors ? '#1f1f1f' : '#ffffff';
+// envUI 1.0's page colour (--env-color-bg-page), which shows before the page paints.
+const windowBackground = () => nativeTheme.shouldUseDarkColors ? '#1e1f21' : '#eaeaec';
 
-/** The height of the title bar the window draws itself, with its line, at 100% zoom. */
+/** The height of the title bar the window draws itself, at 100% zoom. */
 const titleBarHeight = 40;
 /**
- * The system's window buttons over the title bar the page draws: on the canvas colour, in its text
- * colour, and as tall as the bar above its line. envUI's title bar takes their height (the window
- * controls overlay's environment variables) and draws its line below them, so the line runs under
- * them too; scaled by 150%, the system's buttons reach one device pixel lower, which an odd height
- * leaves clear. Zoomed in, they grow with the bar; zoomed out, the bar keeps its height and so do
- * they.
+ * The system's window buttons over the title bar the page draws: on the bar's colour (envUI's
+ * TopBar, --env-color-bg-default), in its text colour (--env-color-fg-default), as tall as the bar,
+ * which takes their height (the window controls overlay's environment variables). Scaled by 150%,
+ * the system's buttons reach one device pixel lower, which an odd height leaves clear. Zoomed in,
+ * they grow with the bar; zoomed out, the bar keeps its height and so do they.
  */
 const titleBarOverlay = (zoom = 1) => {
   const height = Math.round((titleBarHeight - 1) * Math.max(1, zoom));
-  return nativeTheme.shouldUseDarkColors ? { color: '#1f1f1f', symbolColor: '#e8eaed', height } : { color: '#ffffff', symbolColor: '#202124', height };
+  return nativeTheme.shouldUseDarkColors ? { color: '#28292b', symbolColor: '#e8eaee', height } : { color: '#f4f4f6', symbolColor: '#1f1f22', height };
 };
 /**
  * Where a person's press starts, which a page cannot fake: a mouse button, a key (one raw or cooked
