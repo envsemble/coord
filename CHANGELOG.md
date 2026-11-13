@@ -9,6 +9,8 @@
 - **Projects are managed from the hub:** the Projects page is gone; the hub's project menu chooses a project, shows what agents do on each, and makes, renames, archives and restores projects and changes their folders.
 - **Files at the left:** a plan's files move from the card at the top right to the left of the plan and its pages; Ctrl+Shift+E brings the keyboard to them.
 - **Work in parts:** a work item can be made of ordered parts, other work items of the project, each with its own plan and steps. A rail at the right of the group and of each part lists them in order with their status and steps, the hub says **Part 2 of #0005**, and agents set them up with `work_create` (`partOf`) and the new `work_parts` tool (`atlas work parts`); `atlas check` checks them.
+- **Diagrams as links:** a plan's link to a diagram shows inline as the diagram's, in purple with a diagram icon, in place of the cards under its headings.
+- **Readable tables:** a plan's table columns keep a readable width and the table scrolls sideways when it has more than fit; `atlas check` warns about a table that will read cramped, and an agent hears it as it writes.
 - **Open in is removed:** the title bar's Open in, **File › Open in Editor** (Ctrl+O) and the choice of editor go. A file a plan links to still opens in VS Code.
 - **Plan export and import are removed**, with `atlas plan export` and `atlas plan import`, File › Import Plan… and Export Plan…, and the plan export viewer.
 
