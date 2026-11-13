@@ -180,11 +180,8 @@ body { margin: 0; }
 .explorer-special[data-file='ledger'] { color: var(--env-color-fg-success); }
 .explorer-special[data-file='glossary'] { color: var(--env-color-fg-warning); }
 .explorer-special[data-file='diagram'] { color: var(--env-color-fg-accent); }
-/* The tree's selected row on a quiet neutral fill rather than the selection blue. */
-.plan-files .env-tree-item[aria-selected='true'] { background: var(--env-color-bg-neutral-muted); color: var(--env-color-fg-default); font-weight: var(--env-font-weight-medium); }
-.plan-files .env-tree-item[aria-selected='true']:hover { background: var(--env-color-bg-neutral-muted-hover); }
-.plan-files .env-tree-item[aria-selected='true']:active { background: var(--env-color-bg-neutral-muted-pressed); }
-.plan-files .env-tree-item[aria-selected='true'] :is(.env-tree-icon, .env-tree-chevron) { color: var(--env-color-fg-muted); }
+/* The file shown keeps envUI's navigation selection, unlike a row under the pointer; a little heavier too. */
+.plan-files .env-tree-item[aria-selected='true'] { font-weight: var(--env-font-weight-medium); }
 
 /* Pages */
 /* Page and section toolbars use compact controls, like the title bar. */
