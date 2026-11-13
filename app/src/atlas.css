@@ -597,3 +597,5 @@ body { margin: 0; }
 @media (prefers-reduced-motion: reduce) {
   .step-bar > span { transition: none; }
 }
+/* The parts rail's rows: each title on one line, in the text colour, as a navigation list's. */
+.parts-rail-link { display: block; overflow: hidden; color: inherit; text-overflow: ellipsis; white-space: nowrap; }

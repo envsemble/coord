@@ -31,7 +31,7 @@ export function PartsRail({ group, shown }: { group: Work; shown: string }) {
     const status = statusOf(work, activity(work.id)?.state ?? null);
     return <List.Item key={key} interactive current={work.id === shown} className="parts-rail-item" data-group={index === null || undefined}
       start={<span className="parts-rail-start">{index !== null && <span className="parts-rail-index" aria-hidden="true">{index}</span>}<StatusIcon status={status} /></span>}
-      label={<TargetLink target={workTarget(work.id)} rowTarget title={work.title + ' · ' + status.label}>{work.title}</TargetLink>}
+      label={<TargetLink className="parts-rail-link" target={workTarget(work.id)} rowTarget title={work.title + ' · ' + status.label}>{work.title}</TargetLink>}
       description={workNumber(work.id) + (stepsText(work) && ' · ' + stepsText(work))} />;
   };
   return <nav className="parts-rail" aria-label={'Parts of ' + workNumber(group.id)}>
