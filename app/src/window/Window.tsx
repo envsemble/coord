@@ -12,7 +12,7 @@ import { ErrorIcon, WarningIcon } from '../ui/icons';
 import type { MenuCommand } from '../../shared/contract';
 import type { Issue, LoadedUi, OpenProjectChange, Project, ProjectChangeRequest, SettingsSection, Snapshot, SnapshotWork, Target, Work, WindowInfo } from '../types';
 import { api } from '../api';
-import { documentTarget, hubPlace, isPage, pageAt, placeId, placeProject, scrollKey, settingsPlace, statisticsPlace, workTarget, type Place, type ProjectPlace } from '../navigation/targets';
+import { documentTarget, hubPlace, isPage, pageAt, pageTarget, placeId, placeProject, scrollKey, settingsPlace, statisticsPlace, workTarget, type Place, type ProjectPlace } from '../navigation/targets';
 import { samePath, siblingProject } from '../reader/links';
 import { canGoBack, canGoForward, currentEntry, keyStep, record, samePlace, startHistory, step } from '../navigation/history';
 import { workNumber } from '../ui/format';
@@ -405,7 +405,8 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
       const snapshot = known ?? await api.snapshot(projectId);
       const file = snapshot.documents.find(document => samePath(document.path, path, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths));
       const work = snapshot.work.find(item => samePath(item.path, path.replace(/\/$/, ''), snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths));
-      const target = file ? documentTarget(file, snapshot.work.find(item => item.id === file.workId), anchor) : work ? workTarget(work.id, anchor) : null;
+      const page = pageAt(path, snapshot.work);
+      const target = file ? documentTarget(file, snapshot.work.find(item => item.id === file.workId), anchor) : page ? pageTarget(page.folder) : work ? workTarget(work.id, anchor) : null;
       if (!target) { release(); notify('This document is not in ' + (projectOf(projectId)?.name ?? 'that project') + ': ' + path, 'warning'); return; }
       go({ projectId, target });
     } catch (error) { release(); notify((error as Error).message, 'warning'); }

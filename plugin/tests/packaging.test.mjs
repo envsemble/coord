@@ -36,7 +36,7 @@ const FRONTMATTER_KEYS = new Set([
 // it loads by default, and Codex's hooks/codex.json, which its manifest names instead.
 const HOOK_EVENTS = {
   SessionStart: ["SessionStart"],
-  UserPromptSubmit: ["UserPromptSubmit"],
+  UserPromptSubmit: ["UserPromptSubmit", "PageChoices"],
   PostToolUse: ["PostToolUse", "ToolUse"],
   PostToolUseFailure: ["ToolUse"],
   Notification: ["Notification"],

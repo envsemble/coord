@@ -350,6 +350,12 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
     const transcriptPath = typeof input.transcript_path === 'string' ? input.transcript_path : null;
     // A subagent's hook (Claude Code names the subagent; the session is its main agent's).
     const agent = typeof input.agent_id === 'string' && sessionPattern.test(input.agent_id) ? input.agent_id : null;
+    // As the user sends a message: the choices they made on pages since the session last heard.
+    if (event === 'PageChoices') {
+      const { pageChoicesNotice } = await import('./pageChoices.ts');
+      const notice = await pageChoicesNotice(input, home, sessionPattern);
+      return notice ? JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: notice } }) : '';
+    }
     if (event === 'SessionStart') {
       pruneStamps(home);
       const { findPlanning } = await import('../../planning/projects/findProject.ts');

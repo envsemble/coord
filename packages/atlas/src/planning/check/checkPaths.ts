@@ -2,10 +2,12 @@
 // the planning check (validatePlanning), whose findings are attributed to the file they name; other
 // kinds of file are checked by the checker registered for their extension. A diagram in a work
 // folder that no Markdown document of its work item links is a warning: plans link their diagrams.
+// A work item's page is built, as Atlas shows it, whenever any of its files is checked.
 import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import atlas from '@envsemble/atlas-diagrams';
 import { validatePlanning } from './check.ts';
+import { buildPage, listPages, pageOf } from '../pages/pages.ts';
 
 export interface CheckResult {
   /** The planning folder checked. */
@@ -112,9 +114,35 @@ export async function checkPaths(paths: string[]): Promise<CheckResult[]> {
     }
     const diagrams = files.filter(file => /\.puml$/i.test(file));
     if (diagrams.length) result.warnings.push(...await unlinkedDiagrams(root, diagrams));
+    result.errors.push(...await pageProblems(root, group.whole ? await everyPage(root) : group.files.map(pageOf).filter((page): page is string => page !== null)));
     results.push(result);
   }
   return results;
+}
+
+/** Every page of the folder's work items, by its folder. */
+async function everyPage(root: string): Promise<string[]> {
+  let items: { path?: unknown }[];
+  try { items = JSON.parse(readFileSync(path.join(root, 'planning.json'), 'utf8').replace(/^\uFEFF/, '')).work_items; } catch { return []; }
+  if (!Array.isArray(items)) return [];
+  const pages: string[] = [];
+  for (const item of items) {
+    if (typeof item?.path !== 'string') continue;
+    const location = item.path.replace(/\/+$/, '');
+    for (const name of await listPages(path.join(root, ...location.split('/')))) pages.push(location + '/pages/' + name);
+  }
+  return pages;
+}
+/** Why the pages given (their folders) do not build, as `file:line:column: problem`. */
+async function pageProblems(root: string, pages: string[]): Promise<string[]> {
+  const problems: string[] = [];
+  for (const page of new Set(pages)) {
+    if (!statSync(path.join(root, ...page.split('/')), { throwIfNoEntry: false })?.isDirectory()) continue;
+    const built = await buildPage(root, path.join(root, ...page.split('/')));
+    if (built.ok) continue;
+    for (const problem of built.problems) problems.push(`${problem.file ?? page}${problem.line ? `:${problem.line}:${problem.column ?? 1}` : ''}: ${problem.text}`);
+  }
+  return problems;
 }
 
 /** The Markdown and diagram files of a folder, relative to it (hidden and build folders aside). */

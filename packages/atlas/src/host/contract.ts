@@ -56,7 +56,7 @@ export interface Project {
   summary?: ProjectSummary | null;
 }
 /** What the search finds: plans, steps, documents and their headings, diagrams and their elements, glossary terms and projects. */
-export type SearchKind = 'plan' | 'step' | 'document' | 'heading' | 'diagram' | 'element' | 'term' | 'project';
+export type SearchKind = 'plan' | 'step' | 'document' | 'heading' | 'diagram' | 'page' | 'element' | 'term' | 'project';
 /**
  * A search result in one of the computer's active projects: what it is, its title, a short snippet
  * around the match (null when the title matched), and where it opens: the project (`projectId`, and its

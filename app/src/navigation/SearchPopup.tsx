@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CommandPalette, type CommandPaletteItem } from '@envsemble/envui';
-import { DiagramIcon, FileIcon, FolderIcon, LedgerIcon, PlanIcon, SearchIcon } from '../ui/icons';
+import { DiagramIcon, FileIcon, FolderIcon, LedgerIcon, PageIcon, PlanIcon, SearchIcon } from '../ui/icons';
 import type { DiagramIndexEntry, Project, SearchKind, SearchResult, Snapshot, Target } from '../types';
 import { api } from '../api';
 import { rankItems, type QuickItem } from './quickMatch';
@@ -14,7 +14,7 @@ import { TagList } from '../plan/TagList';
 interface Entry extends QuickItem, Omit<SearchEntry, 'kind'> { icon: ReactNode }
 const localKinds: Record<QuickItem['kind'], SearchKind> = { work: 'plan', diagram: 'diagram', file: 'document' };
 const kindIcons: Record<SearchKind, ReactNode> = {
-  plan: <PlanIcon />, step: <LedgerIcon />, document: <FileIcon />, heading: <FileIcon />, diagram: <DiagramIcon />, element: <DiagramIcon />, term: <SearchIcon />, project: <FolderIcon />,
+  plan: <PlanIcon />, step: <LedgerIcon />, document: <FileIcon />, heading: <FileIcon />, diagram: <DiagramIcon />, page: <PageIcon />, element: <DiagramIcon />, term: <SearchIcon />, project: <FolderIcon />,
 };
 /** Whether the user moved the highlight off the first result (by key or pointer). */
 function highlightMoved() {
