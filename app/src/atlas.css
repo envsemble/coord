@@ -180,8 +180,13 @@ body { margin: 0; }
 .explorer-special[data-file='ledger'] { color: var(--env-color-fg-success); }
 .explorer-special[data-file='glossary'] { color: var(--env-color-fg-warning); }
 .explorer-special[data-file='diagram'] { color: var(--env-color-fg-accent); }
-/* The file shown keeps envUI's navigation selection, unlike a row under the pointer; a little heavier too. */
-.plan-files .env-tree-item[aria-selected='true'] { font-weight: var(--env-font-weight-medium); }
+/* The file shown on a quiet neutral fill rather than the selection blue, clearly stronger than a row
+   under the pointer (a fainter row hover than envUI's here), in the default text colour and a little heavier. */
+.plan-files .env-tree-item:not([aria-selected='true']):hover { background: color-mix(in srgb, var(--env-color-bg-row-hover) 45%, transparent); }
+.plan-files .env-tree-item[aria-selected='true'] { background: var(--env-color-bg-neutral-muted-hover); color: var(--env-color-fg-default); font-weight: var(--env-font-weight-medium); }
+.plan-files .env-tree-item[aria-selected='true']:hover { background: var(--env-color-bg-neutral-muted-pressed); }
+.plan-files .env-tree-item[aria-selected='true']:active { background: var(--env-color-bg-neutral-muted-pressed); }
+.plan-files .env-tree-item[aria-selected='true'] :is(.env-tree-icon, .env-tree-chevron) { color: var(--env-color-fg-muted); }
 
 /* Pages */
 /* Page and section toolbars use compact controls, like the title bar. */
