@@ -1,6 +1,6 @@
 # Diagrams
 
-A diagram is a file in a work item, written in Atlas's subset of [PlantUML](https://plantuml.com/class-diagram): a class diagram of concepts or code, an entity diagram of a database, or an object diagram of example instances. Agents write and edit diagrams like any other file in the planning folder; `atlas check` (which the hooks run after every edit) reports what is wrong, line by line. Atlas draws diagrams with its own viewer, in the app, in plan exports and in offline HTML files.
+A diagram is a file in a work item, written in Atlas's subset of [PlantUML](https://plantuml.com/class-diagram): a class diagram of concepts or code, an entity diagram of a database, or an object diagram of example instances. Agents write and edit diagrams like any other file in the planning folder; `atlas check` (which the hooks run after every edit) reports what is wrong, line by line. Atlas draws diagrams with its own viewer, in the app and in offline HTML files.
 
 Because the subset is PlantUML, any diagram Atlas accepts also renders in PlantUML. The reverse does not hold: Atlas lays diagrams out and styles them itself, so the subset has no syntax for layout or appearance, and anything outside it is an error rather than something silently skipped.
 

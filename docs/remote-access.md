@@ -2,10 +2,7 @@
 
 Remote access lets you work on another computer's projects from Atlas on this one: a desktop's plans from a laptop, or a server's from either. Atlas on that computer runs a small server, the **Atlas host**. Atlas on your other device pairs with it once, then works on that computer as it does on its own.
 
-Pairing is for **your own devices**. A paired device can do what Atlas does on that computer:
-
-- see its projects (the planning folders in its Atlas home) and open their plans, rename projects and create new ones (choosing the folders a project covers, which are paths on that computer, stays with the Atlas app there);
-- import and export plans.
+Pairing is for **your own devices**. A paired device can do what Atlas does on that computer: see its projects (the planning folders in its Atlas home) and open their plans, rename projects and create new ones (choosing the folders a project covers, which are paths on that computer, stays with the Atlas app there).
 
 It cannot reveal files in that computer's file explorer, and Atlas never edits plans, here or there.
 
@@ -55,13 +52,7 @@ Each window says where it works: the **computer menu** (the computer's name in t
 - **Other computers**, in **Settings › Computers**, lists the computers this one is paired with. **↗** opens a computer in a new window. **Forget** forgets a paired computer here; press it again to confirm. Windows showing it close; if this window showed it, it shows this computer instead. To cut its access on that computer too, revoke the device there. **Connect to Another Atlas…** pairs with one more.
 - **The projects** are the planning folders in that computer's Atlas home, on the **Projects** page as this computer's are. **New project** there creates one on that computer, and **Rename…** changes a project's name in its `planning.json` there, for every device; choosing the folders a project covers, which are paths on that computer, stays with Atlas there. The order of the projects and whether one is archived are this device's own.
 
-A window on another computer shows the computer's name in its title (`desk — Atlas`). Everything works as it does locally:
-
-- the hub, plans, ledgers, statistics, diagrams and search;
-- **Export Plan…**, which saves the export on this device;
-- **Import Plan…**, which sends the chosen file to that computer and adds the plan to the project there.
-
-Only **Show in Folder** and **Open in Editor** are not offered.
+A window on another computer shows the computer's name in its title (`desk — Atlas`). The hub, plans, ledgers, statistics, diagrams and search work as they do locally; only **Show in Folder** and **Open in Editor** are not offered.
 
 Windows showing another computer reopen on the next start while the computer is still paired. When that computer is unreachable (asleep, Atlas closed, or the network down), its windows keep showing the last view with a notice and reconnect on their own.
 
@@ -117,23 +108,21 @@ The desktop app runs the host in a separate utility process and is its first cli
 
 A crashed host restarts, at most three times a minute; after that, Atlas says so and leaves it stopped until Atlas starts again. The app reconnects, follows its windows' projects again, and they carry on.
 
-A paired device connects to the **network listener** that remote access turns on. Clients use a JSON request and event protocol over one WebSocket (`/api/connect`), and HTTP for files in documents, plan exports and plans sent for import. Requests on the computer's projects are `projects.*` (list, create, update, statistics, and subscribe and unsubscribe to one); requests on one project are `project.*` (its snapshot, work, documents, diagrams and statistics). These, `work.*` (a work item's sessions and timeline), `references.resolve` and `plan.*` (export and import) name the project by its `projectId`, the `id` the project list gives it. The host pushes `project.changed` to the clients that subscribed to a project when it changes, and `projects.changed` when the list does.
+A paired device connects to the **network listener** that remote access turns on. Clients use a JSON request and event protocol over one WebSocket (`/api/connect`), and HTTP for files in documents. Requests on the computer's projects are `projects.*` (list, create, update, statistics, and subscribe and unsubscribe to one); requests on one project are `project.*` (its snapshot, work, documents, diagrams and statistics). These, `work.*` (a work item's sessions and timeline) and `references.resolve` name the project by its `projectId`, the `id` the project list gives it. The host pushes `project.changed` to the clients that subscribed to a project when it changes, and `projects.changed` when the list does.
 
-| Route                                   | Purpose                                                                        | Credential       |
-| --------------------------------------- | ------------------------------------------------------------------------------ | ---------------- |
-| `GET /api/host`                         | The host's protocol version, ID, name and Atlas version.                       | None             |
-| `GET /pair`                             | A short page saying the link belongs in Atlas, for a link opened in a browser. | None             |
-| `POST /api/pair`                        | Exchange a pairing code for a device token (remote access address only).       | The pairing code |
-| `GET /api/connect`                      | The WebSocket for requests and change events.                                  | Bearer token     |
-| `GET /api/projects/:projectId/files/*`  | A file in a project's planning folder (images and attachments in documents).   | Bearer token     |
-| `POST /api/projects/:projectId/imports` | A plan export sent from another device, read for an import preview.            | Bearer token     |
-| `GET /api/exports/:token`               | A prepared plan export, once.                                                  | Bearer token     |
+| Route                                  | Purpose                                                                        | Credential       |
+| -------------------------------------- | ------------------------------------------------------------------------------ | ---------------- |
+| `GET /api/host`                        | The host's protocol version, ID, name and Atlas version.                       | None             |
+| `GET /pair`                            | A short page saying the link belongs in Atlas, for a link opened in a browser. | None             |
+| `POST /api/pair`                       | Exchange a pairing code for a device token (remote access address only).       | The pairing code |
+| `GET /api/connect`                     | The WebSocket for requests and change events.                                  | Bearer token     |
+| `GET /api/projects/:projectId/files/*` | A file in a project's planning folder (images and attachments in documents).   | Bearer token     |
 
 Every request has a declared scope, checked before anything else:
 
-- **`computer`:** every paired device has it. It covers the project list, creating and renaming projects, reading them, their statistics, and plan export and import.
+- **`computer`:** every paired device has it. It covers the project list, creating and renaming projects, reading them, and their statistics.
 - **`access:manage`:** a device has it when its pairing link granted Manage access. It covers pairing links, the paired devices list, revocation, and the remote access status.
-- **`owner`:** changing how the computer is reached, choosing the folders a project covers, and reading a plan export from a path on the computer are for the owner only.
+- **`owner`:** changing how the computer is reached and choosing the folders a project covers are for the owner only.
 
 The loopback listener accepts only the owner credential, and only from this computer. The network listener accepts only device credentials.
 
@@ -159,10 +148,7 @@ The loopback listener accepts only the owner credential, and only from this comp
 - **Identity:** before sending its token, over the WebSocket or for a file, a client checks that the address answers with the host ID it paired with, so a different Atlas that now has the address does not receive the credential. The host ID is public, so this is no defence against someone deliberately impersonating the host on your network: use Tailscale, which authenticates the computers themselves.
 - **Browsers are refused:** any request that carries an `Origin` header is rejected, so no web page can call the host, and the `Host` header must be an IP address or `localhost`, which blocks DNS rebinding. Responses carry a restrictive content security policy.
 - **Files:** requests resolve inside the planning folder with the same containment as the app: no paths outside it, and no hidden or excluded folders. Files over 64 MB are not served.
-- **Limits:**
-  - messages are limited in size;
-  - each device prepares one plan export at a time and holds at most two, and prepared exports expire after ten minutes;
-  - a plan sent for import is at most 512 MB, one at a time per device, kept in a private temporary file only while it is read.
+- **Limits:** messages are limited in size.
 - **Transport:** the host speaks plain HTTP and relies on the network for encryption. Use Tailscale (WireGuard) across networks; on a local network, traffic can be read by anyone able to watch it.
 
 ### Privacy
@@ -173,7 +159,7 @@ Remote access sends planning-folder contents only to devices you paired, and onl
 - any project's files, Git activity (commit titles and dates, without authors) and work statistics;
 - its plans' sessions with their last messages while they wait, and the state of the PRs its plans reference.
 
-A device can also save a plan export, a copy its user then keeps, import plans into a project on that computer, and create and rename projects there.
+A device can also create and rename projects there.
 
 While remote access is on, anyone who can reach the chosen address and port can ask the host who it is (`GET /api/host`). The answer is this computer's name, a host ID and the Atlas version, but no projects or content. Over Tailscale, only your tailnet can ask; on a local network, anyone on it can.
 

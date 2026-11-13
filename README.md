@@ -65,7 +65,7 @@ To work on Atlas itself, or to run the command from a checkout instead, see [the
 - [Agent interface](docs/agent-interface.md): the plugin, its tools, skills and hooks.
 - [Progress and statistics](docs/progress-and-statistics.md): steps, and what Atlas measures and how.
 - [Diagrams](docs/diagrams.md): the PlantUML subset, captures, proposals and comparisons.
-- [Remote access](docs/remote-access.md) and [plan export](docs/plan-export.md).
+- [Remote access](docs/remote-access.md): work on another computer's projects.
 - [The atlas command](docs/command.md) and [all documentation](docs/README.md).
 - [Contributing](CONTRIBUTING.md), the [changelog](CHANGELOG.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
 

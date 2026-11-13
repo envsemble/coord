@@ -29,7 +29,6 @@ import {
   DiagramPanel,
   ViewerErrorBoundary,
 } from "@envsemble/atlas-diagrams/react";
-import "@envsemble/envui/styles.css";
 import "@envsemble/atlas-diagrams/embedded.css";
 
 <ViewerErrorBoundary>
@@ -41,7 +40,7 @@ import "@envsemble/atlas-diagrams/embedded.css";
 
 ## The React panel
 
-Import `DiagramPanel` from `@envsemble/atlas-diagrams/react`, and load envUI's stylesheet (`@envsemble/envui/styles.css`, once per page) and `@envsemble/atlas-diagrams/embedded.css`. The panel's controls are envUI components, and `@envsemble/envui` is a peer dependency; the panel renders its own envUI theme boundary in the given `theme`, so its menus, tooltips and dialogs match it. Pass a payload from `prepareDiagrams`, a host-controlled `theme` (`dark` or `light`), and an optional semantic `focus` target. `leading` renders host content (such as a diagram picker) at the start of the floating top-left toolbar. `sections` renders the host's own navigation first, at the top left with the tools on the same row, and moves the diagram's navigation island to the row below. Passing `onFullscreenChange(next)` adds a fullscreen toggle to the top-right toolbar; the host owns the `fullscreen` state and layout. The reader can resize the details from their inner edge; pass `inspectorWidth` (pixels, or null for the default) with `onInspectorWidthChange(width)`, called when a resize ends, to keep the width, or leave both out and the panel keeps it while it is mounted. This component consumes the same model/scene as offline exports. It does not require HTML, an iframe, an archive, a model service, or a connection to captured sources.
+Import `DiagramPanel` from `@envsemble/atlas-diagrams/react`, and load `@envsemble/atlas-diagrams/embedded.css`. With a bundler, envUI's components bring their own styles; a page without one loads `@envsemble/envui/styles.css` once. The panel's controls are envUI components, and `@envsemble/envui` is a peer dependency; the panel renders its own envUI theme boundary in the given `theme`, so its menus, tooltips and dialogs match it. Pass a payload from `prepareDiagrams`, a host-controlled `theme` (`dark` or `light`), and an optional semantic `focus` target. `leading` renders host content (such as a diagram picker) at the start of the floating top-left toolbar. `sections` renders the host's own navigation first, at the top left with the tools on the same row, and moves the diagram's navigation island to the row below. Passing `onFullscreenChange(next)` adds a fullscreen toggle to the top-right toolbar; the host owns the `fullscreen` state and layout. The reader can resize the details from their inner edge; pass `inspectorWidth` (pixels, or null for the default) with `onInspectorWidthChange(width)`, called when a resize ends, to keep the width, or leave both out and the panel keeps it while it is mounted. This component consumes the same model/scene as offline exports. It does not require HTML, an iframe, an archive, a model service, or a connection to captured sources.
 
 ```tsx
 <DiagramPanel

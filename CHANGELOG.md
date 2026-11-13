@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+**A simpler window, on envUI 1.0**
+
+- **envUI 1.0:** the app and the diagram viewer move to envUI 1.0.0, now on npm, keeping Atlas's look: the same pages, density and colours (the work statuses keep GitHub's colours). Installing from a checkout no longer needs a GitHub token.
+- **One row at the top:** **Plans** joins File, View and Help in the title bar (every plan, each project's plans and all plans' statistics), and the Plans and Projects sections below it are gone. Breadcrumbs start at Plans: Plans › Northwind › #0001.
+- **Projects are managed from the hub:** the Projects page is gone; the hub's project menu chooses a project, shows what agents do on each, and makes, renames, archives and restores projects and changes their folders.
+- **Files in a sidebar:** a plan's files move from the card at the top right to a sidebar at the left of the plan and its pages, which **View › Hide Files** (Ctrl+Shift+E) or its own button hides; each window remembers it.
+- **Work in parts:** a work item can be made of ordered parts, other work items of the project, each with its own plan and steps. A rail at the right of the group and of each part lists them in order with their status and steps, the hub says **Part 2 of #0005**, and agents set them up with `work_create` (`partOf`) and the new `work_parts` tool (`atlas work parts`); `atlas check` checks them.
+- **Plan export and import are removed**, with `atlas plan export` and `atlas plan import`, File › Import Plan… and Export Plan…, and the plan export viewer.
+
 **The installer is all you need**
 
 - **The app carries the `atlas` command and the Atlas plugin.** It copies them to `agent/` in the Atlas home, and on its first start puts the command on your PATH (the user `Path` on Windows, `~/.local/bin` on Linux), where it runs on a Node.js the app ships with it: no clone, Node.js or `atlas setup` is needed. The Windows uninstaller takes it off the PATH and disconnects the agents.

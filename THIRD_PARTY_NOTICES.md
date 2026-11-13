@@ -4,9 +4,7 @@ Atlas's grammar for its subset of PlantUML (`packages/diagrams/lib/plantuml/plan
 
 React and React DOM 19.3.0 are bundled into offline HTML under their MIT licenses. Full license text remains embedded in the HTML, with copies in packages/diagrams/licenses/. The reusable React module uses peer dependencies instead of bundling another React runtime.
 
-The plan export viewer (`packages/atlas/dist/plan-viewer.html`) bundles React and React DOM, react-markdown and remark-gfm with their unified, micromark, mdast and hast dependencies, github-slugger, envUI with Base UI and Floating UI, the Material Symbols icons it uses, the Inter font, and fflate, each under its MIT, ISC, Apache 2.0 or SIL Open Font License. The build lists every bundled package with its version and license and embeds the license texts in the viewer script.
-
-The interface is built on envUI (`@envsemble/envui`), Envsemble's own private component library. It brings [Base UI](https://github.com/mui/base-ui) and Floating UI (MIT), Google's [Material Symbols](https://github.com/google/material-design-icons) (Apache 2.0) and the [Inter](https://github.com/rsms/inter) font (SIL Open Font License 1.1); their notices ship in envUI's package, and the offline diagram and plan files embed them.
+The interface is built on envUI (`@envsemble/envui`), Envsemble's own private component library. It brings [Base UI](https://github.com/mui/base-ui) and Floating UI (MIT), Google's [Material Symbols](https://github.com/google/material-design-icons) (Apache 2.0) and the [Inter](https://github.com/rsms/inter) font (SIL Open Font License 1.1); their notices ship in envUI's package, and the offline diagram files embed them.
 
 The `atlas-grill` skill's interview and domain-modeling methods are adapted from Matt Pocock's [skills](https://github.com/mattpocock/skills) and keep their [MIT license](plugin/skills/atlas-grill/references/LICENSE).
 

@@ -5,7 +5,6 @@
 - [App guide](../app/README.md): install the desktop app; the hub, plans, projects, statistics, diagrams and windows; security and diagnostics.
 - [Progress and statistics](progress-and-statistics.md): the ledger's steps, what the hooks measure, how Atlas counts agent time, tokens, subagents and plan revisions for planning and implementation, and a plan's sessions and timeline.
 - [Remote access](remote-access.md): work on another computer's projects; pairing, the computer menu, `atlas serve`, the host's protocol, security and privacy.
-- [Plan export](plan-export.md): share a whole work item as one offline HTML file, and import it elsewhere.
 
 ## For agents
 
