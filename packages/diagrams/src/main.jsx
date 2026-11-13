@@ -4,12 +4,10 @@ import { DiagramViewer } from "./viewer/DiagramViewer";
 import { ViewerErrorBoundary } from "./viewer/ViewerErrorBoundary";
 
 // The offline file has no host, so envUI owns its theme: the stored choice
-// (key shared with the startup script in buildViewer) or the system theme, at
-// envUI's comfortable scale (also the startup script's).
+// (key shared with the startup script in buildViewer) or the system theme.
 createRoot(document.getElementById("root")).render(
   <ThemePreferenceProvider
     storageKey="atlas-theme"
-    scale="comfortable"
     className="atlas-page"
   >
     <ViewerErrorBoundary>

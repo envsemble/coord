@@ -5,6 +5,7 @@ import type { Document, Snapshot } from '../types';
 import { workTarget } from '../navigation/targets';
 import { workNumber } from '../ui/format';
 import { Trail } from '../ui/Trail';
+import { Page } from '../ui/Page';
 import { Reader, useReferences } from './Reader';
 import { useWindow } from '../window/windowContext';
 
@@ -18,11 +19,9 @@ export function FilePage({ file, snapshot, anchor }: { file: Document; snapshot:
   const owner = snapshot.work.find(work => work.id === file.workId) ?? snapshot.work.find(work => file.path.startsWith(work.path + '/'));
   const references = useReferences(file, file.workId, file.format === 'markdown');
   const reveal = () => { api.reveal(projectId, file.path).catch(error => notify((error as Error).message, 'warning')); };
-  return <div className="page file-page">
-    <div className="work-trail">
-      <Trail work={owner?.id} items={[...(owner ? [{ label: workNumber(owner.id), target: workTarget(owner.id) }] : []), { label: <span title={file.path}>{file.name}</span> }]} />
-      {!remote && <Button variant="text" className="work-export" startIcon={<FolderOpenIcon />} onClick={reveal} title="Show this file in your file manager">Show in folder</Button>}
-    </div>
-    <Reader key={file.path} file={file} snapshot={snapshot} anchor={anchor} references={references} showWork={!file.workId} showHeader />
-  </div>;
+  return <Page className="file-page" width="md" title={file.title}
+    breadcrumbs={<Trail work={owner?.id} items={[...(owner ? [{ label: workNumber(owner.id), target: workTarget(owner.id) }] : []), { label: <span title={file.path}>{file.name}</span> }]} />}
+    actions={!remote && <Button variant="secondary" size="sm" startIcon={<FolderOpenIcon />} onClick={reveal} title="Show this file in your file manager">Show in folder</Button>}>
+    <Reader key={file.path} file={file} snapshot={snapshot} anchor={anchor} references={references} showWork={!file.workId} hideTitle={file.title} showHeader />
+  </Page>;
 }

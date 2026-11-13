@@ -7,7 +7,6 @@ import "../src/canvas/canvas.css";
 createRoot(document.getElementById("root")).render(
   <ThemePreferenceProvider
     storageKey="atlas-theme"
-    scale="comfortable"
     className="atlas-page"
   >
     <DevelopmentApp />

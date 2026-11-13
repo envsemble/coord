@@ -175,9 +175,6 @@ async function prepareModel({
 // The standalone viewer's stored theme preference; src/main.jsx uses the same
 // key, so envUI's startup script themes the page before the first paint.
 const THEME_STORAGE_KEY = "atlas-theme";
-// The offline file keeps envUI's comfortable scale, as src/main.jsx does, so
-// the first paint has it.
-const THEME_SCALE = "comfortable";
 const packageDirectory = (name) =>
   path.dirname(require.resolve(`${name}/package.json`, { paths: [rootPath] }));
 // The offline file has no host: it carries the styles of the envUI components
@@ -250,7 +247,6 @@ async function bundleClient() {
     notices,
     themeBootstrap: createThemeBootstrapScript({
       storageKey: THEME_STORAGE_KEY,
-      scale: THEME_SCALE,
     }),
   };
 }

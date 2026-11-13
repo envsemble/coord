@@ -5,7 +5,7 @@
 // project's statistics or Settings. A plan and its pages have the plan's own files in a sidebar at
 // their left, which the reader can hide, and the parts of the work it belongs to in a rail at their right.
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { Alert, Breadcrumbs, Button, IconButton, Kbd, Popover, Scaffold, Spinner, Text, Tooltip, TopBar, useToast } from '@envsemble/envui';
+import { Alert, Breadcrumbs, Button, IconButton, Kbd, Panes, Popover, Scaffold, Spinner, Tooltip, TopBar, useToast } from '@envsemble/envui';
 import { IconLeftPanelOpen } from '@envsemble/envui/icons/LeftPanelOpen';
 import { EmptyState } from '../ui/EmptyState';
 import { ThemeMenu } from '../titleBar/ThemeMenu';
@@ -615,7 +615,7 @@ function ProjectContent({ place, folder, project, scope, read, statisticsTrail }
 }) {
   const change = folder?.change;
   // A project's statistics keep their breadcrumb and heading above why they show nothing yet.
-  const frame = (state: ReactNode) => isPage(place) ? <Page className="statistics-page" heading={<div className="page-heading-stack">{statisticsTrail}<Text render={<h1 />} variant="title">Statistics</Text></div>}>{state}</Page> : state;
+  const frame = (state: ReactNode) => isPage(place) ? <Page className="statistics-page" title="Statistics" breadcrumbs={statisticsTrail}>{state}</Page> : state;
   if (change?.status === 'missing' || (!folder?.snapshot && (change?.status === 'invalid' || folder?.failure))) {
     return frame(<EmptyState className="page-empty" icon={<ErrorIcon />} title={change?.status === 'missing' ? 'This project’s folder was moved or deleted' : 'This project can’t be read'}
       description={<>{(project?.path ?? folder?.snapshot?.root) && <bdi className="folder-problem-path">{project?.path ?? folder?.snapshot?.root}</bdi>} {change?.error ?? folder?.failure} Atlas reads it again as soon as it can.</>} />);
@@ -647,19 +647,29 @@ function ProjectContent({ place, folder, project, scope, read, statisticsTrail }
 }
 
 /**
- * A page of a plan (the plan, its statistics, a diagram, a file): with the parts rail at its right
- * when the work item is made of parts or is one of them.
+ * A page of a plan (the plan, its statistics, a diagram, a file): with the parts rail beside it, in
+ * envUI's supporting pane, when the work item is made of parts or is one of them. In a narrow window
+ * the rail is a sheet that Parts opens.
  */
 function PlanFrame({ work, snapshot, filled = false, children }: { work: Work | null; snapshot: Snapshot; filled?: boolean; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
   const group = partsGroup(work, snapshot);
   if (!group || !work) return children;
-  return <div className={'plan-frame' + (filled ? ' is-filled' : '')}><div className="plan-frame-page">{children}</div><div className="plan-frame-parts"><PartsRail group={group} shown={work.id} /></div></div>;
+  return <Panes.Root behavior="supporting" open={open} onOpenChange={setOpen} defaultWidth={18} className={'plan-frame' + (filled ? ' is-filled' : '')}>
+    <Panes.Main label={work.title} className="plan-frame-page">
+      <Panes.Trigger variant="secondary" size="sm" className="parts-trigger">Parts</Panes.Trigger>
+      {children}
+    </Panes.Main>
+    <Panes.Supporting label={'Parts of ' + workNumber(group.id)} className="plan-frame-parts"><PartsRail group={group} shown={work.id} /></Panes.Supporting>
+  </Panes.Root>;
 }
 
 /** The title bar's search: plans, documents, diagrams and projects (away from the hub, whose search field opens the same). */
 function SearchButton({ platform, onClick }: { platform: string; onClick(): void }) {
-  return <Button variant="secondary" className="search-button" startIcon={<SearchIcon />} onClick={onClick} aria-label="Search" aria-keyshortcuts={platform === 'darwin' ? 'Meta+P' : 'Control+P'}>
-    <span className="search-button-label">Search</span><span className="search-button-keys"><Kbd keys={[modifierKey(platform), 'P']} /></span>
+  // envUI's search trigger: a secondary button with the icon, its label and the shortcut's keys at its end.
+  return <Button variant="secondary" className="search-button" startIcon={<SearchIcon />} end={<span className="search-button-keys"><Kbd keys={[modifierKey(platform), 'P']} /></span>}
+    onClick={onClick} aria-label="Search" aria-keyshortcuts={platform === 'darwin' ? 'Meta+P' : 'Control+P'}>
+    <span className="search-button-label">Search</span>
   </Button>;
 }
 

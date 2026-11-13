@@ -40,7 +40,7 @@ export function ProjectMenu({ projects, chosen, computer, local, actions, newPro
   const change = (project: Project, request: ProjectChangeRequest) => { void actions.change(project, request); };
   return <>
     <Menu.Root aria-label="Project" align="end"
-      trigger={<Button variant="secondary" className="hub-project" startIcon={chosen ? <ProjectAvatar project={chosen} /> : undefined} endIcon={<IconUnfoldMore />} aria-label={'Project: ' + (chosen?.name ?? 'All projects')}>
+      trigger={<Button variant="secondary" size="sm" className="hub-project" startIcon={chosen ? <ProjectAvatar project={chosen} /> : undefined} endIcon={<IconUnfoldMore />} aria-label={'Project: ' + (chosen?.name ?? 'All projects')}>
         <span className="hub-project-label">{chosen?.name ?? 'All projects'}</span>
       </Button>}>
       <Menu.RadioGroup value={chosen?.id ?? 'all'} onValueChange={value => actions.go(hubPlace(value === 'all' ? null : value))} label="Projects">

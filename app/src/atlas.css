@@ -2,9 +2,6 @@
    from envUI components and tokens; nothing here restyles an envUI component's insides. */
 
 html, body, #root { min-block-size: 100%; }
-/* Atlas keeps the white page it had in the light theme; envUI's surfaces sit on it in their quieter
-   greys. The dark theme keeps envUI's own. */
-.env-theme:not([data-env-theme='dark']) { --env-color-bg-page: var(--env-color-bg-raised); }
 body { margin: 0; }
 /* envUI's type is regular or medium: emphasis in the interface is medium, not bold. Bold in a
    document's Markdown is its author's and stays. */
@@ -21,16 +18,15 @@ body { margin: 0; }
 .status-icon[data-tone='neutral'] { color: var(--env-color-fg-muted); }
 .status-icon[data-tone='primary'] { color: var(--env-color-fg-primary); }
 .status-icon[data-tone='accent'] { color: var(--env-color-fg-accent); }
+.status-icon[data-tone='done'] { color: var(--env-color-fg-done); }
 
 /* A window that is starting, or reading its folder. */
 .page-state { box-sizing: border-box; min-block-size: 100%; display: grid; place-content: center; justify-items: center; gap: var(--env-space-3); color: var(--env-color-fg-muted); }
 
 /* One row at the top, the window's own title bar (envUI's TopBar in a Scaffold): the logo, back and
    forward, Plans, File, View and Help and the computer at the start; Open in, search, record health
-   and the theme at the end, before the window buttons the system draws. A line under it, as the
-   sections had; the body scrolls below it. */
+   and the theme at the end, before the window buttons the system draws. The body scrolls below it. */
 .atlas-window { --app-sticky-top: 0rem; }
-.window-title-bar { border-block-end: 0.0625rem solid var(--env-color-border-default); }
 /* Menus, lists, popovers, dialogs and tooltips open over the window's drag area (the title bar): the
    window would take a click there for a drag, so they are cut out of it. */
 :is([role='menu'], [role='listbox'], [role='dialog'], [role='alertdialog'], [role='tooltip'], [popover]) { -webkit-app-region: no-drag; app-region: no-drag; }
@@ -47,9 +43,8 @@ body { margin: 0; }
 
 /* The window's page: one place at a time, in the Scaffold's body, which scrolls. */
 .window-body { --atlas-sticky-top: var(--app-sticky-top); position: relative; min-block-size: 100%; display: flex; flex-direction: column; }
-.window-page > .folder-error { margin-block-end: var(--env-space-4); }
-.window-page { flex: 1; min-inline-size: 0; padding: var(--env-space-6) var(--env-space-7) var(--env-space-9); }
-.window-page:is(:has(> .work-page), :has(> .plan-frame > .plan-frame-page > .work-page)) { padding-block-start: 0; }
+.window-page > .folder-error { margin: var(--env-space-4) var(--env-space-5) 0; }
+.window-page { flex: 1; min-inline-size: 0; }
 /* A diagram fills the body below the title bar. */
 .window-body.is-filled { block-size: 100%; min-block-size: 0; overflow: hidden; }
 .window-body.is-filled .window-page { display: flex; flex-direction: column; min-block-size: 0; padding: 0; }
@@ -84,13 +79,8 @@ body { margin: 0; }
 /* The hub's heading line: its title (and a project's Statistics) at the left, the search and the
    filters together at the right. The search gives up room first; when even its narrowest does not fit,
    the controls go under the title, still at the right. */
-.hub-heading { display: flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-3) var(--env-space-4); inline-size: 100%; }
-.hub-lead { display: flex; flex: 0 1 auto; align-items: center; gap: var(--env-space-3); min-inline-size: 0; max-inline-size: 100%; }
-.hub-title { min-inline-size: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hub-filters { display: flex; flex: 1 1 auto; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: var(--env-space-3); margin-inline-start: auto; min-inline-size: 0; white-space: nowrap; }
-.hub-search { flex: 1 1 12rem; min-inline-size: 12rem; max-inline-size: 22rem; }
-/* The controls never squeeze their labels onto two lines. */
-.hub-lead > :not(.hub-title), .hub-filters > :not(.hub-search), .hub-filters :is(button, [role='button'], [role='combobox']) { flex-shrink: 0; white-space: nowrap; }
+/* The hub's toolbar: the search gives up room first, the menu and the filter keep their labels on one line. */
+.hub-search { flex: 1 1 16rem; min-inline-size: 12rem; max-inline-size: 24rem; }
 /* With no plans to list, the state sits in the middle of the page. */
 .hub-empty { min-block-size: 50vh; }
 .hub-note { margin: 0; }
@@ -135,39 +125,25 @@ body { margin: 0; }
 .project-details section { display: grid; gap: var(--env-space-1); }
 .project-details-heading { margin: 0; color: var(--env-color-fg-muted); }
 .project-details-path { overflow-wrap: anywhere; }
-.page-heading-stack { display: grid; gap: var(--env-space-2); }
-/* A statistics page's heading: the breadcrumb over the title at the left, the period at the right. */
-.statistics-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--env-space-3) var(--env-space-4); inline-size: 100%; }
-.statistics-title { display: flex; align-items: center; gap: var(--env-space-1); }
 /* A folder chosen in the system's folder dialog: a button until one is, then the folder in a field's
    frame, its name cut short (the full path on hover) before Change… and remove. */
 
 /* The plan's files, in the sidebar at the left of the plan and its pages (the Scaffold's navigation
-   region, on the navigation's background): a heading with the button that hides it, then the plan's
+   region, on envUI's navigation background, as its NavigationDrawer): a heading with the button that hides it, then the plan's
    folder as a tree, scrolling on its own when it is long. Hidden, a quiet button at the page's top
    left brings it back. */
-.plan-files { box-sizing: border-box; display: flex; flex-direction: column; gap: var(--env-space-1); inline-size: 16rem; block-size: 100%; padding: var(--env-space-3) var(--env-space-2); background: var(--env-color-bg-navigation); border-inline-end: 0.0625rem solid var(--env-color-border-muted); }
+.plan-files { box-sizing: border-box; display: flex; flex-direction: column; gap: var(--env-space-1); inline-size: 16rem; block-size: 100%; padding: var(--env-space-3); background: var(--env-color-bg-default); }
 .plan-files-header { display: flex; align-items: center; justify-content: space-between; gap: var(--env-space-2); padding-inline-start: var(--env-space-2); }
 .plan-files-heading { margin: 0; font-weight: 500; }
 .plan-files-tree { flex: 1; min-block-size: 0; overflow-y: auto; }
 .plan-files-empty { margin: 0; padding: var(--env-space-1) var(--env-space-2); }
 .files-show { position: absolute; inset-block-start: var(--env-space-3); inset-inline-start: var(--env-space-3); z-index: var(--env-z-raised); }
-/* The parts rail: at the right of a plan and its pages when the work is made of parts or is one of
-   them, its own column beside the page, staying in view as the page scrolls. Over a diagram it floats
-   under the viewer's toolbar, and gives way to the diagram's details. */
-.plan-frame { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 16rem; gap: var(--env-space-6); }
-.plan-frame-page { min-inline-size: 0; }
-.plan-frame-parts { min-inline-size: 0; }
-.plan-frame:not(.is-filled) > .plan-frame-parts > .parts-rail { position: sticky; inset-block-start: calc(var(--atlas-sticky-top) + var(--env-space-6)); }
-.plan-frame:has(> .plan-frame-page > .work-page) > .plan-frame-parts { padding-block-start: var(--env-space-6); }
-.plan-frame.is-filled { flex: 1; display: flex; flex-direction: column; min-block-size: 0; gap: 0; }
-.plan-frame.is-filled > .plan-frame-page { flex: 1; display: flex; flex-direction: column; min-inline-size: 0; min-block-size: 0; }
-.plan-frame.is-filled > .plan-frame-parts { position: absolute; inset-block-start: 4.5rem; inset-inline-end: var(--env-space-3); z-index: var(--env-z-raised); inline-size: 16rem; padding: var(--env-space-2); border-radius: var(--env-radius-md); background: var(--env-color-bg-raised); }
-.plan-frame.is-filled:has(.inspector.open) > .plan-frame-parts { display: none; }
-@media (max-width: 60rem) {
-  .plan-frame { grid-template-columns: minmax(0, 1fr); }
-  .plan-frame:not(.is-filled) > .plan-frame-parts { order: -1; padding-block-start: var(--env-space-4); }
-}
+/* The parts rail: envUI's supporting pane beside a plan and its pages when the work is made of parts
+   or is one of them, staying in view as the page scrolls; over a diagram the panes fill the body. */
+.plan-frame-parts > .parts-rail { position: sticky; inset-block-start: 0; padding: var(--env-space-6) var(--env-space-4); }
+.plan-frame.is-filled { flex: 1; block-size: 100%; min-block-size: 0; }
+.plan-frame.is-filled > .plan-frame-page { display: flex; flex-direction: column; min-block-size: 0; }
+.parts-trigger { margin: var(--env-space-4) var(--env-space-5) 0; }
 .parts-rail { display: grid; gap: var(--env-space-2); }
 .parts-rail-heading { margin: 0; padding-inline: var(--env-space-2); font-weight: 500; }
 .parts-rail-start { display: inline-flex; align-items: center; gap: var(--env-space-2); }
@@ -190,9 +166,6 @@ body { margin: 0; }
 .explorer-diagram { color: var(--env-color-fg-primary); }
 
 /* Pages */
-.page { display: grid; gap: var(--env-space-5); align-content: start; max-inline-size: 76rem; margin-inline: auto; }
-.page-header, .page-heading-row { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; }
-.page-heading-row { flex: 1; flex-wrap: wrap; }
 /* Page and section toolbars use compact controls, like the title bar. */
 .page-toolbar, .section-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-3); --env-control-height: var(--env-control-height-sm); }
 .section-toolbar > :first-child { margin-inline-end: auto; }
@@ -200,7 +173,7 @@ body { margin: 0; }
 
 /* Ledger steps: done in the "completed" tone, in progress in the "open" tone, over the work left. */
 .step-bar { display: flex; inline-size: 100%; block-size: 0.5rem; overflow: hidden; border-radius: var(--env-radius-sm); background: var(--env-color-bg-default); }
-.step-bar-done { background: var(--env-color-fg-accent); }
+.step-bar-done { background: var(--env-color-fg-done); }
 .step-bar-doing { background: var(--env-color-fg-success); }
 .step-bar-compact { inline-size: 4rem; block-size: 0.375rem; }
 .ledger-progress { display: grid; gap: var(--env-space-2); }
@@ -219,7 +192,7 @@ body { margin: 0; }
 .handoff-ref:focus-visible { outline: 0.125rem solid var(--env-color-border-focus); outline-offset: 0.125rem; border-radius: 0.25rem; }
 .handoff-ref.muted { color: var(--env-color-fg-muted); }
 .step-icon { flex: none; inline-size: 1.125rem; block-size: 1.125rem; color: var(--env-color-fg-muted); }
-.step-icon[data-status='done'] { color: var(--env-color-fg-accent); }
+.step-icon[data-status='done'] { color: var(--env-color-fg-done); }
 .step-icon[data-status='doing'] { color: var(--env-color-fg-success); }
 .ledger-step-done span { color: var(--env-color-fg-muted); }
 /* A step the search found, marked for a moment. */
@@ -247,7 +220,7 @@ body { margin: 0; }
 }
 
 /* Work page: the plan, with the work's facts beside it. The diagrams' islands keep a gutter from the edge. */
-.work-page { --atlas-gutter: var(--env-space-3); display: grid; align-content: start; }
+.work-page { --atlas-gutter: var(--env-space-3); }
 /* An island like the diagram's: a pane pill with their hairline and shadow. */
 .diagrams-island { box-shadow: 0 0 0 0.0625rem color-mix(in srgb, var(--env-color-fg-default) 9%, transparent), 0 0.0625rem 0.1875rem color-mix(in srgb, var(--env-color-fg-default) 14%, transparent), 0 0.5rem 1.5rem -0.5rem color-mix(in srgb, var(--env-color-fg-default) 28%, transparent); }
 @media (max-width: 40rem) {
@@ -255,17 +228,12 @@ body { margin: 0; }
 }
 .work-header { display: grid; gap: var(--env-space-3); padding-block-end: var(--env-space-5); }
 .work-header-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-2); }
-/* The breadcrumb names the plan's project and number, with Export Plan… quietly on its right. */
-.work-trail { display: flex; align-items: center; gap: var(--env-space-3); }
-.work-trail .breadcrumb { flex: 1; min-inline-size: 0; }
-.work-export { flex: none; }
 /* Under the title, the status and one fact about it, muted; a blocker's reason is cut short. */
 .work-status { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); font-variant-numeric: tabular-nums; }
 .work-status-fact { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .work-status-fact + .work-status-fact { flex: none; }
 .work-status-fact + .work-status-fact::before { content: '·'; margin-inline-end: var(--env-space-2); }
 /* The plan's summary leads the page, under its status. */
-.work-summary { margin: 0; max-inline-size: 48rem; color: var(--env-color-fg-muted); font-size: var(--env-font-size-title, 1.0625rem); }
 /* The request a plan records shows folded, its heading the toggle. */
 .request-fold-toggle { display: inline-flex; align-items: center; gap: var(--env-space-1); margin: 0 0 0 -0.25rem; padding: 0 0.25rem; border: 0; border-radius: 0.25rem; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
 .request-fold-toggle:focus-visible { outline: 0.125rem solid var(--env-color-border-focus); outline-offset: 0.125rem; }
@@ -273,7 +241,7 @@ body { margin: 0; }
 .request-fold-toggle[aria-expanded='true'] .request-fold-icon { transform: rotate(90deg); }
 .request-fold:not([data-open]) > :not(:first-child) { display: none; }
 .work-number { color: var(--env-color-fg-muted); font: var(--env-type-body-sm); font-variant-numeric: tabular-nums; }
-.work-layout { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: var(--env-space-7); align-items: start; inline-size: 100%; max-inline-size: 84rem; margin-inline: auto; padding-block-start: var(--env-space-6); }
+.work-layout { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: var(--env-space-7); align-items: start; inline-size: 100%; }
 .work-main { min-inline-size: 0; }
 
 /* The side column stays where it starts, below the title bar and the sections, whatever the page
@@ -320,7 +288,6 @@ body { margin: 0; }
 .outside-reference { border-block-end: 0.0625rem dashed var(--env-color-fg-disabled); cursor: help; }
 .source-text { margin: 0; font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: var(--env-font-size-body-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
 .attachment img { max-inline-size: 100%; }
-.file-page { max-inline-size: 64rem; padding-block-start: var(--env-space-6); }
 /* The plan export viewer shows a file in a card, with its name and size above it. */
 .file-surface { overflow: hidden; }
 .reader-boxed .prose, .reader-boxed .source-text, .reader-boxed .attachment { padding: var(--env-space-5) var(--env-space-6) var(--env-space-6); }

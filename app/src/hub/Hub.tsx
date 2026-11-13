@@ -9,7 +9,7 @@
 // line with the search field, which opens the search. One click opens a plan. A connected agent that does not run Atlas (Codex not trusting its hooks, say)
 // has a notice above the plans, linking to Settings › Agents, until it does.
 import { memo, useMemo, type MouseEvent } from 'react';
-import { Alert, Button, Kbd, Link, SearchField, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
+import { Alert, Button, Kbd, Link, Row, SearchField, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
 import { StatisticsIcon, WorkIcon } from '../ui/icons';
 import type { Project } from '../types';
@@ -153,22 +153,21 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, q
       action={<Button variant="secondary" onClick={newProject}>New project</Button>} />
   </Page>;
   const empty = filters.state === 'open' ? 'No open plans' : filters.state === 'closed' ? 'No closed plans' : 'No plans yet';
-  // One line: the heading (with its statistics: the project's, or all plans') at the left, the search and the filters together at the right.
-  return <Page className="hub" heading={<div className="hub-heading">
-    <div className="hub-lead">
-      <Text render={<h1 />} variant="title" className="hub-title">{filtered?.name ?? 'Plans'}</Text>
-      <Button variant="text" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered?.id ?? null))}>Statistics</Button>
-    </div>
-    <div className="hub-filters">
+  // The title (the project's name, or Plans) with its statistics as the page's action; the search,
+  // the project menu and the state filter in the toolbar under it.
+  return <Page className="hub" title={filtered?.name ?? 'Plans'} controlSize="sm"
+    actions={<Button variant="secondary" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered?.id ?? null))}>Statistics</Button>}
+    toolbar={<Row wrap align="center" justify="between" gap={3}>
       {/* The search opens the search popup with what is typed, and never filters this list. */}
-      <SearchField className="hub-search" label="Search" placeholder="Search every project" value={query} aria-haspopup="dialog" showLabel={false}
+      <SearchField className="hub-search" size="sm" label="Search" placeholder="Search every project" value={query} aria-haspopup="dialog" showLabel={false}
         aria-keyshortcuts={platform === 'darwin' ? 'Meta+P' : 'Control+P'} suffix={query ? undefined : <Kbd keys={[modifierKey(platform), 'P']} />}
         onValueChange={search} onFocus={() => search(undefined, true)} onBlur={left} onClick={() => search()} />
+      <Row align="center" gap={2}>
       <ProjectMenu projects={projects} chosen={filtered} computer={computer} local={local} actions={actions} newProject={newProject} />
-      <SegmentedControl aria-label="Plan state" value={filters.state} onValueChange={state => setFilters({ ...filters, state: state as HubState })}
+      <SegmentedControl aria-label="Plan state" size="sm" value={filters.state} onValueChange={state => setFilters({ ...filters, state: state as HubState })}
         items={[{ value: 'open', label: 'Open', count: counts.open }, { value: 'closed', label: 'Closed', count: counts.closed }, { value: 'all', label: 'All', count: counts.all }]} />
-    </div>
-  </div>}>
+      </Row>
+    </Row>}>
     {error && <Alert tone="warning">{error}</Alert>}
     {warnings}
     {unread.length > 0 && <Text variant="caption" emphasis="muted" className="hub-note">{unread.map(project => project.name).join(', ')}: the planning folder could not be read.</Text>}

@@ -204,10 +204,8 @@ export function WorkStatisticsPage({ work }: { work: Work }) {
   const timeline = useWorkTimeline(work.id, key);
   const statistics = work.statistics;
   // Headed like a project's statistics: the breadcrumb, then the heading, here with the plan's title.
-  return <Page className="plan-statistics-page" heading={<div className="page-heading-stack">
-    <Trail work={work.id} items={[{ label: workNumber(work.id), target: workTarget(work.id) }, { label: 'Statistics' }]} />
-    <div className="plan-statistics-header"><Text render={<h1 />} variant="title">Statistics</Text><Text emphasis="muted">{work.title}</Text></div>
-  </div>}>
+  return <Page className="plan-statistics-page" title="Statistics" description={work.title}
+    breadcrumbs={<Trail work={work.id} items={[{ label: workNumber(work.id), target: workTarget(work.id) }, { label: 'Statistics' }]} />}>
     <Headline work={work} live={live} sessions={sessions} timeline={timeline} />
     {timeline && <Timeline timeline={timeline} sessions={sessions} live={live} />}
     <Section title="By model and effort"><ByModel work={work} /></Section>

@@ -19,7 +19,7 @@ const sections: { id: SettingsSection; label: string; icon: ReactNode }[] = [
 ];
 
 export function SettingsPage({ section, computer, go }: { section: SettingsSection; computer: ComputerRef; go(section: SettingsSection): void }) {
-  return <Page className="settings-page" title="Settings">
+  return <Page className="settings-page" title="Settings" width="md">
     <div className="settings-layout">
       <NavigationDrawer className="settings-nav" aria-label="Settings" background="page"
         destinations={sections.map(item => ({ label: item.label, icon: item.icon, current: item.id === section, onClick: () => go(item.id) }))} />

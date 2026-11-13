@@ -20,6 +20,7 @@ import { activityKey, NeedsYou, NowSection, nowSessions, SessionsList, useWorkSe
 import { waitingSession } from './sessions';
 import { TargetLink, useWindow } from '../window/windowContext';
 import { Trail } from '../ui/Trail';
+import { Page } from '../ui/Page';
 import { TagList } from './TagList';
 
 type WorkTarget = Extract<Target, { kind: 'work' }>;
@@ -164,19 +165,14 @@ export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Sna
   // Each plan starts folded, unless a heading of it was asked for.
   useEffect(() => { setPlanOpen(Boolean(target.anchor)); }, [work.id, target.anchor]);
   const waiting = status.key === 'waiting' && sessions ? waitingSession(sessions.sessions) : null;
-  return <div className="work-page">
+  return <Page className="work-page" breadcrumbs={<Trail work={work.id} items={[{ label: workNumber(work.id) }]} />}
+    title={work.title} meta={<StatusLine work={work} status={status} live={live} />} description={summary}>
     <div className="work-layout">
       <div className="work-main">
-        <div className="work-trail">
-          <Trail work={work.id} items={[{ label: workNumber(work.id) }]} />
-        </div>
-        <header className="work-header">
-          <Text render={<h1 />} variant="title">{work.title}</Text>
-          <StatusLine work={work} status={status} live={live} />
+        {(listing?.tags?.length || waiting) && <div className="work-header">
           {listing && <TagList tags={listing.tags ?? []} className="work-tags" />}
           {waiting && <NeedsYou work={work.id} session={waiting} />}
-          {summary && <p className="work-summary">{summary}</p>}
-        </header>
+        </div>}
         {implementing && <NowSection sessions={sessions!.sessions} />}
         {implementing && reading && <Button variant="text" className="plan-fold-toggle" aria-expanded={planOpen} aria-controls="plan-reading" startIcon={<ChevronRightIcon className="plan-fold-icon" />} onClick={() => setPlanOpen(!planOpen)}>{reading === plan ? 'Plan' : reading.name}</Button>}
         {reading ? (!implementing || planOpen) && <div id="plan-reading"><Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} plan={reading === plan} /></div>
@@ -184,5 +180,5 @@ export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Sna
       </div>
       <PlanAside work={work} snapshot={snapshot} found={target.step ?? null} live={live} listed={listing} sessions={sessions?.sessions ?? []} />
     </div>
-  </div>;
+  </Page>;
 }

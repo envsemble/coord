@@ -6,8 +6,7 @@ import App from './App';
 import './atlas.css';
 
 createRoot(document.getElementById('root')!).render(<React.StrictMode>
-  {/* envUI's comfortable scale: Atlas's type and controls keep the size they had, also under a mouse. */}
-  <ThemePreferenceProvider storageKey={themeStorageKey} scale="comfortable">
+  <ThemePreferenceProvider storageKey={themeStorageKey}>
     <ToastProvider><App /></ToastProvider>
   </ThemePreferenceProvider>
 </React.StrictMode>);
