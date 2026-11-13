@@ -7,7 +7,7 @@ import { api } from '../api';
 import { diagramTarget } from '../navigation/targets';
 import { selectDiagram } from './diagramSelection';
 import { familyLayers, stepLayer } from './layers';
-import { LayerMarker } from './LayerMarker';
+import { DiagramName, LayerMarker } from './LayerMarker';
 import { elementId } from '@envsemble/atlas/planning/provenance';
 import { Alert, Spinner, Surface, useThemePreference } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
@@ -43,10 +43,11 @@ const typing = (target: EventTarget | null) => target instanceof HTMLElement && 
  * the later captures compared with it and the proposals over it are one diagram with layers: they
  * arrive together, laid out once, so another layer shows at once in the same panel with nothing
  * moving. The layer marker and `[` and `]` switch layers; each switch is a step Back returns from.
- * Another diagram opens from the Files tree, a plan's link or Search.
+ * Another diagram opens from the Files tree, a plan's link or Search. Its elements can be dragged:
+ * the arrangement, one for all the layers, is kept beside the family's first file.
  */
 export function DiagramsView({ work, target }: { work: Work; target: DiagramTarget }) {
-  const { projectId, retarget, files } = useWindow();
+  const { projectId, retarget, files, notify } = useWindow();
   const { theme } = useThemePreference();
   const [diagrams, setDiagrams] = useState<DiagramEntry[] | null>(null);
   const [listError, setListError] = useState('');
@@ -86,6 +87,22 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
     return () => { current = false; };
   }, [projectId, selected, expected, work.id, diagrams, entry?.valid]);
 
+  // The arrangement the layers share, read again as the folder's files change.
+  const arranging = entry?.valid ? entry.family ?? entry.path : '';
+  const [arrangement, setArrangement] = useState<{ root: string; positions: Record<string, [number, number]> | null } | null>(null);
+  useEffect(() => {
+    if (!arranging) return;
+    let current = true;
+    api.arrangement(projectId, work.id, arranging).then(positions => {
+      if (current) setArrangement(previous => previous?.root === arranging && JSON.stringify(previous.positions) === JSON.stringify(positions) ? previous : { root: arranging, positions });
+    }).catch(() => { if (current) setArrangement({ root: arranging, positions: null }); });
+    return () => { current = false; };
+  }, [projectId, work.id, arranging, files]);
+  const arrange = useCallback((positions: Record<string, [number, number]> | null) => {
+    if (!arranging) return;
+    api.arrange(projectId, work.id, arranging, positions).catch(error => notify('The arrangement could not be saved: ' + (error as Error).message, 'warning'));
+  }, [projectId, work.id, arranging, notify]);
+
   const layers = useMemo(() => familyLayers(listed, selected), [listed, selected]);
   const select = useCallback((next: string) => retarget(diagramTarget(work.id, next)), [retarget, work.id]);
   // `[` and `]` step to the previous and next layer, as the marker's tooltip says.
@@ -102,19 +119,23 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
     return () => window.removeEventListener('keydown', key);
   }, [layers, selected, select]);
 
-  // The viewer draws again only when what it is given changes: the marker and the element in focus
+  // The diagram's name, or its layers (naming the one shown), at its top left. The viewer draws again
+  // only when what it is given changes: the marker and the element in focus
   // stay the same objects while nothing of theirs does.
-  const marker = useMemo(() => layers.length ? <LayerMarker layers={layers} value={selected} onChange={select} /> : null, [layers, selected, select]);
+  const marker = useMemo(() => layers.length ? <LayerMarker layers={layers} value={selected} onChange={select} />
+    : entry ? <DiagramName diagram={entry} /> : null, [layers, selected, select, entry]);
   const error = diagramError?.path === selected ? diagramError.message : '';
   const notices = [listError, error].filter(Boolean);
   const payload = entry?.valid === false ? undefined : loaded?.payloads.get(selected);
   const focus = useMemo(() => payload && target.element ? { kind: 'node' as const, id: elementId(payload.model, target.element) } : null, [payload, target.element]);
+  // Drawn once the arrangement is read, so the automatic layout does not show first.
+  const positions = arrangement?.root === arranging ? arrangement.positions : undefined;
   const empty = diagrams && !listed.length && !selected;
 
   return <section className="diagrams" aria-label="Work diagrams">
     <div className="diagrams-canvas">
-      {payload ? <ViewerErrorBoundary key={payload.family ?? selected} resetKey={payload.model.document?.revision.id}>
-        <DiagramPanel payload={payload} theme={theme} focus={focus} leading={marker} />
+      {payload && positions !== undefined ? <ViewerErrorBoundary key={payload.family ?? selected} resetKey={payload.model.document?.revision.id}>
+        <DiagramPanel payload={payload} theme={theme} focus={focus} leading={marker} arrangement={positions} onArrange={arrange} />
       </ViewerErrorBoundary>
       : <>
         {marker && <div className="diagrams-islands">

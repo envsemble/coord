@@ -24,6 +24,10 @@ export function createCamera({
   onTap,
   onMotion,
   insets = () => NO_INSETS,
+  // A press on an element drags it, when this says it may: `start(target,
+  // point)` returns whether it takes the press; `move(point)` follows the
+  // pointer and `end(moved)` lets go. Points are in diagram coordinates.
+  elementDrag = null,
 }) {
   let camera = { x: 0, y: 0, scale: 1, fitted: true };
   let destination = { ...camera };
@@ -267,11 +271,15 @@ export function createCamera({
   }
 
   function clearPointers(canvas = canvasRef.current) {
+    if (drag?.element) {
+      drag.element = false;
+      elementDrag?.end(false);
+    }
     for (const id of pointers.keys())
       if (canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
     pointers.clear();
     drag = null;
-    canvas.classList.remove("dragging");
+    canvas.classList.remove("dragging", "moving");
   }
 
   function restoreView(key, focusIds = []) {
@@ -424,6 +432,16 @@ export function createCamera({
       const rect = canvas.getBoundingClientRect();
       return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
+    // A canvas point in the diagram's own coordinates, as the camera shows it.
+    const inDiagram = (p) => ({
+      x: (p.x - camera.x) / camera.scale,
+      y: (p.y - camera.y) / camera.scale,
+    });
+    const letGo = (moved) => {
+      if (!drag?.element) return;
+      drag.element = false;
+      elementDrag?.end(moved);
+    };
     const motionPreference =
       typeof matchMedia === "function"
         ? matchMedia("(prefers-reduced-motion: reduce)")
@@ -456,6 +474,8 @@ export function createCamera({
       const p = position(e);
       pointers.set(e.pointerId, p);
       canvas.setPointerCapture(e.pointerId);
+      // A second finger turns an element's drag into a pinch.
+      if (pointers.size > 1) letGo(false);
       drag = {
         startX: p.x,
         startY: p.y,
@@ -464,8 +484,10 @@ export function createCamera({
         moved: false,
         target: e.target,
         gesture: gesture(),
+        element:
+          pointers.size === 1 && !!elementDrag?.start(e.target, inDiagram(p)),
       };
-      canvas.classList.add("dragging");
+      canvas.classList.add(drag.element ? "moving" : "dragging");
     });
     listen(canvas, "pointermove", (e) => {
       if (!pointers.has(e.pointerId) || !drag) return;
@@ -482,7 +504,15 @@ export function createCamera({
         moved = true;
         drag.gesture = g;
       } else if (g) drag.gesture = g;
-      else {
+      else if (drag.element) {
+        if (Math.hypot(p.x - drag.startX, p.y - drag.startY) > 4)
+          drag.moved = true;
+        if (drag.moved && !moved) onMotion?.();
+        if (drag.moved) {
+          moved = true;
+          elementDrag.move(inDiagram(p));
+        }
+      } else {
         const wasMoved = drag.moved;
         if (Math.hypot(p.x - drag.startX, p.y - drag.startY) > 4)
           drag.moved = true;
@@ -503,10 +533,11 @@ export function createCamera({
       if (e.type === "pointercancel") moved = true;
       pointers.delete(e.pointerId);
       if (!pointers.size) {
+        letGo(e.type === "pointerup" && !!drag?.moved);
         if (e.type === "pointerup" && drag && !drag.moved && drag.target)
           onTap?.(drag.target);
         drag = null;
-        canvas.classList.remove("dragging");
+        canvas.classList.remove("dragging", "moving");
       } else {
         const p = [...pointers.values()][0];
         drag = {

@@ -181,7 +181,7 @@ test("a plan opens from the hub with its summary and its side column, and with i
   // A diagram opens from its link in the plan; Back returns to the plan.
   await window.locator('.prose .diagram-link').first().click();
   await expect(window.locator('.diagrams .atlas-panel').first()).toBeVisible();
-  await expect(window.locator('.diagrams .island-start .diagram-picker-button')).toBeVisible();
+  await expect(window.locator('.diagrams .island-start .diagram-title')).toBeVisible();
   await window.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
   // The trail's project leads to the hub filtered to the project, which Back leaves again.
@@ -256,7 +256,7 @@ test("the plan's files are beside its pages with the plan's own folder, open a f
   // A folder opens in place; a diagram file opens as a diagram, any other file on the page; the sidebar stays.
   await files.locator(row('d:active/0001-saved-payment-methods/diagrams')).click();
   await files.locator(row('f:active/0001-saved-payment-methods/diagrams/checkout-proposal.puml')).click();
-  await expect(window.locator('.diagram-picker-title')).toHaveText('Checkout · proposed payment methods');
+  await expect(window.locator('.diagrams .diagram-title')).toHaveText('Checkout · proposed payment methods');
   await expect(sidebar).toBeVisible();
   await files.locator(row('f:active/0001-saved-payment-methods/CONTEXT.md')).click();
   await expect(files.locator(row('f:active/0001-saved-payment-methods/CONTEXT.md'))).toHaveAttribute('aria-selected', 'true');
@@ -556,9 +556,9 @@ test("the search shows the host's results grouped by kind with their project, wo
 
   // A diagram's element, a plan at a step (pointed out in its progress) and a project.
   await choose('Shipment');
-  await expect(window.locator('.diagram-picker-title')).toHaveText('Fulfilment · conceptual model');
-  await window.locator('.diagram-picker-button').hover();
-  await expect(window.locator('.inspector.open').getByRole('heading', { level: 1 })).toHaveText('Shipment');
+  await expect(window.locator('.diagrams .diagram-title')).toHaveText('Fulfilment · conceptual model');
+  // The element is selected.
+  await expect(window.locator('.diagrams .node[data-name="Shipment"]').first()).toHaveAttribute('aria-pressed', 'true');
   await choose('Wire placeOrderWithSavedMethod into checkout');
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
   const step = window.locator('.plan-aside .ledger-step[data-found]');

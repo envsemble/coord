@@ -37,7 +37,7 @@ Where an element, member or relation is declared, and a short excerpt of its sou
 _Avoid_: Proof, source record
 
 **Description**:
-One short sentence of what an element or member is for, written as an `' atlas description` line above it. The viewer shows it in the details and as the element's tooltip; the rationale stays in the plan.
+One short sentence of what an element or member is for, written as an `' atlas description` line above it. The viewer shows it as the element's tooltip; the rationale stays in the plan.
 _Avoid_: Note, comment
 
 **Coverage**:

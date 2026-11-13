@@ -80,6 +80,24 @@ export const isoTime = string({ min: 20, max: 40, pattern: /^\d{4}-\d{2}-\d{2}T\
 /** A diagram file's path in its work folder, relative and inside it. */
 export const diagramPath = string({ min: 6, max: pathLimit, pattern: /^(?![\\/])(?![a-zA-Z]:)(?!.*(?:^|\/)\.\.(?:\/|$)).+\.puml$/i });
 /** A project's ID, as the project list gives it: `f-` and 32 hex digits. */
+/** The most elements an arrangement places. */
+export const arrangementLimit = 5000;
+/**
+ * A diagram's arrangement as a reader made it: each element's top-left corner, by the element's id,
+ * in the diagram's coordinates (rounded to a tenth).
+ */
+export const diagramPositions: Validator<Record<string, [number, number]>> = (value, at = '') => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) fail(at, 'an object');
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length > arrangementLimit) fail(at, `at most ${arrangementLimit} positions`);
+  const positions: Record<string, [number, number]> = {};
+  for (const [id, point] of entries) {
+    if (!id || id.length > 512 || id.includes('\0')) fail(`${at}.${id.slice(0, 40)}`, 'an element id');
+    if (!Array.isArray(point) || point.length !== 2 || !point.every(n => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= 1e6)) fail(`${at}.${id.slice(0, 40)}`, 'a position [x, y]');
+    positions[id] = [Math.round(point[0] * 10) / 10, Math.round(point[1] * 10) / 10];
+  }
+  return positions;
+};
 export const projectId = string({ min: 34, max: 34, pattern: /^f-[a-f0-9]{32}$/ });
 export const deviceId = string({ min: 8, max: 64, pattern: /^d-[a-f0-9]{32}$/ });
 
@@ -134,6 +152,8 @@ export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['p
   'project.document': object({ projectId, path: relativePath }),
   'project.diagrams': object({ projectId, work: workId }),
   'project.diagram': object({ projectId, work: workId, path: diagramPath }),
+  'project.arrangement': object({ projectId, work: workId, path: diagramPath }),
+  'project.arrange': object({ projectId, work: workId, path: diagramPath, positions: nullable(diagramPositions) }),
   'project.references': object({ projectId, work: nullable(workId), path: relativePath }),
   'project.diagramIndex': object({ projectId }),
   'access.state': none,

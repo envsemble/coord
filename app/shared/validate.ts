@@ -5,7 +5,7 @@ import { agentIds, appCommands, fullPath, limits, settingsSections, themePrefere
 import { array, diagramPath, integer, nullable, object, oneOf, optional, projectId, relativePath, string, workId, type Validator } from '@envsemble/atlas/host/validate';
 
 export {
-  ValidationError, argumentsOf, array, boolean, diagramPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode,
+  ValidationError, argumentsOf, array, boolean, diagramPath, diagramPositions, integer, ipAddress, nullable, object, oneOf, optional, pairingCode,
   port, projectId, projectName, relativePath, string, workId, type Validator,
 } from '@envsemble/atlas/host/validate';
 

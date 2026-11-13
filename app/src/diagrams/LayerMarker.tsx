@@ -3,6 +3,9 @@ import { IconLayers } from '@envsemble/envui/icons/Layers';
 import { IconDifference } from '@envsemble/envui/icons/Difference';
 import { IconPhotoCamera } from '@envsemble/envui/icons/PhotoCamera';
 import type { Layer } from './layers';
+import type { DiagramEntry } from '../types';
+import { DiagramIcon } from '../ui/icons';
+import { ProvenanceBadge } from '../ui/badges';
 
 /**
  * A diagram's layers, in the diagram's top left: one segment per file of its family, the one shown
@@ -19,6 +22,15 @@ export function LayerMarker({ layers, value, onChange }: { layers: Layer[]; valu
     {items.length <= 5
       ? <SegmentedControl size="sm" aria-label="Layer" items={items} value={current.path} onValueChange={next => next && onChange(next)} />
       : <Select size="sm" aria-label="Layer" items={items.map(({ value: path, label }) => ({ value: path, label }))} value={current.path} onValueChange={next => next && onChange(next)} />}
-    <Text render={<span />} emphasis="muted" className="layer-marker-title" title={current.title}>{current.title}</Text>
+    <Text render={<span />} emphasis="muted" className="layer-marker-title diagram-title" title={current.title}>{current.title}</Text>
+  </div>;
+}
+
+/** A diagram that is not one of a family's layers, named in the diagram's top left with where it came from. */
+export function DiagramName({ diagram }: { diagram: DiagramEntry }) {
+  return <div className="layer-marker">
+    <span className="layer-marker-icon" aria-hidden="true"><DiagramIcon /></span>
+    <Text render={<span />} variant="title" className="layer-marker-title diagram-title" title={diagram.title}>{diagram.title}</Text>
+    <ProvenanceBadge provenance={diagram.provenance} />
   </div>;
 }

@@ -1230,6 +1230,33 @@ import { jsx as jsx4, jsxs as jsxs3 } from "react/jsx-runtime";
 var markerStates = ["", "-active", "-primary"];
 var changeStates = Object.keys(CHANGE_COLORS).map((change) => `-${change}`);
 var markerColor = (state, normal) => state === "-primary" ? "var(--diagram-selection,#9a6700)" : state === "-active" ? "var(--accent,#0969da)" : CHANGE_COLORS[state.slice(1)] || normal;
+function UMLPackages({ packages }) {
+  if (!packages?.length) return null;
+  return /* @__PURE__ */ jsx4("g", { className: "package-layer", "aria-hidden": "true", children: packages.map((p) => /* @__PURE__ */ jsxs3("g", { transform: `translate(${p.x} ${p.y})`, children: [
+    /* @__PURE__ */ jsx4(
+      "rect",
+      {
+        width: p.width,
+        height: p.height,
+        rx: "10",
+        fill: "var(--diagram-package,rgba(130,140,155,0.07))",
+        stroke: "var(--diagram-package-border,rgba(130,140,155,0.3))",
+        vectorEffect: "non-scaling-stroke"
+      }
+    ),
+    /* @__PURE__ */ jsx4(
+      "text",
+      {
+        x: "14",
+        y: "21",
+        fill: "var(--diagram-muted,#59636e)",
+        fontSize: "12.5",
+        fontWeight: "600",
+        children: p.name
+      }
+    )
+  ] }, p.name)) });
+}
 var UMLDiagram = memo(function UMLDiagram2({
   diagram,
   active = null,
@@ -1372,6 +1399,7 @@ var UMLDiagram = memo(function UMLDiagram2({
               state
             ))
           ] }),
+          /* @__PURE__ */ jsx4(UMLPackages, { packages: diagram.packages }),
           /* @__PURE__ */ jsxs3("g", { className: "relation-routes", children: [
             (diagram.generalizationGroups || []).map((group) => /* @__PURE__ */ jsx4(
               UMLGeneralizationGroup,
@@ -1517,7 +1545,11 @@ function createCamera({
   onZoom,
   onTap,
   onMotion,
-  insets = () => NO_INSETS
+  insets = () => NO_INSETS,
+  // A press on an element drags it, when this says it may: `start(target,
+  // point)` returns whether it takes the press; `move(point)` follows the
+  // pointer and `end(moved)` lets go. Points are in diagram coordinates.
+  elementDrag = null
 }) {
   let camera = { x: 0, y: 0, scale: 1, fitted: true };
   let destination = { ...camera };
@@ -1706,11 +1738,15 @@ function createCamera({
     else snapTo(next);
   }
   function clearPointers(canvas = canvasRef.current) {
+    if (drag?.element) {
+      drag.element = false;
+      elementDrag?.end(false);
+    }
     for (const id of pointers.keys())
       if (canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
     pointers.clear();
     drag = null;
-    canvas.classList.remove("dragging");
+    canvas.classList.remove("dragging", "moving");
   }
   function restoreView(key, focusIds = []) {
     cancelMotion();
@@ -1827,6 +1863,15 @@ function createCamera({
       const rect = canvas.getBoundingClientRect();
       return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
+    const inDiagram = (p) => ({
+      x: (p.x - camera.x) / camera.scale,
+      y: (p.y - camera.y) / camera.scale
+    });
+    const letGo = (moved2) => {
+      if (!drag?.element) return;
+      drag.element = false;
+      elementDrag?.end(moved2);
+    };
     const motionPreference = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
     reducedMotion = motionPreference?.matches || false;
     if (motionPreference)
@@ -1855,6 +1900,7 @@ function createCamera({
       const p = position(e);
       pointers.set(e.pointerId, p);
       canvas.setPointerCapture(e.pointerId);
+      if (pointers.size > 1) letGo(false);
       drag = {
         startX: p.x,
         startY: p.y,
@@ -1862,9 +1908,10 @@ function createCamera({
         lastY: p.y,
         moved: false,
         target: e.target,
-        gesture: gesture()
+        gesture: gesture(),
+        element: pointers.size === 1 && !!elementDrag?.start(e.target, inDiagram(p))
       };
-      canvas.classList.add("dragging");
+      canvas.classList.add(drag.element ? "moving" : "dragging");
     });
     listen(canvas, "pointermove", (e) => {
       if (!pointers.has(e.pointerId) || !drag) return;
@@ -1881,7 +1928,15 @@ function createCamera({
         moved = true;
         drag.gesture = g;
       } else if (g) drag.gesture = g;
-      else {
+      else if (drag.element) {
+        if (Math.hypot(p.x - drag.startX, p.y - drag.startY) > 4)
+          drag.moved = true;
+        if (drag.moved && !moved) onMotion?.();
+        if (drag.moved) {
+          moved = true;
+          elementDrag.move(inDiagram(p));
+        }
+      } else {
         const wasMoved = drag.moved;
         if (Math.hypot(p.x - drag.startX, p.y - drag.startY) > 4)
           drag.moved = true;
@@ -1902,10 +1957,11 @@ function createCamera({
       if (e.type === "pointercancel") moved = true;
       pointers.delete(e.pointerId);
       if (!pointers.size) {
+        letGo(e.type === "pointerup" && !!drag?.moved);
         if (e.type === "pointerup" && drag && !drag.moved && drag.target)
           onTap?.(drag.target);
         drag = null;
-        canvas.classList.remove("dragging");
+        canvas.classList.remove("dragging", "moving");
       } else {
         const p = [...pointers.values()][0];
         drag = {
@@ -2015,9 +2071,10 @@ function useDiagramCamera({
   onZoom,
   onTap,
   onMotion,
-  insets
+  insets,
+  elementDrag = null
 }) {
-  const callbacks = useRef2({ onZoom, onTap, onMotion, insets });
+  const callbacks = useRef2({ onZoom, onTap, onMotion, insets, elementDrag });
   const controls = useMemo2(
     () => createCamera({
       canvasRef,
@@ -2028,17 +2085,22 @@ function useDiagramCamera({
       insets: (canvas) => {
         const value = callbacks.current.insets;
         return typeof value === "function" ? value(canvas) : value;
+      },
+      elementDrag: {
+        start: (target, point) => !!callbacks.current.elementDrag?.start(target, point),
+        move: (point) => callbacks.current.elementDrag?.move(point),
+        end: (moved) => callbacks.current.elementDrag?.end(moved)
       }
     }),
     // A new camera implementation during Vite refresh needs a new controller.
     [createCamera]
   );
   useLayoutEffect2(() => {
-    callbacks.current = { onZoom, onTap, onMotion, insets };
-  }, [onZoom, onTap, onMotion, insets]);
+    callbacks.current = { onZoom, onTap, onMotion, insets, elementDrag };
+  }, [onZoom, onTap, onMotion, insets, elementDrag]);
   useLayoutEffect2(() => {
     controls.restoreView(diagram.key, diagram.initialFocus);
-  }, [controls, diagram]);
+  }, [controls, diagram.key, diagram.initialFocus]);
   useLayoutEffect2(() => {
     if (focusRequest?.ids)
       controls.focusNodes(focusRequest.ids, focusRequest.rightInset);
@@ -2062,7 +2124,8 @@ var DiagramCanvas = memo2(
     onSelect,
     onZoom,
     onHover,
-    onClearHover
+    onClearHover,
+    elementDrag = null
   }, ref) {
     const canvasRef = useRef3(null), worldRef = useRef3(null);
     const [focused, setFocused] = useState2(null);
@@ -2080,13 +2143,18 @@ var DiagramCanvas = memo2(
       // invokes this only for taps, so panning and zooming retain selection.
       onTap: (element) => onSelect(readTarget(element)),
       onMotion: clearTransient,
-      insets: fitInsets
+      insets: fitInsets,
+      elementDrag
     });
     useImperativeHandle(ref, () => controls, [controls]);
     useLayoutEffect3(() => {
       if (selected?.kind === "node") controls.revealNode(selected.id);
-    }, [controls, diagram, selected]);
-    useLayoutEffect3(clearTransient, [clearTransient, diagram]);
+    }, [controls, diagram.key, diagram.initialFocus, selected]);
+    useLayoutEffect3(clearTransient, [
+      clearTransient,
+      diagram.key,
+      diagram.initialFocus
+    ]);
     useLayoutEffect3(clearTransient, [clearTransient, selected]);
     useEffect(() => {
       const escape = (e) => {
@@ -2107,6 +2175,7 @@ var DiagramCanvas = memo2(
       {
         ref: canvasRef,
         id: "canvas",
+        className: elementDrag ? "arrangeable" : void 0,
         "aria-label": "Interactive diagram",
         onPointerLeave: () => onHover(null),
         children: [
@@ -2282,6 +2351,7 @@ import { IconFolderZip } from "@envsemble/envui/icons/FolderZip";
 import { IconImage } from "@envsemble/envui/icons/Image";
 import { IconInfo } from "@envsemble/envui/icons/Info";
 import { IconRemove } from "@envsemble/envui/icons/Remove";
+import { IconRestartAlt } from "@envsemble/envui/icons/RestartAlt";
 import { IconSchool } from "@envsemble/envui/icons/School";
 
 // src/viewer/CameraControls.jsx
@@ -3778,13 +3848,14 @@ function Panel({
 import { jsx as jsx22, jsxs as jsxs15 } from "react/jsx-runtime";
 function SidePanel({ state, model, scenarios }) {
   const { panel, changes, closePanel, hover, inspectScenario } = state;
+  if (!panel) return null;
   const showsChanges = panel === "changes";
   return /* @__PURE__ */ jsxs15(
     Panel,
     {
       id: "side-panel",
       className: "side-panel",
-      open: !!panel,
+      open: true,
       title: showsChanges ? "Changes" : "Understand the model",
       label: showsChanges ? "Changes in this proposal" : "Model guide",
       toolbar: showsChanges ? changes.navigation : null,
@@ -3954,8 +4025,1046 @@ function ViewerContent({
 }
 
 // src/viewer/DiagramPanel.jsx
-import { memo as memo4, useMemo as useMemo8, useRef as useRef7 } from "react";
+import { memo as memo4, useMemo as useMemo9, useRef as useRef8 } from "react";
 import { Theme } from "@envsemble/envui";
+
+// src/viewer/useArrangement.js
+import { useCallback as useCallback6, useEffect as useEffect5, useMemo as useMemo8, useRef as useRef7, useState as useState11 } from "react";
+
+// src/canvas/arrange.mjs
+var MARGIN = 12;
+var STUB = 18;
+var PORT_GAP = 20;
+var BEND = 24;
+var SOFT = 4;
+var JUNCTION = 28;
+var PADDING = 28;
+var PLACE_GAP = 40;
+var NUDGE = 8;
+var REGION = 64;
+var DX = [1, 0, -1, 0];
+var DY = [0, 1, 0, -1];
+var round = (n) => Number(n.toFixed(2));
+var clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+var centreOf = (b) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
+var pointBox = (p) => ({ x: p.x, y: p.y, width: 0, height: 0 });
+function parsePath(d) {
+  const n = (d.match(/-?\d+(?:\.\d+)?(?:e[-+]?\d+)?/g) || []).map(Number);
+  const points = [];
+  for (let i = 0; i + 1 < n.length; i += 2)
+    points.push({ x: n[i], y: n[i + 1] });
+  return points;
+}
+var pathOf = (points) => points.map((p, i) => (i ? "L" : "M") + round(p.x) + " " + round(p.y)).join(" ");
+function simplify(points) {
+  const out = [];
+  const same2 = (a, b) => Math.abs(a - b) < 0.01;
+  for (const p of points) {
+    const last = out[out.length - 1];
+    if (last && same2(last.x, p.x) && same2(last.y, p.y)) continue;
+    const before = out[out.length - 2];
+    if (before && (same2(before.x, last.x) && same2(last.x, p.x) || same2(before.y, last.y) && same2(last.y, p.y))) {
+      out[out.length - 1] = p;
+      continue;
+    }
+    out.push(p);
+  }
+  return out;
+}
+function segmentsOf(points) {
+  const out = [];
+  for (let i = 1; i < points.length; i++) out.push([points[i - 1], points[i]]);
+  return out;
+}
+function crosses(a, b, box, inset) {
+  const left = box.x + inset, right = box.x + box.width - inset, top = box.y + inset, bottom = box.y + box.height - inset;
+  if (left >= right || top >= bottom) return false;
+  return Math.max(a.x, b.x) > left && Math.min(a.x, b.x) < right && Math.max(a.y, b.y) > top && Math.min(a.y, b.y) < bottom;
+}
+function hits(points, boxes, skip) {
+  for (let i = 1; i < points.length; i++)
+    for (const box of boxes)
+      if (!skip?.has(box.id) && crosses(points[i - 1], points[i], box, 1))
+        return true;
+  return false;
+}
+function overlapping(a, b, gap = 0) {
+  return a.x < b.x + b.width + gap && a.x + a.width + gap > b.x && a.y < b.y + b.height + gap && a.y + a.height + gap > b.y;
+}
+function rectTouchesSegment(r, a, b, gap) {
+  return Math.max(a.x, b.x) > r.x - gap && Math.min(a.x, b.x) < r.x + r.width + gap && Math.max(a.y, b.y) > r.y - gap && Math.min(a.y, b.y) < r.y + r.height + gap;
+}
+var alongY = (side) => side % 2 === 0;
+function sideRange(box, side) {
+  return alongY(side) ? [box.y, box.y + box.height] : [box.x, box.x + box.width];
+}
+function portPoint(box, side, t) {
+  if (side === 0) return { x: box.x + box.width, y: t };
+  if (side === 1) return { x: t, y: box.y + box.height };
+  if (side === 2) return { x: box.x, y: t };
+  return { x: t, y: box.y };
+}
+function facing(box, other) {
+  const gapX = Math.max(
+    other.x - (box.x + box.width),
+    box.x - (other.x + other.width)
+  );
+  const gapY = Math.max(
+    other.y - (box.y + box.height),
+    box.y - (other.y + other.height)
+  );
+  const a = centreOf(box), b = centreOf(other);
+  if (gapX >= gapY) return b.x >= a.x ? 0 : 2;
+  return b.y >= a.y ? 1 : 3;
+}
+function sideOf(box, p) {
+  for (let side = 0; side < 4; side++) {
+    const t = alongY(side) ? p.y : p.x;
+    const q = portPoint(box, side, t);
+    const [lo, hi] = sideRange(box, side);
+    if (Math.abs(q.x - p.x) < 1.5 && Math.abs(q.y - p.y) < 1.5 && t >= lo - 1 && t <= hi + 1)
+      return side;
+  }
+  return -1;
+}
+function sideSpan(box, side) {
+  const [lo, hi] = sideRange(box, side);
+  const inset = Math.min(16, (hi - lo) / 4);
+  return [lo + inset, hi - inset];
+}
+function preferredAlong(box, side, other) {
+  const [lo, hi] = sideSpan(box, side);
+  const [olo, ohi] = sideSpan(other, side + 2 & 3);
+  const from = Math.max(lo, olo), to = Math.min(hi, ohi);
+  if (from <= to) return (from + to) / 2;
+  const c = alongY(side) ? centreOf(other).y : centreOf(other).x;
+  return clamp(c, lo, hi);
+}
+function spread(items, lo, hi) {
+  const n = items.length;
+  const gap = n > 1 ? Math.min(PORT_GAP, Math.max(0, hi - lo) / (n - 1)) : 0;
+  const top = Math.max(lo, hi - (n - 1) * gap);
+  const blocks = [];
+  items.forEach((item, i) => {
+    let block = {
+      total: (item.pref - i * gap) * item.weight,
+      weight: item.weight,
+      count: 1
+    };
+    while (blocks.length && blocks[blocks.length - 1].total / blocks[blocks.length - 1].weight >= block.total / block.weight) {
+      const last = blocks.pop();
+      block = {
+        total: last.total + block.total,
+        weight: last.weight + block.weight,
+        count: last.count + block.count
+      };
+    }
+    blocks.push(block);
+  });
+  const out = [];
+  for (const block of blocks) {
+    const v = clamp(block.total / block.weight, lo, top);
+    for (let k = 0; k < block.count; k++) out.push(v + out.length * gap);
+  }
+  return out;
+}
+function stubLength(box, side, port, boxes) {
+  let room = Infinity;
+  for (const o of boxes) {
+    if (o.id === box.id) continue;
+    if (alongY(side)) {
+      if (port.y <= o.y - MARGIN || port.y >= o.y + o.height + MARGIN) continue;
+      const d = side === 0 ? o.x - port.x : port.x - (o.x + o.width);
+      if (d >= 0) room = Math.min(room, d);
+    } else {
+      if (port.x <= o.x - MARGIN || port.x >= o.x + o.width + MARGIN) continue;
+      const d = side === 1 ? o.y - port.y : port.y - (o.y + o.height);
+      if (d >= 0) room = Math.min(room, d);
+    }
+  }
+  return clamp(room / 2, 2, STUB);
+}
+var Heap = class {
+  constructor() {
+    this.keys = [];
+    this.values = [];
+  }
+  get size() {
+    return this.keys.length;
+  }
+  push(key, value) {
+    const { keys, values } = this;
+    let i = keys.length;
+    keys.push(key);
+    values.push(value);
+    while (i > 0) {
+      const parent = i - 1 >> 1;
+      if (keys[parent] <= key) break;
+      keys[i] = keys[parent];
+      values[i] = values[parent];
+      i = parent;
+    }
+    keys[i] = key;
+    values[i] = value;
+  }
+  pop() {
+    const { keys, values } = this;
+    const top = values[0];
+    const key = keys.pop(), value = values.pop();
+    if (keys.length) {
+      let i = 0;
+      const n = keys.length;
+      for (; ; ) {
+        let child = 2 * i + 1;
+        if (child >= n) break;
+        if (child + 1 < n && keys[child + 1] < keys[child]) child++;
+        if (keys[child] >= key) break;
+        keys[i] = keys[child];
+        values[i] = values[child];
+        i = child;
+      }
+      keys[i] = key;
+      values[i] = value;
+    }
+    return top;
+  }
+};
+function uniqueSorted(values) {
+  values.sort((a, b) => a - b);
+  const out = [];
+  for (const v of values)
+    if (!out.length || v !== out[out.length - 1]) out.push(v);
+  return out;
+}
+function indexIn(sorted, v) {
+  let lo = 0, hi = sorted.length - 1;
+  while (lo < hi) {
+    const mid = lo + hi >> 1;
+    if (sorted[mid] < v) lo = mid + 1;
+    else hi = mid;
+  }
+  return sorted[lo] === v ? lo : -1;
+}
+function search(from, fromDir, to, arrival, obstacles, region) {
+  const xv = [region.x0, region.x1, from.x, to.x];
+  const yv = [region.y0, region.y1, from.y, to.y];
+  for (const o of obstacles) {
+    xv.push(round(o.x - MARGIN), round(o.x + o.width + MARGIN));
+    yv.push(round(o.y - MARGIN), round(o.y + o.height + MARGIN));
+  }
+  const xs = uniqueSorted(xv), ys = uniqueSorted(yv);
+  const nx = xs.length, ny = ys.length;
+  const si = indexIn(xs, from.x), sj = indexIn(ys, from.y), gi = indexIn(xs, to.x), gj = indexIn(ys, to.y);
+  if (si < 0 || sj < 0 || gi < 0 || gj < 0) return null;
+  const states = nx * ny * 4;
+  const GOAL = states;
+  const cost = new Float64Array(states + 1).fill(Infinity);
+  const parent = new Int32Array(states + 1).fill(-1);
+  const closed = new Uint8Array(states + 1);
+  const across = new Float64Array(Math.max(0, (nx - 1) * ny)).fill(-1);
+  const down = new Float64Array(Math.max(0, nx * (ny - 1))).fill(-1);
+  const classify = (x1, y1, x2, y2) => {
+    const a = { x: x1, y: y1 }, b = { x: x2, y: y2 };
+    let soft = false;
+    for (const o of obstacles) {
+      if (crosses(a, b, o, 0.5)) return Infinity;
+      if (!soft && crosses(a, b, o, 0.5 - MARGIN)) soft = true;
+    }
+    const length = x2 - x1 + (y2 - y1);
+    return soft ? length * SOFT : length;
+  };
+  const step = (i, j, d) => {
+    if (d === 0 || d === 2) {
+      const a = d === 0 ? i : i - 1;
+      const k2 = j * (nx - 1) + a;
+      if (across[k2] < 0) across[k2] = classify(xs[a], ys[j], xs[a + 1], ys[j]);
+      return across[k2];
+    }
+    const b = d === 1 ? j : j - 1;
+    const k = i * (ny - 1) + b;
+    if (down[k] < 0) down[k] = classify(xs[i], ys[b], xs[i], ys[b + 1]);
+    return down[k];
+  };
+  const goalPoint = gj * nx + gi;
+  const heap = new Heap();
+  const start = (sj * nx + si) * 4 + fromDir;
+  cost[start] = 0;
+  heap.push(Math.abs(from.x - to.x) + Math.abs(from.y - to.y), start);
+  while (heap.size) {
+    const s = heap.pop();
+    if (closed[s]) continue;
+    closed[s] = 1;
+    if (s === GOAL) break;
+    const p = s >> 2, d = s & 3;
+    const i = p % nx, j = (p - i) / nx;
+    if (p === goalPoint) {
+      const total = cost[s] + arrival[d];
+      if (total < cost[GOAL]) {
+        cost[GOAL] = total;
+        parent[GOAL] = s;
+        heap.push(total, GOAL);
+      }
+    }
+    for (let nd = 0; nd < 4; nd++) {
+      if (nd === (d + 2 & 3)) continue;
+      const ni = i + DX[nd], nj = j + DY[nd];
+      if (ni < 0 || nj < 0 || ni >= nx || nj >= ny) continue;
+      const c = step(i, j, nd);
+      if (c === Infinity) continue;
+      const ns = (nj * nx + ni) * 4 + nd;
+      const g = cost[s] + c + (nd === d ? 0 : BEND);
+      if (g < cost[ns]) {
+        cost[ns] = g;
+        parent[ns] = s;
+        heap.push(g + Math.abs(xs[ni] - to.x) + Math.abs(ys[nj] - to.y), ns);
+      }
+    }
+  }
+  if (parent[GOAL] < 0) return null;
+  const points = [];
+  for (let s = parent[GOAL]; s >= 0; s = parent[s]) {
+    const p = s >> 2;
+    const i = p % nx;
+    points.push({ x: xs[i], y: ys[(p - i) / nx] });
+  }
+  return points.reverse();
+}
+function regionAround(points, boxes, pad) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const b of [...points.map(pointBox), ...boxes]) {
+    x0 = Math.min(x0, b.x);
+    y0 = Math.min(y0, b.y);
+    x1 = Math.max(x1, b.x + b.width);
+    y1 = Math.max(y1, b.y + b.height);
+  }
+  return {
+    x0: round(x0 - pad),
+    y0: round(y0 - pad),
+    x1: round(x1 + pad),
+    y1: round(y1 + pad)
+  };
+}
+function routeBetween(start, end, boxes, near, everything) {
+  const local = regionAround([start.stub, end.stub], near, REGION);
+  const tries = [
+    [
+      local,
+      boxes.filter(
+        (o) => o.x - MARGIN < local.x1 && o.x + o.width + MARGIN > local.x0 && o.y - MARGIN < local.y1 && o.y + o.height + MARGIN > local.y0
+      )
+    ],
+    [regionAround([start.stub, end.stub], [everything], REGION), boxes]
+  ];
+  for (const [region, obstacles] of tries) {
+    const found = search(
+      start.stub,
+      start.dir,
+      end.stub,
+      end.arrival,
+      obstacles,
+      region
+    );
+    if (!found) continue;
+    const points = simplify([start.port, ...found, end.port]);
+    if (obstacles === boxes || !hits(points, boxes)) return points;
+  }
+  return simplify([
+    start.port,
+    start.stub,
+    { x: end.stub.x, y: start.stub.y },
+    end.stub,
+    end.port
+  ]);
+}
+function arrivalInto(side) {
+  const arrival = [BEND, BEND, BEND, BEND];
+  arrival[side + 2 & 3] = 0;
+  arrival[side] = Infinity;
+  return arrival;
+}
+function selfLoop(box, k, boxes) {
+  const a = Math.min(16 + 12 * k, box.width / 2, box.height / 2);
+  const r = 20 + 10 * k;
+  const loopAt = (corner) => {
+    const sx = corner === 0 || corner === 1 ? 1 : -1;
+    const sy = corner === 1 || corner === 2 ? 1 : -1;
+    const kx = sx > 0 ? box.x + box.width : box.x;
+    const ky = sy > 0 ? box.y + box.height : box.y;
+    const points = [
+      { x: kx, y: ky - sy * a },
+      { x: kx + sx * r, y: ky - sy * a },
+      { x: kx + sx * r, y: ky + sy * r },
+      { x: kx - sx * a, y: ky + sy * r },
+      { x: kx - sx * a, y: ky }
+    ].map((p) => ({ x: round(p.x), y: round(p.y) }));
+    return { points, sides: [sx > 0 ? 0 : 2, sy > 0 ? 1 : 3] };
+  };
+  for (const corner of [0, 1, 3, 2]) {
+    const loop = loopAt(corner);
+    const area = regionAround(loop.points, [], MARGIN);
+    const clear = !boxes.some(
+      (o) => o.id !== box.id && overlapping(
+        {
+          x: area.x0,
+          y: area.y0,
+          width: area.x1 - area.x0,
+          height: area.y1 - area.y0
+        },
+        o
+      )
+    );
+    if (clear) return loop;
+  }
+  return loopAt(0);
+}
+function centreJogs(route, boxes) {
+  const p = route.points;
+  for (let k = 1; k < p.length - 2; k++) {
+    const a = p[k], b = p[k + 1], before = p[k - 1], after = p[k + 2];
+    const vertical = Math.abs(a.x - b.x) < 0.01;
+    const axis = vertical ? "x" : "y", cross = vertical ? "y" : "x", size = vertical ? "width" : "height", crossSize = vertical ? "height" : "width";
+    const c = a[axis];
+    const d1 = c - before[axis], d2 = after[axis] - c;
+    if (d1 * d2 <= 0) continue;
+    const firstMin = k === 1 ? route.stubs[0] : 4;
+    const lastMin = k + 2 === p.length - 1 ? route.stubs[1] : 4;
+    let lo = d1 > 0 ? before[axis] + firstMin : after[axis] + lastMin;
+    let hi = d1 > 0 ? after[axis] - lastMin : before[axis] - firstMin;
+    const spanLo = Math.min(a[cross], b[cross]), spanHi = Math.max(a[cross], b[cross]);
+    let blocked = false;
+    for (const o of boxes) {
+      if (o[cross] - MARGIN > spanHi || o[cross] + o[crossSize] + MARGIN < spanLo)
+        continue;
+      const from = o[axis] - MARGIN, to = o[axis] + o[size] + MARGIN;
+      if (to <= c) lo = Math.max(lo, to);
+      else if (from >= c) hi = Math.min(hi, from);
+      else blocked = true;
+    }
+    if (blocked || lo > hi || c < lo - 0.01 || c > hi + 0.01) continue;
+    a[axis] = b[axis] = round((lo + hi) / 2);
+  }
+}
+function nudge(routes, boxes) {
+  const lines = /* @__PURE__ */ new Map();
+  routes.forEach((route, r) => {
+    const p = route.points;
+    for (let k = 0; k + 1 < p.length; k++) {
+      const vertical = Math.abs(p[k].x - p[k + 1].x) < 0.01;
+      const c = vertical ? p[k].x : p[k].y;
+      const ends = vertical ? [p[k].y, p[k + 1].y] : [p[k].x, p[k + 1].x];
+      const key = (vertical ? "v" : "h") + c;
+      if (!lines.has(key)) lines.set(key, []);
+      lines.get(key).push({
+        r,
+        k,
+        vertical,
+        lo: Math.min(...ends),
+        hi: Math.max(...ends),
+        movable: route.movable && k > 0 && k < p.length - 2
+      });
+    }
+  });
+  const offsets = [
+    0,
+    NUDGE,
+    -NUDGE,
+    2 * NUDGE,
+    -2 * NUDGE,
+    3 * NUDGE,
+    -3 * NUDGE
+  ];
+  const shift = (seg, offset) => {
+    const p = routes[seg.r].points;
+    const axis = seg.vertical ? "x" : "y";
+    const moved = p.map((q) => ({ ...q }));
+    moved[seg.k][axis] = round(moved[seg.k][axis] + offset);
+    moved[seg.k + 1][axis] = round(moved[seg.k + 1][axis] + offset);
+    for (const [i, j] of [
+      [seg.k - 1, seg.k],
+      [seg.k + 1, seg.k + 2]
+    ]) {
+      const before = p[j][axis] - p[i][axis], after = moved[j][axis] - moved[i][axis];
+      if (before * after <= 0 || Math.abs(after) < 4) return false;
+      if (boxes.some((o) => crosses(moved[i], moved[j], o, 0.5))) return false;
+    }
+    if (boxes.some((o) => crosses(moved[seg.k], moved[seg.k + 1], o, -MARGIN / 2)))
+      return false;
+    routes[seg.r].points = moved;
+    return true;
+  };
+  for (const segments of lines.values()) {
+    if (segments.length < 2) continue;
+    segments.sort((a, b) => a.lo - b.lo);
+    let cluster = [];
+    let reach = -Infinity;
+    const settle = () => {
+      if (new Set(cluster.map((s) => s.r)).size > 1 && cluster.some((s) => s.movable)) {
+        const used = new Set(cluster.some((s) => !s.movable) ? [0] : []);
+        for (const seg of cluster.filter((s) => s.movable))
+          for (const offset of offsets) {
+            if (used.has(offset)) continue;
+            if (offset === 0 || shift(seg, offset)) {
+              used.add(offset);
+              break;
+            }
+          }
+      }
+    };
+    for (const seg of segments) {
+      if (seg.lo >= reach - 1 && cluster.length) {
+        settle();
+        cluster = [];
+      }
+      cluster.push(seg);
+      reach = Math.max(reach, seg.hi);
+    }
+    settle();
+  }
+}
+function nameCandidates(label, routes) {
+  const segments = routes.flatMap(segmentsOf).map(([a, b]) => ({
+    a,
+    b,
+    length: Math.abs(b.x - a.x) + Math.abs(b.y - a.y)
+  })).filter((s) => s.length > 0).sort((s, t) => t.length - s.length);
+  const out = [];
+  for (const { a, b, length } of segments) {
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const ux = Math.sign(b.x - a.x), uy = Math.sign(b.y - a.y);
+    for (let n = 0; n < 13; n++) {
+      const offset = n === 0 ? 0 : (n % 2 ? 1 : -1) * Math.ceil(n / 2) * 8;
+      if (Math.abs(offset) > length / 2) break;
+      const x = mid.x + ux * offset, y = mid.y + uy * offset;
+      if (uy === 0)
+        out.push(
+          { x: x - label.width / 2, y: y - label.height - 4 },
+          { x: x - label.width / 2, y: y + 4 }
+        );
+      else
+        out.push(
+          { x: x + 6, y: y - label.height / 2 },
+          { x: x - label.width - 6, y: y - label.height / 2 }
+        );
+    }
+  }
+  return out;
+}
+function endCandidates(label, points) {
+  const endpoint = points[0];
+  const candidates = [];
+  for (const x of [endpoint.x + 4, endpoint.x - label.width - 4])
+    for (const y of [endpoint.y + 4, endpoint.y - label.height - 4])
+      candidates.push({ x, y, score: label.width / 2 + label.height / 2 + 24 });
+  let traveled = 0;
+  for (let i = 1; i < points.length && traveled < 260; i++) {
+    const a = points[i - 1], b = points[i], dx = Math.sign(b.x - a.x), dy = Math.sign(b.y - a.y), length = Math.abs(b.x - a.x) + Math.abs(b.y - a.y);
+    for (let d = 10; d < Math.min(length, 260 - traveled); d += 8) {
+      const x = a.x + dx * d, y = a.y + dy * d;
+      if (dx) {
+        const left = dx > 0 ? x : x - label.width;
+        candidates.push(
+          { x: left, y: y - label.height - 3, score: traveled + d + 4 },
+          { x: left, y: y + 3, score: traveled + d + 6 }
+        );
+      } else
+        candidates.push(
+          { x: x + 4, y: y - label.height / 2, score: traveled + d + 12 },
+          {
+            x: x - label.width - 4,
+            y: y - label.height / 2,
+            score: traveled + d + 14
+          }
+        );
+    }
+    traveled += length;
+  }
+  return candidates.filter(
+    (c) => Math.abs(c.x + label.width / 2 - endpoint.x) + Math.abs(c.y + label.height / 2 - endpoint.y) <= 80
+  ).sort((a, b) => a.score - b.score);
+}
+function placeLabels(tasks, boxes, fixedLabels, allSegments) {
+  const occupied = [...boxes, ...fixedLabels];
+  for (const names of [true, false])
+    for (const task of tasks) {
+      const own = task.routes.flatMap(segmentsOf);
+      for (const label of task.labels) {
+        if (label.kind === "name" !== names) continue;
+        const candidates = names ? nameCandidates(label, task.nameRoutes) : endCandidates(
+          label,
+          label.kind === "target" ? task.routes[0].slice().reverse() : task.routes[0]
+        );
+        const fits = (c, tier) => {
+          const r = {
+            x: c.x,
+            y: c.y,
+            width: label.width,
+            height: label.height
+          };
+          const others = tier < 3 ? occupied : boxes;
+          if (others.some((o) => overlapping(r, o, 2))) return false;
+          if (tier < 2 && own.some(([a, b]) => rectTouchesSegment(r, a, b, 1)))
+            return false;
+          if (tier < 1 && allSegments.some(([a, b]) => rectTouchesSegment(r, a, b, 1)))
+            return false;
+          return true;
+        };
+        let chosen = null;
+        for (let tier = 0; tier < 4 && !chosen; tier++)
+          chosen = candidates.find((c) => fits(c, tier)) || null;
+        chosen || (chosen = candidates[0] || { x: label.x, y: label.y });
+        label.x = round(chosen.x);
+        label.y = round(chosen.y);
+        occupied.push(label);
+      }
+    }
+}
+function placeMissing(scene, target) {
+  const byId = new Map(scene.nodes.map((n) => [n.id, n]));
+  const neighbours = new Map(scene.nodes.map((n) => [n.id, /* @__PURE__ */ new Set()]));
+  const link = (a, b) => {
+    if (a === b || !neighbours.has(a) || !neighbours.has(b)) return;
+    neighbours.get(a).add(b);
+    neighbours.get(b).add(a);
+  };
+  for (const e of scene.edges) link(e.source, e.target);
+  for (const g of scene.generalizationGroups || [])
+    for (const id of g.sourceIds) link(id, g.target);
+  const boxAt = (id, [x, y]) => ({
+    x,
+    y,
+    width: byId.get(id).width,
+    height: byId.get(id).height
+  });
+  const placed = [...target].map(([id, p]) => boxAt(id, p));
+  const free = (b) => !placed.some((o) => overlapping(b, o, PLACE_GAP - 0.01));
+  const right = Math.max(
+    PADDING - PLACE_GAP,
+    ...placed.map((b) => b.x + b.width)
+  );
+  let columnY = placed.length ? Math.min(...placed.map((b) => b.y)) : PADDING;
+  const columnX = right + PLACE_GAP;
+  const pending = scene.nodes.filter((n) => !target.has(n.id));
+  while (pending.length) {
+    let progressed = false;
+    for (let i = 0; i < pending.length; i++) {
+      const node2 = pending[i];
+      const near = [...neighbours.get(node2.id)].filter((id) => target.has(id));
+      if (!near.length) continue;
+      const centres = near.map((id) => centreOf(boxAt(id, target.get(id))));
+      const cx = centres.reduce((s, c) => s + c.x, 0) / centres.length;
+      const cy = centres.reduce((s, c) => s + c.y, 0) / centres.length;
+      const want = { x: cx - node2.width / 2, y: cy - node2.height / 2 };
+      let spot = null;
+      for (let r = 0; r < 400 && !spot; r++) {
+        let best = Infinity;
+        const ring = r ? Array.from({ length: 2 * r + 1 }, (_, k) => k - r).flatMap((k) => [
+          [k, -r],
+          [k, r],
+          [-r, k],
+          [r, k]
+        ]) : [[0, 0]];
+        for (const [i2, j2] of ring) {
+          const b = {
+            x: want.x + i2 * 20,
+            y: want.y + j2 * 20,
+            width: node2.width,
+            height: node2.height
+          };
+          const d = Math.hypot(b.x - want.x, b.y - want.y);
+          if (d < best && free(b)) {
+            best = d;
+            spot = [round(b.x), round(b.y)];
+          }
+        }
+      }
+      target.set(node2.id, spot || [round(want.x), round(want.y)]);
+      placed.push(boxAt(node2.id, target.get(node2.id)));
+      pending.splice(i--, 1);
+      progressed = true;
+    }
+    if (progressed) continue;
+    const node = pending.shift();
+    let y = columnY;
+    while (!free({ x: columnX, y, width: node.width, height: node.height }))
+      y += 20;
+    target.set(node.id, [round(columnX), round(y)]);
+    placed.push(boxAt(node.id, target.get(node.id)));
+    columnY = y + node.height + PLACE_GAP;
+  }
+}
+function positionsOf(scene) {
+  return Object.fromEntries(scene.nodes.map((n) => [n.id, [n.x, n.y]]));
+}
+function arrangeScene(scene, positions = {}, options = {}) {
+  positions = positions || {};
+  if (options.place && !Object.keys(positions).length) return scene;
+  const target = /* @__PURE__ */ new Map();
+  for (const n of scene.nodes) {
+    const p = positions[n.id];
+    if (p) target.set(n.id, Array.isArray(p) ? p : [p.x, p.y]);
+    else if (!options.place) target.set(n.id, [n.x, n.y]);
+  }
+  if (options.place) placeMissing(scene, target);
+  const moved = /* @__PURE__ */ new Set();
+  const nodes = scene.nodes.map((n) => {
+    const [x, y] = target.get(n.id);
+    if (Math.abs(x - n.x) < 5e-3 && Math.abs(y - n.y) < 5e-3) return n;
+    moved.add(n.id);
+    return { ...n, x: round(x), y: round(y) };
+  });
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const boxes = nodes;
+  const everything = regionAround([], boxes, 0);
+  const everythingBox = {
+    x: everything.x0,
+    y: everything.y0,
+    width: everything.x1 - everything.x0,
+    height: everything.y1 - everything.y0
+  };
+  const groups = scene.generalizationGroups || [];
+  const membership = /* @__PURE__ */ new Map();
+  for (const g of groups)
+    for (const id of g.memberIds) {
+      if (!membership.has(id)) membership.set(id, []);
+      membership.get(id).push({ group: g, index: membership.get(id).length });
+    }
+  const edgesById = new Map(scene.edges.map((e) => [e.id, e]));
+  const plain = [];
+  for (const edge of scene.edges) {
+    if (membership.has(edge.id)) continue;
+    const ok = byId.has(edge.source) && byId.has(edge.target);
+    const points = edge.paths?.length ? parsePath(edge.paths[0]) : [];
+    const reroute = ok && (moved.has(edge.source) || moved.has(edge.target) || points.length < 2 || hits(points, boxes, /* @__PURE__ */ new Set([edge.source, edge.target])));
+    plain.push({ edge, points, reroute });
+  }
+  const trees = groups.map((group) => {
+    const members = group.memberIds.map((id) => {
+      const edge = edgesById.get(id);
+      const index2 = membership.get(id).find((m) => m.group === group).index;
+      const d = edge?.branchPaths?.[index2];
+      return { id, edge, index: index2, points: d ? parsePath(d) : [] };
+    });
+    const trunk = group.paths?.length ? parsePath(group.paths[0]) : [];
+    const ok = byId.has(group.target) && members.every((m) => m.edge && byId.has(m.edge.source));
+    const reroute = ok && (moved.has(group.target) || members.some((m) => moved.has(m.edge.source)) || trunk.length < 2 || hits(trunk, boxes, /* @__PURE__ */ new Set([group.target])) || members.some(
+      (m) => m.points.length < 2 || hits(m.points, boxes, /* @__PURE__ */ new Set([m.edge.source]))
+    ));
+    return { group, members, trunk, reroute };
+  });
+  const sides = /* @__PURE__ */ new Map();
+  const addEnd = (box, side, item) => {
+    const key = box.id + "\0" + side;
+    if (!sides.has(key)) sides.set(key, { box, side, items: [] });
+    sides.get(key).items.push(item);
+  };
+  const fixEnd = (id, p) => {
+    const box = byId.get(id);
+    if (!box || !p) return;
+    const side = sideOf(box, p);
+    if (side >= 0)
+      addEnd(box, side, { pref: alongY(side) ? p.y : p.x, weight: 1e6 });
+  };
+  for (const r of plain)
+    if (!r.reroute && r.points.length) {
+      fixEnd(r.edge.source, r.points[0]);
+      fixEnd(r.edge.target, r.points[r.points.length - 1]);
+    }
+  for (const t of trees)
+    if (!t.reroute) {
+      fixEnd(t.group.target, t.trunk[t.trunk.length - 1]);
+      for (const m of t.members) if (m.edge) fixEnd(m.edge.source, m.points[0]);
+    }
+  const loopCount = /* @__PURE__ */ new Map();
+  for (const r of plain)
+    if (r.reroute && r.edge.source === r.edge.target) {
+      const box = byId.get(r.edge.source);
+      const k = loopCount.get(box.id) || 0;
+      loopCount.set(box.id, k + 1);
+      const loop = selfLoop(box, k, boxes);
+      r.route = loop.points;
+      fixEnd(box.id, loop.points[0]);
+      fixEnd(box.id, loop.points[loop.points.length - 1]);
+    }
+  const endOf = (box, side, other) => {
+    const end = { box, side, along: null };
+    addEnd(box, side, {
+      pref: preferredAlong(box, side, other),
+      weight: 1,
+      end
+    });
+    return end;
+  };
+  for (const r of plain)
+    if (r.reroute && !r.route) {
+      const s = byId.get(r.edge.source), t = byId.get(r.edge.target);
+      r.ends = [endOf(s, facing(s, t), t), endOf(t, facing(t, s), s)];
+    }
+  for (const t of trees)
+    if (t.reroute) {
+      const box = byId.get(t.group.target);
+      const sources = t.members.map((m) => centreOf(byId.get(m.edge.source)));
+      const centroid = {
+        x: sources.reduce((s, c) => s + c.x, 0) / sources.length,
+        y: sources.reduce((s, c) => s + c.y, 0) / sources.length
+      };
+      const side = facing(box, pointBox(centroid));
+      const [lo, hi] = sideRange(box, side);
+      const middle = (lo + hi) / 2;
+      const along = round(
+        clamp(
+          alongY(side) ? centroid.y : centroid.x,
+          middle - (hi - lo) / 6,
+          middle + (hi - lo) / 6
+        )
+      );
+      const port = portPoint(box, side, along);
+      const junction = {
+        x: round(port.x + DX[side] * JUNCTION),
+        y: round(port.y + DY[side] * JUNCTION)
+      };
+      t.side = side;
+      t.trunk = [junction, port];
+      addEnd(box, side, { pref: along, weight: 1e6 });
+      for (const m of t.members) {
+        const s = byId.get(m.edge.source);
+        m.end = endOf(s, facing(s, pointBox(junction)), pointBox(junction));
+      }
+    }
+  for (const { box, side, items } of sides.values()) {
+    if (!items.some((item) => item.end)) continue;
+    items.sort((a, b) => a.pref - b.pref);
+    const [lo, hi] = sideSpan(box, side);
+    const at = spread(items, lo, hi);
+    items.forEach((item, i) => {
+      if (item.end) item.end.along = round(at[i]);
+    });
+  }
+  const terminal = (end) => {
+    const port = portPoint(end.box, end.side, end.along);
+    const length = round(stubLength(end.box, end.side, port, boxes));
+    const stub = {
+      x: round(port.x + DX[end.side] * length),
+      y: round(port.y + DY[end.side] * length)
+    };
+    return { port, stub, length };
+  };
+  const routed = [];
+  for (const r of plain)
+    if (r.reroute && !r.route) {
+      const from = terminal(r.ends[0]), to = terminal(r.ends[1]);
+      r.route = routeBetween(
+        { ...from, dir: r.ends[0].side },
+        { ...to, arrival: arrivalInto(r.ends[1].side) },
+        boxes,
+        [r.ends[0].box, r.ends[1].box],
+        everythingBox
+      );
+      routed.push({
+        points: r.route,
+        movable: true,
+        stubs: [from.length, to.length],
+        owner: r
+      });
+    }
+  for (const t of trees)
+    if (t.reroute) {
+      const junction = t.trunk[0];
+      const arrival = [0, 0, 0, 0];
+      arrival[t.side] = Infinity;
+      for (const m of t.members) {
+        const from = terminal(m.end);
+        m.points = routeBetween(
+          { ...from, dir: m.end.side },
+          { port: junction, stub: junction, arrival },
+          boxes,
+          [m.end.box, byId.get(t.group.target)],
+          everythingBox
+        );
+      }
+    }
+  for (const route of routed) centreJogs(route, boxes);
+  const drawn2 = [
+    ...routed,
+    ...plain.filter((r) => !r.reroute || !routed.some((x) => x.owner === r)).map((r) => ({ points: r.route || r.points, movable: false })),
+    ...trees.flatMap((t) => [
+      { points: t.trunk, movable: false },
+      ...t.members.map((m) => ({ points: m.points, movable: false }))
+    ])
+  ];
+  nudge(drawn2, boxes);
+  for (const route of routed) route.owner.route = route.points;
+  const tasks = [];
+  const fixedLabels = [];
+  const newLabels = /* @__PURE__ */ new Map();
+  const relabel = (owner, labels, routes, nameRoutes) => {
+    const copies = labels.map((l) => ({ ...l }));
+    newLabels.set(owner, copies);
+    tasks.push({ labels: copies, routes, nameRoutes });
+  };
+  for (const r of plain) {
+    const labels = r.edge.labels || [];
+    if (!labels.length) continue;
+    const route = r.route || r.points;
+    if (r.route || route.length >= 2 && labels.some((l) => boxes.some((b) => overlapping(l, b, 0))))
+      relabel(r.edge, labels, [route], [route]);
+    else fixedLabels.push(...labels);
+  }
+  for (const t of trees) {
+    const labels = t.group.labels || [];
+    if (!labels.length) continue;
+    const routes = [t.trunk, ...t.members.map((m) => m.points)];
+    if (t.reroute || t.trunk.length >= 2 && labels.some((l) => boxes.some((b) => overlapping(l, b, 0))))
+      relabel(t.group, labels, [t.trunk], routes);
+    else fixedLabels.push(...labels);
+  }
+  const allSegments = drawn2.flatMap((d) => segmentsOf(d.points));
+  placeLabels(tasks, boxes, fixedLabels, allSegments);
+  const changed = /* @__PURE__ */ new Map();
+  for (const r of plain)
+    if (r.route || newLabels.has(r.edge))
+      changed.set(r.edge.id, {
+        ...r.edge,
+        ...r.route ? { paths: [pathOf(r.route)] } : {},
+        labels: newLabels.get(r.edge) || r.edge.labels
+      });
+  const newGroups = trees.map((t) => {
+    if (!t.reroute && !newLabels.has(t.group)) return t.group;
+    if (t.reroute)
+      for (const m of t.members) {
+        const edge = changed.get(m.id) || m.edge;
+        const paths = [...edge.paths];
+        const branchPaths = [...edge.branchPaths || []];
+        paths[m.index] = pathOf([...m.points, ...t.trunk.slice(1)]);
+        branchPaths[m.index] = pathOf(m.points);
+        changed.set(m.id, { ...edge, paths, branchPaths });
+      }
+    return {
+      ...t.group,
+      ...t.reroute ? { paths: [pathOf(t.trunk)] } : {},
+      labels: newLabels.get(t.group) || t.group.labels
+    };
+  });
+  let edges = scene.edges.map((e) => changed.get(e.id) || e);
+  let outGroups = newGroups;
+  let outNodes = nodes;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const take = (x, y, w = 0, h = 0) => {
+    x0 = Math.min(x0, x);
+    y0 = Math.min(y0, y);
+    x1 = Math.max(x1, x + w);
+    y1 = Math.max(y1, y + h);
+  };
+  for (const n of nodes) take(n.x, n.y, n.width, n.height);
+  for (const item of [...edges, ...outGroups]) {
+    for (const d of item.paths || [])
+      for (const p of parsePath(d)) take(p.x, p.y);
+    for (const l of item.labels || []) take(l.x, l.y, l.width, l.height);
+  }
+  if (x0 === Infinity) x0 = y0 = x1 = y1 = PADDING;
+  const dx = x0 < PADDING ? round(PADDING - x0) : 0;
+  const dy = y0 < PADDING ? round(PADDING - y0) : 0;
+  if (dx || dy) {
+    const movePath = (d) => pathOf(parsePath(d).map((p) => ({ x: p.x + dx, y: p.y + dy })));
+    const moveLabel = (l) => ({ ...l, x: round(l.x + dx), y: round(l.y + dy) });
+    const moveItem = (item) => ({
+      ...item,
+      ...item.paths ? { paths: item.paths.map(movePath) } : {},
+      ...item.branchPaths ? { branchPaths: item.branchPaths.map(movePath) } : {},
+      ...item.labels ? { labels: item.labels.map(moveLabel) } : {}
+    });
+    outNodes = nodes.map((n) => ({
+      ...n,
+      x: round(n.x + dx),
+      y: round(n.y + dy)
+    }));
+    edges = edges.map(moveItem);
+    outGroups = outGroups.map(moveItem);
+  }
+  return {
+    ...scene,
+    nodes: outNodes,
+    edges,
+    ...scene.generalizationGroups ? { generalizationGroups: outGroups } : {},
+    width: round(x1 + dx + PADDING),
+    height: round(y1 + dy + PADDING),
+    offset: { x: dx, y: dy }
+  };
+}
+
+// src/viewer/useArrangement.js
+var EDGE = 28;
+var same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+function useArrangement(base, arrangement, onArrange) {
+  const [positions, setPositions] = useState11(arrangement ?? null);
+  const lastSaved = useRef7(arrangement ?? null);
+  useEffect5(() => {
+    if (same(lastSaved.current, arrangement ?? null)) return;
+    lastSaved.current = arrangement ?? null;
+    setPositions(arrangement ?? null);
+  }, [arrangement]);
+  const scene = useMemo8(
+    () => positions ? arrangeScene(base, positions, { place: true }) : base,
+    [base, positions]
+  );
+  const [drag, setDrag] = useState11(null);
+  const shown2 = useMemo8(
+    () => drag?.at ? arrangeScene(scene, { [drag.id]: drag.at }) : scene,
+    [scene, drag]
+  );
+  const latest = useRef7({ scene, shown: shown2, drag, positions });
+  latest.current = { scene, shown: shown2, drag, positions };
+  const save = useCallback6(
+    (next) => {
+      lastSaved.current = next;
+      setPositions(next);
+      onArrange?.(next);
+    },
+    [onArrange]
+  );
+  const elementDrag = useMemo8(
+    () => onArrange ? {
+      start(target, point) {
+        const id = target?.closest?.("[data-node-id]")?.dataset.nodeId;
+        const node = latest.current.scene.nodes.find((n) => n.id === id);
+        if (!node) return false;
+        setDrag({
+          id,
+          grab: [point.x - node.x, point.y - node.y],
+          at: null
+        });
+        return true;
+      },
+      move(point) {
+        setDrag(
+          (current) => current && {
+            ...current,
+            at: [
+              Math.max(EDGE, point.x - current.grab[0]),
+              Math.max(EDGE, point.y - current.grab[1])
+            ]
+          }
+        );
+      },
+      end(moved) {
+        const { shown: shown3, drag: drag2, positions: positions2 } = latest.current;
+        setDrag(null);
+        if (moved && drag2?.at)
+          save({ ...positions2 || {}, ...positionsOf(shown3) });
+      }
+    } : null,
+    [onArrange, save]
+  );
+  const reset = useCallback6(() => save(null), [save]);
+  return {
+    diagram: shown2,
+    elementDrag,
+    arranged: !!positions,
+    moving: drag?.id ?? null,
+    reset
+  };
+}
+
+// src/viewer/DiagramPanel.jsx
 import { Fragment as Fragment9, jsx as jsx24, jsxs as jsxs17 } from "react/jsx-runtime";
 function overlayClass(sections, density = 0) {
   return `atlas-overlay-top${sections ? " stacked" : ""}${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`;
@@ -4004,11 +5113,13 @@ function DiagramPanelContent({
   leading,
   sections,
   review = null,
-  identity
+  identity,
+  arrangement = null,
+  onArrange
 }) {
   const { model, views, scenarios = null } = payload;
-  const camera = useRef7(null), zoomStore = useMemo8(createZoomStore, []);
-  const viewerRef = useRef7(null), topRef = useRef7(null);
+  const camera = useRef8(null), zoomStore = useMemo9(createZoomStore, []);
+  const viewerRef = useRef8(null), topRef = useRef8(null);
   const fitInsets = useOverlayInsets(viewerRef, topRef);
   const state = useViewerState({
     model,
@@ -4019,7 +5130,8 @@ function DiagramPanelContent({
     identity,
     cameraRef: camera
   });
-  const { view, diagram, changes, panel } = state;
+  const { view, changes, panel } = state;
+  const arranged = useArrangement(view.diagram, arrangement, onArrange);
   const density = useToolbarDensity(
     topRef,
     identity,
@@ -4064,6 +5176,15 @@ function DiagramPanelContent({
                 onFit: () => camera.current?.fit()
               }
             ),
+            onArrange && arranged.arranged && /* @__PURE__ */ jsx24(
+              ToolButton,
+              {
+                label: "Reset layout",
+                tooltip: "Lay the diagram out again, as Atlas arranges it",
+                icon: /* @__PURE__ */ jsx24(IconRestartAlt, {}),
+                onClick: arranged.reset
+              }
+            ),
             scenarios && /* @__PURE__ */ jsxs17(Fragment9, { children: [
               /* @__PURE__ */ jsx24(IslandDivider, {}),
               /* @__PURE__ */ jsx24(
@@ -4083,7 +5204,8 @@ function DiagramPanelContent({
           DiagramCanvas,
           {
             ref: camera,
-            diagram,
+            diagram: arranged.diagram,
+            elementDrag: arranged.elementDrag,
             selected: state.selected,
             hovered: state.hovered,
             focusRequest: state.focusRequest,

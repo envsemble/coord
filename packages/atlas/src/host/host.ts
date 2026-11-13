@@ -796,6 +796,8 @@ export class Host {
       case 'project.document': { const { projectId, path: file } = p as { projectId: string; path: string }; return this.subscribed(connection, projectId).document(file) as never; }
       case 'project.diagrams': { const { projectId, work } = p as { projectId: string; work: string }; return this.subscribed(connection, projectId).diagrams(work) as never; }
       case 'project.diagram': { const { projectId, work, path: file } = p as { projectId: string; work: string; path: string }; return this.subscribed(connection, projectId).diagram(work, file) as never; }
+      case 'project.arrangement': { const { projectId, work, path: file } = p as { projectId: string; work: string; path: string }; return this.subscribed(connection, projectId).arrangement(work, file) as never; }
+      case 'project.arrange': { const { projectId, work, path: file, positions } = p as { projectId: string; work: string; path: string; positions: Record<string, [number, number]> | null }; return this.subscribed(connection, projectId).arrange(work, file, positions).then(() => null) as never; }
       case 'project.references': { const { projectId, work, path: file } = p as { projectId: string; work: string | null; path: string }; return this.subscribed(connection, projectId).references(work, file) as never; }
       case 'project.diagramIndex': return this.subscribed(connection, (p as { projectId: string }).projectId).diagramIndex() as never;
       case 'access.state': return this.accessState() as never;

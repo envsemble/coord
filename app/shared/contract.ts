@@ -20,7 +20,7 @@ export type {
 export const invokeChannels = [
   'window:info',
   'projects:list', 'projects:create', 'search:query', 'projects:chooseFolder', 'projects:update', 'project:open', 'project:close',
-  'project:snapshot', 'project:work', 'project:document', 'project:diagrams', 'project:diagram', 'project:references', 'project:diagramIndex',
+  'project:snapshot', 'project:work', 'project:document', 'project:diagrams', 'project:diagram', 'project:arrangement', 'project:arrange', 'project:references', 'project:diagramIndex',
   'project:statistics', 'projects:statistics', 'ui:load', 'ui:save',
   'references:resolve', 'work:sessions', 'work:timeline',
   'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:copy',
@@ -203,6 +203,10 @@ export interface AtlasBridge {
   diagrams(projectId: string, work: string): Promise<Result<DiagramEntry[]>>;
   /** A diagram's viewer payload, by its path in the work folder, with its family's. */
   diagram(projectId: string, work: string, path: string): Promise<Result<unknown>>;
+  /** How a reader arranged a diagram (shared by its family's layers): each element's top-left corner by id; null when laid out automatically. */
+  arrangement(projectId: string, work: string, path: string): Promise<Result<Record<string, [number, number]> | null>>;
+  /** Save a diagram's arrangement, or remove it (null) to lay it out automatically again. */
+  arrange(projectId: string, work: string, path: string, positions: Record<string, [number, number]> | null): Promise<Result<null>>;
   /** The diagrams a document links to. */
   references(projectId: string, work: string | null, path: string): Promise<Result<DiagramReference[]>>;
   /** Every diagram of a project, for quick open. */

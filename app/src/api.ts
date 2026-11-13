@@ -37,6 +37,8 @@ export const api: Omit<Unwrapped, 'snapshot'> & { snapshot(projectId: string): P
   document: (projectId, path) => unwrap(bridge().document(projectId, path)),
   diagrams: (projectId, work) => unwrap(bridge().diagrams(projectId, work)),
   diagram: (projectId, work, path) => unwrap(bridge().diagram(projectId, work, path)),
+  arrangement: (projectId, work, path) => unwrap(bridge().arrangement(projectId, work, path)),
+  arrange: (projectId, work, path, positions) => unwrap(bridge().arrange(projectId, work, path, positions)),
   references: (projectId, work, path) => unwrap(bridge().references(projectId, work, path)),
   diagramIndex: projectId => unwrap(bridge().diagramIndex(projectId)),
   projectStatistics: (projectId, from, to, unit) => unwrap(bridge().projectStatistics(projectId, from, to, unit)),

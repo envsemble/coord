@@ -9,7 +9,8 @@ import { ViewSwitcher } from "../ui/ViewSwitcher";
 import { ToolButton } from "../ui/ToolButton";
 import { CameraControls } from "./CameraControls";
 import { Island, IslandDivider } from "../ui/Island";
-import { ScenariosIcon } from "../ui/icons";
+import { ResetLayoutIcon, ScenariosIcon } from "../ui/icons";
+import { useArrangement } from "./useArrangement";
 import { createZoomStore } from "./zoomStore";
 import { useViewerState } from "./useViewerState";
 import { SidePanel } from "./SidePanel";
@@ -76,6 +77,8 @@ function DiagramPanelContent({
   sections,
   review = null,
   identity,
+  arrangement = null,
+  onArrange,
 }) {
   const { model, views, scenarios = null } = payload;
   const camera = useRef(null),
@@ -92,7 +95,8 @@ function DiagramPanelContent({
     identity,
     cameraRef: camera,
   });
-  const { view, diagram, changes, panel } = state;
+  const { view, changes, panel } = state;
+  const arranged = useArrangement(view.diagram, arrangement, onArrange);
   // Within a family the toolbar keeps its density; another member's controls
   // are measured as they appear.
   const density = useToolbarDensity(
@@ -136,6 +140,14 @@ function DiagramPanelContent({
               onReset={() => camera.current?.reset()}
               onFit={() => camera.current?.fit()}
             />
+            {onArrange && arranged.arranged && (
+              <ToolButton
+                label="Reset layout"
+                tooltip="Lay the diagram out again, as Atlas arranges it"
+                icon={<ResetLayoutIcon />}
+                onClick={arranged.reset}
+              />
+            )}
             {scenarios && (
               <>
                 <IslandDivider />
@@ -152,7 +164,8 @@ function DiagramPanelContent({
         </div>
         <DiagramCanvas
           ref={camera}
-          diagram={diagram}
+          diagram={arranged.diagram}
+          elementDrag={arranged.elementDrag}
           selected={state.selected}
           hovered={state.hovered}
           focusRequest={state.focusRequest}

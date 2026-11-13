@@ -11,6 +11,10 @@
 - **Work in parts:** a work item can be made of ordered parts, other work items of the project, each with its own plan and steps. A rail at the right of the group and of each part lists them in order with their status and steps, the hub says **Part 2 of #0005**, and agents set them up with `work_create` (`partOf`) and the new `work_parts` tool (`atlas work parts`); `atlas check` checks them.
 - **Diagrams as links:** a plan's link to a diagram shows inline as the diagram's, in purple with a diagram icon, in place of the cards under its headings.
 - **Readable tables:** a plan's table columns keep a readable width and the table scrolls sideways when it has more than fit; `atlas check` warns about a table that will read cramped, and about rows a blank line cut off from their table, and an agent hears it as it writes.
+- **A plainer diagram viewer:** full view, the attributes toggle (attributes always show), search, the element details with their source excerpts, and drawn stereotypes are gone; a proposal’s changes and a class diagram’s scenarios keep a side panel of their own.
+- **One diagram with layers:** a capture, the proposals over it and the later captures compared with it are one diagram; a layer marker shows its layers, and `[` and `]` switch them, in place of the diagram picker. Every diagram is named at its top left.
+- **Diagrams in groups:** the layout draws related elements together, a diagram’s packages as named regions or the groups its relations form, with room and longer lines between the groups.
+- **Arrange a diagram by hand:** drag an element and its relations follow; the arrangement is kept beside the diagram (`name.layout.json`), for all its layers, new elements go beside the ones they relate to, and **Reset layout** lays it out again.
 - **Open in is removed:** the title bar's Open in, **File › Open in Editor** (Ctrl+O) and the choice of editor go. A file a plan links to still opens in VS Code.
 - **Plan export and import are removed**, with `atlas plan export` and `atlas plan import`, File › Import Plan… and Export Plan…, and the plan export viewer.
 

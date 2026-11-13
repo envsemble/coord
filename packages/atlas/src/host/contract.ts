@@ -266,6 +266,10 @@ export interface Methods {
   'project.diagrams': { params: { projectId: string; work: string }; result: DiagramEntry[] };
   /** A diagram's viewer payload, with the payloads of the rest of its family (`siblings`), laid out together. */
   'project.diagram': { params: { projectId: string; work: string; path: string }; result: unknown };
+  /** How a reader arranged a diagram (its family's, for a capture's later captures and proposals): each element's top-left corner by id; null when it is laid out automatically. */
+  'project.arrangement': { params: { projectId: string; work: string; path: string }; result: Record<string, [number, number]> | null };
+  /** Save a diagram's arrangement beside its family's first file (`name.layout.json`), or remove it (null) to lay it out automatically. */
+  'project.arrange': { params: { projectId: string; work: string; path: string; positions: Record<string, [number, number]> | null }; result: null };
   /** The diagrams a document links to, under the headings the links sit under. */
   'project.references': { params: { projectId: string; work: string | null; path: string }; result: DiagramReference[] };
   /** Every diagram of the project, for quick open. */
@@ -297,6 +301,8 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'project.document': 'computer',
   'project.diagrams': 'computer',
   'project.diagram': 'computer',
+  'project.arrangement': 'computer',
+  'project.arrange': 'computer',
   'project.references': 'computer',
   'project.diagramIndex': 'computer',
   'access.state': 'access:manage',

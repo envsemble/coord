@@ -10,8 +10,9 @@ export function useDiagramCamera({
   onTap,
   onMotion,
   insets,
+  elementDrag = null,
 }) {
-  const callbacks = useRef({ onZoom, onTap, onMotion, insets });
+  const callbacks = useRef({ onZoom, onTap, onMotion, insets, elementDrag });
   const controls = useMemo(
     () =>
       createCamera({
@@ -24,16 +25,24 @@ export function useDiagramCamera({
           const value = callbacks.current.insets;
           return typeof value === "function" ? value(canvas) : value;
         },
+        elementDrag: {
+          start: (target, point) =>
+            !!callbacks.current.elementDrag?.start(target, point),
+          move: (point) => callbacks.current.elementDrag?.move(point),
+          end: (moved) => callbacks.current.elementDrag?.end(moved),
+        },
       }),
     // A new camera implementation during Vite refresh needs a new controller.
     [createCamera],
   );
   useLayoutEffect(() => {
-    callbacks.current = { onZoom, onTap, onMotion, insets };
-  }, [onZoom, onTap, onMotion, insets]);
+    callbacks.current = { onZoom, onTap, onMotion, insets, elementDrag };
+  }, [onZoom, onTap, onMotion, insets, elementDrag]);
+  // The camera of each view is kept; an element moved within it is not
+  // another view.
   useLayoutEffect(() => {
     controls.restoreView(diagram.key, diagram.initialFocus);
-  }, [controls, diagram]);
+  }, [controls, diagram.key, diagram.initialFocus]);
   useLayoutEffect(() => {
     if (focusRequest?.ids)
       controls.focusNodes(focusRequest.ids, focusRequest.rightInset);

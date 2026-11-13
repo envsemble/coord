@@ -1,5 +1,6 @@
 // The explorer mirrors the planning folder on disk, or one folder of it (a plan's work folder): real
-// folder and file names, dot folders hidden. Diagram files (.puml) open as diagrams. Only
+// folder and file names, dot folders hidden. Diagram files (.puml) open as diagrams; the arrangement
+// a reader gave a diagram (name.layout.json beside it) is the diagram’s, and not listed. Only
 // expanded branches are flattened into rows, so very large folders stay cheap: the tree renders
 // just the rows in view.
 import type { Document, Snapshot, Work } from '../types';
@@ -41,6 +42,7 @@ export function buildIndex(snapshot: Pick<Snapshot, 'folders' | 'documents' | 'w
   };
   for (const folder of snapshot.folders) addFolder(folder);
   for (const document of snapshot.documents) {
+    if (/.layout.json$/i.test(document.path)) continue;
     addFolder(parent(document.path));
     const siblings = files.get(parent(document.path)) ?? [];
     siblings.push(document);

@@ -1,6 +1,6 @@
 // The committed showcase (index.html and downloads/) is what the build writes
 // from the examples, and works offline: no remote resources, its diagram and
-// payload embedded, source previews intact and the ZIP holding every export.
+// payload embedded and the ZIP holding every export.
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
@@ -133,7 +133,7 @@ async function check() {
   for (const name of Object.keys(zip))
     assert(built.artifacts.has(name), `ZIP holds an unknown file: ${name}`);
   console.log(
-    "Passed: valid example diagrams, reproducible outputs, inline script syntax, offline runtime and source previews, embedded diagram and export payloads, local links, orthogonal layout geometry, and ZIP exports.",
+    "Passed: valid example diagrams, reproducible outputs, inline script syntax, offline runtime, embedded diagram and export payloads, local links, orthogonal layout geometry, and ZIP exports.",
   );
 }
 check().catch((error) => {

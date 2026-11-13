@@ -47,6 +47,7 @@ Order ..> OrderState
 ```
 
 - One diagram per file: a class diagram (`class`, `abstract class`, `interface`, `enum`), an entity diagram (`entity`) or an object diagram (`object`). Never mix kinds.
+- Put elements that belong together in a `package`: Atlas lays each package out as a group, drawn as a region with its name, with room between the groups, as a person would draw them. Without packages it finds the groups from the relations. A diagram of a few elements needs none.
 - Names are identities and unique across packages. Use `class "Display name" as Name` for names with spaces.
 - Attributes `name : Type [0..1]`; operations `name(params) : Type`; visibility `+ - # ~`.
 - Relations between declared elements, spaces around the arrow: `--` association, `-->` navigable, `--|>` inherits (classes from classes, interfaces from interfaces), `..|>` implements an interface, `o--` aggregation and `*--` composition (whole on the left), `..>` dependency. Quoted multiplicities at either end, label after `:`. Inheritance takes neither.
@@ -66,7 +67,7 @@ At the top of the file:
 
 Directly above an element, member or relation: `' atlas evidence {"file": "src/x.ts", "line": 12}` (where it is declared; a `url` starts with `http://` or `https://`) and `' atlas snippet {"language": "typescript", "code": "…"}` (at most twelve lines). Other `' atlas` words are errors; use plain `'` comments for remarks.
 
-Directly above a class, interface, enum, entity, object or member (not a relation): `' atlas description <text>`, one short sentence of what it is for, in plain text on that line (at most 280 characters, no formatting). The viewer shows it in the element's details and as its tooltip, and a proposal that changes it changes the element. Describe what a reader cannot tell from the name, such as each table of a database diagram; skip the obvious. Why it is designed so is rationale and stays in the plan.
+Directly above a class, interface, enum, entity, object or member (not a relation): `' atlas description <text>`, one short sentence of what it is for, in plain text on that line (at most 280 characters, no formatting). The viewer shows it as the element's tooltip, and a proposal that changes it changes the element. Describe what a reader cannot tell from the name, such as each table of a database diagram; skip the obvious. Why it is designed so is rationale and stays in the plan.
 
 ```plantuml
 ' atlas description A tab of a window, showing something of one project.

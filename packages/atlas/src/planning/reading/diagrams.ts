@@ -3,10 +3,12 @@
 // the viewer. A diagram is identified by its path in the work folder. Plans link diagrams with
 // ordinary Markdown links (see diagramLinks.ts).
 import { createHash } from 'node:crypto';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import atlas, { type DiagramFile, type DiagramProblem, type DiagramSummary, type ViewerPayload } from '@envsemble/atlas-diagrams';
 import { PlanningError, readDocument, resolveDocument } from './planningIndex.ts';
 import { describeProvenance, type CaptureSource, type Provenance } from './provenance.ts';
+import { diagramPositions } from '../../host/validate.ts';
 import { samePath, workRelative } from '../../platform/paths.ts';
 import type { Document, PlanningIndex as LoadedIndex } from '../types.ts';
 
@@ -151,6 +153,42 @@ export class DiagramCatalog {
     if (!own) throw new PlanningError('This diagram cannot be drawn.', 409);
     const siblings = [...payloads].filter(([path]) => path !== diagram).map(([path, payload]) => ({ path, payload }));
     return siblings.length ? { ...own, siblings } : own;
+  }
+
+  /**
+   * Where a diagram's arrangement is kept: beside its family's first file (the diagram itself when
+   * it is alone), `orders.puml` → `orders.layout.json`. The file is found through the index, so it
+   * is inside the planning folder.
+   */
+  private async sidecar(snapshot: PlanningIndex, workId: string, diagram: string) {
+    const work = this.work(snapshot, workId);
+    const entry = this.describe(await this.read(snapshot, work)).find(item => item.path === diagram);
+    if (!entry) throw new PlanningError('This diagram is not in the work folder.', 404);
+    if (!work.path) throw new PlanningError("This work item has no folder.", 404);
+    const root = entry.family ?? entry.path;
+    const filename = await resolveDocument(this.planningRoot, work.path.replace(/\/+$/, '') + '/' + root);
+    return path.join(path.dirname(filename), path.basename(filename).replace(/\.puml$/i, '') + '.layout.json');
+  }
+  /** How a reader arranged a diagram: each element's top-left corner by id, or null when it has no arrangement (or one that cannot be read). */
+  async arrangement(snapshot: PlanningIndex, workId: string, diagram: string): Promise<Record<string, [number, number]> | null> {
+    const file = await this.sidecar(snapshot, workId, diagram);
+    let text: string;
+    try {
+      if ((await stat(file)).size > fileLimit) return null;
+      text = await readFile(file, 'utf8');
+    } catch { return null; }
+    try { return diagramPositions((JSON.parse(text) as { positions?: unknown }).positions, 'positions'); }
+    catch { return null; }
+  }
+  /** Saves a diagram's arrangement (written whole, then moved into place), or removes it with null. */
+  async arrange(snapshot: PlanningIndex, workId: string, diagram: string, positions: Record<string, [number, number]> | null): Promise<void> {
+    const file = await this.sidecar(snapshot, workId, diagram);
+    if (positions === null) { await rm(file, { force: true }); return; }
+    const temporary = file + '.' + process.pid + '.tmp';
+    try {
+      await writeFile(temporary, JSON.stringify({ positions: diagramPositions(positions, "positions") }, null, 1) + '\n', 'utf8');
+      await rename(temporary, file);
+    } finally { await rm(temporary, { force: true }); }
   }
 
   /** The diagrams a document links to, each under the heading its link sits under. */

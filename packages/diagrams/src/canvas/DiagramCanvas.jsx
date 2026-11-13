@@ -25,6 +25,7 @@ export const DiagramCanvas = memo(
       onZoom,
       onHover,
       onClearHover,
+      elementDrag = null,
     },
     ref,
   ) {
@@ -46,12 +47,19 @@ export const DiagramCanvas = memo(
       onTap: (element) => onSelect(readTarget(element)),
       onMotion: clearTransient,
       insets: fitInsets,
+      elementDrag,
     });
     useImperativeHandle(ref, () => controls, [controls]);
+    // A selected element is kept in view as the view changes, though not
+    // while it is dragged about within one.
     useLayoutEffect(() => {
       if (selected?.kind === "node") controls.revealNode(selected.id);
-    }, [controls, diagram, selected]);
-    useLayoutEffect(clearTransient, [clearTransient, diagram]);
+    }, [controls, diagram.key, diagram.initialFocus, selected]);
+    useLayoutEffect(clearTransient, [
+      clearTransient,
+      diagram.key,
+      diagram.initialFocus,
+    ]);
     useLayoutEffect(clearTransient, [clearTransient, selected]);
     useEffect(() => {
       const escape = (e) => {
@@ -72,6 +80,7 @@ export const DiagramCanvas = memo(
       <main
         ref={canvasRef}
         id="canvas"
+        className={elementDrag ? "arrangeable" : undefined}
         aria-label="Interactive diagram"
         onPointerLeave={() => onHover(null)}
       >

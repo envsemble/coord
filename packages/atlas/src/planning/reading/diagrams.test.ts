@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import atlas from '@envsemble/atlas-diagrams';
@@ -187,3 +187,19 @@ test('scope changes during a concurrent load cannot serve the previous work inde
   assert(results.every(result => result.version === 'new'));
 });
 
+
+test('a family keeps one arrangement, beside its first file: saved whole, read back, removed with null', async t => {
+  const { root, snapshot } = folder(t);
+  const catalog = new DiagramCatalog(root);
+  assert.equal(await catalog.arrangement(snapshot, 'work-1', 'proposals/vault.puml'), null);
+  await catalog.arrange(snapshot, 'work-1', 'proposals/vault.puml', { Checkout: [10, 20.04], Payment: [300, 20] });
+  const sidecar = path.join(root, 'active/1/captures/checkout.layout.json');
+  assert.deepEqual(JSON.parse(readFileSync(sidecar, 'utf8')), { positions: { Checkout: [10, 20], Payment: [300, 20] } });
+  // Every layer of the family reads the same arrangement.
+  assert.deepEqual(await catalog.arrangement(snapshot, 'work-1', 'captures/checkout.puml'), { Checkout: [10, 20], Payment: [300, 20] });
+  // An arrangement that cannot be read is none.
+  writeFileSync(sidecar, '{ not json');
+  assert.equal(await catalog.arrangement(snapshot, 'work-1', 'proposals/customer.puml'), null);
+  await catalog.arrange(snapshot, 'work-1', 'captures/checkout.puml', null);
+  assert.equal(existsSync(sidecar), false);
+});

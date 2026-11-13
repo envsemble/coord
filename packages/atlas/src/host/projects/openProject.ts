@@ -201,6 +201,8 @@ export class OpenProject {
   document(relative: string) { return readDocument(this.root, relative); }
   diagrams(work: string): Promise<DiagramEntry[]> { return this.reader().diagrams.list(this.snapshot(), work); }
   diagram(work: string, file: string) { return this.reader().diagrams.prepared(this.snapshot(), work, file); }
+  arrangement(work: string, file: string) { return this.reader().diagrams.arrangement(this.snapshot(), work, file); }
+  arrange(work: string, file: string, positions: Record<string, [number, number]> | null) { return this.reader().diagrams.arrange(this.snapshot(), work, file, positions); }
   references(work: string | null, relative: string): Promise<DiagramReference[]> { return this.reader().diagrams.references(this.snapshot(), work ?? undefined, relative); }
 
   /** Every diagram in the folder, for quick open. Computed on demand and reused until the folder changes. */

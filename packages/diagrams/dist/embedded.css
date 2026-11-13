@@ -548,6 +548,17 @@
   --diagram-label: var(--env-color-fg-default);
   --diagram-muted: var(--env-color-fg-muted);
   --diagram-attribute: var(--env-color-fg-muted);
+  /* A package: a quiet region behind its elements. */
+  --diagram-package: color-mix(
+    in srgb,
+    var(--env-color-fg-muted) 7%,
+    transparent
+  );
+  --diagram-package-border: color-mix(
+    in srgb,
+    var(--env-color-fg-muted) 28%,
+    transparent
+  );
   /* A proposal's changes: added, changed and removed elements. */
   --change-added: var(--env-color-fg-success);
   --change-modified: var(--env-color-fg-warning);
@@ -576,6 +587,15 @@
   will-change: transform;
 }
 /* stylelint-enable unit-disallowed-list */
+/* An element that can be dragged shows it; one being dragged follows the
+   hand. */
+.atlas-panel #canvas.arrangeable .node {
+  cursor: move;
+}
+.atlas-panel #canvas.moving,.atlas-panel
+#canvas.moving .node {
+  cursor: grabbing;
+}
 .atlas-panel #canvas.dragging {
   cursor: grabbing;
 }

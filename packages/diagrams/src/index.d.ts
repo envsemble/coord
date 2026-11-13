@@ -37,6 +37,19 @@ export const DiagramPanel: ComponentType<{
    * island moves to a row below it.
    */
   sections?: ReactNode;
+  /**
+   * How the reader arranged the diagram, kept by the host: each element's
+   * top-left corner by its id; null or absent for the automatic layout. An
+   * element without a place goes beside the elements it relates to.
+   */
+  arrangement?: Record<string, [number, number]> | null;
+  /**
+   * When provided, elements can be dragged, and this is called with the
+   * whole arrangement as shown when one is let go, or with null when the
+   * reader resets the layout; the host keeps it and gives it back as
+   * `arrangement`.
+   */
+  onArrange?(positions: Record<string, [number, number]> | null): void;
 }>;
 /** How many changes a proposal's payload lists, as its Changes button counts them; null for other payloads. */
 export function changeCount(
