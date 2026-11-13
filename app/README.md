@@ -37,11 +37,11 @@ A window has one row at the top, its title bar, from the left:
 
 - the Atlas mark, then the **back** and **forward** arrows;
 - **Plans**: **All Plans** (the hub), each active project (its plans in the hub) and **Statistics** (all plans');
-- **File**: **New Window** (Ctrl+Shift+N), **New Project…**, **Open in Editor** (Ctrl+O, while the window shows a file of this computer), **Settings…** (Ctrl+,; see [Settings](#settings)) and **Exit**;
-- **View**: **Hide Files** or **Show Files** (Ctrl+Shift+E, beside a plan), **Zoom In** (Ctrl++), **Zoom Out** (Ctrl+-), **Actual Size** (Ctrl+0) and **Full Screen** (F11), with **Reload** and **Developer Tools** in development builds;
+- **File**: **New Window** (Ctrl+Shift+N), **New Project…**, **Settings…** (Ctrl+,; see [Settings](#settings)) and **Exit**;
+- **View**: **Zoom In** (Ctrl++), **Zoom Out** (Ctrl+-), **Actual Size** (Ctrl+0) and **Full Screen** (F11), with **Reload** and **Developer Tools** in development builds;
 - **Help**: **Open Logs** and **About Atlas**;
 - the **computer menu**, the name of the computer the window works on: this computer and the paired ones (choosing one shows its plans in this window), and **Computer settings…**, which opens **Settings › Computers** (see [Remote computers](#remote-computers));
-- at the right: **Open in** (a split button that opens the file the window shows, such as a plan's `plan.md` or a diagram's source, in the editor you choose: VS Code, VS Code Insiders, Cursor, Windsurf, Zed, or the system's file manager), **Search** (Ctrl+P; on the hub its own search field takes its place), record-health notes when the shown project has any, the theme menu (**Match the system**, **Light** or **Dark**, for every window) and the system's window buttons.
+- at the right: **Search** (Ctrl+P; on the hub its own search field takes its place), record-health notes when the shown project has any, the theme menu (**Match the system**, **Light** or **Dark**, for every window) and the system's window buttons.
 
 Alt opens the menus from the keyboard (Alt+P, Alt+F, Alt+V, Alt+H). Empty space in the title bar moves the window, and a double click maximizes it.
 
@@ -53,17 +53,16 @@ Alt opens the menus from the keyboard (Alt+P, Alt+F, Alt+V, Alt+H). Empty space 
 
 **The search** (Ctrl+P, **Search**, or the hub's search field) searches every active project of the computer: plans, ledger steps, documents with their headings and text, diagrams and their elements, glossary terms and projects. A plan's tags match as words, and `tag:0.8.0` keeps only the plans tagged `0.8.0` (with words, those that also match them); plans show their tags. Results come grouped by kind, each with its project and plan, and open where they are: a plan, a document at its heading, a diagram at its element, a project's plans in the hub.
 
-| Shortcut                 | Action                                   |
-| ------------------------ | ---------------------------------------- |
-| Alt+← / Alt+→            | Back / forward                           |
-| Ctrl+P                   | Search                                   |
-| Ctrl+O                   | Open the shown file in the chosen editor |
-| Ctrl+Shift+E             | Show or hide the plan's Files            |
-| Ctrl+,                   | Settings                                 |
-| Ctrl+Shift+N             | New window                               |
-| Ctrl+Shift+W             | Close the window                         |
-| Ctrl++ / Ctrl+- / Ctrl+0 | Zoom in / out / actual size              |
-| F11                      | Full screen                              |
+| Shortcut                 | Action                                 |
+| ------------------------ | -------------------------------------- |
+| Alt+← / Alt+→            | Back / forward                         |
+| Ctrl+P                   | Search                                 |
+| Ctrl+Shift+E             | Bring the keyboard to the plan's Files |
+| Ctrl+,                   | Settings                               |
+| Ctrl+Shift+N             | New window                             |
+| Ctrl+Shift+W             | Close the window                       |
+| Ctrl++ / Ctrl+- / Ctrl+0 | Zoom in / out / actual size            |
+| F11                      | Full screen                            |
 
 ## The hub
 
@@ -81,7 +80,7 @@ Every plan is a row; a click anywhere on it opens the plan. A row shows:
 
 ## A plan
 
-![A plan in Atlas: Saved payment methods, #0001 of Northwind, under the breadcrumb Plans › Northwind › #0001, Paused with 2 of 7 steps; its Outcome and Scope, and a diagram card, Checkout · captured TypeScript, Generated from code, with its elements, under the heading Current checkout. At the left the Files sidebar with the work folder, plan.md marked; at the right the side column: Progress (2 of 7 steps done, 5 left, the step in progress), Continues #0004 Inventory reservations at checkout, the steps, and Statistics (Claude Opus 5.5 with Claude Sonnet 4.5 and Claude Haiku 5.5, 4 h 8 min of agent time, 13.8M tokens); Open in VS Code and Search in the title bar](../assets/plan.png)
+![A plan in Atlas: Saved payment methods, #0001 of Northwind, under the breadcrumb Plans › Northwind › #0001, Paused with 2 of 7 steps; its Outcome and Scope, and a diagram card, Checkout · captured TypeScript, Generated from code, with its elements, under the heading Current checkout. At the left the plan's files with the work folder, plan.md marked; at the right the side column: Progress (2 of 7 steps done, 5 left, the step in progress), Continues #0004 Inventory reservations at checkout, the steps, and Statistics (Claude Opus 5.5 with Claude Sonnet 4.5 and Claude Haiku 5.5, 4 h 8 min of agent time, 13.8M tokens); Search in the title bar](../assets/plan.png)
 
 A plan's page shows:
 
@@ -92,7 +91,7 @@ A plan's page shows:
 - **Now**, while the plan is implemented: what each session on it is doing, by its latest message and its last five actions, newest first (files edited, commands run, the ones that failed marked, Atlas tools used, helpers started); with none on it, where the work stopped. It is read from the sessions' logs as they work, and nothing of it is kept.
 - **The plan** itself, folded under **Plan** while the plan is implemented. A section headed **Request** (or **Request (…)**), where the plan keeps the user's words, shows folded; its heading opens it. A heading whose text links to a diagram has the diagram's card under it (see [Diagrams](#diagrams)). What the plan references opens from it: other plans and documents in the window, PRs with their state (open, draft, merged or closed, and failing or running checks), commits and files.
 - **The side column**, which scrolls on its own: **Progress** (a bar with the steps done and left, then the steps themselves, planning steps in their own colour before the implementation steps, the one in progress pulsing while agents work), any blocker, **handoffs** (the work it continues above the steps, the work that continues it below them), **Sessions** (the agent sessions that worked on it by their titles, the latest first, marked while one works) and **Statistics** (the main model and effort with the others, agent time counting up while agents work, tokens, and **All statistics and the timeline**).
-- **Files**, a sidebar at the left of a plan and its pages, with the plan's own work folder as a tree, the file shown marked. It stays in view as the page scrolls and scrolls on its own. A click opens a file in the window, a diagram file as its diagram; its context menu offers **Open** (**Open Diagram**), **Open as Text**, **Show in Folder** and **Collapse All Folders**. Arrow keys, Home and End, type-ahead and Enter work in the tree. Its button, **View › Hide Files** or Ctrl+Shift+E hide it, and the same show it again, with the keyboard in the tree; every window remembers the choice. A narrow window leaves it out.
+- **Files**, at the left of a plan and its pages, with the plan's own work folder as a tree, the file shown marked. It stays in view as the page scrolls and scrolls on its own. A click opens a file in the window, a diagram file as its diagram; its context menu offers **Open** (**Open Diagram**), **Open as Text**, **Show in Folder** and **Collapse All Folders**. Arrow keys, Home and End, type-ahead and Enter work in the tree; Ctrl+Shift+E brings the keyboard to it. A narrow window leaves it out.
 - **Parts**, a rail at the right of a plan made of parts and of each of its parts: the group, then its parts in their order, numbered, each with its status and its steps done, the one shown marked. A click opens one.
 
 **Work in parts.** Some work is better thought of as several pieces, each planned and done on its own, in an order. A work item can then be made of **parts**: other work items of the same project, listed in order in its plan (`parts`), each with its own plan, steps and statistics. Agents set them up with the plugin's tools ([agent interface](../docs/agent-interface.md)). This is not a handoff: continuing work says where work went next, parts say what one piece of work is made of.
@@ -145,7 +144,7 @@ Until it is finished, Atlas starts with a short onboarding instead of the window
 
 **Devices that can reach** this computer, in **Settings › Computers**, lets your other devices work on this computer: choose the address (Tailscale, a local network or only this machine) and the port, then create a five-minute, one-time pairing link with a QR code. A link may grant **Manage access** (pairing and revoking devices). Revoke devices there too. In a window on another computer, the section manages that computer's pairings, when this device has Manage access there.
 
-**Connect to Another Atlas…**, under **Other computers** in **Settings › Computers**, pairs with another computer from its link. Then choose it in the computer menu to work on its projects in this window, or open it in a new window from **Other computers**, which also forgets a paired computer. On another computer you can create projects (a name only: their folders are chosen in Atlas on that computer), rename them, and archive and restore them (the archive state is this device's). Show in Folder and Open in Editor work only on this computer's files. See [remote access](../docs/remote-access.md).
+**Connect to Another Atlas…**, under **Other computers** in **Settings › Computers**, pairs with another computer from its link. Then choose it in the computer menu to work on its projects in this window, or open it in a new window from **Other computers**, which also forgets a paired computer. On another computer you can create projects (a name only: their folders are chosen in Atlas on that computer), rename them, and archive and restore them (the archive state is this device's). Show in Folder works only on this computer's files. See [remote access](../docs/remote-access.md).
 
 ## Staying current
 

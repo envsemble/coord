@@ -135,10 +135,9 @@ test('a window saves the place it shows as a row of its project, and loads it ba
   assert.deepEqual(savedPlace(projectId, placeRow(statistics)!), statistics);
 });
 
-test('outside Atlas, only applications on the allowlist and editors through their links open', () => {
+test('outside Atlas, only applications on the allowlist and VS Code through its links open', () => {
   assert.equal(appLink('t3-thread://thread/abc'), 't3-thread://thread/abc');
   for (const refused of ['file:///C:/Windows/System32/calc.exe', 'javascript:alert(1)', 'ms-settings:', 'unknown-app://x', 'vscode://file/C:/x.bat', 'slack://open', 'not a link', 't3-thread://x\u0000y']) assert.equal(appLink(refused), null, refused);
-  assert.equal(editorLink('vscode', 'C:\\Dev\\atlas\\app\\src\\a b#.ts', 68), 'vscode://file/C:/Dev/atlas/app/src/a%20b%23.ts:68');
-  assert.equal(editorLink('cursor', '/home/me/atlas/README.md', null), 'cursor://file/home/me/atlas/README.md');
-  assert.equal(editorLink('system', '/home/me/x', 3), null);
+  assert.equal(editorLink('C:\\Dev\\atlas\\app\\src\\a b#.ts', 68), 'vscode://file/C:/Dev/atlas/app/src/a%20b%23.ts:68');
+  assert.equal(editorLink('/home/me/atlas/README.md', null), 'vscode://file/home/me/atlas/README.md');
 });

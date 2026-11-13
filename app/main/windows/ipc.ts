@@ -9,8 +9,8 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell, typ
 import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atlas/host';
 import { resolveDocument } from '@envsemble/atlas/planning';
 import { accessSettings, deviceText } from '@envsemble/atlas/host/validate';
-import { agentNames, defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AgentId, type AccessSettings, type Editor, type InvokeChannel, type LoadedUi, type PairingGrant, type Project, type PairingLinkView, type Place, type ProjectPlace, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
-import { agentId, argumentsOf, array, boolean, command, diagramPath, editor, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, place, projectId, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, uiState, url, workId, type Validator } from '../../shared/validate.ts';
+import { agentNames, defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AgentId, type AccessSettings, type InvokeChannel, type LoadedUi, type PairingGrant, type Project, type PairingLinkView, type Place, type ProjectPlace, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
+import { agentId, argumentsOf, array, boolean, command, diagramPath, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, place, projectId, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, uiState, url, workId, type Validator } from '../../shared/validate.ts';
 import { AtlasError, toErrorValue } from '../errors.ts';
 import type { ProjectView } from '../computers/projectView.ts';
 import type { Agents } from '../agent/agents.ts';
@@ -55,23 +55,10 @@ function thisComputer(window: AtlasWindow, what: string) {
   if (window.computer !== null) throw new AtlasError('forbidden', what + ' of a project on another computer cannot be opened here.');
 }
 
-/**
- * Open a file or folder on this computer in the chosen editor, at its line, after asking (`what`:
- * "this file") unless the person opens what the window shows themselves (`ask` false). With the
- * system's application chosen it is only shown in its folder: opening it would run a script or a
- * program a plan names.
- */
-async function openInEditor(manager: WindowManager, window: AtlasWindow, what: string, file: string, line: number | null, ask = true) {
-  const choice: Editor = manager.context.state.editor;
-  const link = editorLink(choice, file, line);
-  const detail = file + (line ? ':' + line : '');
-  if (!link) {
-    if (ask) await confirmed(window, 'Show ' + what + ' in its folder?', 'Show', detail);
-    shell.showItemInFolder(file);
-    return;
-  }
-  if (ask) await confirmed(window, 'Open ' + what + ' in your editor?', 'Open', detail);
-  await shell.openExternal(link);
+/** Open a file on this computer in VS Code, at its line, after asking (`what`: "this file"). */
+async function openInEditor(window: AtlasWindow, what: string, file: string, line: number | null) {
+  await confirmed(window, 'Open ' + what + ' in VS Code?', 'Open', file + (line ? ':' + line : ''));
+  await shell.openExternal(editorLink(file, line));
 }
 
 /** Whether a path is a folder or inside it (both real paths): the way there starts with no `..` segment (a folder named `..cache` is inside). */
@@ -95,33 +82,9 @@ async function openReference(manager: WindowManager, window: AtlasWindow, projec
   const listed = (await window.projects()).find(entry => entry.id === projectId);
   const folders = (await Promise.all([...listed?.folders ?? [], ...listed ? [listed.path] : []].map(folder => realpath(folder).catch(() => null)))).filter((folder): folder is string => folder !== null);
   if (!real || !folders.some(folder => within(folder, real)) || !(await stat(real)).isFile()) throw missing();
-  await openInEditor(manager, window, 'this file', real, file.line);
+  await openInEditor(window, 'this file', real, file.line);
 }
 
-/**
- * Open in: the file the window shows (`place`, which must be the place the page last saved as the
- * one it shows) in the editor, without asking, as the person opens it themselves. The file must be of
- * that place (the file itself, or a file of the plan shown) and is resolved inside the project's
- * folder (never a link out of it, never a hidden part). A file a page's content names opens through
- * openReference, which asks.
- */
-async function openShown(manager: WindowManager, window: AtlasWindow, shown: Place, relative: string) {
-  thisComputer(window, 'Files');
-  const refused = () => new AtlasError('forbidden', 'Only the file the window shows opens this way.');
-  if ('page' in shown || !window.shown || 'page' in window.shown || !sameShown(shown, window.shown)) throw refused();
-  const { projectId, target } = shown;
-  const view = await window.readable(projectId);
-  if (target.kind === 'file' ? target.path !== relative : !(await view.request('project.work', { projectId })).some(work => work.id === target.work && relative.startsWith(work.path + '/'))) throw refused();
-  const root = (await window.projects()).find(entry => entry.id === projectId)?.path;
-  if (!root) throw new AtlasError('not-found', 'This project is not on this computer.');
-  const real = await resolveDocument(root, relative).catch(() => { throw new AtlasError('forbidden', 'Only files inside the project\'s folder open in the editor.'); });
-  await openInEditor(manager, window, 'this file', real, null, false);
-}
-/** Whether two places of a project show the same thing (where in it aside). */
-function sameShown(a: ProjectPlace, b: ProjectPlace) {
-  const key = ({ projectId, target }: ProjectPlace) => JSON.stringify([projectId, target.kind, 'work' in target ? target.work : null, 'path' in target ? target.path : null]);
-  return key(a) === key(b);
-}
 
 /** A command a page could misuse runs after a person's press, or once they confirm it. */
 async function confirmed(window: AtlasWindow, message: string, action: string, detail?: string) {
@@ -156,7 +119,7 @@ async function loadUi(manager: WindowManager, window: AtlasWindow): Promise<Load
   const inspectorWidth = state.inspectorWidth;
   // The window starts from this listing rather than asking for its own.
   const projects = listed as Project[] | null;
-  return { place: place ?? defaultUiState.place, ...inspectorWidth !== null && { inspectorWidth }, ...state.filesHidden && { filesHidden: true }, ...saved && !shownProject && { pending: true }, ...projects && { projects } };
+  return { place: place ?? defaultUiState.place, ...inspectorWidth !== null && { inspectorWidth }, ...saved && !shownProject && { pending: true }, ...projects && { projects } };
 }
 /** Each window's saves, applied one after another in the order they came. */
 const saving = new WeakMap<AtlasWindow, Promise<void>>();
@@ -170,7 +133,6 @@ async function saveUi(manager: WindowManager, window: AtlasWindow, ui: UiState) 
   const { state, computers } = manager.context;
   const computer = window.computer;
   state.setInspectorWidth(ui.inspectorWidth ?? null);
-  state.setFilesHidden(ui.filesHidden ?? false);
   const row = placeRow(ui.place);
   const projectRowId = row ? window.listedRow(row.projectId) : null;
   const rows = row && projectRowId !== null ? [{ projectRowId, kind: row.kind, target: row.target, active: true }] : [];
@@ -244,14 +206,10 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
       },
     },
     'shell:openReference': { args: [projectId, referenceInput], handle: (window, projectId: string, reference: ReferenceInput) => openReference(manager, window, projectId, reference) },
-    'shell:openShown': { args: [place, relativePath], handle: (window, shown: Place, file: string) => openShown(manager, window, shown, file) },
     'shell:copy': { args: [string({ min: 1, max: 10000 })], handle: (_window, text: string) => { clipboard.writeText(text); } },
     'app:theme': { args: [], handle: () => manager.context.state.theme },
     // Every window follows the native theme through prefers-color-scheme, so one change reaches them all.
     'app:setTheme': { args: [themePreference], handle: (_window, preference: ThemePreference) => { manager.context.state.setTheme(preference); nativeTheme.themeSource = preference; } },
-    // The editor is one of a fixed list (each opened through its own link), so choosing one runs nothing.
-    'app:editor': { args: [], handle: () => manager.context.state.editor },
-    'app:setEditor': { args: [editor], handle: (_window, choice: Editor) => { manager.context.state.setEditor(choice); } },
     // About Atlas, which the window shows: versions and the data folder, nothing a page could misuse.
     'app:about': { args: [], handle: () => actions.about() },
     'app:command': {

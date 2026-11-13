@@ -23,8 +23,8 @@ export const invokeChannels = [
   'project:snapshot', 'project:work', 'project:document', 'project:diagrams', 'project:diagram', 'project:references', 'project:diagramIndex',
   'project:statistics', 'projects:statistics', 'ui:load', 'ui:save',
   'references:resolve', 'work:sessions', 'work:timeline',
-  'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:openShown', 'shell:copy',
-  'app:command', 'app:theme', 'app:setTheme', 'app:editor', 'app:setEditor', 'app:about',
+  'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:copy',
+  'app:command', 'app:theme', 'app:setTheme', 'app:about',
   'computers:list', 'computers:switch', 'computers:pair', 'computers:forget',
   'access:state', 'access:update', 'access:pairingCreate', 'access:pairingRevoke', 'access:devices', 'access:deviceRevoke',
   'agents:list', 'agents:checks', 'agents:connect', 'agents:disconnect', 'agents:chooseProgram', 'agents:clearProgram', 'agents:byHand',
@@ -40,15 +40,6 @@ export const themePreferences = ['system', 'light', 'dark'] as const;
 export type ThemePreference = typeof themePreferences[number];
 
 /**
- * The editor files open in: VS Code (the default) and editors like it, each through its own link
- * (`vscode://file/…:line`), or the system's application for the file (`system`, without its line).
- * A fixed choice, so a page can never make Atlas run a command of its own.
- */
-export const editors = ['vscode', 'vscode-insiders', 'cursor', 'windsurf', 'zed', 'system'] as const;
-export type Editor = typeof editors[number];
-export const editorNames: Record<Editor, string> = { vscode: 'VS Code', 'vscode-insiders': 'VS Code Insiders', cursor: 'Cursor', windsurf: 'Windsurf', zed: 'Zed', system: 'The system’s application' };
-
-/**
  * Commands the renderer may ask main to run, from the title bar's menu among others; each one acts
  * on the calling window only (New Window and Exit act on the app).
  */
@@ -60,7 +51,7 @@ export type AppCommand = typeof appCommands[number];
 
 /** Menu items that need the renderer (focus, pages, dialogs drawn in the window). */
 export const menuCommands = [
-  'toggleFiles', 'quickOpen', 'openInEditor', 'newProject', 'plans', 'statistics', 'settings', 'goBack', 'goForward', 'about',
+  'focusFiles', 'quickOpen', 'newProject', 'plans', 'statistics', 'settings', 'goBack', 'goForward', 'about',
 ] as const;
 export type MenuCommand = typeof menuCommands[number];
 
@@ -133,14 +124,10 @@ export type SettingsSection = typeof settingsSections[number];
 export type PagePlace = { page: 'hub'; projectId: string | null } | { page: 'statistics'; projectId: string | null } | { page: 'settings'; section: SettingsSection };
 /** What a window shows: one place at a time. */
 export type Place = ProjectPlace | PagePlace;
-/**
- * A window's layout: the place it shows, the width the reader gave a diagram's details (absent for
- * the default), and whether the reader hid the Files sidebar (absent while it shows).
- */
+/** A window's layout: the place it shows, and the width the reader gave a diagram's details (absent for the default). */
 export interface UiState {
   place: Place;
   inspectorWidth?: number;
-  filesHidden?: boolean;
   /** Loaded while the window's computer did not answer: a place of a project not listed yet waits to be loaded again. */
   pending?: boolean;
 }
@@ -236,16 +223,8 @@ export interface AtlasBridge {
   reveal(projectId: string, path: string): Promise<Result<void>>;
   /** Open a web address in the browser, or an application's link (`t3-thread://`…) in its application, this computer's only. */
   openExternal(url: string): Promise<Result<void>>;
-  /** Open the file a path reference names in the editor, at its line; only for a project on this computer. */
+  /** Open the file a path reference names in VS Code, at its line; only for a project on this computer. */
   openReference(projectId: string, reference: ReferenceInput): Promise<Result<void>>;
-  /**
-   * Open in: open the file the window shows (`place`, as last saved with saveUi) in the editor without
-   * asking (with the system's choice, show it in its folder); only for a project on this computer.
-   */
-  openShown(place: Place, path: string): Promise<Result<void>>;
-  /** The editor files open in, and choosing another. */
-  editor(): Promise<Result<Editor>>;
-  setEditor(editor: Editor): Promise<Result<void>>;
   copy(text: string): Promise<Result<void>>;
   command(command: AppCommand): Promise<Result<void>>;
   /** The app's theme preference. Windows follow it through `prefers-color-scheme`. */

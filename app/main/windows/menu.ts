@@ -15,9 +15,6 @@ export function buildMenu(manager: WindowManager, actions: { openLogs(): void; d
         { label: 'New &Window', accelerator: 'CmdOrCtrl+Shift+N', click: () => { manager.create(window()?.computer ?? null); } },
         { label: 'New &Project…', click: () => manager.sendMenu('newProject') },
         { type: 'separator' },
-        // The shown file in the chosen editor, as the title bar's Open in button does; the window takes the key itself.
-        { label: 'Open in &Editor', accelerator: 'CmdOrCtrl+O', click: () => manager.sendMenu('openInEditor') },
-        { type: 'separator' },
         // Settings: the agents on this computer, and the computers; the window takes the key itself too.
         { label: '&Settings…', accelerator: 'CmdOrCtrl+,', click: () => manager.sendMenu('settings') },
         { type: 'separator' },
@@ -38,7 +35,8 @@ export function buildMenu(manager: WindowManager, actions: { openLogs(): void; d
         { label: 'S&tatistics', click: () => manager.sendMenu('statistics') },
         { type: 'separator' },
         { label: '&Search…', accelerator: 'CmdOrCtrl+P', click: () => manager.sendMenu('quickOpen') },
-        { label: 'F&iles', accelerator: 'CmdOrCtrl+Shift+E', click: () => manager.sendMenu('toggleFiles') },
+        // The plan's files take the keyboard; the window takes the key itself.
+        { label: 'F&iles', accelerator: 'CmdOrCtrl+Shift+E', click: () => manager.sendMenu('focusFiles') },
         { type: 'separator' },
         // Zoom keeps the title bar's window buttons as tall as the bar above its line.
         { label: 'Zoom &In', accelerator: 'CmdOrCtrl+Plus', click: () => window()?.zoom('in') },

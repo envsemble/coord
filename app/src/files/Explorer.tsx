@@ -1,10 +1,9 @@
-// The open plan's files, in the sidebar at the left of its pages: its work folder (plan, ledger,
+// The open plan's files, at the left of its pages: its work folder (plan, ledger,
 // context, diagrams and the rest) as a tree of real folder and file names; a work item's diagram
 // files open as its diagrams. A click, or Enter, opens a file in the window; folders open and close in
-// place. View › Files and the sidebar's own button hide it, and show it again.
+// place. Ctrl+Shift+E brings the keyboard to it.
 import { createContext, useContext, useMemo } from 'react';
-import { IconButton, Menu, Text, Tooltip, Tree, type TreeItem } from '@envsemble/envui';
-import { IconLeftPanelClose } from '@envsemble/envui/icons/LeftPanelClose';
+import { Menu, Text, Tree, type TreeItem } from '@envsemble/envui';
 import { DiagramIcon, FileIcon, FolderIcon, FolderOpenIcon } from '../ui/icons';
 import type { Document, Snapshot, Target, Work } from '../types';
 import { api } from '../api';
@@ -38,16 +37,15 @@ type Row = TreeItem & { row: ExplorerRow };
 /** How the open folders note that the plan's own folder is folded (it shows open otherwise). */
 const folded = (id: string) => 'folded:' + id;
 
-/** Which of a project's folders are open in the Files card, and the row of what the window shows. */
+/** Which of a project's folders are open in the plan's files, and the row of what the window shows. */
 export interface FilesState { expanded: string[]; setExpanded(next: string[]): void; selected: string | null }
 export const FilesContext = createContext<FilesState>({ expanded: [], setExpanded: () => undefined, selected: null });
 
 /**
  * The open plan's files, at the left of its pages: the plan's work folder as a tree, the file shown
- * marked. It stays in view as the page scrolls, and scrolls on its own when it is long. `hide` hides
- * the sidebar; View › Files (`shortcut`) shows it again.
+ * marked. It stays in view as the page scrolls, and scrolls on its own when it is long.
  */
-export function PlanFiles({ work, hide, shortcut }: { work: Work; hide(): void; shortcut: string }) {
+export function PlanFiles({ work }: { work: Work }) {
   const { projectId, open, notify, remote, snapshot } = useWindow();
   const { expanded, setExpanded, selected } = useContext(FilesContext);
   const index = useMemo(() => buildIndex(snapshot), [snapshot]);
@@ -85,12 +83,7 @@ export function PlanFiles({ work, hide, shortcut }: { work: Work; hide(): void; 
     return <>{entries}{entries && <Menu.Separator />}<Menu.Item disabled={!expanded.length} onClick={() => setExpanded([])}>Collapse All Folders</Menu.Item></>;
   };
   return <nav className="plan-files" aria-label={'Files of ' + workNumber(work.id)}>
-    <div className="plan-files-header">
-      <Text render={<h2 />} variant="body" className="plan-files-heading">Files</Text>
-      <Tooltip content={'Hide files (' + shortcut + ')'} side="bottom">
-        <IconButton variant="ghost" size="sm" icon={<IconLeftPanelClose />} aria-label="Hide files" onClick={hide} />
-      </Tooltip>
-    </div>
+    <Text render={<h2 />} variant="body" className="plan-files-heading">Files</Text>
     {rows.length ? <Tree<Row> className="plan-files-tree" items={rows} aria-label={'Files of ' + workNumber(work.id) + ' ' + work.title} value={selected} density="sm"
       onAction={item => activate(item)}
       onExpandedChange={(item, value) => setOpen(item.value, value)}
@@ -99,7 +92,7 @@ export function PlanFiles({ work, hide, shortcut }: { work: Work; hide(): void; 
   </nav>;
 }
 
-/** Bring the keyboard to the Files sidebar's tree (which takes focus itself and marks its active row). */
+/** Bring the keyboard to the plan's files (which takes focus itself and marks its active row). */
 export function focusPlanFiles() {
   document.querySelector<HTMLElement>('.plan-files [role="tree"]')?.focus();
 }

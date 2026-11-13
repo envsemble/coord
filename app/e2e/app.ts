@@ -333,7 +333,7 @@ export async function launchProject(options: { dataDirectory?: string; folder?: 
   return { ...launched, folder: home.folder };
 }
 
-/** The plan's Files sidebar, at the left of its pages unless hidden, with the files of the plan's own folder. */
+/** The plan's files, at the left of its pages, with the files of the plan's own folder. */
 export const filesSidebar = (window: Page) => window.getByRole('navigation', { name: /^Files of / });
 export async function showFiles(window: Page) {
   const sidebar = filesSidebar(window);

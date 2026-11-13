@@ -176,7 +176,8 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await viewer.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(viewer.locator('.work-page h1')).toHaveText('Customer order notifications');
 
-  // Switching to this computer, which has no projects, and back.
+  // Switching to this computer, which has no projects, and back (once the window saved what it shows).
+  await viewer.waitForTimeout(600);
   await viewer.getByRole('button', { name: /^Computer:/ }).click();
   await viewer.getByRole('menu', { name: /^Computer/ }).getByRole('menuitemradio').filter({ hasText: 'This computer' }).click();
   await noProjects(viewer);

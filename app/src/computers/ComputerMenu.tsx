@@ -38,7 +38,7 @@ export function ComputerMenu({ current, onError, onSettings }: { current: Comput
   const [open, setOpen] = useState(false);
   const { computers } = useComputers(open, onError);
   return <Menu.Root aria-label={'Computer: ' + current.name} align="start" open={open} onOpenChange={setOpen}
-    trigger={<Button variant="secondary" className="computer-trigger" startIcon={<ComputerIcon />} endIcon={<UnfoldMore />} aria-label={'Computer: ' + current.name}><span className="computer-trigger-label">{current.name}</span></Button>}>
+    trigger={<Button variant="ghost" className="computer-trigger" startIcon={<ComputerIcon />} endIcon={<UnfoldMore />} aria-label={'Computer: ' + current.name}><span className="computer-trigger-label">{current.name}</span></Button>}>
     <Menu.Group label="Computers">
       {computers === null ? <Menu.Item disabled icon={<Spinner size="sm" label="" />}>Checking computers…</Menu.Item>
         : <Menu.RadioGroup value={current.hostId ?? 'local'} onValueChange={value => {

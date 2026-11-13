@@ -123,15 +123,7 @@ test("the hub's search field opens the search with what is typed and never filte
   await state.getByRole('radio', { name: /^All/ }).click();
   await expect(hubRows(window, 'Saved payment methods')).toHaveCount(1);
   // The state filter stays while the window shows something else.
-  // Open in shows only where the window shows a file.
-  const openIn = titleBar(window).locator('.editor-button');
-  await expect(openIn).toHaveCount(0);
   await openPlan(window, 'Saved payment methods');
-  // On a plan it opens its document in the chosen editor, VS Code until another is chosen; its arrow lists the editors.
-  await expect(openIn.getByRole('button', { name: 'Open in VS Code', exact: true })).toBeVisible();
-  await openIn.getByRole('button', { name: 'Choose the editor' }).click();
-  await expect(window.getByRole('menu', { name: 'Open in' }).getByRole('menuitem')).toHaveText([/^VS Code/, 'VS Code Insiders', 'Cursor', 'Windsurf', 'Zed', /^(File Explorer|Finder|Files)$/]);
-  await window.keyboard.press('Escape');
   // On a plan, the title bar's search finds the documents of its project too.
   await titleBar(window).getByRole('button', { name: 'Search', exact: true }).click();
   await input.fill('payments-cons');
@@ -225,7 +217,7 @@ test("a plan opens from the hub with its summary and its side column, and with i
   await expect(window.locator('.prose').getByText('And split shipments too.')).toBeInViewport();
 });
 
-test('a window shows one place at a time, and shows it again at the next start, with the Files sidebar as it was left', async () => {
+test('a window shows one place at a time, and shows it again at the next start', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
   addProject(home.dataDirectory, 'coord', 'Coord');
@@ -234,8 +226,6 @@ test('a window shows one place at a time, and shows it again at the next start, 
   await filterHub(window, 'Coord');
   await openPlan(window, 'Saved payment methods');
   await expect(window.locator('.work-page .breadcrumb')).toContainText('Coord');
-  await filesSidebar(window).getByRole('button', { name: 'Hide files' }).click();
-  await expect(filesSidebar(window)).toHaveCount(0);
   await window.waitForTimeout(600);
   await close(launched);
 
@@ -244,21 +234,15 @@ test('a window shows one place at a time, and shows it again at the next start, 
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
   await expect(window.locator('.work-page .breadcrumb')).toContainText('Coord');
   await expect(trailEnd(window)).toHaveText('#0001');
-  await expect(filesSidebar(window)).toHaveCount(0);
-  await window.getByRole('button', { name: 'Show files', exact: true }).click();
   await showFiles(window);
 });
 
-test("the Files sidebar is beside a plan's pages with the plan's own folder, opens a file on the page, and hides and shows again", async () => {
+test("the plan's files are beside its pages with the plan's own folder, open a file on the page, and take the keyboard with Ctrl+Shift+E", async () => {
   launched = await launchProject();
   const { window } = launched;
   const sidebar = filesSidebar(window);
-  // Not on the hub, where View has nothing to show or hide, and no Files button in the title bar.
+  // Not on the hub.
   await expect(sidebar).toHaveCount(0);
-  await expect(window.getByRole('button', { name: /^(Files|Show files)$/ })).toHaveCount(0);
-  await fileMenu(window, 'View').click();
-  await expect(window.getByRole('menu', { name: 'View' }).getByRole('menuitem', { name: /Files$/ })).toHaveCount(0);
-  await closeMenus(window);
   await openPlan(window, 'Saved payment methods');
   const files = await showFiles(window);
   await expect(sidebar.getByRole('heading', { name: 'Files' })).toBeVisible();
@@ -266,16 +250,9 @@ test("the Files sidebar is beside a plan's pages with the plan's own folder, ope
   await expect(files.locator(row('f:active/0001-saved-payment-methods/plan.md'))).toHaveAttribute('aria-selected', 'true');
   await expect(files.locator('[role="treeitem"]', { hasText: '.atlas' })).toHaveCount(0);
   await expect(files.locator('[role="treeitem"][data-id^="d:active/0002-"]')).toHaveCount(0);
-  // Hidden by its button, it comes back by the one at the page's start, its tree taking the keyboard;
-  // View hides and shows it too.
-  await sidebar.getByRole('button', { name: 'Hide files' }).click();
-  await expect(sidebar).toHaveCount(0);
-  await window.getByRole('button', { name: 'Show files', exact: true }).click();
+  // Ctrl+Shift+E brings the keyboard to the tree.
+  await window.keyboard.press('Control+Shift+E');
   await expect(files.getByRole('tree')).toBeFocused();
-  await chooseMenu(window, 'Hide Files', 'View');
-  await expect(sidebar).toHaveCount(0);
-  await chooseMenu(window, 'Show Files', 'View');
-  await expect(window.getByRole('button', { name: 'Show files', exact: true })).toHaveCount(0);
   // A folder opens in place; a diagram file opens as a diagram, any other file on the page; the sidebar stays.
   await files.locator(row('d:active/0001-saved-payment-methods/diagrams')).click();
   await files.locator(row('f:active/0001-saved-payment-methods/diagrams/checkout-proposal.puml')).click();
@@ -482,7 +459,7 @@ test('one row at the top: the logo, back and forward, the Plans, File, View and 
   // A development build (ATLAS_E2E_UNPACKAGED) adds the developer's tools to View.
   const devTools = process.env.ATLAS_E2E_UNPACKAGED === '1' ? ['Reload CmdOrCtrl+R', 'Toggle Developer Tools Ctrl+Shift+I'] : [];
   expect(items).toEqual([
-    ['&File', ['New &Window CmdOrCtrl+Shift+N', 'New &Project…', 'Open in &Editor CmdOrCtrl+O', '&Settings… CmdOrCtrl+,', 'Close Win&dow CmdOrCtrl+Shift+W', windows ? 'E&xit' : 'E&xit CommandOrControl+Q']],
+    ['&File', ['New &Window CmdOrCtrl+Shift+N', 'New &Project…', '&Settings… CmdOrCtrl+,', 'Close Win&dow CmdOrCtrl+Shift+W', windows ? 'E&xit' : 'E&xit CommandOrControl+Q']],
     ['&Edit', ['Undo CommandOrControl+Z', windows ? 'Redo Control+Y' : 'Redo Shift+CommandOrControl+Z', 'Cut CommandOrControl+X', 'Copy CommandOrControl+C', 'Paste CommandOrControl+V', 'Select All CommandOrControl+A']],
     ['&View', ['&Back Alt+Left', '&Forward Alt+Right', '&Plans', 'S&tatistics', '&Search… CmdOrCtrl+P', 'F&iles CmdOrCtrl+Shift+E', 'Zoom &In CmdOrCtrl+Plus', 'Zoom &Out CmdOrCtrl+-', '&Actual Size CmdOrCtrl+0', 'Toggle Full Screen F11', ...devTools]],
     ['&Help', ['Open &Logs', '&About Atlas']],
@@ -490,14 +467,12 @@ test('one row at the top: the logo, back and forward, the Plans, File, View and 
   await applicationMenu(app, '&File', 'New &Project…');
   await expect(window.getByRole('dialog', { name: 'Create project' })).toBeVisible();
   await window.keyboard.press('Escape');
-  // The shortcuts: search, Files on a plan (hiding it, then showing it with the keyboard in it), back and forward.
+  // The shortcuts: search, the plan's files taking the keyboard, back and forward.
   await window.keyboard.press('Control+P');
   await expect(searchPopup(window)).toBeVisible();
   await window.keyboard.press('Escape');
   await openPlan(window, 'Saved payment methods');
   await showFiles(window);
-  await window.keyboard.press('Control+Shift+E');
-  await expect(filesSidebar(window)).toHaveCount(0);
   await window.keyboard.press('Control+Shift+E');
   await expect(filesSidebar(window).getByRole('tree')).toBeFocused();
   await window.keyboard.press('Alt+ArrowLeft');

@@ -1,12 +1,11 @@
 // A window: envUI's Scaffold with one row at the top, the title bar (the logo, back and forward,
-// Plans, File, View and Help, the computer, Open in, search, record health, the theme and the window
+// Plans, File, View and Help, the computer, search, record health, the theme and the window
 // buttons), above one place at a time: the hub, where it starts and returns when nothing else is
 // open and where projects are made and managed, a plan, a diagram or a file of a project, a
-// project's statistics or Settings. A plan and its pages have the plan's own files in a sidebar at
-// their left, which the reader can hide, and the parts of the work it belongs to in a rail at their right.
+// project's statistics or Settings. A plan and its pages have the plan's own files at their left,
+// and the parts of the work it belongs to in a rail at their right.
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { Alert, Breadcrumbs, Button, IconButton, Kbd, Panes, Popover, Scaffold, Spinner, Tooltip, TopBar, useToast } from '@envsemble/envui';
-import { IconLeftPanelOpen } from '@envsemble/envui/icons/LeftPanelOpen';
+import { Alert, Breadcrumbs, Button, Kbd, Panes, Popover, Scaffold, Spinner, TopBar, useToast } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
 import { ThemeMenu } from '../titleBar/ThemeMenu';
 import { ErrorIcon, SearchIcon, WarningIcon } from '../ui/icons';
@@ -30,8 +29,6 @@ import { modifierKey, TitleBarStart, type WindowMenus } from '../titleBar/TitleB
 import { revealIds } from '../files/explorerModel';
 import { ReadingContext, WindowContext, type Notify, type OpenOptions, type WindowActions, type WindowReading } from './windowContext';
 import { arrived, liveActivity } from '../plan/agentTime';
-import { EditorButton, useEditor } from '../titleBar/EditorButton';
-import { shownFile } from './shownFile';
 import { SettingsPage } from '../settings/SettingsPage';
 
 // The diagrams and the statistics pages load when they are first shown, so a window starts lighter.
@@ -45,7 +42,7 @@ const loadingPage = <div className="page-state" aria-busy="true"><Spinner size="
 const toastTones = { info: 'neutral', warning: 'info', danger: 'danger' } as const;
 
 /** Keys handled in the window; the same shortcuts in the application menu are the fallback. */
-const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+o': 'openInEditor', 'ctrl+shift+e': 'toggleFiles', 'ctrl+,': 'settings' };
+const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+shift+e': 'focusFiles', 'ctrl+,': 'settings' };
 /** Where the back and forward keys stay: fields, and open menus, lists and dialogs. */
 const keepsHistoryKeys = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"], [role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
 /** What the mouse's back and forward buttons only close: open menus, lists and dialogs. */
@@ -187,8 +184,6 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
     }, () => undefined);
   }, [projects]);
   const setInspectorWidth = useCallback((width: number) => setWindowState(current => current.ui.inspectorWidth === width ? current : { ...current, ui: { ...current.ui, inspectorWidth: width } }), []);
-  /** Show or hide the Files sidebar; kept with the layout. */
-  const setFilesHidden = useCallback((hidden: boolean) => setWindowState(current => Boolean(current.ui.filesHidden) === hidden ? current : { ...current, ui: { ...current.ui, filesHidden: hidden || undefined } }), []);
 
   /** The project whose folder the window reads: that of a plan, diagram or file, or of the statistics. */
   const reading = isPage(place) ? (place.page === 'statistics' ? place.projectId : null) : place.projectId;
@@ -294,37 +289,10 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
     setExpanded: next => { if (projectPlace) setExpanded(current => ({ ...current, [projectPlace.projectId]: next })); },
   }), [expanded, projectPlace?.projectId, node?.id]);
 
-  // The file the window shows, which Open in opens in the editor: a plan's document, a diagram's source, a file; this computer's only.
-  const [editor, chooseEditor, readEditor] = useEditor();
-  const editorFile = projectPlace && readSnapshot && info.computer.hostId === null ? shownFile(projectPlace.target, readSnapshot) : null;
-  // Main opens only the file of the place the window last saved as shown, so the place is saved first.
-  const openInEditor = useCallback(() => {
-    if (!editorFile || !projectPlace) return;
-    api.saveUi({ ...ui, place: projectPlace }).then(() => api.openShown(projectPlace, editorFile))
-      .catch(error => { if ((error as AtlasError).code !== 'cancelled') notify((error as Error).message, 'warning'); });
-  }, [editorFile, projectPlace, ui, notify]);
-
-  // The Files sidebar shows beside a plan and its pages unless the reader hid it; shown again, its
-  // tree takes the keyboard.
-  const filesShown = !ui.filesHidden;
-  const focusFiles = useRef(false);
-  const toggleFiles = useCallback(() => {
-    if (!filesWork) return;
-    const hiding = filesShown;
-    focusFiles.current = !hiding;
-    setFilesHidden(hiding);
-    if (hiding && document.activeElement?.closest('.plan-files')) requestAnimationFrame(() => document.querySelector<HTMLElement>('.files-show')?.focus());
-  }, [filesWork, filesShown, setFilesHidden]);
-  useEffect(() => {
-    if (!focusFiles.current || !filesShown) return;
-    focusFiles.current = false;
-    requestAnimationFrame(focusPlanFiles);
-  }, [filesShown]);
-
   const runCommand = useCallback((command: MenuCommand) => {
     switch (command) {
-      case 'openInEditor': openInEditor(); break;
-      case 'toggleFiles': toggleFiles(); break;
+      // The plan's files take the keyboard.
+      case 'focusFiles': focusPlanFiles(); break;
       case 'quickOpen': openSearch(); break;
       case 'newProject': setCreatingProject(true); break;
       case 'plans': go(hubPlace()); break;
@@ -333,7 +301,7 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
       case 'goBack': navigate(-1); break;
       case 'goForward': navigate(1); break;
     }
-  }, [go, showStatistics, showSettings, navigate, openSearch, openInEditor, toggleFiles]);
+  }, [go, showStatistics, showSettings, navigate, openSearch]);
 
   // Menu commands from main; ignore one that repeats a key this window just took, or left to a field.
   const lastShortcut = useRef<{ command: MenuCommand; time: number } | null>(null);
@@ -489,8 +457,6 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   }, [readSnapshot, readFolder?.change?.revision, readFolder?.files, summary]);
 
   const back = canGoBack(history), forward = canGoForward(history);
-  // The Files sidebar has a plan to show while a plan, its pages or one of its files show.
-  const hasFiles = Boolean(filesWork);
   const shownProject = isPage(place) ? (place.page === 'hub' ? place.projectId : null) : place.projectId;
   const menus = useMemo<WindowMenus>(() => ({
     goBack: () => navigate(-1),
@@ -502,14 +468,10 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
     plans: projectId => go(hubPlace(projectId)),
     statistics: showStatistics,
     newProject: () => runCommand('newProject'),
-    toggleFiles: hasFiles ? toggleFiles : null,
-    filesShown,
-    openInEditor: editorFile ? openInEditor : null,
     settings: showSettings,
-  }), [navigate, back, forward, projects, shownProject, go, showStatistics, runCommand, hasFiles, toggleFiles, filesShown, editorFile, openInEditor, showSettings]);
+  }), [navigate, back, forward, projects, shownProject, go, showStatistics, runCommand, showSettings]);
   // All plans' statistics are read again when the listing's statistics or projects change, not with every listing.
   const statisticsMark = useMemo(() => JSON.stringify(projects?.map(project => [project.id, project.state, project.summary && [...project.summary.active, ...project.summary.closed].map(work => work.statistics)])), [projects]);
-  const filesShortcut = modifierKey(info.platform) + '+Shift+E';
   /** Open what the search found: a place, or a file of a project at a heading or a diagram's element. */
   const choose = useCallback((destination: SearchDestination) => {
     if ('place' in destination) go(destination.place);
@@ -528,26 +490,22 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   else content = <ProjectContent place={placed} folder={readFolder} project={owner} scope={scope} read={read}
     statisticsTrail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: projectOf(reading)?.name ?? 'Project', onClick: projectOf(reading)?.state === 'archived' ? undefined : () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
 
-  // The Files sidebar, in the Scaffold's navigation region from a medium width up, while a plan shows
-  // and the reader has not hidden it; hidden, a button at the page's start brings it back.
-  const files = filesWork && scope && read && filesShown ? <WindowContext.Provider value={scope}><ReadingContext.Provider value={read}>
-    <FilesContext.Provider value={filesState}><PlanFiles work={filesWork} hide={toggleFiles} shortcut={filesShortcut} /></FilesContext.Provider>
+  // The plan's files, in the Scaffold's navigation region at the left from a medium width up, while a
+  // plan, its pages or one of its files show.
+  const files = filesWork && scope && read ? <WindowContext.Provider value={scope}><ReadingContext.Provider value={read}>
+    <FilesContext.Provider value={filesState}><PlanFiles work={filesWork} /></FilesContext.Provider>
   </ReadingContext.Provider></WindowContext.Provider> : null;
   return <Scaffold className="atlas-window" scroll="body" topBarSpan="full" bodyRef={setScroller}
     navigation={files ? { drawer: files } : undefined} navigationForms={files ? { compact: 'none', medium: 'drawer', expanded: 'drawer', large: 'drawer' } : { compact: 'none', medium: 'none', expanded: 'none', large: 'none' }}
     topBar={<TopBar titleBar className="window-title-bar"
       start={<TitleBarStart info={info} menus={menus} onError={warn} />}
       actions={<>
-        {editorFile && <EditorButton platform={info.platform} editor={editor} choose={chooseEditor} read={readEditor} open={openInEditor} />}
         {/* On the hub, its own search field is the search. */}
         {!hubShown && <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />}
         {scope && read && <Health issues={read.snapshot.issues} open={work => go({ projectId: scope.projectId, target: workTarget(work) })} />}
         <ThemeMenu />
       </>} />}>
     <div className={'window-body' + (fills ? ' is-filled' : '')}>
-      {hasFiles && !filesShown && <Tooltip content={'Show files (' + filesShortcut + ')'} side="right">
-        <IconButton className="files-show" variant="ghost" size="sm" icon={<IconLeftPanelOpen />} aria-label="Show files" onClick={toggleFiles} />
-      </Tooltip>}
       <div ref={page} className="window-page">{content}</div>
       <ScrollMemory scroller={scroller} scrollKey={scrollKey(placed)} shown={placeId(placed)} anchored={anchored} entry={currentEntry(history)} content={page} positions={scrollPositions} entryPositions={entryPositions} />
     </div>
@@ -669,8 +627,8 @@ function PlanFrame({ work, snapshot, children }: { work: Work | null; snapshot: 
 
 /** The title bar's search: plans, documents, diagrams and projects (away from the hub, whose search field opens the same). */
 function SearchButton({ platform, onClick }: { platform: string; onClick(): void }) {
-  // envUI's search trigger: a secondary button with the icon, its label and the shortcut's keys at its end.
-  return <Button variant="secondary" className="search-button" startIcon={<SearchIcon />} end={<span className="search-button-keys"><Kbd keys={[modifierKey(platform), 'P']} /></span>}
+  // envUI's search trigger, on the title bar's own colour: the icon, its label and the shortcut's keys at its end.
+  return <Button variant="ghost" className="search-button" startIcon={<SearchIcon />} end={<span className="search-button-keys"><Kbd keys={[modifierKey(platform), 'P']} /></span>}
     onClick={onClick} aria-label="Search" aria-keyshortcuts={platform === 'darwin' ? 'Meta+P' : 'Control+P'}>
     <span className="search-button-label">Search</span>
   </Button>;
@@ -682,7 +640,7 @@ function Health({ issues, open }: { issues: Issue[]; open(work: string): void })
   const errors = issues.some(issue => issue.level === 'error');
   const label = issues.length + ' record health ' + (issues.length === 1 ? 'note' : 'notes');
   return <Popover aria-label="Record health" title="Record health" width="lg"
-    trigger={<Button variant="text" className={'health-button' + (errors ? ' has-errors' : '')} startIcon={<WarningIcon />} aria-label={label}>{issues.length}</Button>}>
+    trigger={<Button variant="ghost" className={'health-button' + (errors ? ' has-errors' : '')} startIcon={<WarningIcon />} aria-label={label}>{issues.length}</Button>}>
     {close => <ul className="health-list">{issues.map((issue, index) => <li key={index} data-level={issue.level}>
       <WarningIcon className="health-icon" />
       <span>{issue.workId && <><Button variant="text" underline className="health-link" onClick={() => { close(); open(issue.workId!); }}>{workNumber(issue.workId)}</Button>{' '}</>}{issue.message}</span>

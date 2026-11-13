@@ -13,7 +13,7 @@ import { api, AtlasError } from '../api';
 import { ComputerMenu } from '../computers/ComputerMenu';
 import { useAppActions } from '../appActions';
 
-/** What the window adds to the title bar: back and forward, the plans to go to, a new project, the Files sidebar and the editor. */
+/** What the window adds to the title bar: back and forward, the plans to go to, a new project and Settings. */
 export interface WindowMenus {
   goBack(): void;
   goForward(): void;
@@ -28,11 +28,6 @@ export interface WindowMenus {
   /** Show all plans' statistics. */
   statistics(): void;
   newProject(): void;
-  /** Show or hide the Files sidebar; null where the window shows none (no plan open). */
-  toggleFiles: (() => void) | null;
-  filesShown: boolean;
-  /** Open the shown file in the chosen editor, as the title bar's Open in does; null when the window shows none. */
-  openInEditor: (() => void) | null;
   /** Show Settings, at a section. */
   settings(section?: SettingsSection): void;
 }
@@ -46,7 +41,7 @@ const historyKeys = (platform: string) => platform === 'darwin'
 
 /**
  * The window's menus: Plans (every plan, each active project's, and their statistics), File
- * (windows and projects, the editor, and Settings), View (the Files sidebar, zoom and full screen,
+ * (windows, projects and Settings), View (zoom and full screen,
  * and the developer's tools where offered) and Help. Alt and their letter open them, except on macOS.
  * The computers to switch to are in the computer menu.
  */
@@ -67,14 +62,12 @@ export function AppMenus({ info, menus, onError }: { info: WindowInfo; menus: Wi
     <Menubar.Menu label="File" accessKey="F">
       <Menu.Item shortcut={mod + '+Shift+N'} onClick={run('newWindow')}>New Window</Menu.Item>
       <Menu.Item onClick={menus.newProject}>New Project…</Menu.Item>
-      {menus.openInEditor && <><Menu.Separator /><Menu.Item shortcut={mod + '+O'} onClick={menus.openInEditor}>Open in Editor</Menu.Item></>}
       <Menu.Separator />
       <Menu.Item shortcut={mod + '+,'} onClick={() => menus.settings()}>Settings…</Menu.Item>
       <Menu.Separator />
       <Menu.Item onClick={run('quit')}>Exit</Menu.Item>
     </Menubar.Menu>
     <Menubar.Menu label="View" accessKey="V">
-      {menus.toggleFiles && <><Menu.Item shortcut={mod + '+Shift+E'} onClick={menus.toggleFiles}>{menus.filesShown ? 'Hide Files' : 'Show Files'}</Menu.Item><Menu.Separator /></>}
       <Menu.Item shortcut={mod + '++'} onClick={run('zoomIn')}>Zoom In</Menu.Item>
       <Menu.Item shortcut={mod + '+-'} onClick={run('zoomOut')}>Zoom Out</Menu.Item>
       <Menu.Item shortcut={mod + '+0'} onClick={run('resetZoom')}>Actual Size</Menu.Item>

@@ -1,8 +1,8 @@
 // Validators for the messages the window sends to the main process. The generic validators and the
 // planning shapes are the host's (packages/atlas/src/host/validate.ts); this module adds what only the
 // desktop window sends. Unknown object keys are dropped.
-import { agentIds, appCommands, editors, fullPath, limits, settingsSections, themePreferences, type PagePlace, type Place, type Project, type ProjectPlace, type ReferenceInput, type SettingsSection, type Target, type UiState } from './contract.ts';
-import { array, boolean, diagramPath, integer, nullable, object, oneOf, optional, projectId, relativePath, string, workId, type Validator } from '@envsemble/atlas/host/validate';
+import { agentIds, appCommands, fullPath, limits, settingsSections, themePreferences, type PagePlace, type Place, type Project, type ProjectPlace, type ReferenceInput, type SettingsSection, type Target, type UiState } from './contract.ts';
+import { array, diagramPath, integer, nullable, object, oneOf, optional, projectId, relativePath, string, workId, type Validator } from '@envsemble/atlas/host/validate';
 
 export {
   ValidationError, argumentsOf, array, boolean, diagramPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode,
@@ -13,7 +13,6 @@ export const command = oneOf(appCommands);
 /** An agent Atlas connects: only these are named, and never a program's path, which main's own dialog chooses. */
 export const agentId = oneOf(agentIds);
 export const themePreference = oneOf(themePreferences);
-export const editor = oneOf(editors);
 /** An instant, as an ISO time. */
 export const isoTime = string({ min: 10, max: 40, pattern: /^\d{4}-\d{2}-\d{2}(?:T[\d:.]+(?:Z|[+-]\d{2}:\d{2})?)?$/ });
 export const statisticsUnit = oneOf(['day', 'week'] as const);
@@ -48,7 +47,6 @@ export const place: Validator<Place> = (value, at = 'place') => {
 export const uiState: Validator<UiState> = object<UiState>({
   place,
   inspectorWidth: optional(integer(limits.inspectorMin, limits.inspectorMax)),
-  filesHidden: optional(boolean),
 });
 
 /**

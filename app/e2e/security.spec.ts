@@ -124,18 +124,13 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
       application: await bridge.openExternal('t3-thread://thread/abc'),
       script: await bridge.openExternal('javascript:alert(1)'),
       unknownScheme: await bridge.openExternal('ms-settings:'),
-      // Open in opens, without asking, only the file of the place the window shows, inside the project's folder.
-      notShown: await bridge.openShown({ projectId, target: { kind: 'file', path: 'README.md' } }, 'README.md'),
-      fileTraversal: await bridge.openShown({ projectId, target: { kind: 'file', path: '../outside.md' } }, '../outside.md'),
-      // Files open only as the host resolves them, and the editor is one of a fixed list.
+      // Files open only as the host resolves them.
       referenceKind: await bridge.openReference(projectId, { kind: 'commit', repository: null, value: 'abcdef1', line: null }),
-      editorCommand: await bridge.setEditor('notepad.exe'),
       ok: await bridge.document(projectId, 'README.md').then(value => (value as { ok: boolean }).ok),
     };
   }, project);
-  for (const key of ['traversal', 'absolute', 'wrongType', 'noProject', 'badDiagram', 'notDiagram', 'command', 'paste', 'closeWindow', 'createRelative', 'updateRelative', 'referenceKind', 'editorCommand', 'fileTraversal'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });
+  for (const key of ['traversal', 'absolute', 'wrongType', 'noProject', 'badDiagram', 'notDiagram', 'command', 'paste', 'closeWindow', 'createRelative', 'updateRelative', 'referenceKind'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });
   expect(results.hidden).toMatchObject({ ok: false, error: { code: 'forbidden' } });
-  expect(results.notShown).toMatchObject({ ok: false, error: { code: 'forbidden' } });
   expect(results.otherProject).toMatchObject({ ok: false });
   for (const key of ['quit', 'newWindow', 'openLogs', 'access', 'pairing', 'pair', 'web', 'application'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'cancelled' } });
   expect(await app.evaluate(() => (globalThis as unknown as { asked: string[] }).asked)).toEqual([

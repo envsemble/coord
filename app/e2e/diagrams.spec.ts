@@ -43,11 +43,9 @@ async function chooseDiagram(window: Page, title: string) {
 test('the picker lists diagrams by family, one short line each, and switches between a capture and its proposals in place: nothing moves, and the details and the view stay', async () => {
   launched = await launchProject({ dataDirectory, folder });
   const { window, app } = launched;
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 900));
+  // Wide enough for the plan's files, the canvas and the details the change view opens beside it.
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1720, 900));
   await openDiagrams(window, 'Checkout · captured TypeScript');
-  // The canvas takes the window's width, as the details open beside the change view.
-  await window.getByRole('button', { name: 'Hide files' }).click();
-  await expect(window.getByRole('button', { name: 'Show files' })).toBeVisible();
   // The picker names the diagram's origin.
   await expect(window.locator('.diagram-picker-button')).toContainText('Generated from code');
   await window.locator('.diagram-picker-button').click();

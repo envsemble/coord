@@ -7,8 +7,9 @@
 - **envUI 1.0:** the app and the diagram viewer move to envUI 1.0.0, now on npm, keeping Atlas's look: the same pages, density and colours (the work statuses keep GitHub's colours). Installing from a checkout no longer needs a GitHub token.
 - **One row at the top:** **Plans** joins File, View and Help in the title bar (every plan, each project's plans and all plans' statistics), and the Plans and Projects sections below it are gone. Breadcrumbs start at Plans: Plans › Northwind › #0001.
 - **Projects are managed from the hub:** the Projects page is gone; the hub's project menu chooses a project, shows what agents do on each, and makes, renames, archives and restores projects and changes their folders.
-- **Files in a sidebar:** a plan's files move from the card at the top right to a sidebar at the left of the plan and its pages, which **View › Hide Files** (Ctrl+Shift+E) or its own button hides; each window remembers it.
+- **Files at the left:** a plan's files move from the card at the top right to the left of the plan and its pages; Ctrl+Shift+E brings the keyboard to them.
 - **Work in parts:** a work item can be made of ordered parts, other work items of the project, each with its own plan and steps. A rail at the right of the group and of each part lists them in order with their status and steps, the hub says **Part 2 of #0005**, and agents set them up with `work_create` (`partOf`) and the new `work_parts` tool (`atlas work parts`); `atlas check` checks them.
+- **Open in is removed:** the title bar's Open in, **File › Open in Editor** (Ctrl+O) and the choice of editor go. A file a plan links to still opens in VS Code.
 - **Plan export and import are removed**, with `atlas plan export` and `atlas plan import`, File › Import Plan… and Export Plan…, and the plan export viewer.
 
 **The installer is all you need**

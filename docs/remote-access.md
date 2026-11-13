@@ -52,7 +52,7 @@ Each window says where it works: the **computer menu** (the computer's name in t
 - **Other computers**, in **Settings › Computers**, lists the computers this one is paired with. **↗** opens a computer in a new window. **Forget** forgets a paired computer here; press it again to confirm. Windows showing it close; if this window showed it, it shows this computer instead. To cut its access on that computer too, revoke the device there. **Connect to Another Atlas…** pairs with one more.
 - **The projects** are the planning folders in that computer's Atlas home, on the **Projects** page as this computer's are. **New project** there creates one on that computer, and **Rename…** changes a project's name in its `planning.json` there, for every device; choosing the folders a project covers, which are paths on that computer, stays with Atlas there. The order of the projects and whether one is archived are this device's own.
 
-A window on another computer shows the computer's name in its title (`desk — Atlas`). The hub, plans, ledgers, statistics, diagrams and search work as they do locally; only **Show in Folder** and **Open in Editor** are not offered.
+A window on another computer shows the computer's name in its title (`desk — Atlas`). The hub, plans, ledgers, statistics, diagrams and search work as they do locally; only **Show in Folder** is not offered.
 
 Windows showing another computer reopen on the next start while the computer is still paired. When that computer is unreachable (asleep, Atlas closed, or the network down), its windows keep showing the last view with a notice and reconnect on their own.
 

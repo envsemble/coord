@@ -49,21 +49,11 @@ body { margin: 0; }
 .window-body.is-filled { block-size: 100%; min-block-size: 0; overflow: hidden; }
 .window-body.is-filled .window-page { display: flex; flex-direction: column; min-block-size: 0; padding: 0; }
 .search-button { min-inline-size: 13rem; justify-content: flex-start; }
-/* Open in: a split button of the row's height before the search, never part of the drag area. */
-.editor-button { flex: none; -webkit-app-region: no-drag; app-region: no-drag; }
-.editor-button-more { inline-size: var(--env-control-height-sm, 2rem); }
-.editor-mark { flex: none; inline-size: 1rem; block-size: 1rem; color: var(--env-color-fg-default); }
-/* stylelint-disable color-no-hex, declaration-property-value-disallowed-list -- the editors' own brand colours */
-.editor-mark[data-editor='vscode'] { color: light-dark(#0065a9, #3c9fe8); }
-.editor-mark[data-editor='vscode-insiders'] { color: light-dark(#13856f, #24bfa5); }
-/* stylelint-enable color-no-hex, declaration-property-value-disallowed-list */
-.editor-mark[data-editor='system'] { color: var(--env-color-fg-muted); }
-.editor-current { inline-size: 1rem; block-size: 1rem; color: var(--env-color-fg-muted); }
 .search-button-label { flex: 1; text-align: start; }
 /* Narrow windows keep the title bar on one line: the search button drops its keys, then its label. */
 @media (max-width: 72rem) {
   .search-button { min-inline-size: 0; }
-  .search-button-keys, .editor-button-label { display: none; }
+  .search-button-keys { display: none; }
 }
 @media (max-width: 60rem) {
   .search-button-label { display: none; }
@@ -128,16 +118,12 @@ body { margin: 0; }
 /* A folder chosen in the system's folder dialog: a button until one is, then the folder in a field's
    frame, its name cut short (the full path on hover) before Change… and remove. */
 
-/* The plan's files, in the sidebar at the left of the plan and its pages (the Scaffold's navigation
-   region, on envUI's navigation background, as its NavigationDrawer): a heading with the button that hides it, then the plan's
-   folder as a tree, scrolling on its own when it is long. Hidden, a quiet button at the page's top
-   left brings it back. */
-.plan-files { box-sizing: border-box; display: flex; flex-direction: column; gap: var(--env-space-1); inline-size: 16rem; block-size: 100%; padding: var(--env-space-3); background: var(--env-color-bg-default); }
-.plan-files-header { display: flex; align-items: center; justify-content: space-between; gap: var(--env-space-2); padding-inline-start: var(--env-space-2); }
-.plan-files-heading { margin: 0; font-weight: 500; }
+/* The plan's files, at the left of the plan and its pages (the Scaffold's navigation region), on the
+   page itself: a heading, then the plan's folder as a tree, scrolling on its own when it is long. */
+.plan-files { box-sizing: border-box; display: flex; flex-direction: column; gap: var(--env-space-1); inline-size: 16rem; block-size: 100%; padding: var(--env-space-5) var(--env-space-2) var(--env-space-3) var(--env-space-3); }
+.plan-files-heading { margin: 0; padding-inline-start: var(--env-space-2); font-weight: 500; }
 .plan-files-tree { flex: 1; min-block-size: 0; overflow-y: auto; }
 .plan-files-empty { margin: 0; padding: var(--env-space-1) var(--env-space-2); }
-.files-show { position: absolute; inset-block-start: var(--env-space-3); inset-inline-start: var(--env-space-3); z-index: var(--env-z-raised); }
 /* The parts rail: envUI's supporting pane beside a plan and its pages when the work is made of parts
    or is one of them, staying in view as the page scrolls with the body, as the panes' own scrolling
    would where the panes had the window's height. */
@@ -153,11 +139,19 @@ body { margin: 0; }
   .plan-frame > .env-panes-supporting { inset-block-start: max(env(titlebar-area-height, 0rem), var(--env-title-bar-height)); }
 }
 .parts-trigger { margin: var(--env-space-4) var(--env-space-5) 0; }
-.parts-rail { display: grid; gap: var(--env-space-2); }
-.parts-rail-heading { margin: 0; padding-inline: var(--env-space-2); font-weight: 500; }
-.parts-rail-start { display: inline-flex; align-items: center; gap: var(--env-space-2); }
-.parts-rail-index { inline-size: 1.25rem; color: var(--env-color-fg-muted); font-variant-numeric: tabular-nums; text-align: end; }
-.parts-rail-list { margin-inline-start: var(--env-space-3); border-inline-start: 0.0625rem solid var(--env-color-border-muted); }
+.parts-rail { display: grid; gap: var(--env-space-1); font-size: var(--env-font-size-body-sm); }
+.parts-rail-heading { margin: 0 0 var(--env-space-1); font-weight: 500; }
+/* A row: its place in the order, its status, its title over its number and steps. The one shown is
+   marked by a bar at its start and its title's weight. */
+.parts-rail-item { position: relative; display: grid; grid-template-columns: 1.25rem auto minmax(0, 1fr); align-items: start; gap: var(--env-space-2); padding-block: var(--env-space-1); }
+.parts-rail-item[aria-current='page']::before { content: ''; position: absolute; inset-block: var(--env-space-1); inset-inline-start: calc(-1 * var(--env-space-2)); inline-size: 0.125rem; border-radius: 0.0625rem; background: var(--env-color-fg-primary); }
+.parts-rail-item[aria-current='page'] .parts-rail-link { font-weight: 500; }
+.parts-rail-item .status-icon { inline-size: 1rem; block-size: 1rem; margin-block-start: 0.125rem; }
+.parts-rail-index { color: var(--env-color-fg-muted); font-variant-numeric: tabular-nums; text-align: end; }
+.parts-rail-text { display: grid; min-inline-size: 0; }
+.parts-rail-link { overflow: hidden; color: var(--env-color-fg-default); text-overflow: ellipsis; white-space: nowrap; }
+.parts-rail-meta { color: var(--env-color-fg-muted); font-variant-numeric: tabular-nums; }
+.parts-rail-list { display: grid; gap: var(--env-space-1); margin: 0; padding: 0; list-style: none; }
 /* A part's place in its group, or a group's parts, beside its number in the hub. */
 .hub-row-parts { flex: none; padding-inline: var(--env-space-2); border-radius: var(--env-radius-sm); background: var(--env-color-bg-default); color: var(--env-color-fg-muted); font: var(--env-type-body-sm); white-space: nowrap; }
 /* Create project: its folders as rows, then a card to add one. */
@@ -571,5 +565,3 @@ body { margin: 0; }
 @media (prefers-reduced-motion: reduce) {
   .step-bar > span { transition: none; }
 }
-/* The parts rail's rows: each title on one line, in the text colour, as a navigation list's. */
-.parts-rail-link { display: block; overflow: hidden; color: inherit; text-overflow: ellipsis; white-space: nowrap; }

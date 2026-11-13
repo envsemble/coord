@@ -34,7 +34,7 @@ export function ThemeMenu() {
   const { theme } = useThemePreference();
   const { preference, refresh, choose } = useThemeChoice();
   return <Menu.Root aria-label="Theme" onOpenChange={open => { if (open) refresh(); }}
-    trigger={<IconButton variant="text" icon={theme === 'dark' ? <DarkMode /> : <LightMode />} aria-label="Theme" />}>
+    trigger={<IconButton variant="ghost" icon={theme === 'dark' ? <DarkMode /> : <LightMode />} aria-label="Theme" />}>
     <ThemeChoices preference={preference} choose={choose} />
   </Menu.Root>;
 }
