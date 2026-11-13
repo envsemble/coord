@@ -1,7 +1,8 @@
-// Markdown tables that read cramped in Atlas. The app shows a plan in a column about 100 characters
+// Markdown tables that read badly in Atlas. The app shows a plan in a column about 100 characters
 // wide (its text at the size of a table's), so a table with many columns, or with long text in its
-// cells, gets columns too narrow to read. `atlas check` warns about each such table with what to do,
-// and the PostToolUse hook hands the warning to the agent that wrote it. Pure, so it is unit-tested.
+// cells, gets columns too narrow to read; and rows a blank line cut off from their table's header
+// show as one paragraph of pipes. `atlas check` warns about each with what to do, and the
+// PostToolUse hook hands the warning to the agent that wrote it. Pure, so it is unit-tested.
 
 /** About how many characters of a table's text the plan's column holds in a row. */
 const columnCharacters = 100;
@@ -26,39 +27,47 @@ const visible = (cell: string) => cell.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
 
 const delimiter = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 
+/** The start of a row of table cells: a pipe first. */
+const rowStart = /^ {0,3}\|/;
+
 /**
- * The tables of a Markdown text that will read cramped: the line each starts on (1-based) and why,
- * outside fenced and indented code.
+ * The tables of a Markdown text that will read badly in Atlas, outside fenced and indented code: the
+ * line each starts on (1-based) and what is wrong. A table reads cramped with too many columns, with
+ * columns too wide together, or with a paragraph in a cell; rows with no header and delimiter row
+ * above them (most often after a blank line that split a table) are no table at all, and read as text.
  */
-export function crampedTables(text: string): { line: number; reason: string }[] {
+export function tableProblems(text: string): { line: number; problem: string }[] {
   const lines = text.split(/\r?\n/);
-  const found: { line: number; reason: string }[] = [];
+  const found: { line: number; problem: string }[] = [];
   let fence: string | null = null;
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index];
     const fenceMark = /^\s*(```|~~~)/.exec(line)?.[1];
     if (fenceMark) { fence = fence === fenceMark ? null : fence ?? fenceMark; continue; }
-    // Indented code (four spaces) holds no table; a table's delimiter row has a cell per column.
-    if (fence || /^ {4}/.test(line) || !line.includes('|') || !delimiter.test(lines[index + 1] ?? '') || !lines[index + 1].includes('-')) continue;
+    // Indented code (four spaces) holds no table.
+    if (fence || /^ {4}/.test(line) || !line.includes('|')) continue;
+    // A table's delimiter row has a cell per column.
+    const next = lines[index + 1] ?? '';
     const header = cells(line);
-    if (cells(lines[index + 1]).length !== header.length) continue;
+    if (!delimiter.test(next) || !next.includes('-') || cells(next).length !== header.length) {
+      if (!rowStart.test(line)) continue;
+      found.push({ line: index + 1, problem: 'these table rows have no delimiter row (`| --- |`, a cell per column) under a header, so Atlas shows them as text: if a blank line split a table, remove it' });
+      while (index + 1 < lines.length && rowStart.test(lines[index + 1])) index++;
+      continue;
+    }
     const rows = [header];
     let end = index + 2;
     while (end < lines.length && lines[end].includes('|') && lines[end].trim()) rows.push(cells(lines[end++]));
     const columns = header.length;
-    const longest = Array.from({ length: columns }, (_, column) => Math.max(...rows.map(row => visible(row[column] ?? '').length)));
+    const longest = Array.from({ length: columns }, (_, column) => Math.max(...rows.map(cellsOfRow => visible(cellsOfRow[column] ?? '').length)));
     const width = longest.reduce((sum, length) => sum + Math.min(length, countedPerColumn) + 3, 0);
     const paragraph = Math.max(...longest);
     const reason = columns >= tooManyColumns ? `${columns} columns`
       : columns >= 3 && width > columnCharacters ? `${columns} columns about ${width} characters wide`
       : paragraph > paragraphCharacters ? `a cell of ${paragraph} characters`
       : null;
-    if (reason) found.push({ line: index + 1, reason });
+    if (reason) found.push({ line: index + 1, problem: `a table with ${reason} reads cramped in Atlas, whose plan column holds about ${columnCharacters} characters: keep a table to a few short columns, and put long text in a list or paragraphs below it` });
     index = end - 1;
   }
   return found;
 }
-
-/** check's warning for a cramped table of a file. */
-export const crampedTableWarning = (file: string, table: { line: number; reason: string }) =>
-  `${file}:${table.line}: a table with ${table.reason} reads cramped in Atlas, whose plan column holds about ${columnCharacters} characters: keep a table to a few short columns, and put long text in a list or paragraphs below it`;
