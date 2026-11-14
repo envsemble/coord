@@ -90,16 +90,18 @@ export class Updates {
     };
     next(this.options.firstCheck ?? 15_000);
   }
-  stop() { if (this.timer) clearTimeout(this.timer); this.timer = null; }
 
   /** Look for a newer build on the channel; a found one is offered, not downloaded. */
   async check(): Promise<UpdateState> {
     const engine = this.engine;
     // An offer stands until it is taken; a download under way or done is not checked over.
-    if (!engine || ['checking', 'downloading', 'ready'].includes(this.status.kind)) return this.state();
+    if (!engine || ['checking', 'available', 'downloading', 'ready'].includes(this.status.kind)) return this.state();
+    const channel = this.channel;
     this.set({ kind: 'checking' });
     try {
       const result = await engine.checkForUpdates();
+      // The channel changed while this check ran: its answer is the other channel's.
+      if (this.channel !== channel) { this.status = { kind: 'idle', checkedAt: null }; return this.check(); }
       const version = result?.updateInfo.version;
       this.set(result?.isUpdateAvailable && version ? { kind: 'available', version } : { kind: 'idle', checkedAt: new Date().toISOString() });
     } catch (error) {

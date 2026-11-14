@@ -20,7 +20,7 @@ npmRebuild: false
 # Where the installed app looks for its updates (app-update.yml, read by electron-updater): the
 # GitHub Releases of envsemble/coord. Packaging also writes the channel's update file beside the
 # installer: latest.yml and latest-linux.yml for a stable release. The release workflow builds a
-# nightly with `-c.publish.channel=nightly -c.publish.releaseType=prerelease`, which writes
+# nightly with `-c.publish.channel=nightly`, which writes
 # nightly.yml and nightly-linux.yml instead. Nothing is uploaded from here (--publish never): the
 # workflow attaches the files to the release.
 publish:

@@ -148,7 +148,7 @@ jobs:
       - name: Package the AppImage
         run: |
           npm pkg set version="$VERSION" --workspace @envsemble/coord-app
-          if [ "$CHANNEL" = nightly ]; then set -- -c.publish.channel=nightly -c.publish.releaseType=prerelease; fi
+          if [ "$CHANNEL" = nightly ]; then set -- -c.publish.channel=nightly; fi
           npm run package --workspace @envsemble/coord-app -- "$@"
       - name: Add the files to the draft
         env:
@@ -185,7 +185,7 @@ jobs:
       - name: Package the installer
         run: |
           npm pkg set version="$VERSION" --workspace @envsemble/coord-app
-          if [ "$CHANNEL" = nightly ]; then set -- -c.publish.channel=nightly -c.publish.releaseType=prerelease; fi
+          if [ "$CHANNEL" = nightly ]; then set -- -c.publish.channel=nightly; fi
           npm run package --workspace @envsemble/coord-app -- "$@"
       # Installs Coord for the runner's user, starts it and uninstalls it.
       - name: Test the installer
@@ -244,3 +244,7 @@ jobs:
           gh release list --exclude-drafts --limit 200 --json tagName,isPrerelease \
             --jq '[.[] | select(.isPrerelease and (.tagName | test("-nightly\\.")))] | .[14:] | .[].tagName' |
             while read -r old; do gh release delete "$old" --yes --cleanup-tag; done
+          # Drafts of nightlies whose run failed: each night makes a new tag, so none is filled again.
+          gh release list --limit 200 --json tagName,isDraft \
+            --jq '.[] | select(.isDraft and (.tagName | test("-nightly\\."))) | .tagName' |
+            while read -r old; do gh release delete "$old" --yes; done

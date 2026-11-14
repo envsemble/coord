@@ -18,7 +18,7 @@ import { scheme } from './windows/protocol.ts';
 import { AppState } from './appState.ts';
 import { Agents } from './agent/agents.ts';
 import { WindowManager } from './windows/windowManager.ts';
-import updater from 'electron-updater';
+import updater, { type BaseUpdater } from 'electron-updater';
 import { Updates, type UpdaterEngine } from './updates.ts';
 import type { AboutInfo } from '../shared/contract.ts';
 import { isProjectListing } from '../shared/validate.ts';
@@ -87,6 +87,19 @@ function updaterEngine(): UpdaterEngine | { off: string } {
   if (process.platform === 'linux' && !process.env.APPIMAGE) return { off: 'Coord updates itself when it runs as its AppImage.' };
   if (process.platform !== 'win32' && process.platform !== 'linux') return { off: 'Coord updates itself on Windows and Linux.' };
   const engine = updater.autoUpdater;
+  if (process.platform === 'linux') {
+    // electron-updater starts the new AppImage at once and then quits; while Coord's host stops, the
+    // old process still holds the single-instance lock, and the new one would quit on it. So the new
+    // AppImage is only put in place here, and Electron starts it once this process has exited.
+    const appImage = engine as unknown as BaseUpdater;
+    let moved: string | null = null;
+    appImage.on('appimage-filename-updated', (file: string) => { moved = file; });
+    appImage.quitAndInstall = () => {
+      if (!appImage.install(true, false)) return;
+      app.relaunch({ execPath: moved ?? process.env.APPIMAGE!, args: [] });
+      app.quit();
+    };
+  }
   engine.logger = { info: (message: unknown) => log.info('Updater: ' + String(message)), warn: (message: unknown) => log.warn('Updater: ' + String(message)), error: (message: unknown) => log.warn('Updater: ' + String(message)), debug: () => {} };
   return engine as unknown as UpdaterEngine;
 }

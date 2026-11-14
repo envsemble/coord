@@ -313,7 +313,8 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
     'updates:state': { args: [], handle: () => actions.updates.state() },
     'updates:check': { args: [], handle: () => actions.updates.check() },
     'updates:download': { args: [], handle: () => actions.updates.download() },
-    'updates:install': { args: [], handle: () => { actions.updates.install(); } },
+    // Installing quits Coord, so it follows a person's press, as Exit does.
+    'updates:install': { args: [], handle: async window => { await confirmed(window, 'Restart Coord to install the update?', 'Restart'); actions.updates.install(); } },
     'updates:setChannel': { args: [updateChannel], handle: (_window, channel: UpdateChannel) => actions.updates.setChannel(channel) },
   };
 }
