@@ -13,6 +13,7 @@ export function BuildBadge({ info, run }: { info: Pick<WindowInfo, 'dev' | 'vers
     <Menu.Item onClick={() => run('devCopyRealData')}>Copy My Real Data Again…</Menu.Item>
     <Menu.Item onClick={() => run('devRemovePlugin')}>Remove the Dev Plugin…</Menu.Item>
   </Menu.Root>;
-  if (isNightlyVersion(info.version)) return <Badge tone="accent">Nightly</Badge>;
+  // A night sky's colours (coord.css).
+  if (isNightlyVersion(info.version)) return <Badge className="build-badge-nightly">Nightly</Badge>;
   return null;
 }

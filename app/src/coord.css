@@ -40,6 +40,11 @@ body { margin: 0; }
 .title-bar-logo svg { inline-size: 1.25rem; block-size: 1.25rem; }
 /* Coord Dev's Dev tag opens its menu (titleBar/BuildBadge.tsx): its button lets the badge keep its own colours, which a button otherwise turns to an outline. */
 .build-badge-button { --env-badge-fg: initial; --env-badge-bg: initial; --env-badge-border: initial; }
+/* A nightly build's tag: deep night blue with pale blue text, in either theme. Its own colours,
+   not envUI's tokens, which have no night blue (the user's choice). */
+/* stylelint-disable color-no-hex -- the night blue chosen for the Nightly tag */
+.build-badge-nightly { --env-badge-container: #151b33; --env-badge-content: #b8c4f5; }
+/* stylelint-enable color-no-hex */
 /* Back and forward, close together after the logo. */
 .history-buttons { display: flex; align-items: center; }
 .computer-trigger { max-inline-size: 16rem; }
