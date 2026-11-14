@@ -1,89 +1,111 @@
-/* Coord's website: one column of sections on the page background, with envUI's tokens. */
+/* Coord's website: one dark page, centred. */
 
-.site {
-  /* The Coord mark's green, for the headline's one accent word and the glow behind the hero. */
-  /* stylelint-disable-next-line color-no-hex -- the brand's own color, not a role envUI names */
-  --site-brand: #02a878;
-  min-block-size: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--env-color-bg-page);
-  color: var(--env-color-fg-default);
-  /* The hero's backdrop reaches past the column to the window's edges, never past them. */
-  overflow-x: clip;
+:root {
+  color-scheme: dark;
+  --background: #0b0c0d;
+  --text: #f4f4f5;
+  --muted: #a1a1aa;
+  --border: #2a2b2e;
+  --button: #18191b;
+  --button-hover: #222326;
+  --brand: #02a878;
+  font-family: Inter, "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: var(--background);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
 }
 
-.site main {
-  flex: 1;
-  display: grid;
-  gap: calc(var(--env-space-9) * 2);
-  inline-size: min(100% - 2 * var(--env-space-5), 72rem);
-  margin-inline: auto;
-  padding-block-end: calc(var(--env-space-9) * 2);
-}
+* { box-sizing: border-box; }
+body { margin: 0; }
+a { color: inherit; }
 
-.site-header,
-.site-footer {
+.header, .footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--env-space-4);
-  inline-size: min(100% - 2 * var(--env-space-5), 72rem);
+  width: min(100% - 2.5rem, 68rem);
   margin-inline: auto;
-  padding-block: var(--env-space-4);
 }
-.site-brand { display: inline-flex; align-items: center; gap: var(--env-space-2); color: inherit; }
-.site-wordmark { font-size: var(--env-font-size-title); font-weight: 600; letter-spacing: -0.01em; }
-.site-nav, .site-footer-links { display: flex; align-items: center; gap: var(--env-space-5); }
-.site-footer { border-block-start: 1px solid var(--env-color-border-muted); padding-block: var(--env-space-6); flex-wrap: wrap; }
+.header { padding-block: 1.25rem; }
+.brand img { display: block; height: 2.25rem; width: auto; }
+.quiet { color: var(--muted); text-decoration: none; font-size: 0.9375rem; }
+.quiet:hover { color: var(--text); }
 
-/* The hero: the headline, the lead and the one download button, centred over a faint grid and glow. */
-.hero {
-  position: relative;
-  display: grid;
-  justify-items: center;
-  gap: var(--env-space-5);
-  padding-block: calc(var(--env-space-9) * 2) var(--env-space-6);
+main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(100% - 2.5rem, 68rem);
+  margin-inline: auto;
+  padding-block: clamp(3rem, 10vh, 6rem) 4rem;
   text-align: center;
 }
-.hero::before {
-  content: '';
-  position: absolute;
-  inset: 0 -50vw;
-  background:
-    radial-gradient(40rem 22rem at 50% 30%, color-mix(in srgb, var(--site-brand) 16%, transparent), transparent 70%),
-    linear-gradient(var(--env-color-border-muted) 0.0625rem, transparent 0.0625rem) 0 0 / 3rem 3rem,
-    linear-gradient(90deg, var(--env-color-border-muted) 0.0625rem, transparent 0.0625rem) 0 0 / 3rem 3rem;
-  /* Only the mask's alpha counts: any opaque color fades the grid out towards the edges. */
-  mask-image: radial-gradient(60rem 30rem at 50% 30%, var(--env-color-bg-page), transparent 75%);
-  opacity: 0.7;
+
+h1 {
+  margin: 0;
+  max-width: 15ch;
+  font-size: clamp(2.5rem, 6.5vw, 4.5rem);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  font-weight: 650;
+  text-wrap: balance;
 }
-/* Positioned after the backdrop, so they paint over it. */
-.hero > * { position: relative; }
-.hero-title { margin: 0; max-inline-size: 16ch; font-size: clamp(2.5rem, 7vw, 4.75rem); line-height: 1.04; letter-spacing: -0.035em; text-wrap: balance; }
-.hero-accent { color: var(--site-brand); }
-.hero-lead { margin: 0; max-inline-size: 40rem; font-size: var(--env-font-size-title); line-height: 1.5; text-wrap: pretty; }
-.hero-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--env-space-3); margin-block-start: var(--env-space-3); }
-.hero-note { margin: 0; }
+
+.lead {
+  margin: 1.5rem 0 0;
+  max-width: 38rem;
+  color: var(--muted);
+  font-size: 1.1875rem;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.downloads {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 2.5rem;
+}
+
+/* The store-style download button: logo, then "Download for …" over what the file is. */
+.download {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.875rem;
+  width: 17rem;
+  max-width: 100%;
+  padding: 0.75rem 1.375rem 0.75rem 1.125rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--button);
+  text-decoration: none;
+  text-align: left;
+  transition: background-color 120ms, border-color 120ms;
+}
+.download:hover { background: var(--button-hover); border-color: #3a3b3f; }
+.download:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.download:first-child { background: var(--text); border-color: var(--text); color: var(--background); }
+.download:first-child:hover { background: #ffffff; }
+.download:first-child .download-detail { color: #52525b; }
+.download[aria-busy] { opacity: 0.6; }
+.logo { width: 1.75rem; height: 1.75rem; flex: none; }
+.download-text { display: flex; flex-direction: column; gap: 0.125rem; }
+.download-label { font-size: 1.0625rem; font-weight: 600; line-height: 1.2; }
+.download-detail { font-size: 0.8125rem; color: var(--muted); }
+
+.note { margin: 1.25rem 0 0; color: var(--muted); font-size: 0.875rem; }
+.note a { color: var(--muted); text-underline-offset: 0.2em; }
+.note a:hover { color: var(--text); }
 
 .screenshot {
-  margin: 0;
-  border: 1px solid var(--env-color-border-default);
-  border-radius: var(--env-radius-xl);
-  overflow: hidden;
-  background: var(--env-color-bg-default);
-  box-shadow: 0 2rem 4rem -2rem color-mix(in srgb, var(--env-color-fg-default) 30%, transparent);
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: clamp(3rem, 8vh, 5rem);
+  border: 1px solid var(--border);
+  border-radius: 0.875rem;
+  box-shadow: 0 0 0 1px #000, 0 2rem 6rem -1.5rem rgb(2 168 120 / 0.25);
 }
-.screenshot > * { display: block; inline-size: 100%; }
 
-.section-title { margin: 0; text-align: center; text-wrap: balance; }
-
-.features { display: grid; gap: var(--env-space-7); }
-.feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: var(--env-space-4); }
-
-.downloads { display: grid; justify-items: center; gap: var(--env-space-4); scroll-margin-block-start: var(--env-space-6); }
-.channel-text, .build-version, .downloads-note { margin: 0; text-align: center; }
-.inline-icon { inline-size: 1em; block-size: 1em; vertical-align: -0.125em; margin-inline-start: 0.125em; }
-.downloads-loading { padding-block: var(--env-space-6); }
-.platform-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: var(--env-space-4); inline-size: min(100%, 48rem); }
-.platform code { font-size: 0.95em; }
+.footer { padding-block: 2rem 2.5rem; color: var(--muted); font-size: 0.8125rem; justify-content: center; }

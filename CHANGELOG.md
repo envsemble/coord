@@ -6,7 +6,7 @@
 
 - **Coord updates itself.** The installed app checks GitHub Releases when it starts and every four hours; a newer build shows as **Update** in the title bar and in the new **Settings › Updates**, a click downloads it and **Restart to update** installs it. Nothing downloads or installs on its own, and Coord never moves to an older build.
 - **Stable and nightly:** stable releases come from version tags on `main` as before; a nightly build of `dev` is published every night as a prerelease. **Settings › Updates** chooses the channel.
-- **A website:** `site/` is Coord's download page, for coord.envsemble.com: one button for the newest stable build for your system, and every build of both channels.
+- **A website:** `site/` is Coord's download page, for coord.envsemble.com: what Coord is, download buttons for Windows and Linux, and a link to the newest nightly.
 - **Open source:** Coord is under the MIT license, and its CI and releases run on GitHub's own runners.
 
 **Atlas is now Coord**

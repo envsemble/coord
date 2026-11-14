@@ -35,7 +35,7 @@
     "test:e2e": "npm run test:e2e --workspace @envsemble/coord-app",
     "format": "npm run format --workspace @envsemble/coord-diagrams && prettier --write \"docs/*.md\" scripts README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json",
     "format:check": "npm run format:check --workspace @envsemble/coord-diagrams && prettier --check \"docs/*.md\" scripts README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json",
-    "lint": "eslint app/src site/src packages/diagrams/src packages/diagrams/development && stylelint \"app/src/**/*.css\" \"site/src/**/*.css\" \"packages/diagrams/src/**/*.css\"",
+    "lint": "eslint app/src packages/diagrams/src packages/diagrams/development && stylelint \"app/src/**/*.css\" \"packages/diagrams/src/**/*.css\"",
     "check:types": "npm run check:types --workspaces --if-present",
     "check": "npm run check --workspace @envsemble/coord-diagrams",
     "check:package": "npm run check:package --workspace @envsemble/coord-diagrams",

@@ -1,6 +1,6 @@
 # Coord's website
 
-The page at coord.envsemble.com: what Coord is, a button that downloads the newest stable build for the visitor's system, and every build of the stable and nightly channels. It is a static page built with Vite, React and envUI. It asks GitHub for the newest releases of `envsemble/coord` in the visitor's browser (`src/releases.ts`), so a new release needs no new build of the site.
+The page at coord.envsemble.com: one dark page with what Coord is, a download button for Windows and one for Linux (the newest stable build), a link to the newest nightly, and a screenshot of a plan. It is a static page built with Vite and React, without envUI: the download buttons are the familiar store-style ones. It asks GitHub for the newest releases of `envsemble/coord` in the visitor's browser (`src/releases.ts`), so a new release needs no new build of the site.
 
 ## Run it locally
 
