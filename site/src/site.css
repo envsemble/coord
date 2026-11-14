@@ -85,9 +85,10 @@ h1 {
 }
 .download:hover { background: var(--button-hover); border-color: #3a3b3f; }
 .download:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-.download:first-child { background: var(--text); border-color: var(--text); color: var(--background); }
-.download:first-child:hover { background: #ffffff; }
-.download:first-child .download-detail { color: #52525b; }
+/* Windows's own blue. */
+.download-windows { background: #0078d4; border-color: #0078d4; color: #ffffff; }
+.download-windows:hover { background: #1a86d9; border-color: #1a86d9; }
+.download-windows .download-detail { color: rgb(255 255 255 / 0.8); }
 .download[aria-busy] { opacity: 0.6; }
 .logo { width: 1.75rem; height: 1.75rem; flex: none; }
 .download-text { display: flex; flex-direction: column; gap: 0.125rem; }

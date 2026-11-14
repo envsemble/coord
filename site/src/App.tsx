@@ -3,7 +3,7 @@
 // browser by releases.ts), and a screenshot of a plan.
 import { useEffect, useState } from 'react';
 import logo from '../../assets/coord-logo-dark.svg';
-import plan from '../../assets/plan.png';
+import plan from '../../assets/plan-dark.png';
 import { linuxPath } from './linuxPath.ts';
 import { fetchBuilds, releasesPage, sourcePage, visitorPlatform, type Build, type Channel, type Platform } from './releases.ts';
 
@@ -33,7 +33,7 @@ export function App() {
         {nightly ? <><a href={nightly.page}>Nightly build</a> · </> : null}
         <a href={releasesPage}>All releases</a>
       </p>
-      <img className="screenshot" src={plan} width={2184} height={1364}
+      <img className="screenshot" src={plan} width={2163} height={1352}
         alt="A plan in Coord: its title, whose turn it is and what to do, its outcome and scope, and beside it the plan's progress, steps and statistics." />
     </main>
     <footer className="footer">© 2026 envsemble · MIT license</footer>
@@ -43,11 +43,11 @@ export function App() {
 const names: Record<Platform, string> = { windows: 'Windows', linux: 'Linux' };
 const details: Record<Platform, string> = { windows: 'Windows 10 and 11 · .exe', linux: 'x86_64 · AppImage' };
 
-/** A store-style download button: the system's logo, "Download for …", and what the file is. */
+/** A store-style download button: the system's logo, "Download for …", and what the file is; Windows's in its blue. */
 function DownloadButton({ platform, build, loading }: { platform: Platform; build: Build | null; loading: boolean }) {
   // Without a build to offer (GitHub did not answer), the button leads to the releases page.
   const href = build?.downloads[platform]?.url ?? releasesPage;
-  return <a className="download" href={href} aria-busy={loading || undefined}>
+  return <a className={'download download-' + platform} href={href} aria-busy={loading || undefined}>
     {platform === 'windows' ? <WindowsLogo /> : <LinuxLogo />}
     <span className="download-text">
       <span className="download-label">Download for {names[platform]}</span>
