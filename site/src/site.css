@@ -1,13 +1,16 @@
-/* Coord's website: one dark page, centred. */
+/* Coord's website: one dark page. */
 
 :root {
   color-scheme: dark;
   --background: #0b0c0d;
+  --surface: #141517;
+  --raised: #1b1c1f;
   --text: #f4f4f5;
   --muted: #a1a1aa;
   --border: #2a2b2e;
-  --button: #18191b;
-  --button-hover: #222326;
+  /* A highlighter's yellow, for the few words worth marking. */
+  --marker: rgb(250 204 21 / 0.22);
+  --windows: #0078d4;
   font-family: Inter, "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
   background: var(--background);
   color: var(--text);
@@ -17,156 +20,133 @@
 * { box-sizing: border-box; }
 body { margin: 0; }
 a { color: inherit; }
+code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.9em; color: var(--text); }
+.nowrap { white-space: nowrap; }
 
-.header, .footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: min(100% - 2.5rem, 68rem);
-  margin-inline: auto;
-}
-.header { padding-block: 1.25rem; }
+.header, main, .footer { width: min(100% - 2.5rem, 70rem); margin-inline: auto; }
+.header { display: flex; align-items: center; justify-content: space-between; padding-block: 1.25rem; }
 .brand img { display: block; height: 2.25rem; width: auto; }
 .quiet { color: var(--muted); text-decoration: none; font-size: 0.9375rem; }
 .quiet:hover { color: var(--text); }
 
-main {
-  display: flex;
-  flex-direction: column;
+mark {
+  color: inherit;
+  background: linear-gradient(transparent 12%, var(--marker) 12%, var(--marker) 88%, transparent 88%);
+  padding-inline: 0.15em;
+  border-radius: 0.2em;
+}
+
+/* The hero: what Coord is on the left, the downloads card on the right. */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 3rem;
   align-items: center;
-  width: min(100% - 2.5rem, 68rem);
-  margin-inline: auto;
-  padding-block: 3rem 4rem;
-  text-align: center;
+  padding-block: 3.5rem 3rem;
 }
+.intro h1 { margin: 0; font-size: clamp(2.25rem, 4.5vw, 3.25rem); line-height: 1.1; letter-spacing: -0.03em; font-weight: 650; text-wrap: balance; }
+.intro p { margin: 1.25rem 0 0; max-width: 34rem; color: #d4d4d8; font-size: 1.125rem; line-height: 1.6; }
+.intro .aside { margin-top: 0.75rem; color: var(--muted); font-size: 0.9375rem; font-style: italic; }
 
-h1 {
-  margin: 0;
-  max-width: 34rem;
-  font-size: 1.75rem;
-  line-height: 1.3;
-  letter-spacing: -0.01em;
-  font-weight: 600;
-  text-wrap: balance;
+.get {
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--surface);
 }
-
-.lead {
-  margin: 1rem 0 0;
-  max-width: 34rem;
-  color: var(--muted);
-  font-size: 1.0625rem;
-  line-height: 1.6;
-  text-wrap: pretty;
-}
-
-.features {
-  margin: 1.25rem 0 0;
-  padding: 0;
-  max-width: 44rem;
-  list-style: none;
-  text-align: left;
-  color: #d4d4d8;
-  font-size: 1.0625rem;
-  line-height: 1.6;
-}
-.features li { position: relative; padding-left: 1.5rem; }
-.features li + li { margin-top: 0.375rem; }
-/* envUI's list mark: its spark, in the text's colour (envUI's assets/spark.svg). */
-.features li::before {
+.get h2 { margin: 0; font-size: 1.25rem; font-weight: 600; }
+.checks { margin: 1rem 0 0; padding: 0; list-style: none; color: #d4d4d8; font-size: 0.9375rem; line-height: 1.5; }
+.checks li { position: relative; padding-left: 1.625rem; }
+.checks li + li { margin-top: 0.5rem; }
+.checks li::before {
   content: "";
   position: absolute;
-  top: calc((1lh - 0.5625rem) / 2);
-  left: 0.3125rem;
-  width: 0.5625rem;
-  height: 0.5625rem;
-  background-color: var(--text);
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 0C12.9 7.4 16.6 11.1 24 12C16.6 12.9 12.9 16.6 12 24C11.1 16.6 7.4 12.9 0 12C7.4 11.1 11.1 7.4 12 0Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  left: 0.125rem;
+  top: 0.3em;
+  width: 0.375rem;
+  height: 0.75rem;
+  border: solid var(--text);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
+.get .downloads { flex-direction: column; margin-top: 1.5rem; }
+.get .download { width: 100%; }
 
-/* The hovered feature's screenshot, by the cursor; only where there is a mouse. */
-.peek {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: min(32.5rem, 60vw);
-  height: auto;
-  border: 1px solid var(--border);
-  border-radius: 0.625rem;
-  box-shadow: 0 1.25rem 3rem rgb(0 0 0 / 0.6);
-  pointer-events: none;
-  z-index: 10;
-}
-@media (hover: none) { .peek { display: none; } }
-.features li { cursor: default; }
+.downloads { display: flex; flex-wrap: wrap; gap: 0.75rem; }
 
-.facts {
-  margin: 1.25rem 0 0;
-  max-width: 36rem;
-  text-wrap: balance;
-  color: var(--muted);
-  font-size: 0.9375rem;
-  line-height: 1.6;
-}
-
-.downloads {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.75rem;
-  margin-top: 2rem;
-}
-
-/* The store-style download button: logo, then "Download for …" over what the file is. */
+/* The store-style download button, chunky: logo, then "Download for …" over what the file is. */
 .download {
   display: inline-flex;
   align-items: center;
   gap: 0.875rem;
   width: 17rem;
   max-width: 100%;
-  padding: 0.75rem 1.375rem 0.75rem 1.125rem;
+  padding: 0.75rem 1.25rem 0.75rem 1.125rem;
   border: 1px solid var(--border);
+  border-bottom-width: 4px;
   border-radius: 0.75rem;
-  background: var(--button);
+  background: var(--raised);
   text-decoration: none;
-  text-align: left;
-  transition: background-color 120ms, border-color 120ms;
+  transition: transform 80ms, border-bottom-width 80ms, background-color 120ms;
 }
-.download:hover { background: var(--button-hover); border-color: #3a3b3f; }
+.download:hover { background: #232427; }
+.download:active { transform: translateY(2px); border-bottom-width: 2px; }
 .download:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 /* Windows's own blue. */
-.download-windows { background: #0078d4; border-color: #0078d4; color: #ffffff; }
-.download-windows:hover { background: #1a86d9; border-color: #1a86d9; }
+.download-windows { background: var(--windows); border-color: #005a9e; color: #ffffff; }
+.download-windows:hover { background: #1a86d9; }
 .download-windows .download-detail { color: rgb(255 255 255 / 0.8); }
 .download[aria-busy] { opacity: 0.6; }
 .logo { width: 1.75rem; height: 1.75rem; flex: none; }
-.download-text { display: flex; flex-direction: column; gap: 0.125rem; }
+.download-text { display: flex; flex-direction: column; gap: 0.125rem; text-align: left; }
 .download-label { font-size: 1.0625rem; font-weight: 600; line-height: 1.2; }
 .download-detail { font-size: 0.8125rem; color: var(--muted); }
 
-.note { margin: 1.25rem 0 0; color: var(--muted); font-size: 0.875rem; }
+.note { margin: 0.875rem 0 0; color: var(--muted); font-size: 0.875rem; }
 .note a { color: var(--muted); text-underline-offset: 0.2em; }
 .note a:hover { color: var(--text); }
 
-.screenshot {
-  display: block;
-  width: 100%;
-  height: auto;
-  margin-top: clamp(3rem, 8vh, 5rem);
-  border: 1px solid var(--border);
-  border-radius: 0.875rem;
-  box-shadow: 0 0 0 1px #000;
+/* The tour: a tab per thing Coord does, each with a line and its screenshot. */
+.tour { border: 1px solid var(--border); border-radius: 1rem; background: var(--surface); overflow: hidden; }
+.tour-tabs { display: flex; overflow-x: auto; border-bottom: 1px solid var(--border); }
+.tour-tab {
+  flex: 1 0 auto;
+  padding: 0.9375rem 1.25rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 550;
+  cursor: pointer;
 }
+.tour-tab:hover { color: var(--text); }
+.tour-tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--text); background: var(--raised); }
+.tour-tab:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+.tour-panel { padding: 1.25rem 1.25rem 0; }
+.tour-line { margin: 0 0 1.25rem; color: #d4d4d8; font-size: 1.0625rem; line-height: 1.5; min-height: 1.5em; }
+.tour-panel img { display: block; width: 100%; height: auto; border: 1px solid var(--border); border-bottom: 0; border-radius: 0.625rem 0.625rem 0 0; }
 
+/* Nightly: a quieter row of its own. */
 .nightly {
-  width: 100%;
-  margin-top: 4rem;
-  padding-top: 3rem;
-  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem 3rem;
+  margin-block: 4rem 1rem;
+  padding: 1.5rem;
+  border: 1px dashed var(--border);
+  border-radius: 1rem;
 }
-.nightly h2 { margin: 0; font-size: 1.375rem; font-weight: 600; }
-.nightly > p:first-of-type { margin: 0.75rem auto 0; max-width: 34rem; color: var(--muted); line-height: 1.6; }
-.nightly .downloads { margin-top: 1.5rem; }
-.nowrap { white-space: nowrap; }
-.nightly code { font-size: 0.9em; color: var(--text); }
+.nightly h2 { margin: 0; font-size: 1.25rem; font-weight: 600; }
+.nightly p:not(.note) { margin: 0.5rem 0 0; max-width: 28rem; color: var(--muted); line-height: 1.6; }
+.nightly-get .note { text-align: right; }
 
-.footer { padding-block: 2rem 2.5rem; color: var(--muted); font-size: 0.8125rem; justify-content: center; }
+.footer { padding-block: 2rem 2.5rem; color: var(--muted); font-size: 0.8125rem; text-align: center; }
+
+@media (max-width: 860px) {
+  .hero { grid-template-columns: minmax(0, 1fr); gap: 2rem; padding-top: 2rem; }
+  .nightly-get .note { text-align: left; }
+}
