@@ -10,7 +10,7 @@
 
 **Coord is where your coding agents' plans live.** When you design something with an agent, the plan, its steps, the decisions behind it and the diagrams that explain it are written into a planning folder on your computer instead of disappearing with the chat. Every agent session that works in your project finds them again, keeps them current as it works, and you follow all of it in one desktop app.
 
-![The Coord hub on the computer Workstation: three open plans of the project Northwind, grouped as Blocked (Customer order notifications, with why it is blocked), Paused (Saved payment methods, with the step now worked on, Claude Opus 5.5 and two other models, its agent time and tokens) and Drafts (Order fulfilment model), each with its project, steps done and when it changed; the title bar holds Plans, File, View and Help and the computer menu, and the heading line the search, the project menu and the Open, Closed and All filter](assets/hub.png)
+![The Coord hub on the computer Workstation: three open plans of the project Northwind, grouped as Your turn (Saved payment methods, with what the agent waits on you for: choose how a customer picks a saved card, on the card picker page; Claude Opus 5.5 and two other models, its agent time and tokens), Waiting (Customer order notifications, with why it is blocked) and Later (Order fulfilment model), each with its project, steps done and when it changed; the title bar holds the Coord mark, Plans, File, View and Help and the computer menu, and the heading line the search, the project menu and the Open, Closed and All filter](assets/hub.png)
 
 ## Why bother
 
@@ -31,7 +31,7 @@ Coord fixes that without changing how you work with your agent:
 2. **Implement.** Say "coord implement". The agent starts the accepted plan with its steps, marks each one as it goes, reviews its work, and delivers it the way the plan says: commits, a branch, or a pull request that passes CI. When the work is done, it closes it, asking you first unless you handed it over to finish without you.
 3. **Follow along.** Coord shows the plan with its summary, its steps and what is left, the diagrams under the headings they explain, the sessions that worked on it, and what it cost.
 
-![A plan in Coord: Saved payment methods, #0001 of Northwind, under the breadcrumb Plans › Northwind › #0001, Paused with 2 of 7 steps; its Outcome and Scope, and a diagram card, Checkout · captured TypeScript, Generated from code, with its elements, under the heading Current checkout. At the left the plan's files with the work folder, plan.md marked; at the right the side column: Progress (2 of 7 steps done, 5 left, the step in progress), Continues #0004 Inventory reservations at checkout, the steps, and Statistics (Claude Opus 5.5 with Claude Sonnet 4.5 and Claude Haiku 5.5, 4 h 8 min of agent time, 13.8M tokens); Search in the title bar](assets/plan.png)
+![A plan in Coord: Saved payment methods, #0001 of Northwind, under the breadcrumb Plans › Northwind › #0001, marked Your turn with what to do: choose how a customer picks a saved card, on the card picker page, which is linked below the title; its Outcome and Scope, and the current checkout with links into its captured TypeScript model. At the left the plan's files, plan.md marked and the pages folder with a dot for the page that needs you; at the right the side column: Progress (2 of 7 steps done, 5 left), Continues #0004 Inventory reservations at checkout, the steps, and Statistics (Claude Opus 5.5 with Claude Sonnet 4.5 and Claude Haiku 5.5, 4 h 8 min of agent time, 13.8M tokens); Search in the title bar](assets/plan.png)
 
 Coord works with **Claude Code** and **Codex** through its plugin: tools for the planning state, three skills (`coord`, `coord-grill` and `coord-implement`) with the delivery skills beside them (full send, full stop, babysitting and reviewing a PR), and hooks that check every planning edit and measure the session as it works. You never have to tell the agent to update its plan or report its time.
 
@@ -39,11 +39,11 @@ Coord works with **Claude Code** and **Codex** through its plugin: tools for the
 
 - **Statistics.** Agent time, completed plans and the time they took, the work over time by model, and the models and reasoning effort used, per project or for every project.
 
-  ![A project's statistics for the last four weeks: agent time, plans completed, median time to complete and time waited on you, the work over time by model, and agent time by model and effort](assets/statistics.png)
+  ![A project's statistics for the last three months: agent time, plans completed, median time to complete and time waited on you, the work over time by model, and agent time by model and effort](assets/statistics.png)
 
 - **Diagrams.** Coord's own PlantUML subset, laid out and drawn by Coord, with a change view for proposals and comparisons.
 
-  ![An agent's proposal in the change view: new and changed classes and relations marked on the canvas, unchanged ones faded, and the list of changes beside it](assets/comparison-dark.jpg)
+  ![An agent's proposal in the change view, dark: new and changed classes and relations marked on the canvas, unchanged ones faded, the list of changes beside it, and the plan's files with the captured diagram and its two proposals](assets/comparison-dark.png)
 
 - **Find past work by tag.** Agents tag each work item with the release it ships in and the areas it touches, so `tag:0.8.0` in the search, or asking an agent, lists everything done for 0.8.0.
 - **Share a plan** as one offline HTML file that anyone can open in a browser, and import it into another project.
