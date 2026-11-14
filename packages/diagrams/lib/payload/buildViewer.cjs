@@ -265,7 +265,7 @@ async function buildViewer({ prepared, file } = {}) {
     .replace(
       "<!--APP_ICON-->",
       () =>
-        `<link rel="icon" href="data:image/svg+xml,${encodeURIComponent(fs.readFileSync(path.join(rootPath, "assets/coord-icon.svg"), "utf8"))}">`,
+        `<link rel="icon" href="data:image/svg+xml,${encodeURIComponent(fs.readFileSync(path.join(rootPath, "assets/icon.svg"), "utf8"))}">`,
     )
     .replace(
       /<title>.*?<\/title>/,

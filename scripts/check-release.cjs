@@ -52,7 +52,7 @@ async function check() {
       ),
       "Missing packed diagram package",
     );
-    assert(files["packages/diagrams/assets/coord-icon.svg"]);
+    assert(files["packages/diagrams/assets/icon.svg"]);
     assert(files["packages/diagrams/schemas/code-source-schema.json"]);
     assert(files["packages/diagrams/examples/shop/diagrams/checkout.puml"]);
     assert(files["app/package.json"]);
@@ -95,7 +95,7 @@ async function check() {
     assert(files[".claude-plugin/marketplace.json"]);
     assert(files[".agents/plugins/marketplace.json"]);
     assert(files["plugin/skills/babysit-pr/SKILL.md"]);
-    assert(files["assets/coord-logo-dark.svg"]);
+    assert(files["assets/coord-horizontal-on-dark.svg"]);
     assert(files["docs/history/skills-commit-map.txt"]);
     assert(files["docs/history/atlas-import-commit-map.txt"]);
     assert(files["CHANGELOG.md"]);

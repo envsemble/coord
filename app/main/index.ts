@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { app, dialog, Menu, nativeTheme, powerMonitor, protocol, shell } from 'electron';
 import { coordHome, electronDataDirectory, HomeDatabase, prepareHome } from '@envsemble/coord/planning';
-import icon from '../build/icon.png?asset';
+import icon from '../build/app-1024.png?asset';
 import { Computers } from './computers/computers.ts';
 import { registerIpc } from './windows/ipc.ts';
 import { LocalHost } from './host/localHost.ts';
