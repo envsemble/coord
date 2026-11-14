@@ -27,6 +27,7 @@ import { Hub, type HubFilters } from '../hub/Hub';
 import { NewProjectDialog, type ProjectActions } from '../projects/ProjectDialogs';
 import { Gone, Page } from '../ui/Page';
 import { TitleBarStart, type WindowMenus } from '../titleBar/TitleBar';
+import { UpdateButton } from '../settings/Updates';
 import { revealIds } from '../files/explorerModel';
 import { ReadingContext, WindowContext, type Notify, type OpenOptions, type WindowActions, type WindowReading } from './windowContext';
 import { arrived, liveActivity } from '../plan/agentTime';
@@ -485,6 +486,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
         {/* On the hub, its own search button is the search. */}
         {!hubShown && <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />}
         {scope && read && <Health issues={read.snapshot.issues} open={work => go({ projectId: scope.projectId, target: workTarget(work) })} />}
+        <UpdateButton />
         <ThemeMenu />
       </>} />}>
     <div className={'window-body' + (fills ? ' is-filled' : '')}>

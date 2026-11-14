@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@envsemble/coord-diagrams": "*",
+    "electron-updater": "6.8.12",
     "esbuild": "0.28.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"

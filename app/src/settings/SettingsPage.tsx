@@ -1,21 +1,23 @@
-// Settings (File › Settings…), a page of the window with two sections, each a place of its own:
-// Agents, the agents on this computer that Coord connects (Claude Code and Codex), and Computers,
+// Settings (File › Settings…), a page of the window with three sections, each a place of its own:
+// Agents, the agents on this computer that Coord connects (Claude Code and Codex); Computers,
 // pairing in both directions: the other computers this one connects to, and the devices that can
-// reach the window's computer. In a window on another computer, Agents is still this computer's (it
+// reach the window's computer; and Updates, this app's version, release channel and update. In a window on another computer, Agents is still this computer's (it
 // installs here), Devices that can reach follows the window's computer, and Other computers is this
 // computer's.
 import { useId, type ReactNode } from 'react';
 import { Alert, NavigationDrawer, Text } from '@envsemble/envui';
 import type { ComputerRef, SettingsSection } from '../types';
-import { AgentIcon, ComputerIcon } from '../ui/icons';
+import { AgentIcon, ComputerIcon, UpdateIcon } from '../ui/icons';
 import { Page } from '../ui/Page';
 import { AgentList, useAgents } from './AgentList';
 import { OtherComputers } from '../computers/ComputerMenu';
 import { RemoteAccess, remoteAccessTitle } from '../computers/RemoteAccess';
+import { UpdatesSection } from './Updates';
 
 const sections: { id: SettingsSection; label: string; icon: ReactNode }[] = [
   { id: 'agents', label: 'Agents', icon: <AgentIcon /> },
   { id: 'computers', label: 'Computers', icon: <ComputerIcon /> },
+  { id: 'updates', label: 'Updates', icon: <UpdateIcon /> },
 ];
 
 export function SettingsPage({ section, computer, go }: { section: SettingsSection; computer: ComputerRef; go(section: SettingsSection): void }) {
@@ -24,7 +26,7 @@ export function SettingsPage({ section, computer, go }: { section: SettingsSecti
       <NavigationDrawer className="settings-nav" aria-label="Settings" background="page"
         destinations={sections.map(item => ({ label: item.label, icon: item.icon, current: item.id === section, onClick: () => go(item.id) }))} />
       <div className="settings-content">
-        {section === 'agents' ? <AgentsSection computer={computer} /> : <ComputersSection computer={computer} />}
+        {section === 'agents' ? <AgentsSection computer={computer} /> : section === 'updates' ? <SettingsGroup title="Updates" aside={<span className="settings-scope"><ComputerIcon /> This computer</span>}><UpdatesSection /></SettingsGroup> : <ComputersSection computer={computer} />}
       </div>
     </div>
   </Page>;

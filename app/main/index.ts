@@ -18,6 +18,7 @@ import { scheme } from './windows/protocol.ts';
 import { AppState } from './appState.ts';
 import { Agents } from './agent/agents.ts';
 import { WindowManager } from './windows/windowManager.ts';
+import { Updates, type UpdaterEngine } from './updates.ts';
 import type { AboutInfo } from '../shared/contract.ts';
 import { isProjectListing } from '../shared/validate.ts';
 
@@ -56,7 +57,7 @@ if (refusal) {
   try { database = HomeDatabase.open(dataDirectory); } catch (error) {
     refuseHome(`Coord cannot open its home database: ${(error as Error).message}`);
   }
-  if (database) start(database);
+  if (database) await start(database);
 }
 
 /** Leave without touching the home when its database cannot be opened. */
@@ -74,6 +75,22 @@ function endToEndBuild() {
   try { return JSON.parse(readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')).coordEndToEndBuild === true; } catch { return false; }
 }
 
+/**
+ * electron-updater's updater for this build, or why updates are off: they come with the installed
+ * app on Windows and the AppImage on Linux, never with a development or end-to-end build, and a
+ * test run can turn them off (COORD_NO_UPDATES=1).
+ */
+async function updaterEngine(): Promise<UpdaterEngine | { off: string }> {
+  if (!app.isPackaged) return { off: 'This is a development build: updates come with the installed app.' };
+  if (endToEndBuild() || process.env.COORD_NO_UPDATES === '1') return { off: 'Updates are turned off for this run.' };
+  if (process.platform === 'linux' && !process.env.APPIMAGE) return { off: 'Coord updates itself when it runs as its AppImage.' };
+  if (process.platform !== 'win32' && process.platform !== 'linux') return { off: 'Coord updates itself on Windows and Linux.' };
+  const { default: updater } = await import('electron-updater');
+  const engine = updater.autoUpdater;
+  engine.logger = { info: (message: unknown) => log.info('Updater: ' + String(message)), warn: (message: unknown) => log.warn('Updater: ' + String(message)), error: (message: unknown) => log.warn('Updater: ' + String(message)), debug: () => {} };
+  return engine as unknown as UpdaterEngine;
+}
+
 function refuse(found: Refusal) {
   log.error(found.reason === 'sandbox' ? 'Refused to start without the sandbox' : 'Refused to start with debugging switches', { switches: found.switches });
   if (found.reason === 'debugging') {
@@ -89,7 +106,7 @@ function refuse(found: Refusal) {
   });
 }
 
-function start(database: HomeDatabase) {
+async function start(database: HomeDatabase) {
   const devUrl = !app.isPackaged && process.env.ELECTRON_RENDERER_URL ? process.env.ELECTRON_RENDERER_URL : null;
   const state = new AppState(database);
   // The chosen theme reaches every window as prefers-color-scheme, and themes Coord's own menus and dialogs.
@@ -135,6 +152,14 @@ function start(database: HomeDatabase) {
     lastSession: harness => (database.db.prepare('SELECT max(updated_at) AS at FROM session WHERE harness = ?').get(harness) as { at: string | null }).at,
   });
 
+  // Coord's own updates, from its releases on GitHub, in the installed app only.
+  const updates = new Updates({
+    version: app.getVersion(), log,
+    engine: await updaterEngine(),
+    setting: { get: () => database.setting('updateChannel'), set: value => database.setSetting('updateChannel', value) },
+    onChange: state => manager?.updatesChanged(state),
+  });
+
   manager = new WindowManager({
     state, database, log, computers, version: app.getVersion(), icon, devUrl, devTools,
     preload: path.join(import.meta.dirname, '../preload/index.cjs'),
@@ -168,7 +193,7 @@ function start(database: HomeDatabase) {
   void app.whenReady().then(async () => {
     log.info('Coord started', { version: app.getVersion(), packaged: app.isPackaged, platform: process.platform, uptimeMs: Math.round(process.uptime() * 1000) });
     Menu.setApplicationMenu(null);
-    registerIpc(manager, { openLogs, about, agents });
+    registerIpc(manager, { openLogs, about, agents, updates });
     buildMenu(manager, { openLogs, devTools });
     // The host starts while the windows open: the connection waits for its owner token.
     const hostStarted = localHost.start().catch(async error => {
@@ -183,6 +208,7 @@ function start(database: HomeDatabase) {
     manager.restore();
     // After the windows open: an update copies the command and the plugin into the home.
     void agents.start();
+    updates.start();
     await hostStarted;
   });
 }

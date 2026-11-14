@@ -2,7 +2,7 @@
 // `window.coord`, whose methods map one-to-one onto the fixed channel list; the renderer never
 // sees ipcRenderer itself. Results, including errors, cross as plain structured values.
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import { eventChannels, menuCommands, type AccessChange, type CoordBridge, type EventChannel, type InvokeChannel, type MenuCommand, type ProjectChange, type ProjectsChange, type Result } from '../shared/contract.ts';
+import { eventChannels, menuCommands, type AccessChange, type CoordBridge, type EventChannel, type InvokeChannel, type MenuCommand, type ProjectChange, type ProjectsChange, type Result, type UpdateState } from '../shared/contract.ts';
 
 function call<T>(channel: InvokeChannel, ...args: unknown[]): Promise<Result<T>> {
   return ipcRenderer.invoke(channel, ...args).catch(() => ({ ok: false, error: { code: 'internal', message: 'Coord could not reach its main process.' } }));
@@ -18,6 +18,7 @@ const isChange = (value: unknown): value is ProjectChange => Boolean(value && ty
 const isMenu = (value: unknown): value is MenuCommand => typeof value === 'string' && (menuCommands as readonly string[]).includes(value);
 const isAccess = (value: unknown): value is AccessChange => Boolean(value && typeof value === 'object' && 'state' in value && 'hostId' in value);
 const isProjects = (value: unknown): value is ProjectsChange => Boolean(value && typeof value === 'object' && 'hostId' in value);
+const isUpdates = (value: unknown): value is UpdateState => Boolean(value && typeof value === 'object' && 'status' in value && 'channel' in value);
 
 const api: CoordBridge = {
   info: () => call('window:info'),
@@ -75,10 +76,16 @@ const api: CoordBridge = {
   disconnectAgent: id => call('agents:disconnect', id),
   onboarding: () => call('onboarding:state'),
   finishOnboarding: () => call('onboarding:finish'),
+  updates: () => call('updates:state'),
+  checkForUpdates: () => call('updates:check'),
+  downloadUpdate: () => call('updates:download'),
+  installUpdate: () => call('updates:install'),
+  setUpdateChannel: channel => call('updates:setChannel', channel),
   onChanged: listener => subscribe('project:changed', isChange, listener),
   onProjectsChanged: listener => subscribe('projects:changed', isProjects, listener),
   onMenu: listener => subscribe('menu:command', isMenu, listener),
   onAccessChanged: listener => subscribe('access:changed', isAccess, listener),
+  onUpdatesChanged: listener => subscribe('updates:changed', isUpdates, listener),
 };
 
 contextBridge.exposeInMainWorld('coord', api);

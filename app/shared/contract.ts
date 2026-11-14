@@ -29,10 +29,11 @@ export const invokeChannels = [
   'access:state', 'access:update', 'access:pairingCreate', 'access:pairingRevoke', 'access:devices', 'access:deviceRevoke',
   'agents:list', 'agents:checks', 'agents:connect', 'agents:disconnect', 'agents:chooseProgram', 'agents:clearProgram', 'agents:byHand',
   'onboarding:state', 'onboarding:finish',
+  'updates:state', 'updates:check', 'updates:download', 'updates:install', 'updates:setChannel',
 ] as const;
 export type InvokeChannel = typeof invokeChannels[number];
 
-export const eventChannels = ['project:changed', 'projects:changed', 'menu:command', 'access:changed'] as const;
+export const eventChannels = ['project:changed', 'projects:changed', 'menu:command', 'access:changed', 'updates:changed'] as const;
 export type EventChannel = typeof eventChannels[number];
 
 /** Light, dark, or the operating system's choice: kept by main for every window and applied as Electron's native theme. */
@@ -113,8 +114,8 @@ export type Target =
   | { kind: 'file'; path: string; anchor?: string | null };
 /** Something of a project (by its ID): a plan, a diagram or a file. */
 export interface ProjectPlace { projectId: string; target: Target }
-/** The Settings page's sections: the agents Coord connects on this computer, and pairing in both directions. */
-export const settingsSections = ['agents', 'computers'] as const;
+/** The Settings page's sections: the agents Coord connects on this computer, pairing in both directions, and Coord's updates. */
+export const settingsSections = ['agents', 'computers', 'updates'] as const;
 export type SettingsSection = typeof settingsSections[number];
 /**
  * The window's own pages: the hub, with the plans of every project or of one (`projectId`), where
@@ -160,6 +161,26 @@ export interface AgentChange { agent: AgentState; error: string | null }
 export interface AgentFolder { directory: string; marketplace: string }
 /** Whether the onboarding has been finished on this computer; it shows on launch until then. */
 export interface OnboardingState { done: boolean }
+
+/** Where Coord's updates come from: its stable releases, or a build of its development branch each night. */
+export const updateChannels = ['stable', 'nightly'] as const;
+export type UpdateChannel = typeof updateChannels[number];
+/**
+ * Where the installed app's update stands: off for this run (a development or test build, or a
+ * Linux build not run as its AppImage, with why), nothing to do (`checkedAt`: the last check that
+ * found nothing, null before one), checking, a newer build on offer, downloading it, downloaded and
+ * ready to restart into, or the last step failed (a message fit to show).
+ */
+export type UpdateStatus =
+  | { kind: 'off'; reason: string }
+  | { kind: 'idle'; checkedAt: string | null }
+  | { kind: 'checking' }
+  | { kind: 'available'; version: string }
+  | { kind: 'downloading'; version: string; percent: number }
+  | { kind: 'ready'; version: string }
+  | { kind: 'failed'; message: string };
+/** The running build's version, the channel it follows, and its update. */
+export interface UpdateState { version: string; channel: UpdateChannel; status: UpdateStatus }
 
 /** What the menu's About Coord shows. */
 export interface AboutInfo {
@@ -274,8 +295,19 @@ export interface CoordBridge {
   onboarding(): Promise<Result<OnboardingState>>;
   /** The onboarding was finished: it no longer shows on launch. */
   finishOnboarding(): Promise<Result<void>>;
+  /** Coord's update: the version running, its channel and where its update stands. */
+  updates(): Promise<Result<UpdateState>>;
+  /** Look for a newer build on the channel now. */
+  checkForUpdates(): Promise<Result<UpdateState>>;
+  /** Download the build on offer. */
+  downloadUpdate(): Promise<Result<UpdateState>>;
+  /** Quit Coord, install the downloaded build and start it again. */
+  installUpdate(): Promise<Result<void>>;
+  /** Follow the stable or the nightly channel from now on. */
+  setUpdateChannel(channel: UpdateChannel): Promise<Result<UpdateState>>;
   onChanged(listener: (change: ProjectChange) => void): () => void;
   onProjectsChanged(listener: (change: ProjectsChange) => void): () => void;
   onMenu(listener: (command: MenuCommand) => void): () => void;
   onAccessChanged(listener: (change: AccessChange) => void): () => void;
+  onUpdatesChanged(listener: (state: UpdateState) => void): () => void;
 }

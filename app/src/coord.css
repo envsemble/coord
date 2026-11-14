@@ -533,6 +533,10 @@ body { margin: 0; }
 .settings-group .section-toolbar > .settings-description { flex: 1 1 20rem; }
 /* Remote access's fields keep a form's width on the wide page. */
 .settings-group :is(.access-fields, .pairing-label) { max-inline-size: 36rem; }
+.updates-channel { inline-size: min(100%, 36rem); }
+.updates-status { display: flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-2) var(--env-space-3); min-block-size: var(--env-control-height-md); }
+.updates-progress { inline-size: min(100%, 24rem); }
+.updates-failure { flex: 1 1 100%; max-inline-size: 48rem; }
 @media (max-width: 52rem) {
   .settings-layout { grid-template-columns: minmax(0, 1fr); gap: var(--env-space-5); }
 }

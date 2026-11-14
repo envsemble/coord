@@ -4,7 +4,7 @@
 import { BrowserWindow, screen } from 'electron';
 import type { HomeDatabase } from '@envsemble/coord/planning';
 import type { AccessState, ClientStatus, OpenProjectState, HostClient, Project } from '@envsemble/coord/host';
-import type { MenuCommand } from '../../shared/contract.ts';
+import type { MenuCommand, UpdateState } from '../../shared/contract.ts';
 import type { Computers } from '../computers/computers.ts';
 import type { RotatingLog } from '../log.ts';
 import { defaultSize, type AppState, type WindowRow } from '../appState.ts';
@@ -116,6 +116,10 @@ export class WindowManager {
   /** Remote access changed on a computer (devices, listening): every window may show it. */
   accessChanged(hostId: string | null, state: AccessState) {
     for (const window of this.all()) window.send('access:changed', { hostId, state });
+  }
+  /** Coord's update moved on: every window shows it. */
+  updatesChanged(state: UpdateState) {
+    for (const window of this.all()) window.send('updates:changed', state);
   }
 
   sendMenu(command: MenuCommand, focusedOnly = false) {

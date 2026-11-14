@@ -9,11 +9,12 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell, typ
 import { HostRequestError, parsePairing, type HostClient } from '@envsemble/coord/host';
 import { resolveDocument } from '@envsemble/coord/planning';
 import { accessSettings, deviceText } from '@envsemble/coord/host/validate';
-import { agentNames, defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AgentId, type AccessSettings, type InvokeChannel, type LoadedUi, type PairingGrant, type Project, type PairingLinkView, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
-import { agentId, argumentsOf, array, boolean, command, diagramPath, diagramPositions, fileContent, folderPath, pagePath, toolInput, toolName, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectId, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, uiState, url, workId, type Validator } from '../../shared/validate.ts';
+import { agentNames, defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AgentId, type AccessSettings, type InvokeChannel, type LoadedUi, type PairingGrant, type Project, type PairingLinkView, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState, type UpdateChannel } from '../../shared/contract.ts';
+import { agentId, argumentsOf, array, boolean, command, diagramPath, diagramPositions, fileContent, folderPath, pagePath, toolInput, toolName, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectId, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, uiState, updateChannel, url, workId, type Validator } from '../../shared/validate.ts';
 import { CoordError, toErrorValue } from '../errors.ts';
 import type { ProjectView } from '../computers/projectView.ts';
 import type { Agents } from '../agent/agents.ts';
+import type { Updates } from '../updates.ts';
 import { programFilters } from '../agent/programs.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
 import { placeRow, savedPlace } from '../appState.ts';
@@ -141,7 +142,7 @@ async function saveUi(manager: WindowManager, window: CoordWindow, ui: UiState) 
 }
 
 /** What the message handlers need from the app beyond the windows. */
-export interface IpcActions { openLogs(): void; about(): AboutInfo; agents: Agents }
+export interface IpcActions { openLogs(): void; about(): AboutInfo; agents: Agents; updates: Updates }
 
 function channels(manager: WindowManager, actions: IpcActions): Record<InvokeChannel, Channel> {
   const { computers } = manager.context;
@@ -308,6 +309,12 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
     'agents:byHand': { args: [], handle: () => actions.agents.byHand() },
     'onboarding:state': { args: [], handle: () => actions.agents.onboarding() },
     'onboarding:finish': { args: [], handle: () => actions.agents.finishOnboarding() },
+    // Coord's own update, from its releases on GitHub: a window only asks; main downloads and installs.
+    'updates:state': { args: [], handle: () => actions.updates.state() },
+    'updates:check': { args: [], handle: () => actions.updates.check() },
+    'updates:download': { args: [], handle: () => actions.updates.download() },
+    'updates:install': { args: [], handle: () => { actions.updates.install(); } },
+    'updates:setChannel': { args: [updateChannel], handle: (_window, channel: UpdateChannel) => actions.updates.setChannel(channel) },
   };
 }
 

@@ -99,6 +99,8 @@ export function environment(dataDirectory: string) {
   for (const folder of [env.CLAUDE_CONFIG_DIR, env.CODEX_HOME]) mkdirSync(folder, { recursive: true });
   // The AppImage extracts itself instead of mounting through FUSE (not available on CI runners).
   env.APPIMAGE_EXTRACT_AND_RUN = '1';
+  // A release build would look for its update on GitHub; tests stay offline.
+  env.COORD_NO_UPDATES = '1';
   return env;
 }
 
