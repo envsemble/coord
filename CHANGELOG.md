@@ -5,7 +5,7 @@
 **Atlas is now Coord**
 
 - **Atlas is now called Coord**, everywhere: the app and its installer, the `coord` command, the agent plugin `coord@coord` with its skills `coord`, `coord-grill` and `coord-implement` ("coord grill", "coord implement"), the MCP server `coord`, the packages `@envsemble/coord`, `@envsemble/coord-diagrams` and `@envsemble/coord-app`, the `coord://` scheme, and a new mark. The name was free once the first product called Coord became envsemble.
-- **What to do:** install Coord and uninstall Atlas; move `~/.atlas` to `~/.coord` with the app closed, renaming `atlas.db` (and its `-wal` and `-shm` files) to `coord.db`; set `COORD_HOME` and the other `COORD_*` variables in place of `ATLAS_*` ones; and in Claude Code and Codex remove the `atlas@atlas` plugin and connect Coord (Settings › Agents, or `coord setup`). Plans, steps and statistics come along unchanged.
+- **What to do:** install Coord and uninstall Atlas; move `~/.atlas` to `~/.coord` with the app closed, renaming `atlas.db` (and its `-wal` and `-shm` files) to `coord.db`; set `COORD_HOME` and the other `COORD_*` variables in place of `ATLAS_*` ones; and in Claude Code and Codex remove the `atlas@atlas` plugin and connect Coord (Settings › Agents, or `coord setup`). In the planning folders, rewrite diagrams' `' atlas` header lines as `' coord`, and capture again (or stamp the fingerprint again) each capture whose header changed, as captures are frozen. Plans, steps and statistics come along unchanged.
 
 **A simpler window, on envUI 1.0**
 

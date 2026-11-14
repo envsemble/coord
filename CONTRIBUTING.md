@@ -87,6 +87,6 @@ Merge the release into `main`, then tag `main` with the version: `git fetch orig
 
 ## Branding, history and source status
 
-- Editable branding lives in `assets/` (SVG banners and logos); the app and viewer icon is `packages/diagrams/assets/coord-icon.svg`.
+- Editable branding lives in `assets/` (SVG logos); the app and viewer icon is `packages/diagrams/assets/coord-icon.svg`.
 - The app and the skills arrived from earlier repositories with rewritten history; the [repository history maps](docs/history/README.md) translate their old commit IDs.
 - Source is currently private and `UNLICENSED`: a source-use status, not an open-source license. Do not introduce a public license without the owner's decision. Dependency licenses and attributed example excerpts remain preserved; [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists them.
