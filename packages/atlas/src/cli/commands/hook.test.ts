@@ -129,22 +129,15 @@ test('hooks give the session its planning context, check and link planning edits
   }
   assert.deepEqual(links().map(item => item.amending), [false, false, false]);
   assert.equal(working(), 0, 'the turn is over when the agent stops');
-  // The next tool use, of any tool, puts the linked session back in a turn; a subagent stopping leaves it there.
+  // A tool use records only what it made, never a turn: it says nothing of whose turn the work is. A subagent stopping is reported.
   await hook('ToolUse', { tool_name: 'Bash', tool_input: { command: 'npm test' } });
-  assert.equal(working(), 1);
+  assert.equal(working(), 0);
   await hook('SubagentStop', { agent_id: 'a1', agent_type: 'Explore', agent_transcript_path: transcript });
   assert.equal(reportsIn(root, 'work-0003', base.ATLAS_HOME!).length, 2);
-  assert.equal(working(), 1);
-  // The session's state at once: a prompt starts a turn; a permission prompt waits for the person,
-  // and the tool use after it continues the same turn; the turn's end waits, a later reminder
-  // keeping when it began; the session's end is neither.
+  // The session's turns, for the sessions a plan lists: a prompt starts one, its end ends it, and the session's end is neither.
   const state = () => withDatabase(base.ATLAS_HOME!, database => ({ ...database.db.prepare('SELECT working, turn_at AS turn, waiting_at AS waiting FROM session WHERE id = ?').get(session) as { working: number; turn: string | null; waiting: string | null } }));
   await hook('UserPromptSubmit', { prompt: 'Placeholder' });
   const { turn } = state();
-  assert.deepEqual(state(), { working: 1, turn, waiting: null });
-  await hook('Notification', { notification_type: 'permission_prompt', message: 'Claude needs your permission to use Bash' });
-  assert.deepEqual({ ...state(), waiting: typeof state().waiting }, { working: 0, turn, waiting: 'string' });
-  await hook('ToolUse', { tool_name: 'Bash', tool_input: { command: 'npm test' } });
   assert.deepEqual(state(), { working: 1, turn, waiting: null });
   // A commit the session makes is recorded for the work item it is on, with its repository (owner/repo, from the checkout's remote) and page;
   // an amended one replaces it, and one on a detached HEAD has no branch.
@@ -152,43 +145,26 @@ test('hooks give the session its planning context, check and link planning edits
   await commit('git add -A && git commit -m "Add the cart"', '[main 0f0f0f0] Add a cart\n 1 file changed, 1 insertion(+)\n');
   await commit('git commit --amend -m "Add the cart"', '[main 1a2b3c4] Add the cart\n Date: Mon Oct 19 12:00:00 2026 +0200\n');
   await commit('git -C "' + checkout + '" commit -m "Try it"', '[detached HEAD 9e8d7c6] Try it\n');
-  // The agent asks for the person (needs_you) before its turn ends: the plan needs you.
-  await hook('ToolUse', { tool_name: 'mcp__plugin_atlas_atlas__needs_you', tool_input: {}, tool_response: [{ type: 'text', text: '{"noted":true}' }] });
   await hook('Stop', { stop_hook_active: false, last_assistant_message: '**Needs your decision:** keep the cart for a week?' });
-  const { waiting } = state();
+  assert.equal(state().working, 0);
   const project = withDatabase(base.ATLAS_HOME!, database => database.projectByFolder(realpathSync.native(root))!.id);
   const sessions = (local = true) => withDatabaseAsync(base.ATLAS_HOME!, database => workSessions(database, project, 'work-0003', { local }));
   assert.deepEqual((await sessions()).commits.map(({ kind, repository, id, title, url, branch }) => ({ kind, repository, id, title, url, branch })),
     [{ kind: 'commit', repository: 'example/shop', id: '9e8d7c6', title: 'Try it', url: 'https://github.com/example/shop/commit/9e8d7c6', branch: null },
       { kind: 'commit', repository: 'example/shop', id: '1a2b3c4', title: 'Add the cart', url: 'https://github.com/example/shop/commit/1a2b3c4', branch: 'main' }]);
-  // While it waits, the session shows its turn's last message, and how to resume it in the folder it
-  // started in (as its log says, wherever its hooks ran since); a paired device gets no folder.
-  const [waiter] = (await sessions()).sessions;
-  assert.deepEqual([waiter.state, waiter.title, waiter.message, waiter.folder, waiter.resume], ['waiting', 'Carts that last', '**Needs your decision:** keep the cart for a week?', startedIn(config), 'claude --resume ' + session]);
+  // The session lists with its title and how to resume it in the folder it started in (as its log
+  // says, wherever its hooks ran since); a paired device gets no folder. Its turn's end is no wait for anyone.
+  const [listed] = (await sessions()).sessions;
+  assert.deepEqual([listed.state, listed.title, listed.message, listed.folder, listed.resume], ['idle', 'Carts that last', null, startedIn(config), 'claude --resume ' + session]);
   const [remote] = (await sessions(false)).sessions;
-  assert.deepEqual([remote.message, remote.folder, remote.resume], [waiter.message, null, null]);
-  // A subagent at work while the main agent waits keeps the plan working, with its own time; once it
-  // stops, the plan waits again. Its tool uses leave the main agent waiting.
-  const listed = () => withDatabase(base.ATLAS_HOME!, database => [...database.workActivity().values()].flat().flatMap(item => item.sessions.map(entry => [entry.session, entry.state])));
-  await hook('SubagentStart', { agent_id: 'a9', agent_type: 'general-purpose' });
-  await hook('ToolUse', { agent_id: 'a9', agent_type: 'general-purpose', tool_name: 'Bash', tool_input: { command: 'npm test' } });
-  assert.deepEqual([activity(), listed(), state().working], [[['work-0003', 'working']], [[session + '/a9', 'working'], [session, 'waiting']], 0]);
-  await hook('SubagentStop', { agent_id: 'a9', agent_type: 'general-purpose', agent_transcript_path: transcript });
-  assert.deepEqual(activity(), [['work-0003', 'waiting']]);
-  await hook('Notification', { notification_type: 'idle_prompt', message: 'Claude is waiting for your input' });
-  assert.deepEqual(state(), { working: 0, turn: null, waiting });
-  assert.deepEqual(activity(), [['work-0003', 'waiting']]);
-  // The harness closing the idle agent leaves it waiting; the person exiting ends the wait.
-  await hook('SessionEnd', { reason: 'other' });
-  assert.deepEqual([state(), activity()], [{ working: 0, turn: null, waiting }, [['work-0003', 'waiting']]]);
+  assert.deepEqual([remote.folder, remote.resume], [null, null]);
   await hook('SessionEnd', { reason: 'prompt_input_exit' });
-  assert.deepEqual([state(), activity()], [{ working: 0, turn: null, waiting: null }, []]);
+  assert.deepEqual(state(), { working: 0, turn: null, waiting: null });
   const [ended] = (await sessions()).sessions;
   assert.deepEqual([ended.state, ended.message], ['ended', null]);
-  // Its waits for the person on the work item it is on (work-0003): the permission prompt and the turn end it asked at;
-  // the first turn's end, without asking, was no wait for anyone.
+  // Nothing was a wait for the person: Atlas no longer guesses one.
   const timeline = withDatabase(base.ATLAS_HOME!, database => workTimeline(database, project, 'work-0003', { created: null, accepted: null, completed: null }));
-  assert.deepEqual([timeline.lanes.map(lane => [lane.session, lane.subagent, lane.waiting.length]), timeline.waitedMs > 0], [[[session, null, 2]], true]);
+  assert.deepEqual([timeline.lanes.flatMap(lane => lane.waiting), timeline.waitedMs], [[], 0]);
   // The atlas command in a shell links the work item it changes, as the tools do; reading a work item with it does not.
   await run(['work', 'create', '--title', 'Fees', '--planning-dir', root], { env });
   // A shell command reaches the hooks as ToolUse only (the plugin runs PostToolUse for edits and the tools).

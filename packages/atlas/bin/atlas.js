@@ -1,18 +1,19 @@
 #!/usr/bin/env node
 // The atlas command. Node 24 runs the TypeScript sources directly (type stripping). The hooks run
 // on every tool call, and harnesses wait for some of them, so they load as little as they can.
-// When the session's stamp settles a state hook (a session no work is linked to, or one at work and
-// seen within the minute; a subagent's tool use by its own stamp; see src/cli/commands/sessionState.ts),
-// it is answered here before any TypeScript loads, and otherwise only that file loads. So is a
-// PostToolUse with nothing to do: no Atlas tool that changes a work item, and no file edited in the
-// home's planning folder. Every other hook loads src/cli/commands/hook.ts, not the whole command.
+// A state hook with nothing to record (a tool use that neither ran the atlas command to change a
+// work item nor may have made a commit or a PR; a prompt or end of a session no work is linked to,
+// by its stamp; see src/cli/commands/sessionState.ts) is answered here before any TypeScript loads,
+// and otherwise only that file loads. So is a PostToolUse with nothing to do: no Atlas tool that
+// changes a work item, and no file edited in the home's planning folder. Every other hook loads
+// src/cli/commands/hook.ts, not the whole command.
 import { mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 
 const started = Date.now();
 const [command, event] = process.argv.slice(2);
-const stateEvents = new Set(["UserPromptSubmit", "ToolUse", "Notification", "PermissionRequest", "SessionEnd", "SubagentStart"]);
+const stateEvents = new Set(["UserPromptSubmit", "ToolUse", "SessionEnd"]);
 const name = /^[A-Za-z0-9._:-]{1,128}$/;
 
 /** The Atlas home, as homePath.ts's atlasHome finds it. */
@@ -30,18 +31,15 @@ function settled(text) {
   try {
     const input = JSON.parse(text), session = input.session_id;
     if (typeof session !== "string" || !name.test(session)) return true;
-    const agent = event === "ToolUse" && typeof input.agent_id === "string" && name.test(input.agent_id) ? input.agent_id : null;
-    const stamp = path.join(atlasHome(), "session-state", agent ? session + "~" + agent : session);
-    const state = readFileSync(stamp, "utf8");
-    if (state === "none" && !agent) return true;
-    // The atlas command run in a shell to change a work item links the session (sessionState.ts's runsAtlasWork).
-    if (event === "ToolUse" && ["Bash", "PowerShell", "shell", "exec_command", "local_shell", "exec"].includes(input.tool_name) && /\batlas(?:\.js|\.cmd)?["']?\s+work\s+(?!(?:status|search|report)\b)\w+\b/.test(text)) return false;
-    // The agent asking for the person (needs_you) is always recorded.
-    if (event === "ToolUse" && typeof input.tool_name === "string" && /^mcp__.*atlas.*__needs_you$/.test(input.tool_name)) return false;
-    // A tool call that may have made a commit or a PR is looked at (sessionState.ts's mayCommit).
-    if (event === "ToolUse" && ((/\bgit\b.{0,300}?\bcommit\b/.test(text) && /\[[^\]"]{1,100} [0-9a-f]{7,40}\] /.test(text)) || (/\bgh(?:\.exe)?\s+pr\s+create\b/.test(text) && /github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.test(text)))) return false;
-    // A subagent's stamp says it was seen, or that its session links no work, within the minute.
-    return event === "ToolUse" && (state === "working" || (agent !== null && state === "none")) && started - statSync(stamp).mtimeMs < 60_000;
+    if (event === "ToolUse") {
+      // The atlas command run in a shell to change a work item links the session (sessionState.ts's runsAtlasWork).
+      const shell = ["Bash", "PowerShell", "shell", "exec_command", "local_shell", "exec"].includes(input.tool_name) && /\batlas(?:\.js|\.cmd)?["']?\s+work\s+(?!(?:status|search|report)\b)\w+\b/.test(text);
+      // A tool call that may have made a commit or a PR is looked at (sessionState.ts's mayCommit).
+      const made = (/\bgit\b.{0,300}?\bcommit\b/.test(text) && /\[[^\]"]{1,100} [0-9a-f]{7,40}\] /.test(text)) || (/\bgh(?:\.exe)?\s+pr\s+create\b/.test(text) && /github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.test(text));
+      return !shell && !made;
+    }
+    // A prompt or an end of a session no work is linked to records nothing.
+    return readFileSync(path.join(atlasHome(), "session-state", session), "utf8") === "none";
   } catch { return false; }
 }
 
