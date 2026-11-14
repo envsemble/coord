@@ -47,8 +47,8 @@ h1 {
   margin: 0;
   font-size: 1.875rem;
   line-height: 1.35;
-  letter-spacing: -0.01em;
-  font-weight: 600;
+  letter-spacing: -0.015em;
+  font-weight: 400;
   text-wrap: balance;
 }
 
@@ -99,27 +99,26 @@ h1 {
 .features li { cursor: default; }
 
 /* The plan's own inline parts, in the app's dark colours: agents with their marks, state badges,
-   and links to a diagram (purple) or a page (teal). */
+   and links to a diagram (purple) or a page (teal). Badges and links are inline blocks, so their
+   words sit on the line's baseline with the text around them; their symbols sit on the text. */
 .symbol, .agent-mark { width: 1.05em; height: 1.05em; flex: none; }
+.state .symbol, .ref .symbol { display: inline-block; vertical-align: -0.18em; margin-right: 0.25em; }
 .agent { display: inline-flex; align-items: baseline; gap: 0.3em; white-space: nowrap; }
 .agent-mark { align-self: center; width: 0.85em; height: 0.85em; }
 .agent-claude .agent-mark { color: #e3896a; }
 .state {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3em;
+  display: inline-block;
   padding: 0 0.5em 0 0.4em;
   border-radius: 999px;
   font-size: 0.85em;
-  font-weight: 550;
+  font-weight: 500;
   line-height: 1.6;
   white-space: nowrap;
-  vertical-align: 0.05em;
 }
 .state-draft, .state-accepted { background: rgb(232 234 238 / 0.125); color: #e8eaee; }
 .state-turn { background: rgb(160 106 24 / 0.2); color: #ebb750; }
-.ref { display: inline-flex; align-items: center; gap: 0.2em; font-weight: 550; white-space: nowrap; vertical-align: -0.05em; }
-.ref .symbol { width: 1.1em; height: 1.1em; }
+.ref { display: inline-block; font-weight: 500; white-space: nowrap; }
+.ref .symbol { width: 1.1em; height: 1.1em; margin-right: 0.2em; }
 .ref-diagram { color: #dab0ec; }
 .ref-page { color: #97c9c1; }
 
