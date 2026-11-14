@@ -772,7 +772,7 @@
 }
 /* Reviewing a proposal: what it leaves unchanged fades into context. */
 .coord-panel .fade-unchanged .diagram-base [data-change="unchanged"] {
-  opacity: 0.32;
+  opacity: 0.55;
 }
 
 .coord-panel {

@@ -52,7 +52,7 @@ function SettingsGroup({ title, aside, children }: { title: string; aside?: Reac
 function AgentsSection({ computer }: { computer: ComputerRef }) {
   const agents = useAgents();
   return <SettingsGroup title="Agents" aside={thisComputer}>
-    <Text emphasis="muted" className="settings-description">Coord connects Claude Code and Codex by installing its plugin into them: their sessions then plan with Coord and report their work here. Updates of Coord update the plugin in the connected agents.</Text>
+    <Text emphasis="muted" className="settings-description">Connecting an agent installs Coord’s plugin in it, so its sessions plan with Coord and report their work here.</Text>
     {computer.hostId !== null && <Alert tone="info">These are the agents on this computer, not on {computer.name}: connecting one installs Coord’s plugin here. Agents on {computer.name} are connected in Coord there.</Alert>}
     {agents.error && <Alert tone="warning" announce>{agents.error}</Alert>}
     <AgentList agents={agents} mode={{ kind: 'manage' }} label="Agents on this computer" />

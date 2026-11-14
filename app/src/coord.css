@@ -45,6 +45,8 @@ body { margin: 0; }
 /* In a narrow window the arrows and the menus keep their width; the computer's name gives way. */
 .title-bar-start > :not(.computer-trigger) { flex-shrink: 0; }
 .title-bar-commands { display: flex; align-items: center; }
+/* The place the window shows (Plans or Settings) is marked as every selection is: the neutral layer. */
+.title-bar-commands > .env-button[aria-current='page'] { --env-button-container: var(--env-color-bg-selected); --env-button-content: var(--env-color-fg-on-selected); }
 .title-bar-start > .computer-trigger { min-inline-size: 0; }
 /* The logo is only a picture: Plans goes to every plan. */
 .title-bar-logo { display: inline-flex; align-items: center; justify-content: center; inline-size: var(--env-control-height-sm); block-size: var(--env-control-height-sm); flex: none; }
@@ -95,13 +97,18 @@ body { margin: 0; }
 .hub-note { margin: 0; }
 .hub-group { display: grid; gap: var(--env-space-2); }
 .hub-group-heading { margin: 0; }
+/* The groups share their columns: the first group's header names them, and the later groups keep
+   theirs for screen readers only, so the page reads as one list in sections. */
+/* The plans as structured text on the page, not a card per group: no fill or frame, hairlines
+   between the rows. */
+.hub-list-region:not([data-stacked]) { border-inline: 0; border-radius: 0; background: transparent; }
+.hub-group ~ .hub-group .hub-list .env-table-head { position: absolute; inline-size: 0.0625rem; block-size: 0.0625rem; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 /* A table per group with the same columns. Plans under way get a second line with where they stand,
    muted (amber while an agent waits for the person): the status icon carries the colour. A click
    anywhere on a row opens the plan. */
 .hub-row { cursor: pointer; }
 .hub-row-title { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; }
 .hub-row-link { overflow: hidden; color: inherit; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
-.hub-row:hover .hub-row-link { text-decoration: underline; }
 .hub-row-link:focus-visible { outline: 0.125rem solid var(--env-color-border-focus); outline-offset: 0.125rem; border-radius: 0.25rem; }
 .hub-row-large .hub-row-link { font-weight: 500; }
 .hub-row-number, .hub-row-project, .hub-row-updated { color: var(--env-color-fg-muted); font-variant-numeric: tabular-nums; }
@@ -552,7 +559,7 @@ body { margin: 0; }
 .settings-tabs[data-beside] > .settings-tab-list { flex: none; inline-size: 11rem; }
 .settings-tabs[data-beside] > .env-tabs-panels { flex: 1; min-inline-size: 0; }
 .settings-tabs:not([data-beside]) > .env-tabs-panels { margin-block-start: var(--env-space-5); }
-.settings-content { display: grid; gap: var(--env-space-8); min-inline-size: 0; max-inline-size: 52rem; }
+.settings-content { display: grid; gap: var(--env-space-8); min-inline-size: 0; max-inline-size: 46rem; }
 .settings-group { display: grid; gap: var(--env-space-3); min-inline-size: 0; }
 .settings-group-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--env-space-2) var(--env-space-3); }
 .settings-group-heading > h2 { margin: 0; }

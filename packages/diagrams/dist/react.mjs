@@ -1676,7 +1676,7 @@ function createCamera({
   }
   function initialCamera() {
     fit(false);
-    if (camera.scale >= 0.7 || !initialFocus.length) return;
+    if (camera.scale >= 0.6 || !initialFocus.length) return;
     const anchors = initialFocus.map((id) => {
       const node = worldRef.current.querySelector(
         `.node[data-node-id="${id}"]`
@@ -1704,10 +1704,16 @@ function createCamera({
         (area.height - 2 * FIT_PADDING) / Math.max(1, height)
       )
     );
+    const b = worldRef.current.querySelector("svg").viewBox.baseVal;
+    const within = (offset, start, size, extent) => {
+      const low = start + size - FIT_PADDING - extent * scale;
+      const high = start + FIT_PADDING;
+      return low > high ? start + (size - extent * scale) / 2 : Math.min(high, Math.max(low, offset));
+    };
     snapTo({
       scale,
-      x: area.x + area.width / 2 - x * scale,
-      y: area.y + area.height / 2 - y * scale,
+      x: within(area.x + area.width / 2 - x * scale, area.x, area.width, b.width),
+      y: within(area.y + area.height / 2 - y * scale, area.y, area.height, b.height),
       fitted: false
     });
   }

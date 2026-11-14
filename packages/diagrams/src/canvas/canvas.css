@@ -265,5 +265,5 @@ svg.has-focus .diagram-element.highlighted {
 }
 /* Reviewing a proposal: what it leaves unchanged fades into context. */
 .fade-unchanged .diagram-base [data-change="unchanged"] {
-  opacity: 0.32;
+  opacity: 0.55;
 }
