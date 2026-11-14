@@ -40,7 +40,7 @@ main {
 }
 
 /* Everything above the screenshot, in one column with one left edge. */
-.intro { width: min(100%, 34.75rem); }
+.intro { width: fit-content; max-width: 100%; }
 
 h1 {
   margin: 0;
@@ -56,7 +56,6 @@ h1 {
   color: var(--muted);
   font-size: 1.0625rem;
   line-height: 1.6;
-  text-wrap: balance;
 }
 
 .features {
@@ -125,7 +124,6 @@ h1 {
 
 .facts {
   margin: 1.5rem 0 0;
-  text-wrap: balance;
   color: var(--muted);
   font-size: 0.9375rem;
   line-height: 1.6;
@@ -134,6 +132,7 @@ h1 {
 .downloads {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 0.75rem;
   margin-top: 1.75rem;
 }
@@ -165,7 +164,7 @@ h1 {
 .download-label { font-size: 1.0625rem; font-weight: 600; line-height: 1.2; }
 .download-detail { font-size: 0.8125rem; color: var(--muted); }
 
-.note { margin: 0.875rem 0 0; color: var(--muted); font-size: 0.875rem; }
+.note { margin: 0.875rem 0 0; text-align: center; color: var(--muted); font-size: 0.875rem; }
 .note a { color: var(--muted); text-underline-offset: 0.2em; }
 .note a:hover { color: var(--text); }
 
@@ -179,7 +178,7 @@ h1 {
   box-shadow: 0 0 0 1px #000;
 }
 
-.nightly { width: min(100%, 34.75rem); margin-top: 4rem; }
+.nightly { margin-top: 4rem; text-align: center; }
 .nightly h2 { margin: 0; font-size: 1.375rem; font-weight: 600; }
 .nightly > p:first-of-type { margin: 0.5rem 0 0; color: var(--muted); line-height: 1.6; }
 .nightly .downloads { margin-top: 1.25rem; }
@@ -193,3 +192,6 @@ h1 {
   .downloads { flex-direction: column; }
   .download { width: 100%; }
 }
+
+/* Where the lines would wrap anyway, the chosen breaks give way. */
+@media (max-width: 40rem) { .intro br { display: none; } }

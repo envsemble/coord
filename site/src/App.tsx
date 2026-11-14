@@ -28,11 +28,13 @@ export function App() {
       <a href={sourcePage} className="quiet">GitHub</a>
     </header>
     <main>
+      {/* One box as wide as its longest line, centred; its lines break where they read best. */}
       <div className="intro">
-      <h1>A desktop app for planning with <Agent name="Claude Code" path={claudePath} kind="claude" /> or <Agent name="Codex" path={codexPath} kind="codex" /></h1>
-      <p className="lead">Agents are fast, and happy to build the wrong thing. Coord makes them agree on the plan first.</p>
-      <Features />
-      <p className="facts">In any terminal, editor or <span className="nowrap">T3 Code</span>. Windows and Linux. Free, MIT.</p>
+        <h1>A desktop app for planning <br />with <Agent name="Claude Code" path={claudePath} kind="claude" /> or <Agent name="Codex" path={codexPath} kind="codex" /></h1>
+        <p className="lead">Agents are fast, and happy to build the wrong thing. <br />Coord makes them agree on the plan first.</p>
+        <Features />
+        <p className="facts">In any terminal, editor or <span className="nowrap">T3 Code</span>. Windows and Linux. Free, MIT.</p>
+      </div>
       <div className="downloads">
         {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={stable} loading={builds === 'loading'} />)}
       </div>
@@ -40,7 +42,6 @@ export function App() {
         {stable ? <><a href={stable.page}>Version {stable.version}</a> · </> : null}
         <a href={releasesPage}>All releases</a>
       </p>
-      </div>
       <img className="screenshot" src={plan} width={2163} height={1352}
         alt="A plan in Coord: its title, whose turn it is and what to do, its outcome and scope, and beside it the plan's progress, steps and statistics." />
       <section className="nightly" aria-labelledby="nightly-title">
