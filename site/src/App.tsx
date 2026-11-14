@@ -29,10 +29,10 @@ export function App() {
     </header>
     <main>
       <div className="intro">
-      <h1>A desktop app for planning bigger changes with <Agent name="Claude Code" path={claudePath} kind="claude" /> or <Agent name="Codex" path={codexPath} kind="codex" /></h1>
-      <p className="lead">Agents are fast, and very happy to build the wrong thing. Coord makes yours agree on a plan with you first.</p>
+      <h1>A desktop app for planning with <Agent name="Claude Code" path={claudePath} kind="claude" /> or <Agent name="Codex" path={codexPath} kind="codex" /></h1>
+      <p className="lead">Agents build fast. Coord makes them agree on the plan first.</p>
       <Features />
-      <p className="facts">Wherever you run your agent: a terminal, your editor, <span className="nowrap">T3 Code</span>. Windows and Linux. Free and open source, MIT.</p>
+      <p className="facts">In any terminal, editor or <span className="nowrap">T3 Code</span>. Windows and Linux. Free, MIT.</p>
       <div className="downloads">
         {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={stable} loading={builds === 'loading'} />)}
       </div>
@@ -45,7 +45,7 @@ export function App() {
         alt="A plan in Coord: its title, whose turn it is and what to do, its outcome and scope, and beside it the plan's progress, steps and statistics." />
       <section className="nightly" aria-labelledby="nightly-title">
         <h2 id="nightly-title">Nightly</h2>
-        <p>Fresh off <code>dev</code> every night. Occasionally on fire. Switch channels in <span className="nowrap">Settings › Updates</span>.</p>
+        <p>Fresh off <code>dev</code> every night. Occasionally on fire.</p>
         {nightly ? <>
           <div className="downloads">
             {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={nightly} loading={false} plain />)}
@@ -77,10 +77,10 @@ function Ref({ kind, children }: { kind: 'diagram' | 'page'; children: ReactNode
 }
 
 const features: { key: string; text: ReactNode; shot: string; alt: string }[] = [
-  { key: 'grill', text: <>Your agent grills you until the plan goes from <State kind="draft">Draft</State> to <span className="nowrap"><State kind="accepted">Accepted</State>.</span></>, shot: grill, alt: 'A draft plan being settled: its items marked Settled or Proposed, and its planning steps.' },
-  { key: 'diagrams', text: <>It can capture your code and database in a <Ref kind="diagram">class diagram</Ref>, before and after.</>, shot: diagrams, alt: "An agent's proposal drawn over the captured code, with what it adds and changes marked." },
-  { key: 'dashboards', text: <>It builds live <Ref kind="page">dashboards</Ref> inside the plan while it works.</>, shot: dashboard, alt: "A page inside a plan: two layouts to choose between, above the proposal's diagram." },
-  { key: 'attention', text: <>Coord shows every plan that’s <span className="nowrap"><State kind="turn">Your turn</State>,</span> and what it needs from you.</>, shot: attention, alt: 'The hub: Your turn first, saying what to do, then Waiting and Later.' },
+  { key: 'grill', text: <>Grills you until the plan goes <span className="nowrap"><State kind="draft">Draft</State> → <State kind="accepted">Accepted</State></span></>, shot: grill, alt: 'A draft plan being settled: its items marked Settled or Proposed, and its planning steps.' },
+  { key: 'diagrams', text: <>Captures your code and database as a <Ref kind="diagram">class diagram</Ref></>, shot: diagrams, alt: "An agent's proposal drawn over the captured code, with what it adds and changes marked." },
+  { key: 'dashboards', text: <>Builds live <Ref kind="page">dashboards</Ref> inside the plan</>, shot: dashboard, alt: "A page inside a plan: two layouts to choose between, above the proposal's diagram." },
+  { key: 'attention', text: <>Shows which plans are <State kind="turn">Your turn</State></>, shot: attention, alt: 'The hub: Your turn first, saying what to do, then Waiting and Later.' },
 ];
 
 /** The features; with a mouse, each one's screenshot follows the cursor while it is hovered. */
