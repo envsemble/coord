@@ -1,7 +1,7 @@
 @startuml
 title Shop checkout
 ' coord capture {"capturedAt":"2026-10-14T19:22:17.114Z","adapter":{"id":"coord-typescript","version":"1.0.0","compilerVersion":"6.0.3"},"source":{"kind":"typescript","identity":"shop","scope":["shop:src/checkout.ts","shop:src/payments.ts"],"projects":[{"identity":"shop","scope":["src/checkout.ts","src/payments.ts"],"revision":null,"pinnedSelectedFiles":false,"contentFingerprint":"13b663b245a9634fff4a357585ccf7c55ff9ec9a20a673414eec080bd2a70dd6","tsconfig":"tsconfig.json","configurationFingerprint":"d9536fe9c1200d3f71e0014348834c22be2232017add2c9b3bd0e8a75a8136e7","dependencyFingerprint":"a9f60f07674f9d8f50d89720320ad2b8e638d2ffddbcd539d005b2768698dbf7"}]},"coverage":{"status":"partial","diagnostics":[{"code":"EXTERNAL_TYPE","message":"shop:Gateway: type reference Promise<string> has no captured target"},{"code":"EXTERNAL_TYPE","message":"shop:LegacyGateway: type reference Promise<string> has no captured target"},{"code":"EXTERNAL_TYPE","message":"shop:Checkout: type reference Promise<string> has no captured target"}]},"consistency":{"kind":"compiler-read-with-content-recheck","metadataOnly":true},"limitations":["Named declarations and declared type use only; no runtime/reflection/framework mappings or conceptual multiplicities are inferred.","Type aliases are drawn as classes, which their snippets define; enums show their constants without their fields and operations; of the modifiers only visibility is drawn."]}
-' coord fingerprint dae4b7b580686693061f2cc47c01be1e748d9d76b44a22946ef3ad6b6a4cc675
+' coord fingerprint 5e2ea657b72dba722969deda12feffd643b3df42c4552b31fadb502c0609a842
 
 package src {
   ' coord evidence {"file":"src/checkout.ts","line":10,"endLine":24,"repo":"shop"}

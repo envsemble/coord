@@ -1,100 +1,100 @@
 /* Viewer chrome. Controls are envUI components; this sheet only arranges
-   them over the canvas and styles Atlas-owned markup, using envUI's tokens.
+   them over the canvas and styles Coord-owned markup, using envUI's tokens.
    Hosts load envUI's stylesheet; the offline file bundles it. */
-.atlas-panel,.atlas-panel
-.atlas-page,
-.atlas-panel {
+.coord-panel,.coord-panel
+.coord-page,
+.coord-panel {
   /* Floating panes over the canvas: a hairline in both themes and a shadow
      that reads on light canvases. */
-  --atlas-elevation:
+  --coord-elevation:
     0 0 0 0.0625rem
       color-mix(in srgb, var(--env-color-fg-default) 9%, transparent),
     0 0.0625rem 0.1875rem
       oklch(from var(--env-color-bg-page) calc(l * 0.2) c h / 0.14),
     0 0.5rem 1.5rem -0.5rem
       oklch(from var(--env-color-bg-page) calc(l * 0.2) c h / 0.28);
-  --atlas-gutter: var(--env-space-3);
+  --coord-gutter: var(--env-space-3);
   /* Code in panels: envUI's code typeface and size, which its code
      styles define, with the same values where the host loads none. */
-  --atlas-font-code: var(
+  --coord-font-code: var(
     --env-code-font-family,
     ui-monospace,
     "Cascadia Code",
     Consolas,
     monospace
   );
-  --atlas-font-size-code: var(--env-code-font-size, 0.8125rem);
+  --coord-font-size-code: var(--env-code-font-size, 0.8125rem);
 }
-.atlas-panel {
+.coord-panel {
   margin: 0;
   overflow: hidden;
 }
 
 /* Layout: the grid canvas is full-bleed; every control floats over it. */
-.atlas-panel .viewer {
+.coord-panel .viewer {
   position: relative;
   height: 100dvh;
   overflow: hidden;
-  container: atlas-viewer / size;
+  container: coord-viewer / size;
 }
-.atlas-panel .atlas-overlay-top {
+.coord-panel .coord-overlay-top {
   position: absolute;
   z-index: var(--env-z-sticky);
-  top: var(--atlas-gutter);
-  left: var(--atlas-gutter);
-  right: var(--atlas-gutter);
+  top: var(--coord-gutter);
+  left: var(--coord-gutter);
+  right: var(--coord-gutter);
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: var(--env-space-2);
   pointer-events: none;
 }
-.atlas-panel .atlas-overlay-top > * {
+.coord-panel .coord-overlay-top > * {
   pointer-events: auto;
 }
 /* With the host's own navigation (such as a work item's sections) the
    overlay has two rows: that navigation and the tools on the first, the
    diagram's navigation island below them. Each island keeps its cell, so a
    crowded overlay shows as an island wrapping its controls. */
-.atlas-panel .atlas-overlay-top.stacked {
+.coord-panel .coord-overlay-top.stacked {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   justify-items: start;
 }
-.atlas-panel .atlas-overlay-top.stacked > .atlas-overlay-sections {
+.coord-panel .coord-overlay-top.stacked > .coord-overlay-sections {
   grid-area: 1 / 1;
 }
-.atlas-panel .atlas-overlay-top.stacked > .island-start {
+.coord-panel .coord-overlay-top.stacked > .island-start {
   grid-area: 2 / 1 / 3 / -1;
 }
-.atlas-panel .atlas-overlay-top.stacked > .island-end {
+.coord-panel .coord-overlay-top.stacked > .island-end {
   grid-area: 1 / 3;
   justify-self: end;
 }
 /* At the tightest density a long model name gives way, rather than the
    navigation wrapping its controls. */
-.atlas-panel .atlas-overlay-top.tighter > .island-start {
+.coord-panel .coord-overlay-top.tighter > .island-start {
   flex-wrap: nowrap;
 }
-.atlas-panel .atlas-overlay-top.tighter > .island-start > :not(.island-leading) {
+.coord-panel .coord-overlay-top.tighter > .island-start > :not(.island-leading) {
   flex-shrink: 0;
 }
-.atlas-panel .atlas-overlay-top.tighter .island-leading > * {
+.coord-panel .coord-overlay-top.tighter .island-leading > * {
   min-width: 0;
 }
 
 /* The toolbars over the canvas hold small controls, as do the provenance
    pills: envUI's controls take their container's control height. */
-.atlas-panel .atlas-island,.atlas-panel
-.atlas-provenance {
+.coord-panel .coord-island,.coord-panel
+.coord-provenance {
   --env-control-height: var(--env-control-height-sm);
 }
 /* A heading a step below the title type, for panel titles and the headings
    inside panels. */
-.atlas-panel .atlas-section-heading {
+.coord-panel .coord-section-heading {
   font-size: calc(var(--env-font-size-title) - 0.125rem);
 }
-.atlas-panel .atlas-island {
+.coord-panel .coord-island {
   position: relative;
   display: flex;
   flex-wrap: wrap;
@@ -102,68 +102,68 @@
   gap: var(--env-space-1);
   min-width: 0;
   max-width: 100%;
-  box-shadow: var(--atlas-elevation);
+  box-shadow: var(--coord-elevation);
 }
-.atlas-panel .atlas-island.inline {
+.coord-panel .coord-island.inline {
   display: inline-flex;
   box-shadow: none;
 }
-.atlas-panel .island-end {
+.coord-panel .island-end {
   margin-left: auto;
 }
-.atlas-panel .island-divider {
+.coord-panel .island-divider {
   flex: none;
   width: 0.0625rem;
   height: 1.25rem;
   margin: 0 var(--env-space-1);
   background: var(--env-color-border-muted);
 }
-.atlas-panel .island-leading {
+.coord-panel .island-leading {
   display: flex;
   align-items: center;
   gap: var(--env-space-1);
   min-width: 0;
 }
-.atlas-panel .brand-mark {
+.coord-panel .brand-mark {
   display: grid;
   place-items: center;
   flex: none;
   width: var(--env-control-height);
   height: var(--env-control-height);
 }
-.atlas-panel .brand-mark svg {
+.coord-panel .brand-mark svg {
   width: 1.5rem;
   height: 1.5rem;
 }
-.atlas-panel .island-title {
+.coord-panel .island-title {
   max-width: 28ch;
   margin: 0 var(--env-space-2) 0 var(--env-space-1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.atlas-panel .zoom-readout {
+.coord-panel .zoom-readout {
   min-width: 4rem;
 }
 
 /* Provenance: where a model came from, as a badge and a detail line. */
-.atlas-panel .atlas-provenance {
+.coord-panel .coord-provenance {
   display: inline-flex;
   align-items: center;
   gap: var(--env-space-2);
   max-width: 100%;
-  box-shadow: var(--atlas-elevation);
+  box-shadow: var(--coord-elevation);
 }
-.atlas-panel .atlas-provenance.inline {
+.coord-panel .coord-provenance.inline {
   box-shadow: none;
 }
 /* The standalone viewer's badge beside the model's title. */
-.atlas-panel .island-provenance {
+.coord-panel .island-provenance {
   display: inline-flex;
   flex: none;
   margin-inline-end: var(--env-space-1);
 }
-.atlas-panel .provenance-detail {
+.coord-panel .provenance-detail {
   min-width: 0;
   margin-inline-end: var(--env-space-2);
   overflow: hidden;
@@ -173,30 +173,30 @@
 
 /* The pane beside the canvas: a proposal’s changes, or the scenarios. Its
    content scrolls below its header. */
-.atlas-panel .panel {
+.coord-panel .panel {
   display: none;
   position: absolute;
   /* Below the overlay's toolbars, which open their popups over it. */
   z-index: calc(var(--env-z-sticky) - 1);
-  top: var(--atlas-top-inset, 4rem);
-  right: var(--atlas-gutter);
-  width: min(22.5rem, calc(100% - 2 * var(--atlas-gutter)));
-  max-height: calc(100% - var(--atlas-top-inset, 4rem) - var(--atlas-gutter));
-  box-shadow: var(--atlas-elevation);
+  top: var(--coord-top-inset, 4rem);
+  right: var(--coord-gutter);
+  width: min(22.5rem, calc(100% - 2 * var(--coord-gutter)));
+  max-height: calc(100% - var(--coord-top-inset, 4rem) - var(--coord-gutter));
+  box-shadow: var(--coord-elevation);
   user-select: text;
 }
-.atlas-panel .panel.open {
+.coord-panel .panel.open {
   display: flex;
   flex-direction: column;
 }
-.atlas-panel .panel-scroll {
+.coord-panel .panel-scroll {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
   border-radius: inherit;
 }
-.atlas-panel .panel-header {
+.coord-panel .panel-header {
   position: sticky;
   top: 0;
   z-index: calc(var(--env-z-raised) + 1);
@@ -208,18 +208,18 @@
     var(--env-space-5);
   background: var(--env-color-bg-default);
 }
-.atlas-panel .panel-title {
+.coord-panel .panel-title {
   flex: 1 1 auto;
   margin: 0;
 }
-.atlas-panel .panel-content {
+.coord-panel .panel-content {
   display: flex;
   flex-direction: column;
   gap: var(--env-space-4);
   padding: var(--env-space-2) var(--env-space-5) var(--env-space-5);
 }
 /* Text read by assistive technology, not shown. */
-.atlas-panel .visually-hidden {
+.coord-panel .visually-hidden {
   position: absolute;
   width: 0.0625rem;
   height: 0.0625rem;
@@ -231,16 +231,16 @@
 }
 
 /* A proposal's changes, in the panel: added, changed and removed. */
-.atlas-panel [data-change="added"] {
+.coord-panel [data-change="added"] {
   --change-color: var(--change-added);
 }
-.atlas-panel [data-change="modified"] {
+.coord-panel [data-change="modified"] {
   --change-color: var(--change-modified);
 }
-.atlas-panel [data-change="removed"] {
+.coord-panel [data-change="removed"] {
   --change-color: var(--change-removed);
 }
-.atlas-panel .change-mark {
+.coord-panel .change-mark {
   display: inline-grid;
   flex: none;
   place-items: center;
@@ -249,9 +249,9 @@
   border-radius: 0.3125rem;
   background: color-mix(in srgb, var(--change-color) 16%, transparent);
   color: var(--change-color);
-  font: 600 0.8125rem / 1 var(--atlas-font-code);
+  font: 600 0.8125rem / 1 var(--coord-font-code);
 }
-.atlas-panel .change-badge {
+.coord-panel .change-badge {
   display: inline-flex;
   align-items: center;
   min-height: 1.5rem;
@@ -264,33 +264,33 @@
 }
 
 /* The changes overview: groups of rows, each a button. */
-.atlas-panel .change-groups {
+.coord-panel .change-groups {
   display: grid;
   gap: var(--env-space-5);
 }
-.atlas-panel .changes-overview .change-group {
+.coord-panel .changes-overview .change-group {
   display: grid;
   gap: var(--env-space-2);
 }
-.atlas-panel .change-relations {
+.coord-panel .change-relations {
   margin-top: var(--env-space-1);
 }
-.atlas-panel .change-group-heading {
+.coord-panel .change-group-heading {
   display: flex;
   align-items: center;
   gap: var(--env-space-2);
 }
-.atlas-panel .change-subheading {
+.coord-panel .change-subheading {
   margin: var(--env-space-1) 0 0 var(--env-space-2);
 }
-.atlas-panel .change-rows {
+.coord-panel .change-rows {
   display: grid;
   gap: 0.125rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.atlas-panel .change-row {
+.coord-panel .change-row {
   display: flex;
   align-items: flex-start;
   gap: var(--env-space-2);
@@ -307,87 +307,87 @@
   transition: background-color var(--env-motion-duration-fast)
     var(--env-motion-ease);
 }
-.atlas-panel .change-rows > li:first-child > .change-row,.atlas-panel
+.coord-panel .change-rows > li:first-child > .change-row,.coord-panel
 .change-rows > .change-row:first-child {
   border-start-start-radius: var(--env-radius-sm);
   border-start-end-radius: var(--env-radius-sm);
 }
-.atlas-panel .change-rows > li:last-child > .change-row,.atlas-panel
+.coord-panel .change-rows > li:last-child > .change-row,.coord-panel
 .change-rows > .change-row:last-child {
   border-end-start-radius: var(--env-radius-sm);
   border-end-end-radius: var(--env-radius-sm);
 }
-.atlas-panel .change-row.static {
+.coord-panel .change-row.static {
   cursor: default;
 }
-.atlas-panel button.change-row:hover {
+.coord-panel button.change-row:hover {
   background: var(--env-color-bg-list-item-hover);
 }
-.atlas-panel button.change-row:active {
+.coord-panel button.change-row:active {
   background: var(--env-color-bg-list-item-pressed);
 }
-.atlas-panel button.change-row:focus-visible {
+.coord-panel button.change-row:focus-visible {
   outline: 0.125rem solid var(--env-color-border-focus);
   outline-offset: -0.125rem;
 }
-.atlas-panel button.change-row[aria-current="true"] {
+.coord-panel button.change-row[aria-current="true"] {
   box-shadow: inset 0.1875rem 0 0 var(--change-color);
 }
-.atlas-panel .change-row > .change-mark {
+.coord-panel .change-row > .change-mark {
   margin-top: 0.0625rem;
 }
-.atlas-panel .change-row-text {
+.coord-panel .change-row-text {
   display: grid;
   flex: 1;
   gap: 0.125rem;
   min-width: 0;
 }
-.atlas-panel .change-row-title {
+.coord-panel .change-row-title {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--env-space-2);
 }
-.atlas-panel .change-row-name {
+.coord-panel .change-row-name {
   min-width: 0;
   font-weight: 500;
   overflow-wrap: anywhere;
 }
-.atlas-panel .change-row-tag {
+.coord-panel .change-row-tag {
   flex: none;
   color: var(--env-color-fg-muted);
 }
-.atlas-panel .change-row-summary {
+.coord-panel .change-row-summary {
   display: flex;
   flex-wrap: wrap;
   gap: 0 var(--env-space-2);
   color: var(--env-color-fg-muted);
-  font: var(--atlas-font-size-code) / 1.5 var(--atlas-font-code);
+  font: var(--coord-font-size-code) / 1.5 var(--coord-font-code);
   overflow-wrap: anywhere;
 }
-.atlas-panel .change-token {
+.coord-panel .change-token {
   color: var(--change-color);
 }
-.atlas-panel .change-token-glyph {
+.coord-panel .change-token-glyph {
   margin-inline-end: 0.125rem;
   font-weight: 500;
 }
-.atlas-panel .change-token.more {
+.coord-panel .change-token.more {
   color: var(--env-color-fg-muted);
 }
 /* Why a listed change does not open: no view draws it. */
-.atlas-panel .change-row-note {
+.coord-panel .change-row-note {
   color: var(--env-color-fg-muted);
   font: var(--env-type-body-sm);
   font-style: italic;
 }
-.atlas-panel .change-stepper {
+.coord-panel .change-stepper {
   display: inline-flex;
   flex: none;
   align-items: center;
   gap: var(--env-space-1);
 }
-.atlas-panel .change-position {
+.coord-panel .change-position {
   min-width: 4.5rem;
   color: var(--env-color-fg-muted);
   font: var(--env-type-body-sm);
@@ -396,7 +396,7 @@
 }
 
 /* Scenarios: the examples of a class diagram. */
-.atlas-panel .example-head {
+.coord-panel .example-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -405,55 +405,55 @@
 }
 /* A text button inside a sentence, such as the element a finding names:
    the line's height, so the sentence keeps its line spacing. */
-.atlas-panel .inline-action {
+.coord-panel .inline-action {
   --env-control-height: 1lh;
   --env-button-touch-height: 0rem;
   vertical-align: baseline;
 }
-.atlas-panel .example-list {
+.coord-panel .example-list {
   display: grid;
   gap: var(--env-space-1);
   margin: 0;
   padding-inline-start: var(--env-space-4);
   font: var(--env-type-body-sm);
 }
-.atlas-panel .shortcut-list {
+.coord-panel .shortcut-list {
   display: grid;
   gap: var(--env-space-2);
   margin: 0;
 }
-.atlas-panel .shortcut {
+.coord-panel .shortcut {
   display: grid;
   grid-template-columns: minmax(7rem, max-content) minmax(0, 1fr);
   gap: var(--env-space-3);
   align-items: baseline;
 }
-.atlas-panel .shortcut dt {
+.coord-panel .shortcut dt {
   color: var(--env-color-fg-muted);
 }
-.atlas-panel .shortcut dd {
+.coord-panel .shortcut dd {
   margin: 0;
 }
 
-.atlas-portal.about-content .shortcut-list {
+.coord-portal.about-content .shortcut-list {
   display: grid;
   gap: var(--env-space-2);
   margin: 0;
 }
-.atlas-portal.about-content .shortcut {
+.coord-portal.about-content .shortcut {
   display: grid;
   grid-template-columns: minmax(7rem, max-content) minmax(0, 1fr);
   gap: var(--env-space-3);
   align-items: baseline;
 }
-.atlas-portal.about-content .shortcut dt {
+.coord-portal.about-content .shortcut dt {
   color: var(--env-color-fg-muted);
 }
-.atlas-portal.about-content .shortcut dd {
+.coord-portal.about-content .shortcut dd {
   margin: 0;
 }
 
-.atlas-panel .viewer-error {
+.coord-panel .viewer-error {
   display: grid;
   gap: var(--env-space-4);
   justify-items: start;
@@ -461,50 +461,50 @@
   margin: 15vh auto;
   padding: var(--env-space-5);
 }
-.atlas-panel .atlas-overlay-top.tight .island-title,.atlas-panel
-.atlas-overlay-top.tight .collapsible-label {
+.coord-panel .coord-overlay-top.tight .island-title,.coord-panel
+.coord-overlay-top.tight .collapsible-label {
   display: none;
 }
-.atlas-panel .view-select {
+.coord-panel .view-select {
   max-width: 11rem;
 }
 
 /* Narrow panels (embedded cards, phones): tighter gutters, full-width panes. */
-@container atlas-viewer (max-width: 640px) {
-  .atlas-panel .atlas-overlay-top {
-    --atlas-gutter: var(--env-space-2);
+@container coord-viewer (max-width: 640px) {
+  .coord-panel .coord-overlay-top {
+    --coord-gutter: var(--env-space-2);
     gap: var(--env-space-1);
   }
   /* Beside the host's navigation the tools no longer fit: they take the
      row below the diagram's navigation. */
-  .atlas-panel .atlas-overlay-top.stacked {
+  .coord-panel .coord-overlay-top.stacked {
     grid-template-columns: minmax(0, 1fr);
   }
-  .atlas-panel .atlas-overlay-top.stacked > .island-start {
+  .coord-panel .coord-overlay-top.stacked > .island-start {
     grid-area: 2 / 1;
   }
-  .atlas-panel .atlas-overlay-top.stacked > .island-end {
+  .coord-panel .coord-overlay-top.stacked > .island-end {
     grid-area: 3 / 1;
   }
-  .atlas-panel .panel {
+  .coord-panel .panel {
     left: var(--env-space-2);
     right: var(--env-space-2);
     width: auto;
-    max-height: calc(100% - var(--atlas-top-inset, 4rem) - var(--env-space-2));
+    max-height: calc(100% - var(--coord-top-inset, 4rem) - var(--env-space-2));
   }
-  .atlas-panel .island-title,.atlas-panel
+  .coord-panel .island-title,.coord-panel
   .collapsible-label {
     display: none;
   }
 }
-@container atlas-viewer (max-width: 420px) {
-  .atlas-panel .provenance-detail,.atlas-panel
+@container coord-viewer (max-width: 420px) {
+  .coord-panel .provenance-detail,.coord-panel
   .island-provenance {
     display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .atlas-panel .diagram-element {
+  .coord-panel .diagram-element {
     transition: none;
   }
 }
@@ -512,13 +512,13 @@
 /* The diagram follows envUI's tokens throughout: the canvas is the page's
    own background, so a diagram sits in the window as a page does, and its
    elements are surfaces on it, as envUI's cards are on a page; the grid,
-   text, lines and selection take envUI's colours too. It is declared on each of Atlas's theme boundaries (the offline
+   text, lines and selection take envUI's colours too. It is declared on each of Coord's theme boundaries (the offline
    page and every panel), so the canvas follows the nearest Theme as soon as
    React commits a change; light-dark() picks the value for the colour scheme
    that theme sets. */
-.atlas-panel,.atlas-panel
-.atlas-page,
-.atlas-panel {
+.coord-panel,.coord-panel
+.coord-page,
+.coord-panel {
   --canvas: var(--env-color-bg-page);
   /* Elements sit on the canvas as surfaces sit on a page. */
   --surface: var(--env-color-bg-default);
@@ -564,7 +564,7 @@
   --change-modified: var(--env-color-fg-warning);
   --change-removed: var(--env-color-fg-danger);
 }
-.atlas-panel #canvas {
+.coord-panel #canvas {
   position: absolute;
   inset: 0;
   overflow: hidden;
@@ -578,7 +578,7 @@
    camera.js scales it with the camera and steps its density from these
    sizes (GRID_OVERHANG is the inset). */
 /* stylelint-disable unit-disallowed-list -- diagram coordinates are pixels */
-.atlas-panel .canvas-grid {
+.coord-panel .canvas-grid {
   position: absolute;
   inset: -64px;
   pointer-events: none;
@@ -589,17 +589,17 @@
 /* stylelint-enable unit-disallowed-list */
 /* An element that can be dragged shows it; one being dragged follows the
    hand. */
-.atlas-panel #canvas.arrangeable .node {
+.coord-panel #canvas.arrangeable .node {
   cursor: move;
 }
-.atlas-panel #canvas.moving,.atlas-panel
+.coord-panel #canvas.moving,.coord-panel
 #canvas.moving .node {
   cursor: grabbing;
 }
-.atlas-panel #canvas.dragging {
+.coord-panel #canvas.dragging {
   cursor: grabbing;
 }
-.atlas-panel #world {
+.coord-panel #world {
   position: absolute;
   left: 0;
   top: 0;
@@ -608,41 +608,41 @@
 }
 /* The canvas keeps the system typeface its layout measures names for; the controls around it use
    envUI's Geist. */
-.atlas-panel #world svg {
+.coord-panel #world svg {
   display: block;
   overflow: visible;
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica,
     Arial, sans-serif;
 }
-.atlas-panel .uml-diagram {
+.coord-panel .uml-diagram {
   position: relative;
 }
-.atlas-panel .diagram-base {
+.coord-panel .diagram-base {
   will-change: opacity;
 }
-.atlas-panel .diagram-base,.atlas-panel
+.coord-panel .diagram-base,.coord-panel
 .diagram-background {
   transition: opacity 100ms ease-out;
 }
-.atlas-panel .diagram-background {
+.coord-panel .diagram-background {
   position: absolute;
   inset: 0;
   visibility: hidden;
   pointer-events: none;
   will-change: opacity;
 }
-.atlas-panel .diagram-background.ready {
+.coord-panel .diagram-background.ready {
   visibility: visible;
 }
-.atlas-panel .diagram-hit-layer {
+.coord-panel .diagram-hit-layer {
   opacity: 0;
 }
-.atlas-panel .uml-diagram.has-focus > .diagram-base,.atlas-panel
+.coord-panel .uml-diagram.has-focus > .diagram-base,.coord-panel
 .uml-diagram.has-focus > .diagram-background {
   opacity: 0.22;
 }
-.atlas-panel .diagram-overlay {
+.coord-panel .diagram-overlay {
   position: absolute;
   inset: 0;
   will-change: transform;
@@ -656,146 +656,146 @@
     opacity: 1;
   }
 }
-.atlas-panel .diagram-overlay,.atlas-panel
-.diagram-overlay *,.atlas-panel
+.coord-panel .diagram-overlay,.coord-panel
+.diagram-overlay *,.coord-panel
 .diagram-overlay .edge-label {
   pointer-events: none;
 }
-.atlas-panel .node {
+.coord-panel .node {
   cursor: pointer;
   outline: none;
 }
 /* A changed node keeps its change border in every state; hover, focus and
    selection draw a ring around it instead. */
-.atlas-panel .node:not(.changed):hover .node-box,.atlas-panel
+.coord-panel .node:not(.changed):hover .node-box,.coord-panel
 .node:not(.changed):focus-visible .node-box {
   stroke: var(--accent);
   stroke-width: 2;
 }
-.atlas-panel .node.changed:hover .node-ring,.atlas-panel
+.coord-panel .node.changed:hover .node-ring,.coord-panel
 .node.changed:focus-visible .node-ring {
   stroke: var(--accent);
 }
-.atlas-panel .diagram-base .node:not(.changed):hover .node-box,.atlas-panel
+.coord-panel .diagram-base .node:not(.changed):hover .node-box,.coord-panel
 .diagram-base .node:not(.changed):focus-visible .node-box {
   stroke: var(--diagram-border);
   stroke-width: 1.25;
 }
-.atlas-panel .diagram-base .node.changed:hover .node-ring,.atlas-panel
+.coord-panel .diagram-base .node.changed:hover .node-ring,.coord-panel
 .diagram-base .node.changed:focus-visible .node-ring {
   stroke: transparent;
 }
-.atlas-panel svg.has-focus .diagram-element {
+.coord-panel svg.has-focus .diagram-element {
   opacity: 0.22;
 }
-.atlas-panel svg.has-focus .diagram-element.highlighted {
+.coord-panel svg.has-focus .diagram-element.highlighted {
   opacity: 1;
 }
-.atlas-panel .node.dimmed,.atlas-panel
+.coord-panel .node.dimmed,.coord-panel
 .edge.dimmed {
   opacity: 0.22;
 }
-.atlas-panel .node:not(.changed).highlighted .node-box {
+.coord-panel .node:not(.changed).highlighted .node-box {
   stroke: var(--accent);
   stroke-width: 2;
 }
-.atlas-panel .node:not(.changed).primary .node-box {
+.coord-panel .node:not(.changed).primary .node-box {
   stroke: var(--diagram-selection);
   stroke-width: 3;
 }
-.atlas-panel .node:not(.changed).primary.selected .node-box {
+.coord-panel .node:not(.changed).primary.selected .node-box {
   stroke-width: 3.5;
 }
-.atlas-panel .node.changed.highlighted .node-ring {
+.coord-panel .node.changed.highlighted .node-ring {
   stroke: var(--accent);
 }
-.atlas-panel .node.changed.primary .node-ring {
+.coord-panel .node.changed.primary .node-ring {
   stroke: var(--diagram-selection);
   stroke-width: 3;
 }
-.atlas-panel .edge {
+.coord-panel .edge {
   outline: none;
   cursor: pointer;
 }
-.atlas-panel .edge:not(.changed).highlighted .edge-path,.atlas-panel
+.coord-panel .edge:not(.changed).highlighted .edge-path,.coord-panel
 .edge:not(.changed):focus-visible .edge-path {
   stroke: var(--accent);
   stroke-width: 2.5;
 }
 /* A changed relation keeps its colour; a halo behind it shows focus. */
-.atlas-panel .edge.changed.highlighted .edge-path {
+.coord-panel .edge.changed.highlighted .edge-path {
   stroke-width: 2.75;
 }
-.atlas-panel .edge.changed.highlighted .edge-halo {
+.coord-panel .edge.changed.highlighted .edge-halo {
   stroke: var(--accent);
   stroke-opacity: 0.35;
 }
-.atlas-panel .edge.changed.primary .edge-halo {
+.coord-panel .edge.changed.primary .edge-halo {
   stroke: var(--diagram-selection);
   stroke-opacity: 0.5;
 }
-.atlas-panel .edge.highlighted .multiplicity rect {
+.coord-panel .edge.highlighted .multiplicity rect {
   stroke: var(--accent);
   stroke-width: 1.4;
 }
-.atlas-panel .diagram-base .edge:not(.changed):focus-visible .edge-path {
+.coord-panel .diagram-base .edge:not(.changed):focus-visible .edge-path {
   stroke: var(--diagram-edge);
   stroke-width: 1.4;
 }
-.atlas-panel .diagram-base .generalization:not(.changed):focus-visible .edge-path {
+.coord-panel .diagram-base .generalization:not(.changed):focus-visible .edge-path {
   stroke: var(--diagram-inheritance);
 }
-.atlas-panel .edge.highlighted .edge-label text {
+.coord-panel .edge.highlighted .edge-label text {
   fill: var(--accent);
 }
-.atlas-panel .edge:not(.changed).primary .edge-path {
+.coord-panel .edge:not(.changed).primary .edge-path {
   stroke: var(--diagram-selection);
   stroke-width: 3;
 }
-.atlas-panel .edge:not(.changed).primary.selected .edge-path {
+.coord-panel .edge:not(.changed).primary.selected .edge-path {
   stroke-width: 3.5;
 }
-.atlas-panel .edge.primary .multiplicity rect {
+.coord-panel .edge.primary .multiplicity rect {
   stroke: var(--diagram-selection);
 }
-.atlas-panel .edge.primary .edge-label text,.atlas-panel
+.coord-panel .edge.primary .edge-label text,.coord-panel
 .edge.primary .edge-label tspan {
   fill: var(--diagram-selection);
 }
-.atlas-panel .edge-label {
+.coord-panel .edge-label {
   pointer-events: all;
 }
 @media (prefers-reduced-motion: reduce) {
-  .atlas-panel .diagram-base,.atlas-panel
+  .coord-panel .diagram-base,.coord-panel
   .diagram-background {
     transition: none;
   }
-  .atlas-panel .diagram-overlay {
+  .coord-panel .diagram-overlay {
     animation: none;
   }
 }
 /* Reviewing a proposal: what it leaves unchanged fades into context. */
-.atlas-panel .fade-unchanged .diagram-base [data-change="unchanged"] {
+.coord-panel .fade-unchanged .diagram-base [data-change="unchanged"] {
   opacity: 0.32;
 }
 
-.atlas-panel {
+.coord-panel {
   position: relative;
   width: 100%;
   height: 100%;
   min-height: 22.5rem;
 }
-.atlas-panel .viewer {
+.coord-panel .viewer {
   position: absolute;
   inset: 0;
   height: auto;
 }
-.atlas-panel.atlas-empty .viewer {
+.coord-panel.coord-empty .viewer {
   display: grid;
   place-content: center;
   padding: var(--env-space-5);
   background: var(--env-color-bg-field);
 }
-.atlas-panel .atlas-empty-message {
+.coord-panel .coord-empty-message {
   max-width: 26rem;
 }

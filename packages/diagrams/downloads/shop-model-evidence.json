@@ -558,7 +558,7 @@
     "profile": "code",
     "state": "proposal",
     "revision": {
-      "id": "7b11c892f1ed08d2",
+      "id": "dc2c57c2f13a123d",
       "parentId": null,
       "createdAt": "",
       "reason": ""
@@ -1194,8 +1194,8 @@
         "limitations": [
           "Stable identities only; no inference of cross-layer meaning. Layout and source locations are excluded."
         ],
-        "baseRevision": "1c65d31e127eae52",
-        "proposedRevision": "7b11c892f1ed08d2"
+        "baseRevision": "6371eef53110c3a5",
+        "proposedRevision": "dc2c57c2f13a123d"
       }
     }
   }

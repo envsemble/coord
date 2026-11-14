@@ -1,6 +1,6 @@
-// src/ui/AtlasMark.jsx
+// src/ui/CoordMark.jsx
 import { jsx, jsxs } from "react/jsx-runtime";
-function AtlasMark({ size = 28, label = "Atlas" }) {
+function CoordMark({ size = 28, label = "Coord" }) {
   return /* @__PURE__ */ jsxs(
     "svg",
     {
@@ -36,6 +36,6 @@ function AtlasMark({ size = 28, label = "Atlas" }) {
   );
 }
 export {
-  AtlasMark
+  CoordMark
 };
 //# sourceMappingURL=mark.mjs.map

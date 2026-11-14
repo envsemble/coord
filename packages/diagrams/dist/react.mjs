@@ -2285,14 +2285,14 @@ function EmptyState({
     Column,
     {
       gap: 2,
-      className: `atlas-empty-state${className ? ` ${className}` : ""}`,
+      className: `coord-empty-state${className ? ` ${className}` : ""}`,
       children: [
         /* @__PURE__ */ jsx6(
           Text,
           {
             render: createElement(`h${headingLevel}`),
             variant: "title",
-            className: "atlas-section-heading",
+            className: "coord-section-heading",
             children: title
           }
         ),
@@ -2494,7 +2494,7 @@ function Island({ label, className = "", children, ...props }) {
       padding: 1,
       role: "group",
       "aria-label": label,
-      className: `atlas-island${className ? ` ${className}` : ""}`,
+      className: `coord-island${className ? ` ${className}` : ""}`,
       ...props,
       children
     }
@@ -2538,9 +2538,9 @@ function ViewSwitcher({
   );
 }
 
-// src/ui/AtlasMark.jsx
+// src/ui/CoordMark.jsx
 import { jsx as jsx12, jsxs as jsxs7 } from "react/jsx-runtime";
-function AtlasMark({ size = 28, label = "Atlas" }) {
+function CoordMark({ size = 28, label = "Coord" }) {
   return /* @__PURE__ */ jsxs7(
     "svg",
     {
@@ -2693,7 +2693,7 @@ function ProvenanceBadge({ document: document2, className = "" }) {
       background: "default",
       radius: "full",
       padding: 1,
-      className: `atlas-provenance${className ? ` ${className}` : ""}`,
+      className: `coord-provenance${className ? ` ${className}` : ""}`,
       title: provenance.detail ? `${provenance.label} \xB7 ${provenance.detail}` : provenance.label,
       children: [
         /* @__PURE__ */ jsx13(ProvenanceLabel, { document: document2 }),
@@ -2761,17 +2761,17 @@ var ViewerToolbar = forwardRef2(function ViewerToolbar2({
   return /* @__PURE__ */ jsxs9(
     "header",
     {
-      className: `atlas-overlay-top viewer-toolbar${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`,
+      className: `coord-overlay-top viewer-toolbar${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`,
       ref,
       children: [
         /* @__PURE__ */ jsxs9(Island, { label: "Diagram navigation", className: "island-start", children: [
-          /* @__PURE__ */ jsx14("span", { className: "brand-mark", children: /* @__PURE__ */ jsx14(AtlasMark, { label: "" }) }),
+          /* @__PURE__ */ jsx14("span", { className: "brand-mark", children: /* @__PURE__ */ jsx14(CoordMark, { label: "" }) }),
           /* @__PURE__ */ jsx14(
             Text3,
             {
               render: /* @__PURE__ */ jsx14("span", {}),
               variant: "title",
-              className: "atlas-section-heading island-title",
+              className: "coord-section-heading island-title",
               title: model.title,
               children: model.title
             }
@@ -2886,7 +2886,7 @@ function DownloadLink({ data, filename, type, children, ...props }) {
 // src/viewer/About.jsx
 import { Fragment as Fragment5, jsx as jsx16, jsxs as jsxs10 } from "react/jsx-runtime";
 function About({ model, exports, provenance }) {
-  return /* @__PURE__ */ jsxs10(Column2, { gap: 4, className: "atlas-portal about-content", children: [
+  return /* @__PURE__ */ jsxs10(Column2, { gap: 4, className: "coord-portal about-content", children: [
     /* @__PURE__ */ jsx16(ProvenanceBadge, { document: provenance, className: "inline" }),
     /* @__PURE__ */ jsx16(Text4, { emphasis: "muted", children: model.status }),
     /* @__PURE__ */ jsx16("dl", { className: "shortcut-list", children: [
@@ -3004,7 +3004,7 @@ function useOverlayInsets(viewerRef, topRef) {
     const viewer = viewerRef.current, top = topRef.current;
     if (!viewer || !top || typeof ResizeObserver !== "function") return;
     const update = () => viewer.style.setProperty(
-      "--atlas-top-inset",
+      "--coord-top-inset",
       `${Math.round(top.offsetTop + top.offsetHeight + GAP)}px`
     );
     update();
@@ -3018,7 +3018,7 @@ function useOverlayInsets(viewerRef, topRef) {
       if (!viewer) return null;
       const box = viewer.getBoundingClientRect();
       const edge = (selector) => viewer.querySelector(selector)?.getBoundingClientRect();
-      const top = edge(":scope > .atlas-overlay-top");
+      const top = edge(":scope > .coord-overlay-top");
       const inspector = edge(":scope > .side-panel.open");
       return {
         top: top ? Math.max(0, top.bottom - box.top) : 0,
@@ -3058,7 +3058,7 @@ function useToolbarDensity(topRef, resetKey, contentKey) {
     const check = () => {
       const width = top.clientWidth;
       const islands = [...top.children].filter(
-        (child) => child.classList.contains("atlas-island")
+        (child) => child.classList.contains("coord-island")
       );
       if (!width || !islands.length) return;
       const stacked = top.classList.contains("stacked");
@@ -3354,7 +3354,7 @@ var ChangesOverview = memo3(function ChangesOverview2({
         {
           render: /* @__PURE__ */ jsx18("h3", {}),
           variant: "title",
-          className: "atlas-section-heading change-group-heading",
+          className: "coord-section-heading change-group-heading",
           children: [
             "Conflicts",
             /* @__PURE__ */ jsx18(Badge2, { count: rollup.conflicts.length })
@@ -3382,7 +3382,7 @@ var ChangesOverview = memo3(function ChangesOverview2({
             {
               render: /* @__PURE__ */ jsx18("h3", {}),
               variant: "title",
-              className: "atlas-section-heading change-group-heading",
+              className: "coord-section-heading change-group-heading",
               children: [
                 /* @__PURE__ */ jsx18(ChangeMark, { status: group.status }),
                 group.label,
@@ -3712,7 +3712,7 @@ function Examples({ examples, model, names, onInspect }) {
           {
             render: /* @__PURE__ */ jsx20("h3", {}),
             variant: "title",
-            className: "atlas-section-heading",
+            className: "coord-section-heading",
             children: scenario.title
           }
         ),
@@ -3825,7 +3825,7 @@ function Panel({
             {
               render: /* @__PURE__ */ jsx21("h2", {}),
               variant: "title",
-              className: "atlas-section-heading panel-title",
+              className: "coord-section-heading panel-title",
               children: title
             }
           ),
@@ -5386,7 +5386,7 @@ function useArrangement(base, arrangement, onArrange) {
 // src/viewer/DiagramPanel.jsx
 import { Fragment as Fragment10, jsx as jsx25, jsxs as jsxs17 } from "react/jsx-runtime";
 function overlayClass(sections, density = 0) {
-  return `atlas-overlay-top${sections ? " stacked" : ""}${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`;
+  return `coord-overlay-top${sections ? " stacked" : ""}${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`;
 }
 var DiagramPanel = memo4(function DiagramPanel2(props) {
   const { payload, review, plain } = reviewedPayload(props.payload);
@@ -5396,17 +5396,17 @@ var DiagramPanel = memo4(function DiagramPanel2(props) {
       Theme,
       {
         theme,
-        className: "atlas-panel atlas-empty",
+        className: "coord-panel coord-empty",
         "data-theme": theme,
         children: /* @__PURE__ */ jsxs17("div", { className: "viewer", children: [
           (props.leading || props.sections) && /* @__PURE__ */ jsxs17("div", { className: overlayClass(props.sections), children: [
-            props.sections && /* @__PURE__ */ jsx25("div", { className: "atlas-overlay-sections", children: props.sections }),
+            props.sections && /* @__PURE__ */ jsx25("div", { className: "coord-overlay-sections", children: props.sections }),
             props.leading && /* @__PURE__ */ jsx25(Island, { label: "Diagram navigation", className: "island-start", children: /* @__PURE__ */ jsx25("div", { className: "island-leading", children: props.leading }) })
           ] }),
           /* @__PURE__ */ jsx25(
             EmptyState,
             {
-              className: "atlas-empty-message",
+              className: "coord-empty-message",
               title: payload.model.title,
               description: "No entities in this model."
             }
@@ -5464,14 +5464,14 @@ function DiagramPanelContent({
   );
   const showViews = views.length > 1;
   const hasStart = !!leading || showViews || !!plain;
-  return /* @__PURE__ */ jsx25(Theme, { theme, className: "atlas-panel", "data-theme": theme, children: /* @__PURE__ */ jsxs17(
+  return /* @__PURE__ */ jsx25(Theme, { theme, className: "coord-panel", "data-theme": theme, children: /* @__PURE__ */ jsxs17(
     "div",
     {
       ref: viewerRef,
       className: `viewer${panel ? " with-panel" : ""}${changes?.fade ? " fade-unchanged" : ""}`,
       children: [
         /* @__PURE__ */ jsxs17("div", { className: overlayClass(sections, density), ref: topRef, children: [
-          sections && /* @__PURE__ */ jsx25("div", { className: "atlas-overlay-sections", children: sections }),
+          sections && /* @__PURE__ */ jsx25("div", { className: "coord-overlay-sections", children: sections }),
           hasStart && /* @__PURE__ */ jsxs17(Island, { label: "Diagram navigation", className: "island-start", children: [
             leading && /* @__PURE__ */ jsx25("div", { className: "island-leading", children: leading }),
             leading && (showViews || plain) && /* @__PURE__ */ jsx25(IslandDivider, {}),
@@ -5512,7 +5512,7 @@ function DiagramPanelContent({
               ToolButton,
               {
                 label: "Reset layout",
-                tooltip: "Lay the diagram out again, as Atlas arranges it",
+                tooltip: "Lay the diagram out again, as Coord arranges it",
                 icon: /* @__PURE__ */ jsx25(IconRestartAlt, {}),
                 onClick: arranged.reset
               }
@@ -5586,7 +5586,7 @@ var ViewerErrorBoundary = class extends Component {
   }
 };
 export {
-  AtlasMark,
+  CoordMark,
   DiagramCanvas,
   DiagramPanel,
   DiagramViewer,
