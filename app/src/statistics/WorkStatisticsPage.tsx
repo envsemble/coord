@@ -11,12 +11,11 @@ import { ModelName } from '../ui/ModelName';
 import { modelPalette, orderModels } from '../ui/modelColours';
 import { absoluteDate, compactNumber, duration, plural, workNumber } from '../ui/format';
 import { workTarget } from '../navigation/targets';
-import { statusOf } from '../plan/status';
 import { ModelKey, StatsCard } from '../ui/statistics';
 import { useWindow } from '../window/windowContext';
 import { Trail } from '../ui/Trail';
 import { Page } from '../ui/Page';
-import { activityKey, sessionTitle, useWorkSessions, useWorkTimeline } from '../plan/WorkSessions';
+import { sessionTitle, useWorkSessions, useWorkTimeline } from '../plan/WorkSessions';
 import { AgentTime, measuredSection, shortId, useHostNow } from '../plan/LiveAgentTime';
 import { liveActiveMs, liveAgentMs, type LiveActivity } from '../plan/agentTime';
 import { harnessNames, panView, roughDuration, timelineLine, timelineSpan, timelineTicks, zoomView, type TimeView } from '../plan/sessions';
@@ -194,12 +193,9 @@ function Headline({ work, live, sessions, timeline }: { work: Work; live: LiveAc
 
 /** A plan's statistics page. */
 export function WorkStatisticsPage({ work }: { work: Work }) {
-  const { activity } = useWindow();
-  const agents = activity(work.id);
-  // Closed work keeps how it ended: what a session still does on it does not count here either.
-  const status = statusOf(work, agents?.state ?? null);
-  const live = status.key === 'working' || status.key === 'waiting' ? agents : null;
-  const key = activityKey(agents);
+  // Agent time is as reported: Atlas no longer counts it up live.
+  const live = null;
+  const key = '';
   const sessions = useWorkSessions(work.id, key)?.sessions ?? [];
   const timeline = useWorkTimeline(work.id, key);
   const statistics = work.statistics;

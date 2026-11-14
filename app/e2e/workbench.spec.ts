@@ -24,10 +24,11 @@ test('a window opens on the hub: every plan of every active project, grouped by 
   const { window } = launched;
   await expectHub(window);
   await expect.poll(() => titles(launched!)).toEqual(['Atlas']);
-  // With no agent on them: blocked, then paused (implementation started), then the drafts; each row says its project.
-  await expect(window.locator('.hub-group-heading')).toHaveText([/^Blocked\s*2$/, /^Paused\s*2$/, /^Drafts\s*2$/]);
-  await expect(groupRows(window, 'Blocked').locator('.status-icon').first()).toHaveAttribute('aria-label', 'Blocked');
-  await expect(groupRows(window, 'Drafts')).toHaveText([/Order fulfilment model\s*#0002\s*(Northwind|Coord)/, /Order fulfilment model\s*#0002\s*(Northwind|Coord)/]);
+  // By whose turn their agents say they are: the user's (with what for), then waiting or blocked, then later (the drafts); each row says its project.
+  await expect(window.locator('.hub-group-heading')).toHaveText([/^Your turn\s*2$/, /^Waiting\s*2$/, /^Later\s*2$/]);
+  await expect(groupRows(window, 'Your turn').first().locator('.hub-row-note')).toHaveText('Choose how a customer picks a saved card, on the card picker page');
+  await expect(groupRows(window, 'Waiting').locator('.status-icon').first()).toHaveAttribute('aria-label', 'Blocked');
+  await expect(groupRows(window, 'Later')).toHaveText([/Order fulfilment model\s*#0002\s*(Northwind|Coord)/, /Order fulfilment model\s*#0002\s*(Northwind|Coord)/]);
   await expect(hubRows(window, 'Saved payment methods').locator('.hub-row-project')).toHaveText(['Northwind', 'Coord']);
   // One click on the row, away from its title, opens the plan; Back returns to the hub.
   const plan = hubRows(window, 'Customer order notifications').first();

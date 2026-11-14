@@ -1,13 +1,13 @@
 // The planning-state commands: where, project create, work
-// status|create|accept|start|step|block|close|archive|reopen, check and home. They call the planning
-// operations the MCP server calls too, print JSON on success, and exit 1 with the reason (and any
-// open items) when an operation is refused.
+// status|create|state|update|search|accept|start|step|close|reopen, check and home. They call the
+// planning operations the MCP server calls too, print JSON on success, and exit 1 with the reason
+// (and any open items) when an operation is refused.
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  acceptWork, addSteps, archiveWork, proposeSteps, searchWork, tagWork, atlasHome, checkPaths, closeWork, createProject, createWork, setContinues, setParts, findPlanning, homePlanningFolders, planningName,
-  planningFolderOf, readRegistry, readTemplates, removeStep, renameStep, reopenWork, resolvePlanningFolder, setBlocked, setStepStatus, startWork, withDatabaseAsync, workStatus,
+  acceptWork, addSteps, proposeSteps, searchWork, atlasHome, checkPaths, createProject, createWork, finishWork, findPlanning, homePlanningFolders, planningName,
+  planningFolderOf, readRegistry, readTemplates, removeStep, renameStep, reopenWork, resolvePlanningFolder, setState, setStepStatus, startWork, updateWork, withDatabaseAsync, workStatus,
   type LedgerStepStatus,
 } from '../../planning/index.ts';
 import { parseOptions, positionals, UsageError, wantsHelp, type Output } from '../args.ts';
@@ -16,10 +16,9 @@ export const planningUsage = `  atlas where [--cwd <dir>]
   atlas project create --name <name> [--folder <folder>...] [--json]
   atlas work status <work-id> [--planning-dir <dir>]
   atlas work create --title <title> [--summary <text>] [--slug <slug>] [--continues <work>...] [--tag <tag>...] [--part-of <work-id>] [--planning-dir <dir>]
-  atlas work tag <work-id> [--add <tag>...] [--remove <tag>...] [--planning-dir <dir>]
+  atlas work state <work-id> <planning|working|waiting|your_turn|blocked|none> [<note>] [--planning-dir <dir>]
+  atlas work update <work-id> [--add-tag <tag>...] [--remove-tag <tag>...] [--continues <work>... | --no-continues] [--parts <work-id>... | --no-parts] [--planning-dir <dir>]
   atlas work search [<word>...] [--tag <tag>...] [--status open|closed|all] [--planning-dir <dir>]
-  atlas work continue <work-id> [<work>...] [--planning-dir <dir>]
-  atlas work parts <work-id> [<work-id>...] [--planning-dir <dir>]
   atlas work accept <work-id> [--planning-dir <dir>]
   atlas work start <work-id> [--step <title>...] [--planning-dir <dir>]
   atlas work step add <work-id> <title>... [--planning-dir <dir>]
@@ -27,9 +26,7 @@ export const planningUsage = `  atlas where [--cwd <dir>]
   atlas work step set <work-id> <title> <todo|doing|done> [--planning-dir <dir>]
   atlas work step rename <work-id> <title> <new-title> [--planning-dir <dir>]
   atlas work step remove <work-id> <title> [--planning-dir <dir>]
-  atlas work block <work-id> (<reason> | --clear) [--planning-dir <dir>]
-  atlas work close <work-id> [--planning-dir <dir>]
-  atlas work archive <work-id> [--superseded-by <work-id> | --abandoned] [--reason <why>] [--planning-dir <dir>]
+  atlas work close <work-id> [--superseded-by <work-id> | --abandoned] [--reason <why>] [--planning-dir <dir>]
   atlas work reopen <work-id> --step <title>... [--planning-dir <dir>]
   atlas check [<path>...]
   atlas home [list]`;
@@ -82,21 +79,39 @@ export async function work(operation: string | undefined, args: string[], out: O
   const line = usageOf(operation === 'step' ? `atlas work step ${steps.includes(args[0]) ? args[0] : ''}`.trim() : 'atlas work ' + operation);
   if (wantsHelp(args)) { out.stdout(line); return 0; }
   switch (operation) {
-    case 'status': case 'accept': case 'close': {
+    case 'status': case 'accept': {
       const { positional, values } = parseOptions(args, { values: ['planning-dir'] }, line);
       const [id] = positionals(positional, ['work-id'], line);
       const root = await planningDir(values, id);
-      print(out, operation === 'status' ? await workStatus(root, id) : operation === 'accept' ? await acceptWork(root, id) : await closeWork(root, id));
+      print(out, operation === 'status' ? await workStatus(root, id) : await acceptWork(root, id));
       return 0;
     }
-    case 'archive': {
+    case 'close': {
       const { positional, values, flags } = parseOptions(args, { values: ['planning-dir', 'superseded-by', 'reason'], flags: ['abandoned'] }, line);
       const [id] = positionals(positional, ['work-id'], line);
       if (flags.has('abandoned') && values['superseded-by']) throw new UsageError('give --superseded-by or --abandoned, not both', line);
       if (flags.has('abandoned') && !values.reason) throw new UsageError('the following arguments are required: --reason (abandoned work says why)', line);
       if (values.reason !== undefined && !flags.has('abandoned') && !values['superseded-by']) throw new UsageError('--reason goes with --abandoned or --superseded-by', line);
-      // --superseded-by implies superseded.
-      print(out, await archiveWork(await planningDir(values, id), id, { disposition: flags.has('abandoned') ? 'abandoned' : null, supersededBy: values['superseded-by'] ?? null, reason: values.reason ?? null }));
+      // --superseded-by implies superseded; without either, the work closes as complete.
+      print(out, await finishWork(await planningDir(values, id), id, { outcome: flags.has('abandoned') ? 'abandoned' : values['superseded-by'] ? 'superseded' : 'complete', supersededBy: values['superseded-by'] ?? null, reason: values.reason ?? null }));
+      return 0;
+    }
+    case 'state': {
+      const { positional, values } = parseOptions(args, { values: ['planning-dir'] }, line);
+      const [id, kind, ...note] = positional;
+      if (!id || !kind) throw new UsageError('the following arguments are required: ' + (id ? 'state' : 'work-id, state'), line);
+      print(out, await setState(await planningDir(values, id), id, { kind: kind === 'none' ? null : kind, note: note.join(' ') || null }));
+      return 0;
+    }
+    case 'update': {
+      const { positional, values, lists, flags } = parseOptions(args, { values: ['planning-dir'], lists: ['add-tag', 'remove-tag', 'continues', 'parts'], flags: ['no-continues', 'no-parts'] }, line);
+      const [id] = positionals(positional, ['work-id'], line);
+      if (flags.has('no-continues') && lists.continues) throw new UsageError('give --continues or --no-continues, not both', line);
+      if (flags.has('no-parts') && lists.parts) throw new UsageError('give --parts or --no-parts, not both', line);
+      print(out, await updateWork(await planningDir(values, id), id, {
+        addTags: lists['add-tag'], removeTags: lists['remove-tag'],
+        continues: flags.has('no-continues') ? [] : lists.continues, parts: flags.has('no-parts') ? [] : lists.parts,
+      }));
       return 0;
     }
     case 'create': {
@@ -107,33 +122,10 @@ export async function work(operation: string | undefined, args: string[], out: O
       print(out, await createWork(root, { title: values.title, slug: values.slug ?? null, summary: values.summary ?? null, continues: lists.continues ?? null, tags: lists.tag ?? null, partOf: values['part-of'] ?? null }));
       return 0;
     }
-    case 'tag': {
-      const { positional, values, lists } = parseOptions(args, { values: ['planning-dir'], lists: ['add', 'remove'] }, line);
-      const [id] = positionals(positional, ['work-id'], line);
-      if (!lists.add && !lists.remove) throw new UsageError('give --add or --remove', line);
-      print(out, await tagWork(await planningDir(values, id), id, { add: lists.add, remove: lists.remove }));
-      return 0;
-    }
     case 'search': {
       const { positional, values, lists } = parseOptions(args, { values: ['planning-dir', 'status'], lists: ['tag'] }, line);
       if (values.status !== undefined && !['open', 'closed', 'all'].includes(values.status)) throw new UsageError('argument --status: expected open, closed or all', line);
       print(out, await searchWork(await planningDir(values, null), { query: positional.join(' '), tags: lists.tag, status: values.status as 'open' | 'closed' | 'all' | undefined }));
-      return 0;
-    }
-    case 'continue': {
-      // The work it continues, here (work-0023) or in another project (project:work-0023); none clears it.
-      const { positional, values } = parseOptions(args, { values: ['planning-dir'] }, line);
-      const [id, ...continues] = positional;
-      if (!id) throw new UsageError('the following arguments are required: work-id', line);
-      print(out, await setContinues(await planningDir(values, id), id, continues));
-      return 0;
-    }
-    case 'parts': {
-      // The work it is made of, in order: work items of this project; none clears them.
-      const { positional, values } = parseOptions(args, { values: ['planning-dir'] }, line);
-      const [id, ...parts] = positional;
-      if (!id) throw new UsageError('the following arguments are required: work-id', line);
-      print(out, await setParts(await planningDir(values, id), id, parts));
       return 0;
     }
     case 'start': case 'reopen': {
@@ -143,12 +135,6 @@ export async function work(operation: string | undefined, args: string[], out: O
       if (!lists.step && operation === 'reopen') throw new UsageError('the following arguments are required: --step', line);
       const root = await planningDir(values, id);
       print(out, operation === 'start' ? await startWork(root, id, { steps: lists.step }) : await reopenWork(root, id, { steps: lists.step! }));
-      return 0;
-    }
-    case 'block': {
-      const { positional, values, flags } = parseOptions(args, { values: ['planning-dir'], flags: ['clear'] }, line);
-      const [id, reason] = positionals(positional, flags.has('clear') ? ['work-id'] : ['work-id', 'reason'], line);
-      print(out, await setBlocked(await planningDir(values, id), id, flags.has('clear') ? null : reason));
       return 0;
     }
     case 'step': {

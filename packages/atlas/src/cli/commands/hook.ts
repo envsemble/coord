@@ -24,10 +24,11 @@ import { homePlanningDirectory } from '../../home/home.ts';
 import { atlasHome } from '../../home/homePath.ts';
 import { harnessOfTranscript } from '../../agents/activity.ts';
 import type { Whereabouts } from '../../planning/projects/findProject.ts';
+import { contradictions } from '../../planning/work/contradictions.ts';
 import type { insertReport } from '../../planning/reports/reports.ts';
 import type { PreparedReport } from '../../planning/reports/recordReport.ts';
 import type { Output } from '../args.ts';
-import { logFailure, pruneStamps, runsAtlasWork, recordActivity, recordAgent, recordSession, sessionPattern, stateEvents, stateHook, stopAgent, type Activity, type ActivityDetails } from './sessionState.ts';
+import { logFailure, pruneStamps, runsAtlasWork, recordActivity, recordSession, sessionPattern, stateEvents, stateHook, type Activity, type ActivityDetails } from './sessionState.ts';
 
 export interface HookInput {
   session_id?: string; transcript_path?: string; cwd?: string; hook_event_name?: string;
@@ -200,10 +201,14 @@ export function sessionContext(where: Whereabouts): string {
     for (const item of match.work.slice(0, 10)) {
       const doing = item.steps.filter(step => step.status === 'doing').map(step => step.title);
       const state = [item.designStatus, item.implementationStatus].filter(Boolean).join(', ');
-      lines.push(`- ${item.workId} "${item.title}"${state ? ' (' + state + ')' : ''}: ${item.progress}${doing.length ? '; doing: ' + doing.join('; ') : ''}${item.blocked ? '; BLOCKED: ' + item.blocked : ''}. Plan: ${item.plan ?? item.path}`);
+      const turn = item.state ? `; ${item.state.kind === 'your_turn' ? 'your turn' : item.state.kind}${item.state.note ? ': ' + item.state.note : ''}` : '';
+      lines.push(`- ${item.workId} "${item.title}"${state ? ' (' + state + ')' : ''}: ${item.progress}${doing.length ? '; doing: ' + doing.join('; ') : ''}${item.blocked ? '; BLOCKED: ' + item.blocked : turn}. Plan: ${item.plan ?? item.path}`);
     }
     if (match.work.length > 10) lines.push(`- …and ${match.work.length - 10} more (Atlas tool where).`);
   }
+  // What no longer adds up in the projects' work, for the agent to bring up and fix.
+  const found = where.matches.flatMap(match => contradictions(match.work).map(line => (where.matches.length > 1 ? match.project + ': ' : '') + line));
+  if (found.length) lines.push("Contradictions in the project's work: bring them up with the user once, briefly, and fix what the evidence settles:", ...found.slice(0, 10).map(line => '- ' + line));
   if (where.matches.length > 1) lines.push(`Several projects cover this folder (${where.matches.map(match => match.project).join(', ')}): before planning, ask the user which project to plan in, and give its planning folder to the Atlas tools.`);
   return lines.join('\n');
 }
@@ -280,7 +285,7 @@ async function postToolUse(input: HookInput, home: string, links: SessionLinks):
   const requests: LinkRequest[] = [];
   // Tools that change a work item link it; reading (work_status, work_search) leaves the session where it is.
   // So does the atlas command run in a shell (shellWork), the last work item it names last.
-  const tool = /^mcp__.*atlas.*__(?:step$|work_(?!(?:status|search)$))/.test(input.tool_name ?? '');
+  const tool = /^mcp__.*atlas.*__(?:step$|state$|work_(?!(?:status|search)$))/.test(input.tool_name ?? '');
   const changed = tool ? [toolWork(input)].filter(about => about !== null) : shellWork(input);
   if (changed.length) {
     const { resolvePlanningFolder } = await import('../../planning/projects/findProject.ts');
@@ -387,9 +392,6 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
           database!.db.prepare('INSERT INTO session_leave (link, since, at, amending) VALUES (?, ?, ?, ?)').run(left.id, latest(left.linked, left.came), at, left.amending ? 1 : 0);
           reported(database!, session, left, at);
         }
-        // A subagent's edit says it is at work; the main agent's state stays as it is.
-        if (agent) recordAgent(database!, home, session, agent, typeof input.agent_type === 'string' ? input.agent_type.slice(0, 100) : null, at, liveWindowMs);
-        else recordState(database!, home, links, 'tool', at, { cwd: typeof input.cwd === 'string' ? input.cwd : null });
       });
       return output ? JSON.stringify(output) : '';
     }
@@ -410,10 +412,7 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
       recordLeft(database!, insertReport, session, left, reports, at);
       if (report) recordReport(database!, insertReport, session, links.on!, report, at);
       // A subagent stopping only says the session is still seen.
-      if (event === 'SubagentStop') {
-        recordState(database!, home, links, null, at);
-        if (agent) stopAgent(database!, home, session, agent, at);
-      }
+      if (event === 'SubagentStop') recordState(database!, home, links, null, at);
     });
     return '';
   } catch (error) {

@@ -8,7 +8,8 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseFrontmatter } from '../check/check.ts';
 import type { HomeDatabase } from '../../home/database.ts';
-import type { HandoffLink } from '../types.ts';
+import type { HandoffLink, WorkState } from '../types.ts';
+import { stateOf } from '../work/state.ts';
 import { handoffsOf } from '../handoffs/handoffs.ts';
 import { tagsOf } from '../work/tags.ts';
 import { groupsOfParts, partsOf } from '../work/parts.ts';
@@ -51,6 +52,8 @@ export interface ProjectWork {
    * order, each once), and the group that lists it among its parts (the first in the registry, should several), or null.
    */
   parts?: string[]; partOf?: string | null;
+  /** Whose turn it is, as its plan declares (its `state`); absent when it declares none, and on closed work. */
+  turn?: WorkState;
 }
 /**
  * A work item's statistics in brief, counted as the plan page counts them (see summarizeReports):
@@ -127,7 +130,10 @@ async function workOf(root: string, entry: { id: string; path: string; current_p
   // Proposed steps preview the plan's steps: not counted, and never the step at hand.
   const steps = Array.isArray(ledger?.steps) ? (ledger.steps as Step[]).filter(step => step?.phase !== 'proposed') : null;
   const counted = (list: Step[]) => ({ done: list.filter(step => step?.status === 'done').length, total: list.length });
+  // Whose turn it is, as the plan declares; left out when it declares none, and on closed work.
+  const turn = closed || !planHeader ? null : stateOf(planHeader);
   return {
+    ...turn && { turn },
     id: entry.id, title: text(planHeader?.title) ?? entry.path.split('/').at(-1)!, state, blocked,
     summary: text(planHeader?.summary), tags: tagsOf(planHeader?.tags), steps: steps && { ...counted(steps), planning: counted(steps.filter(step => step?.phase === 'planning')) },
     updated: text(planHeader?.updated) ?? text(planHeader?.completed_at), outcome,

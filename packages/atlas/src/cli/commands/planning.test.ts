@@ -27,20 +27,20 @@ test('a folder finds its planning folder in the home and drives a work item thro
   assert.equal((await json('work', 'step', 'set', 'work-0002', 'Build', 'doing')).steps[4].status, 'doing');
   assert.equal((await json('work', 'step', 'rename', 'work-0002', 'Announce', 'Tell people')).steps[7].title, 'Tell people');
   assert.equal((await json('work', 'step', 'remove', 'work-0002', 'Tell people')).steps.length, 7);
-  assert.equal((await json('work', 'block', 'work-0002', 'Waiting for review')).blocked, 'Waiting for review');
+  assert.equal((await json('work', 'state', 'work-0002', 'blocked', 'Waiting for review')).blocked, 'Waiting for review');
 
   const refused = await inRoot('work', 'close', 'work-0002');
   assert.equal(refused.status, 1);
   assert.equal(refused.stdout, '');
   assert.match(refused.stderr, /^atlas: work-0002 cannot close while items are open\..*\n  - Step "Build" is doing\.\n  - Step "Review" is todo\.\n  - Step "Ship" is todo\.\n  - Blocked: Waiting for review\n$/s);
-  assert.equal((await json('work', 'block', 'work-0002', '--clear')).blocked, null);
+  assert.equal((await json('work', 'state', 'work-0002', 'your_turn', 'Review', 'the', 'checkout')).state.note, 'Review the checkout');
   for (const step of ['Build', 'Review', 'Ship']) await json('work', 'step', 'set', 'work-0002', step, 'done');
   const closed = await json('work', 'close', 'work-0002');
   assert.deepEqual([closed.path, closed.implementationStatus], ['archive/0002-checkout-flow', 'complete']);
   assert.equal((await json('work', 'status', 'work-0002')).location, 'archive');
   assert.equal((await json('work', 'reopen', 'work-0002', '--step', 'Fix a bug')).path, 'active/0002-checkout-flow');
-  assert.match((await inRoot('work', 'archive', 'work-0001')).stderr, /^atlas: work-0001 is not complete: archive it as superseded/);
-  const archived = await json('work', 'archive', 'work-0001', '--superseded-by', 'work-0002', '--reason', 'The checkout flow covers it');
+  assert.match((await inRoot('work', 'close', 'work-0001')).stderr, /^atlas: The design is draft; only accepted work is closed as complete/);
+  const archived = await json('work', 'close', 'work-0001', '--superseded-by', 'work-0002', '--reason', 'The checkout flow covers it');
   assert.deepEqual([archived.path, archived.designStatus], ['archive/0001-cart', 'superseded']);
   assert.ok(readFileSync(path.join(root, 'README.md'), 'utf8').includes('[Cart](archive/0001-cart/plan.md)'), 'links follow the move');
   assert.equal((await run(['check', root], { env })).status, 0);
@@ -48,7 +48,7 @@ test('a folder finds its planning folder in the home and drives a work item thro
   // Refusals exit 1 with the reason; usage errors exit 2.
   assert.match((await inRoot('work', 'start', 'work-0001', '--step', 'X')).stderr, /^atlas: The design is superseded; accept it/);
   assert.equal((await inRoot('work', 'status', 'work-0042')).status, 1);
-  for (const args of [['work'], ['work', 'status'], ['work', 'step', 'set', 'work-0002', 'Build', 'finished'], ['work', 'block', 'work-0002'], ['work', 'reopen', 'work-0002'], ['work', 'archive', 'work-0002', '--abandoned', '--superseded-by', 'work-0001', '--reason', 'x'], ['work', 'fly', 'work-0002']]) {
+  for (const args of [['work'], ['work', 'status'], ['work', 'step', 'set', 'work-0002', 'Build', 'finished'], ['work', 'state', 'work-0002'], ['work', 'reopen', 'work-0002'], ['work', 'close', 'work-0002', '--abandoned', '--superseded-by', 'work-0001', '--reason', 'x'], ['work', 'fly', 'work-0002']]) {
     assert.equal((await inRoot(...args)).status, 2, args.join(' '));
   }
   // Outside every project's folders, a planning folder must be given.

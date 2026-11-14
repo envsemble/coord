@@ -3,21 +3,21 @@ import type { SVGProps } from 'react';
 import { Badge } from '@envsemble/envui';
 import type { Provenance } from '@envsemble/atlas/planning/provenance';
 import type { StatusLook } from '../plan/status';
-import { AbandonedIcon, BlockedIcon, CompleteIcon, DraftIcon, InProgressIcon, NeedsYouIcon, OpenIcon, PausedIcon, SupersededIcon, UnknownIcon } from './icons';
+import { AbandonedIcon, BlockedIcon, CompleteIcon, DraftIcon, InProgressIcon, NeedsYouIcon, NoStateIcon, OpenIcon, SupersededIcon, UnknownIcon, WaitingIcon } from './icons';
 
 export type Tone = 'neutral' | 'primary' | 'success' | 'warning' | 'danger' | 'done';
 /**
- * envUI's tones by meaning: work an agent is on is success, work waiting for the person warning,
- * complete work done, blocked work danger, started work primary; work nobody is on stays neutral.
+ * envUI's tones by meaning: work agents are on is success, the user's turn warning, work waiting on
+ * something primary, complete work done, blocked work danger; work nobody is on stays neutral.
  */
 export const statusTones: Record<StatusLook['tone'], Tone> = { open: 'success', started: 'primary', done: 'done', danger: 'danger', attention: 'warning', muted: 'neutral' };
 
 const statusIcons = {
-  working: InProgressIcon, waiting: NeedsYouIcon, blocked: BlockedIcon, paused: PausedIcon, draft: DraftIcon, ready: OpenIcon,
+  your_turn: NeedsYouIcon, working: InProgressIcon, planning: DraftIcon, waiting: WaitingIcon, blocked: BlockedIcon, draft: DraftIcon, ready: OpenIcon, nostate: NoStateIcon,
   complete: CompleteIcon, partial: InProgressIcon, superseded: SupersededIcon, abandoned: AbandonedIcon, unknown: UnknownIcon,
 } satisfies Record<StatusLook['key'], unknown>;
 
-/** A work item's status as a coloured icon, pulsing while an agent works; named for assistive technology unless decorative. */
+/** A work item's status as a coloured icon; named for assistive technology unless decorative. */
 export function StatusIcon({ status, decorative = false, ...props }: { status: StatusLook; decorative?: boolean } & SVGProps<SVGSVGElement>) {
   const Icon = statusIcons[status.key];
   return <Icon className={'status-icon ' + (props.className ?? '')} data-tone={statusTones[status.tone]} data-status={status.key} label={decorative ? undefined : status.label} {...props} />;

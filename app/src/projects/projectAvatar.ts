@@ -19,14 +19,14 @@ export function projectHue(projectId: string): number {
   return hues[hash % hues.length];
 }
 
-/** What the listing says of a project: its open plans, those agents work on and those waiting for the person, and when it changed. */
+/** What the listing says of a project: its open plans, those its agents work on and those that are the person's turn, as the plans declare, and when it changed. */
 export function projectFacts(project: Pick<Project, 'summary'>): { open: number; working: number; waiting: number; updated: string | null } | null {
   const summary = project.summary;
   if (!summary) return null;
   return {
     open: summary.active.filter(work => work.state !== 'closed').length,
-    working: summary.activity.filter(item => item.state === 'working').length,
-    waiting: summary.activity.filter(item => item.state === 'waiting').length,
+    working: summary.active.filter(work => work.turn?.kind === 'working' || work.turn?.kind === 'planning').length,
+    waiting: summary.active.filter(work => work.turn?.kind === 'your_turn').length,
     updated: summary.updated,
   };
 }

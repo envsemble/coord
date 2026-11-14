@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from '../../platform/filesystem.ts';
 import { ledgerStatus } from '../work/ledger.ts';
 import { groupsOfParts, partsOf } from '../work/parts.ts';
+import { stateOf } from '../work/state.ts';
 import { workStatistics } from '../reports/reports.ts';
 import { planningName, type HomeDatabase } from '../../home/database.ts';
 import type { Document, DocumentContent, HistoryEntry, Issue, PlanningIndex, Work } from '../types.ts';
@@ -353,7 +354,7 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
       title: path.basename(relative).replace(/^\d+-/, '').replaceAll('-', ' '),
       location: location.startsWith('active/') ? 'active' : location.startsWith('archive/') ? 'archived' : 'retained',
       design: 'unknown', implementation: 'unknown', created: null, updated: null, accepted: null,
-      completed: null, durationDays: null, documents: [], parts: [], partOf: null,
+      completed: null, durationDays: null, documents: [], parts: [], partOf: null, state: null,
     };
     if (currentPlan === null || locationIdentity(currentPlan) !== locationIdentity(relative + '/plan.md')) {
       issues.push({ level: 'error', workId: item.id, message: "The work item's main plan must be plan.md in its folder." });
@@ -370,6 +371,7 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
         if (metadata.superseded_by !== null && (typeof metadata.superseded_by !== 'string' || !registeredIds.has(metadata.superseded_by) || metadata.superseded_by === item.id)) issues.push({ level: 'error', workId: item.id, message: 'Superseded by must identify another registered work item or null.' });
         entry.title = content.title;
         entry.parts = partsOf(metadata.parts, item.id);
+        entry.state = stateOf(metadata);
         if (typeof metadata.design_status === 'string' && designStates.has(metadata.design_status)) entry.design = metadata.design_status;
         else issues.push({ level: 'error', workId: item.id, message: 'The plan has an unrecognized design status.' });
         if (typeof metadata.implementation_status === 'string' && implementationStates.has(metadata.implementation_status)) entry.implementation = metadata.implementation_status;

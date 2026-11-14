@@ -15,7 +15,7 @@ Before the first round, read what exists: the plan, its glossary and diagrams, t
 
 ## Rounds
 
-Map the design as a tree: every decision branches into the decisions that depend on it. The **frontier** is every open decision whose prerequisites are settled. Each round, ask the whole frontier, then wait for the answers:
+Map the design as a tree: every decision branches into the decisions that depend on it. The **frontier** is every open decision whose prerequisites are settled. Each round, ask the whole frontier and set the work item's state to `your_turn` ("Answer round 2 of the grilling"), then wait for the answers:
 
 ```
 ❓ **Q1 — <question title>**: <the question>

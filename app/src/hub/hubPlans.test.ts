@@ -13,17 +13,13 @@ const project = (name: string, position: number, summary: Partial<ProjectSummary
 
 const atlas = project('Atlas', 1, {
   active: [
-    work('work-0021', 'implementing', { updated: '2026-10-10', steps: { done: 2, total: 5, planning: { done: 2, total: 2 } } }),
+    work('work-0021', 'implementing', { updated: '2026-10-10', steps: { done: 2, total: 5, planning: { done: 2, total: 2 } }, turn: { kind: 'your_turn', note: 'Merge example/shop#12', since: '2026-10-15T09:40:00Z' } }),
     work('work-0022', 'draft', { summary: 'A hub for every plan, so a plan is one click away.' }),
     work('work-0023', 'blocked', { updated: '2026-10-01', blocked: 'Waiting for the host' }),
-    work('work-0024', 'implementing', { updated: '2026-10-14' }),
+    work('work-0024', 'implementing', { updated: '2026-10-14', turn: { kind: 'working', note: null, since: '2026-10-15T10:00:00Z' } }),
     work('work-0025', 'other'),
   ],
   closed: [work('work-0019', 'closed', { outcome: 'complete', updated: '2026-09-30' }), work('work-0018', 'closed', { outcome: 'superseded' })],
-  activity: [
-    { workId: 'work-0024', state: 'working', since: '2026-10-15T10:00:00Z', sessions: [{ session: 'session-1', harness: 'claude-code', state: 'working', since: '2026-10-15T10:00:00Z', countsFrom: '2026-10-15T10:00:00Z' }] },
-    { workId: 'work-0021', state: 'waiting', since: '2026-10-15T09:40:00Z', sessions: [{ session: 'session-2', harness: 'codex', state: 'waiting', since: '2026-10-15T09:40:00Z', countsFrom: null }] },
-  ],
 });
 const coord = project('Coord', 2, { active: [work('work-0001', 'implementing', { updated: '2026-10-15' })] });
 const archived = project('envUI', 3, { active: [work('work-0007', 'draft')] }, 'archived');
@@ -35,34 +31,34 @@ test('the hub lists the plans of every active project, or of the project it is f
   assert.deepEqual(all.map(item => item.project.name + ' ' + item.work.id), [
     ...['work-0021', 'work-0022', 'work-0023', 'work-0024', 'work-0025', 'work-0019', 'work-0018'].map(id => 'Atlas ' + id), 'Coord work-0001',
   ], 'archived projects and projects whose folder could not be read list none');
-  assert.deepEqual(all.filter(item => item.activity).map(item => item.work.id + ' ' + item.status.label), ['work-0021 Needs you', 'work-0024 Working']);
+  assert.deepEqual(all.filter(item => item.work.turn).map(item => item.work.id + ' ' + item.status.label), ['work-0021 Your turn', 'work-0024 Working']);
   assert.deepEqual(hubItems(projects, coord.id).map(item => item.work.id), ['work-0001']);
   assert.deepEqual(hubItems(projects, archived.id).map(item => item.work.id), ['work-0007'], 'filtered to an archived project, it lists that project\'s plans');
   assert.deepEqual(hubItems([], null), []);
 });
 
-test('open plans are grouped by status: waiting for the person first, then worked on, blocked, paused, drafts and ready; closed work on request', () => {
+test('open plans are grouped by whose turn they are: the user\'s first, then worked on, waiting or blocked, and later; closed work on request', () => {
   const items = hubItems(projects, null);
   const groups = (state: Parameters<typeof hubGroups>[1]) => hubGroups(items, state).map(group => [group.label, group.items.map(item => item.work.id)]);
   assert.deepEqual(groups('open'), [
-    ['Needs you', ['work-0021']],
+    ['Your turn', ['work-0021']],
     ['Working', ['work-0024']],
-    ['Blocked', ['work-0023']],
-    ['Paused', ['work-0001']],
-    ['Drafts', ['work-0022']],
-    ['Ready', ['work-0025']],
+    ['Waiting', ['work-0023']],
+    ['Later', ['work-0001', 'work-0025', 'work-0022']],
   ]);
   assert.deepEqual(groups('closed'), [['Closed', ['work-0019', 'work-0018']]]);
-  assert.deepEqual(groups('all').map(([label]) => label), ['Needs you', 'Working', 'Blocked', 'Paused', 'Drafts', 'Ready', 'Closed']);
+  assert.deepEqual(groups('all').map(([label]) => label), ['Your turn', 'Working', 'Waiting', 'Later', 'Closed']);
+  // The user's turn, the longest waiting first.
+  const turns = hubGroups([...items, { ...items[0], work: { ...items[0].work, id: 'work-0030', turn: { kind: 'your_turn', note: 'Try it', since: '2026-10-01T09:00:00Z' } } }], 'open');
+  assert.deepEqual(turns[0].items.map(item => item.work.id), ['work-0030', 'work-0021']);
   assert.equal(inState(items[0], 'all'), true);
   assert.deepEqual(hubGroups([], 'open'), []);
 });
 
-test('each plan shows its status, what agents do on it first, and closed work how it ended', () => {
-  assert.deepEqual(['blocked', 'implementing', 'draft', 'other'].map(state => hubStatus(work('work-0001', state as ProjectWork['state'])).key), ['blocked', 'paused', 'draft', 'ready']);
-  assert.equal(hubStatus(work('work-0001', 'blocked'), 'working').key, 'working');
-  assert.equal(hubStatus(work('work-0001', 'draft'), 'waiting').label, 'Needs you');
-  assert.equal(hubStatus(work('work-0001', 'closed', { outcome: 'complete' }), 'waiting').label, 'Complete');
+test('each plan shows its status, whose turn it declares first, and closed work how it ended', () => {
+  assert.deepEqual(['blocked', 'implementing', 'draft', 'other'].map(state => hubStatus(work('work-0001', state as ProjectWork['state'])).key), ['blocked', 'nostate', 'draft', 'ready']);
+  assert.equal(hubStatus(work('work-0001', 'blocked', { turn: { kind: 'working', note: null, since: null } })).key, 'working');
+  assert.equal(hubStatus(work('work-0001', 'draft', { turn: { kind: 'your_turn', note: 'Answer round 2', since: null } })).label, 'Your turn');
   assert.equal(hubStatus(work('work-0001', 'closed', { outcome: 'superseded' })).label, 'Superseded');
   assert.equal(hubStatus(work('work-0001', 'closed', { outcome: 'abandoned' })).label, 'Abandoned');
   assert.equal(hubStatus(work('work-0001', 'closed')).key, 'partial', 'closed work neither complete, superseded nor abandoned was partly done');
@@ -76,7 +72,8 @@ const statistics = (change: Partial<NonNullable<ProjectWork['statistics']>> = {}
 const steps = { done: 3, total: 8, planning: { done: 3, total: 3 } };
 
 test('work in progress shows its progress, the step being worked on, and what agents spent on it', () => {
-  const facts = hubRowFacts(work('work-0023', 'implementing', { steps, updated: '2026-10-14', step: { title: 'Build the hub', status: 'doing', phase: 'implementation' }, statistics: statistics() }));
+  const working = { kind: 'working' as const, note: null, since: '2026-10-14T09:00:00Z' };
+  const facts = hubRowFacts(work('work-0023', 'implementing', { steps, updated: '2026-10-14', step: { title: 'Build the hub', status: 'doing', phase: 'implementation' }, statistics: statistics(), turn: working }));
   assert.equal(facts.size, 'large');
   // The step worked on is in progress in the bar too.
   assert.deepEqual(facts.progress, { done: 3, doing: 1, total: 8, planning: { done: 3, doing: 0 }, text: '3 of 8' });
@@ -91,11 +88,14 @@ test('work in progress shows its progress, the step being worked on, and what ag
   // The last report is later than the plan's date, so it says when it changed.
   assert.equal(facts.changed, '2026-10-15T09:30:00Z');
   // The step to do next, in its phase; one subagent; no stage recorded.
-  const next = hubRowFacts(work('work-0023', 'implementing', { steps, step: { title: 'Settle the design', status: 'todo', phase: 'planning' }, statistics: statistics({ subagents: 1, planning: { agentMs: 0, tokens: null }, implementation: { agentMs: 0, tokens: null } }) }));
+  const next = hubRowFacts(work('work-0023', 'implementing', { steps, step: { title: 'Settle the design', status: 'todo', phase: 'planning' }, statistics: statistics({ subagents: 1, planning: { agentMs: 0, tokens: null }, implementation: { agentMs: 0, tokens: null } }), turn: working }));
   assert.deepEqual(next.step, { label: 'Next', title: 'Settle the design', phase: 'planning' });
   assert.deepEqual(next.progress, { done: 3, doing: 0, total: 8, planning: { done: 3, doing: 0 }, text: '3 of 8' });
   assert.equal(next.subagents, '1 subagent');
   assert.deepEqual(next.time, { total: '3 h 20 min', planning: null, implementation: null });
+  // What its state is for says more than the step: it takes the step's place.
+  const turn = hubRowFacts(work('work-0023', 'implementing', { steps, step: { title: 'Build the hub', status: 'doing', phase: 'implementation' }, turn: { kind: 'your_turn', note: 'Merge example/shop#12', since: null } }));
+  assert.deepEqual([turn.size, turn.note, turn.step], ['large', 'Merge example/shop#12', null]);
 });
 
 test('blocked work shows why in place of its step', () => {

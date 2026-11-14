@@ -23,7 +23,7 @@ Plan when the user is designing something, or asks for work whose requirements, 
 
 When work qualifies, **ask before opening a work item** (follow-ups of work the user handed you to finish without them you open yourself, and say so), then call `work_create` with a `summary`: two or three plain sentences on what the work is, why, and where it stands. Continue existing work only as the user selects it or the registry's `current_plan` points, never by the newest file or the highest number.
 
-When one task is better thought of as several ordered pieces, each with its own plan and steps (a migration in stages, a feature built layer by layer), plan it **in parts**: the work item for the whole says what the parts add up to, and each part is a work item of the same project, made with `work_create` and `partOf` naming the whole; `work_parts` sets the parts in order, to reorder them, add existing work or take one out. Parts are one level deep. A task one plan covers stays one work item; work that goes on after other work (follow-ups moved off work that is closing, a next phase) continues it (`continues`) rather than being its part.
+When one task is better thought of as several ordered pieces, each with its own plan and steps (a migration in stages, a feature built layer by layer), plan it **in parts**: the work item for the whole says what the parts add up to, and each part is a work item of the same project, made with `work_create` and `partOf` naming the whole; `work_update` (`parts`) sets the parts in order, to reorder them, add existing work or take one out. Parts are one level deep. A task one plan covers stays one work item; work that goes on after other work (follow-ups moved off work that is closing, a next phase) continues it (`continues`) rather than being its part.
 
 Find facts yourself; put only genuine decisions to the user, each with your recommendation, and wait for the answer. When the design has many open decisions, or the user asks to be grilled, run [atlas-grill](../atlas-grill/SKILL.md).
 
@@ -35,7 +35,7 @@ Record as understanding settles, not only at the end:
 - **`plan.md`:** the outcome, scope, decisions with their reasons, dependencies, edge cases and completion checks, in whatever shape the work needs. Label proposals and open questions; never present your recommendation as the user's decision.
 - **The ledger's steps:** the planning steps exist from creation; keep them true with the `step` tool. Once the plan names its implementation steps, propose them (action `propose`), so they show before the work starts. The ledger holds nothing else but, during implementation, its final-review list.
 - **Follow-ups:** more work asked for on a work item already under way or delivered (a change after the user tried it, feedback on a PR) goes in its ledger like the work before it. Add a step for it (action `add`) and keep it `doing`, then `done`, as you work. When it changes what was agreed, add a short amendment to the plan saying what and why. A step is a deliverable the size of the plan's other steps: fold review findings, small fixes and tests into the step they belong to rather than giving each a step.
-- **Tags** (`work_create`, `work_tag`): what the work will be searched for later. Give the areas it touches (`search`, `hub`, `performance`, not activities like `fix`), at most about five, reusing the project's tags before inventing one; keep them true as the work changes. Add the release it ships in: where the project versions its releases, the version its manifest names (`package.json`); when that version is already tagged as released (`v<version>` in Git), ask the user which release the work goes in (in work handed over to finish without them, take the next version and record it as your decision).
+- **Tags** (`work_create`, `work_update`): what the work will be searched for later. Give the areas it touches (`search`, `hub`, `performance`, not activities like `fix`), at most about five, reusing the project's tags before inventing one; keep them true as the work changes. Add the release it ships in: where the project versions its releases, the version its manifest names (`package.json`); when that version is already tagged as released (`v<version>` in Git), ask the user which release the work goes in (in work handed over to finish without them, take the next version and record it as your decision).
 - **`CONTEXT.md`:** the work's glossary, updated the moment a term resolves ([format](../atlas-grill/references/CONTEXT-FORMAT.md)).
 
 Atlas shows a plan in a column about 100 characters wide. Keep a table to a few short columns (a word or a phrase each) and put long text in a list or paragraphs below it; A blank line inside a table ends it, and the rows after it show as text. `atlas check` warns about a table that will read cramped, and about rows cut off from their table. Link a diagram from the sentence that is about it (`[the order model](diagrams/orders.puml)`): the link shows as the diagram.
@@ -48,11 +48,22 @@ When the user agrees to the plan, record it with `work_accept` and update the su
 
 ## State and files
 
-Planning state (work items, steps, `blocked`, closing, archiving) changes only through the Atlas tools; their descriptions say what each does. Everything else is an ordinary file: plan bodies, the final-review list, glossaries, diagrams and whatever else a work folder holds. Edit them directly at their absolute paths, from any folder; after each edit, Atlas checks the file and hands back what to fix. Do not hand-edit what the tools own: the registry's work items, the header statuses and dates, the ledger header, and moves between `active/` and `archive/`.
+Planning state (work items, steps, whose turn it is, closing) changes only through the Atlas tools; their descriptions say what each does. Everything else is an ordinary file: plan bodies, the final-review list, glossaries, diagrams and whatever else a work folder holds. Edit them directly at their absolute paths, from any folder; after each edit, Atlas checks the file and hands back what to fix. Do not hand-edit what the tools own: the registry's work items, the header statuses and dates, the ledger header, and moves between `active/` and `archive/`.
 
 Commit planning changes yourself, in the planning folder's Git with explicit pathspecs (`git -C <planning-folder> add -- <paths>`), at coherent points. Keep planning and product commits apart.
 
 Atlas measures time, tokens and models for the work items a session touches; nothing is reported by hand.
+
+## Whose turn it is
+
+Every open work item says whose turn it is, and Atlas shows the user exactly that: it never guesses it from what sessions do, so a state nobody keeps up misleads them. Set it with `state` whenever it changes, in the same turn as the change:
+
+- **`working`** as you start working on the work (`work_start` sets it), and **`planning`** while you design it with the user (`work_create` sets it).
+- **`your_turn`** whenever you stop for the user, with what they are to do, as an action they can take: "Merge owner/repo#12", "Try the new hub and say if the groups read right", "Answer round 3 of the grilling". A PR left for them to merge is their turn.
+- **`waiting`** while the work waits on something that is no one's move here: a PR's checks or reviews ("CI on owner/repo#12"), another team, a date.
+- **`blocked`** with why, while the work cannot go on.
+
+A work item accepted and not started, or closed, needs none. When a session starts, Atlas names what no longer adds up in the project's work (work under way that says nobody's turn, every step done but still open, the user's turn for days, a state untouched for a day): bring it up once, briefly, and fix what the evidence settles, such as a state that is out of date or work that is finished.
 
 ## Set up a project
 
@@ -65,7 +76,7 @@ When the user asks to review projects or bring Atlas up to date:
 1. **List the projects** with `where`. Go through the ones the user names, otherwise every active one.
 2. **Read each project's active work:** for every active work item, its plan and `work_status`.
 3. **Reconcile it with what happened.** The evidence is the Git history of the repositories in the project's folders, their PRs where the host is reachable, the planning folder's history and, when the harness offers it, the sessions that planned or implemented the work. Look for steps done but still open, merged PRs the summary lacks, decisions settled in a conversation but missing from the plan, finished or replaced work still active, and a stale `blocked`.
-4. **Update what the evidence settles** (steps, summaries, links), citing the commit, PR or date. **Ask before consequential changes** (closing, archiving, reopening, removing steps, rewriting decisions, opening work), each with its evidence and your recommendation, one project at a time.
+4. **Update what the evidence settles** (steps, summaries, links, whose turn it is), citing the commit, PR or date. **Ask before consequential changes** (closing, archiving, reopening, removing steps, rewriting decisions, opening work), each with its evidence and your recommendation, one project at a time.
 5. **Commit** each planning folder, and end with a short account per project: what changed, and what awaits the user.
 
 ## Diagrams
