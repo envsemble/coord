@@ -91,7 +91,7 @@ export function OtherComputers({ current }: { current: ComputerRef }) {
     </div>
     {paired === null ? <Spinner label="Checking computers" />
       : !paired.length ? <Text emphasis="muted">Not paired with another computer yet.</Text>
-      : <List.Root ref={rows} className="computer-rows" aria-label="Other computers">{paired.map(computer => {
+      : <List.Root ref={rows} className="text-rows computer-rows" aria-label="Other computers">{paired.map(computer => {
         const status = statusLabels[computer.status];
         const pending = forgetting !== null && computer.hostId === forgetting;
         const usable = computer.status === 'online' && !pending;

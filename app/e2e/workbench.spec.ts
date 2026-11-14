@@ -416,17 +416,18 @@ test('one row at the top: the logo, back and forward, Plans, Settings and Help, 
   // Settings opens Settings at General, with the theme; Computer settings… opens it at Computers.
   await titleButton(window, 'Settings').click();
   await expect(window.locator('.settings-page h1')).toHaveText('Settings');
-  await expect(window.getByRole('navigation', { name: 'Settings' }).locator('[aria-current="page"]')).toHaveText('General');
-  await expect(window.getByRole('group', { name: 'Theme' }).getByRole('radio')).toHaveCount(3);
+  const settingsTab = window.getByRole('tablist', { name: 'Settings' }).getByRole('tab', { selected: true });
+  await expect(settingsTab).toHaveText('General');
+  await expect(window.getByRole('combobox', { name: 'Theme' })).toHaveText(/Match the system/);
   await bar.getByRole('button', { name: /^Computer:/ }).click();
   const computerMenu = window.getByRole('menu', { name: /^Computer/ });
   await expect(computerMenu.getByRole('menuitem')).toHaveText(['Computer settings…']);
   await computerMenu.getByRole('menuitem', { name: 'Computer settings…' }).click();
-  await expect(window.getByRole('navigation', { name: 'Settings' }).locator('[aria-current="page"]')).toHaveText('Computers');
+  await expect(settingsTab).toHaveText('Computers');
   await expect(window.getByRole('heading', { name: /^Devices that can reach / })).toBeVisible();
   await expect(computerMenu).toHaveCount(0);
   await window.keyboard.press('Alt+ArrowLeft');
-  await expect(window.getByRole('navigation', { name: 'Settings' }).locator('[aria-current="page"]')).toHaveText('General');
+  await expect(settingsTab).toHaveText('General');
   await window.keyboard.press('Alt+ArrowLeft');
   await expectHub(window);
   // Main's application menu keeps the shortcuts (and is the menu bar on macOS), with Plans and Statistics in View.

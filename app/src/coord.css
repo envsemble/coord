@@ -1,6 +1,17 @@
 /* Coord on envUI: the layout of Coord's own regions. Colours, type, controls and their states come
    from envUI components and tokens; nothing here restyles an envUI component's insides. */
 
+/* What is selected (a menu's or a select's chosen option, a selected row, the current destination)
+   is marked in envUI's neutral layer under the text's own color, not its blue: the accent stays for
+   actions. Every selection keeps envUI's second cue, a check, a bar or a dot. The neutral tokens
+   carry their own values per theme and contrast, so one rule covers them all. */
+.env-theme {
+  --env-color-bg-selected: var(--env-color-bg-neutral-muted-hover);
+  --env-color-bg-selected-hover: var(--env-color-bg-neutral-muted-pressed);
+  --env-color-bg-selected-pressed: var(--env-color-bg-neutral-muted-pressed);
+  --env-color-fg-on-selected: var(--env-color-fg-default);
+}
+
 html, body, #root { min-block-size: 100%; }
 body { margin: 0; }
 /* envUI's type is regular or medium: emphasis in the interface is medium, not bold. Bold in a
@@ -56,7 +67,7 @@ body { margin: 0; }
 /* A diagram fills the body below the title bar. */
 .window-body.is-filled { block-size: 100%; min-block-size: 0; overflow: hidden; }
 .window-body.is-filled .window-page { display: flex; flex-direction: column; min-block-size: 0; padding: 0; }
-.search-button { min-inline-size: 13rem; justify-content: flex-start; }
+.search-button { --env-button-container: var(--env-color-bg-field); --env-button-content: var(--env-color-fg-muted); --env-button-outline: var(--env-color-border-default); min-inline-size: 13rem; justify-content: flex-start; }
 .search-button-label { flex: 1; text-align: start; }
 /* Narrow windows keep the title bar on one line: its search button drops its keys, then its label. */
 @media (max-width: 72rem) {
@@ -491,6 +502,13 @@ body { margin: 0; }
 
 /* Chart colours: categorical slots, set per theme (light-dark() follows the colour scheme envUI's theme sets). */
 
+/* Rows as structured text rather than cards: no fill and no rounded tiles, the rows parted by
+   hairlines, their text lined up with the section's heading. For settings and the things a section
+   lists (agents, computers, devices). */
+.text-rows { gap: 0; border-radius: 0; }
+.text-rows > .env-list-item { --env-list-item-container: transparent; border-radius: 0; padding-inline: 0; border-block-start: 1px solid var(--env-color-border-muted); }
+.text-rows > .env-list-item:last-child { border-block-end: 1px solid var(--env-color-border-muted); }
+
 /* Lists of folders and computers */
 .row-link { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-2); padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
 .row-link:disabled { cursor: default; color: var(--env-color-fg-muted); }
@@ -509,8 +527,7 @@ body { margin: 0; }
 .import-diagrams { display: grid; gap: var(--env-space-1); margin: 0; padding: 0; list-style: none; }
 .import-diagrams li { display: flex; align-items: center; gap: var(--env-space-2); }
 .access-section { display: grid; gap: var(--env-space-3); }
-.access-fields { display: grid; grid-template-columns: minmax(0, 1fr) 8rem; gap: var(--env-space-3); align-items: end; }
-.access-status { margin: 0; font-size: var(--env-font-size-body-sm); color: var(--env-color-fg-muted); }
+.access-status { margin: 0; color: var(--env-color-fg-muted); }
 .access-status[data-state='on'] { color: var(--env-color-fg-success); }
 .access-status[data-state='error'] { color: var(--env-color-fg-danger); }
 .pairing { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--env-space-5); align-items: start; }
@@ -523,31 +540,34 @@ body { margin: 0; }
 .pairing-permissions { display: grid; gap: var(--env-space-2); margin: 0; padding: 0; border: 0; }
 .field-legend { margin-block-end: var(--env-space-1); padding: 0; font-weight: 500; }
 .pairing-permission { display: flex; gap: var(--env-space-2); margin: 0; }
-.pairing-permission > span { display: grid; }
+.pairing-permission > span { display: grid; gap: 0.125rem; }
 .pairing-permission-icon { flex: none; color: var(--env-color-fg-success); }
 
-/* Settings: its sections in a column at the left, the one shown beside them; in a narrow window the
-   sections are a row above it. A section holds its parts one under another, each with its heading. */
-.settings-page { max-inline-size: 64rem; }
-.settings-layout { display: grid; grid-template-columns: 12rem minmax(0, 1fr); gap: var(--env-space-7); align-items: start; }
-.settings-nav { inline-size: auto; }
-.settings-content { display: grid; gap: var(--env-space-8); min-inline-size: 0; }
+/* Settings: its sections as tabs in a column at the left, the one shown beside them; where the page
+   is narrow, the tabs are a row above it. A section holds its parts one under another, each with its
+   heading. The selected tab is marked in the text's own color, not the accent. */
+.settings-tabs { --env-tabs-selected-content: var(--env-color-fg-default); --env-tabs-indicator: var(--env-color-fg-default); }
+.settings-tabs[data-beside] { flex-direction: row; align-items: start; gap: var(--env-space-7); }
+.settings-tabs[data-beside] > .settings-tab-list { flex: none; inline-size: 11rem; }
+.settings-tabs[data-beside] > .env-tabs-panels { flex: 1; min-inline-size: 0; }
+.settings-tabs:not([data-beside]) > .env-tabs-panels { margin-block-start: var(--env-space-5); }
+.settings-content { display: grid; gap: var(--env-space-8); min-inline-size: 0; max-inline-size: 52rem; }
 .settings-group { display: grid; gap: var(--env-space-3); min-inline-size: 0; }
 .settings-group-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--env-space-2) var(--env-space-3); }
 .settings-group-heading > h2 { margin: 0; }
 .settings-scope { display: inline-flex; align-items: center; gap: var(--env-space-2); color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); }
 .settings-scope svg { inline-size: 1.125rem; block-size: 1.125rem; }
-.settings-description { margin: 0; max-inline-size: 48rem; }
+.settings-description { margin: 0; }
 .settings-group .section-toolbar > .settings-description { flex: 1 1 20rem; }
-/* Remote access's fields keep a form's width on the wide page. */
-.settings-group :is(.access-fields, .pairing-label) { max-inline-size: 36rem; }
-.updates-channel, .settings-choice { inline-size: min(100%, 36rem); }
-.updates-status { display: flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-2) var(--env-space-3); min-block-size: var(--env-control-height-md); }
+/* A setting's row: its title and what it does, and its control at the end, which keeps its width
+   while the text wraps beside it. */
+.settings-row { flex-wrap: nowrap; }
+.settings-row-select { flex: none; inline-size: 13rem; }
+.access-address { inline-size: 17rem; }
+.access-port { flex: none; inline-size: 7rem; }
+.settings-group .pairing-label { max-inline-size: 36rem; }
 .updates-progress { inline-size: min(100%, 24rem); }
-.updates-failure { flex: 1 1 100%; max-inline-size: 48rem; }
-@media (max-width: 52rem) {
-  .settings-layout { grid-template-columns: minmax(0, 1fr); gap: var(--env-space-5); }
-}
+.updates-failure { color: var(--env-color-fg-danger); }
 
 /* The agents on this computer: each one's mark and name over its status, its action at the end of the
    row. One not on this computer is greyed, with its install link; a change on its way shows in its row. */
@@ -557,18 +577,16 @@ body { margin: 0; }
 .agent-detail { display: flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-1) var(--env-space-3); padding-inline-start: calc(1.5rem + var(--env-space-3)); }
 .agent-status[data-connected='true'] { color: var(--env-color-fg-success); }
 .agent-progress { display: inline-flex; align-items: center; gap: var(--env-space-2); color: var(--env-color-fg-muted); }
-.agent-install { --env-control-height: 1.5rem; }
 .agent-error { flex-basis: 100%; color: var(--env-color-fg-danger); overflow-wrap: anywhere; }
 .agent-check { color: var(--env-color-fg-muted); }
 .agent-check[data-warning] { color: var(--env-color-fg-warning); }
 .agent-program { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-2); min-inline-size: 0; color: var(--env-color-fg-muted); }
 .agent-program-path { overflow-wrap: anywhere; }
-.agent-by-hand { flex-basis: 100%; }
-.agent-by-hand p { margin: var(--env-space-2) 0 0; }
+.agent-by-hand p { margin: var(--env-space-4) 0 0; }
 .agent-commands { display: grid; gap: var(--env-space-2); margin: var(--env-space-2) 0 0; padding: 0; list-style: none; }
-.agent-commands li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-3); }
-.agent-commands code { overflow-wrap: anywhere; }
-.agent-actions { flex: none; justify-content: flex-end; }
+.agent-commands li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--env-space-3); }
+.agent-commands code { justify-self: start; overflow-wrap: anywhere; }
+.agent-actions { flex: none; justify-content: flex-end; gap: var(--env-space-1); }
 .agent-done { inline-size: 1.5rem; block-size: 1.5rem; color: var(--env-color-fg-success); }
 
 /* The onboarding, in place of the window until it is finished: one step at a time in a

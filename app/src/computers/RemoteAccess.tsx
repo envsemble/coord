@@ -4,7 +4,7 @@
 // code, and revokes paired devices. A paired device gets the whole computer; the pairing link may
 // also grant it Manage access, so it can pair and revoke devices itself. In a window on another
 // computer, the section manages that computer's pairings, when this app was granted Manage access there.
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Alert, Badge, Button, Checkbox, ConfirmButton, Graphic, List, Select, Spinner, Switch, Text, TextField } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/code';
 import type { AccessSettings, AccessState, ComputerRef, PairedDevice, PairingLinkView } from '../types';
@@ -19,6 +19,7 @@ const platforms: Record<string, string> = { win32: 'Windows', linux: 'Linux', da
 export const remoteAccessTitle = (computer: ComputerRef) => 'Devices that can reach ' + computer.name;
 
 export function RemoteAccess({ computer }: { computer: ComputerRef }) {
+  const id = useId();
   const here = computer.hostId === null;
   const [state, setState] = useState<AccessState | null>(null);
   const [devices, setDevices] = useState<PairedDevice[] | null>(null);
@@ -100,20 +101,25 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
         : state.managedBy && <Alert tone="warning">Remote access on this computer is managed by {state.managedBy}. Quit it, and Coord takes over here within a few seconds.</Alert>}
 
       {here ? <section className="access-section" aria-label="Network">
-        <Switch label="Allow paired devices to connect to this computer" checked={settings!.network.enabled} disabled={busy || managed}
-          onCheckedChange={enabled => void apply(next => ({ ...next, network: { ...next.network, enabled, address: next.network.address ?? address } }))} />
-        <div className="access-fields">
-          <Select label="Reach this computer via" value={address ?? ''} disabled={busy || managed}
-            onValueChange={value => { if (value) void apply(next => ({ ...next, network: { ...next.network, address: value } })); }}
-            items={state.addresses.map(entry => ({ value: entry.address, label: `${entry.label} — ${entry.address}` }))} />
-          <TextField className="access-port" label="Port" inputMode="numeric" value={port} disabled={busy || managed}
-            onValueChange={value => setPort(value.replace(/[^0-9]/g, '').slice(0, 5))} onBlur={savePort} onKeyDown={event => { if (event.key === 'Enter') savePort(); }} />
-        </div>
+        {/* Each setting applies as it changes: a row with its title and what it does, its control at the end. */}
+        <List.Root className="text-rows settings-rows" aria-label="Network">
+          <List.Item className="settings-row" label={<span id={id + '-allow'}>Allow paired devices to connect to this computer</span>}
+            description={<span id={id + '-status'} className="access-status" data-state={state.status.listening ? 'on' : state.status.error ? 'error' : 'off'} role="status">
+              {state.status.listening ? `Listening on ${state.status.address}:${state.status.port}.` : state.status.error ?? 'Remote access is off.'}
+            </span>}
+            end={<Switch aria-labelledby={id + '-allow'} aria-describedby={id + '-status'} checked={settings!.network.enabled} disabled={busy || managed}
+              onCheckedChange={enabled => void apply(next => ({ ...next, network: { ...next.network, enabled, address: next.network.address ?? address } }))} />} />
+          <List.Item className="settings-row" label={<span id={id + '-via'}>Reach this computer via</span>}
+            description={<span id={id + '-via-detail'}>{chosen?.kind === 'loopback' ? 'Only Coord on this same computer can connect through this address.'
+              : chosen?.kind === 'lan' ? 'A local network: the connection is not encrypted.' : 'The network paired devices find this computer on.'}</span>}
+            end={<Select className="settings-row-select access-address" aria-labelledby={id + '-via'} aria-describedby={id + '-via-detail'} value={address ?? ''} disabled={busy || managed}
+              onValueChange={value => { if (value) void apply(next => ({ ...next, network: { ...next.network, address: value } })); }}
+              items={state.addresses.map(entry => ({ value: entry.address, label: `${entry.label} — ${entry.address}` }))} />} />
+          <List.Item className="settings-row" label={<span id={id + '-port'}>Port</span>} description="From 1024 to 65535. It applies when you leave the field or press Enter."
+            end={<TextField className="access-port" aria-labelledby={id + '-port'} inputMode="numeric" value={port} disabled={busy || managed}
+              onValueChange={value => setPort(value.replace(/[^0-9]/g, '').slice(0, 5))} onBlur={savePort} onKeyDown={event => { if (event.key === 'Enter') savePort(); }} />} />
+        </List.Root>
         {chosen?.kind === 'lan' && <Alert tone="warning">On a local network, the connection is not encrypted. Prefer Tailscale, which encrypts it end to end.</Alert>}
-        {chosen?.kind === 'loopback' && <Text variant="caption" emphasis="muted">Only Coord on this same computer can connect through this address.</Text>}
-        <p className="access-status" data-state={state.status.listening ? 'on' : state.status.error ? 'error' : 'off'} role="status">
-          {state.status.listening ? `Listening on ${state.status.address}:${state.status.port}.` : state.status.error ?? 'Remote access is off.'}
-        </p>
       </section> : <p className="access-status" data-state={state.status.listening ? 'on' : 'off'} role="status">
         {state.status.listening ? `${computer.name} listens on ${state.status.address}:${state.status.port}.` : `Remote access is off on ${computer.name}.`}
       </p>}
@@ -138,8 +144,8 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
           <TextField label="Device label (optional)" className="pairing-label" value={label} maxLength={80} onValueChange={setLabel} placeholder="e.g. Work laptop" spellCheck={false} autoComplete="off" disabled={busy || managed} />
           <fieldset className="pairing-permissions">
             <legend className="field-legend">Permissions</legend>
-            <p className="pairing-permission is-fixed"><CheckIcon className="pairing-permission-icon" /><span><strong>Use this computer</strong><span className="muted">Work on its projects and create new ones. Every paired device can.</span></span></p>
-            <Checkbox label={<span><strong>Manage access</strong><span className="muted"> Create pairing links, and list and revoke paired devices.</span></span>} aria-label="Manage access"
+            <p className="pairing-permission is-fixed"><CheckIcon className="pairing-permission-icon" /><span><span>Use this computer</span><span className="muted">Work on its projects and create new ones. Every paired device can.</span></span></p>
+            <Checkbox label="Manage access" description="Create pairing links, and list and revoke paired devices."
               checked={manageAccess} disabled={busy || managed} onCheckedChange={value => setManageAccess(value === true)} />
           </fieldset>
           {chosen?.kind === 'lan' && <Alert tone="warning" className="access-warning">This link works over a local network, where the connection is not encrypted. Someone on that network who captures the device’s traffic could use {here ? 'this computer' : computer.name} as that device until you revoke it. Prefer Tailscale.</Alert>}
@@ -152,7 +158,7 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
 
       <section className="access-section" aria-label="Paired devices">
         <Text render={<h3 />} variant="title">Paired devices</Text>
-        {devices === null ? <Spinner label="Loading paired devices" /> : devices.length ? <List.Root className="device-list" aria-label="Paired devices">{devices.map(device => <List.Item key={device.deviceId}
+        {devices === null ? <Spinner label="Loading paired devices" /> : devices.length ? <List.Root className="text-rows device-list" aria-label="Paired devices">{devices.map(device => <List.Item key={device.deviceId}
           label={<span className="row-title"><strong>{device.name}</strong>{device.scopes.includes('access:manage') && <Badge tone="primary">Manage access</Badge>}{device.connected && <Badge tone="success">Connected</Badge>}</span>}
           description={`${platforms[device.platform] ?? device.platform} · paired ${absoluteDate(device.pairedAt)}${device.lastSeenAt && !device.connected ? ' · last seen ' + relativeDate(device.lastSeenAt) : ''}`}
           end={<ConfirmButton variant="outline" confirmLabel="Revoke access" disabled={managed} onConfirm={() => void revokeDevice(device.deviceId)}>Revoke…</ConfirmButton>} />)}
