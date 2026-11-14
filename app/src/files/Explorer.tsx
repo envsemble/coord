@@ -5,7 +5,7 @@
 // window; folders open and close in place. Ctrl+Shift+E brings the keyboard to it. Its end edge
 // resizes it (envUI's resizable drawer, on the page's background), and the width is kept.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Menu, NavigationDrawer, Text, Tree, type NavigationDrawerDestination, type TreeItem } from '@envsemble/envui';
+import { Badge, Menu, NavigationDrawer, Text, Tree, type NavigationDrawerDestination, type TreeItem } from '@envsemble/envui';
 import { DiagramIcon, GlossaryIcon, LedgerIcon, PageIcon, PlanIcon } from '../ui/icons';
 import { AttentionDot } from '../ui/AttentionDot';
 import type { Document, Snapshot, Target, Work } from '../types';
@@ -183,5 +183,6 @@ function treeItem(row: ExplorerRow, workPath: string, tag: string | undefined, a
     : isDiagramFile(row.path!) && row.file?.workId ? <DiagramIcon className="explorer-special" data-file="diagram" />
     : <></>;
   // Its whole name; its title, when it has one of its own, on hover.
-  return { ...base, label: row.name, icon, ...tag ? { description: tag } : {}, tooltip: row.file && row.file.title !== row.file.name ? row.file.title + ' \u00b7 ' + row.path : row.path };
+  // A diagram's layer (Captured, Proposal) as a badge at the row's end, which keeps its width while the name ellipsizes.
+  return { ...base, label: row.name, icon, ...tag ? { end: <Badge tone="neutral" className="explorer-tag">{tag}</Badge> } : {}, tooltip: row.file && row.file.title !== row.file.name ? row.file.title + ' \u00b7 ' + row.path : row.path };
 }

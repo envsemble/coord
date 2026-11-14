@@ -86,7 +86,8 @@ test("the hub's search button opens the search and it never filters the hub; the
   await expect(projectButton(window, 'All projects')).toBeVisible();
   await filterHub(window, 'Harbor');
   await expect(hubRows(window)).toHaveCount(3);
-  await expect(hubRows(window).locator('.hub-row-project')).toHaveText(['Harbor', 'Harbor', 'Harbor']);
+  // One project shown: its name would repeat on every row, so the Project column goes.
+  await expect(hubRows(window).locator('.hub-row-project')).toHaveCount(0);
   // Back and forward set it.
   await window.getByRole('button', { name: 'Back', exact: true }).click();
   await expectHub(window);

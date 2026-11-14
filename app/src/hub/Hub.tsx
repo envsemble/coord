@@ -59,8 +59,12 @@ function Spent({ facts }: { facts: HubRowFacts }) {
 /** When it last changed, relative, with the date on hover. */
 const Changed = ({ value }: { value: string | null }) => value ? <span className="hub-row-updated" title={'Changed ' + absoluteDate(value)}>{relativeDate(value)}</span> : null;
 
-/** Plan, project, progress, agents, changed: the same widths in every group, so the columns line up. */
+/**
+ * Plan, project, progress, agents, changed: the same widths in every group, so the columns line up.
+ * With one project shown, its name would repeat on every row: the column goes, and Plan takes its room.
+ */
 const columnWidths = [44, 13, 15, 18, 10];
+const oneProjectWidths = [55, 17, 18, 10];
 
 /**
  * A plan: the whole row opens it. A plan under way says under its title what its state is for (what
@@ -68,7 +72,7 @@ const columnWidths = [44, 13, 15, 18, 10];
  * Its summary shows on the title's hover. The status icon carries the colour; the text stays neutral
  * but for that line, amber on the user's turn.
  */
-const HubRow = memo(function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
+const HubRow = memo(function HubRow({ item, go, showProject }: { item: HubItem; go(place: Place): void; showProject: boolean }) {
   const { work, project, status } = item;
   const facts = hubRowFacts(work, status);
   const open = (event: MouseEvent) => { event.preventDefault(); go({ projectId: project.id, target: workTarget(work.id) }); };
@@ -92,14 +96,14 @@ const HubRow = memo(function HubRow({ item, go }: { item: HubItem; go(place: Pla
           {facts.step.label + ': ' + facts.step.title}
         </small>)}
     </Table.Cell>
-    <Table.Cell><span className="hub-row-project" title={project.name}>{project.name}</span></Table.Cell>
+    {showProject && <Table.Cell><span className="hub-row-project" title={project.name}>{project.name}</span></Table.Cell>}
     <Table.Cell>{facts.ended ? <span className="hub-row-ended">{facts.ended.label}{facts.ended.date && <span className="muted" title={absoluteDate(facts.ended.date)}> {relativeDate(facts.ended.date)}</span>}
       {continued.length > 0 && <small className="cell-note"><ContinuedIn items={continued} open={to => go({ projectId: to.projectId, target: workTarget(to.work) })} /></small>}</span>
       : facts.progress ? <Progress progress={facts.progress} wide={large} /> : <span className="muted">—</span>}</Table.Cell>
     <Table.Cell><Spent facts={facts} /></Table.Cell>
     <Table.Cell numeric nowrap>{facts.changed ? <Changed value={facts.changed} /> : <span className="muted">—</span>}</Table.Cell>
   </Table.Row>;
-}, (before, after) => before.go === after.go && rowKey(before.item) === rowKey(after.item));
+}, (before, after) => before.go === after.go && before.showProject === after.showProject && rowKey(before.item) === rowKey(after.item));
 
 /** What a row shows of its plan, as text: a row whose plan reads the same in a new listing is not drawn again. */
 const rowKeys = new WeakMap<HubItem, string>();
@@ -127,6 +131,7 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, s
   const groups = useMemo(() => hubGroups(items, filters.state), [items, filters.state]);
   const counts = useMemo(() => ({ open: items.filter(item => inState(item, 'open')).length, closed: items.filter(item => inState(item, 'closed')).length, all: items.length }), [items]);
   const filtered = projects?.find(project => project.id === filter);
+  const showProject = new Set(items.map(item => item.project.id)).size > 1;
   // The projects to filter by: the active ones.
   const choices = (projects ?? []).filter(project => project.state === 'active');
   const unread = choices.filter(project => project.summary === null);
@@ -162,9 +167,9 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, s
     {unread.length > 0 && <Text variant="caption" emphasis="muted" className="hub-note">{unread.map(project => project.name).join(', ')}: the planning folder could not be read.</Text>}
     {groups.map(group => <section key={group.id} className="hub-group" aria-label={group.label}>
       <Text render={<h2 />} variant="title" className="hub-group-heading">{group.label} <span className="muted">{group.items.length}</span></Text>
-      <Table.Root className="hub-list" aria-label={group.label} columnWidths={columnWidths}>
-        <Table.Head><Table.Row><Table.HeaderCell>Plan</Table.HeaderCell><Table.HeaderCell>Project</Table.HeaderCell><Table.HeaderCell>{group.id === 'closed' ? 'Ended' : 'Steps'}</Table.HeaderCell><Table.HeaderCell>Agents</Table.HeaderCell><Table.HeaderCell numeric>Changed</Table.HeaderCell></Table.Row></Table.Head>
-        <Table.Body>{group.items.map(item => <HubRow key={item.project.id + ':' + item.work.id} item={item} go={go} />)}</Table.Body>
+      <Table.Root className="hub-list" aria-label={group.label} columnWidths={showProject ? columnWidths : oneProjectWidths}>
+        <Table.Head><Table.Row><Table.HeaderCell>Plan</Table.HeaderCell>{showProject && <Table.HeaderCell>Project</Table.HeaderCell>}<Table.HeaderCell>{group.id === 'closed' ? 'Ended' : 'Steps'}</Table.HeaderCell><Table.HeaderCell>Agents</Table.HeaderCell><Table.HeaderCell numeric>Changed</Table.HeaderCell></Table.Row></Table.Head>
+        <Table.Body>{group.items.map(item => <HubRow key={item.project.id + ':' + item.work.id} item={item} go={go} showProject={showProject} />)}</Table.Body>
       </Table.Root>
     </section>)}
     {!groups.length && <EmptyState className="page-empty hub-empty" align="center" icon={<WorkIcon />} title={empty}

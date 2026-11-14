@@ -87,7 +87,7 @@ export function useChangeReview({
           side="bottom"
         >
           <Button
-            variant={showing ? "primary" : "secondary"}
+            variant={showing ? "secondary" : "ghost"}
             className="changes-toggle"
             aria-pressed={showing}
             aria-label={`Changes, ${rollup.count}`}

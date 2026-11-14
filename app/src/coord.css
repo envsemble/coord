@@ -198,6 +198,7 @@ body { margin: 0; }
 .computer-trigger-label { flex: 1; min-inline-size: 0; overflow: hidden; text-align: start; text-overflow: ellipsis; white-space: nowrap; }
 /* The files Coord reads for what they are, each in a colour of its own: the plan blue, its ledger
    green, its glossary amber, its diagrams purple (as the diagrams' links in a plan). */
+.explorer-tag { flex: none; }
 .explorer-special[data-file='plan'] { color: var(--env-color-fg-primary); }
 .explorer-special[data-file='ledger'] { color: var(--env-color-fg-success); }
 .explorer-special[data-file='glossary'] { color: var(--env-color-fg-warning); }
@@ -218,7 +219,7 @@ body { margin: 0; }
 /* Page and section toolbars use compact controls, like the title bar. */
 .page-toolbar, .section-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-3); --env-control-height: var(--env-control-height-sm); }
 .section-toolbar > :first-child { margin-inline-end: auto; }
-.page-empty { padding-block: var(--env-space-8); }
+.page-empty { padding-block: var(--env-space-8); padding-inline: 0; }
 
 /* Ledger steps: done in the "completed" tone, in progress in the "open" tone, over the work left. */
 .step-bar { display: flex; inline-size: 100%; block-size: 0.5rem; overflow: hidden; border-radius: var(--env-radius-sm); background: var(--env-color-bg-default); }
@@ -277,6 +278,9 @@ body { margin: 0; }
 .page-attention .page-link { flex: none; font-weight: var(--env-font-weight-medium); }
 .page-attention-text { overflow: hidden; color: var(--env-color-fg-muted); text-overflow: ellipsis; white-space: nowrap; }
 /* Under the title, the status and one fact about it, muted; a blocker's reason is cut short. */
+/* Under a work item's title: whose turn it is and what for on one line, then its summary. */
+.work-heading-detail { display: grid; gap: var(--env-space-2); }
+.work-summary { color: var(--env-color-fg-muted); }
 .work-status { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); font-variant-numeric: tabular-nums; }
 /* What the state is for, after its badge: amber on the user's turn; one line, cut short. */
 .work-status-note { min-inline-size: 0; overflow: hidden; color: var(--env-color-fg-default); text-overflow: ellipsis; white-space: nowrap; }
@@ -539,9 +543,6 @@ body { margin: 0; }
 .pairing-form { display: grid; gap: var(--env-space-3); }
 .pairing-permissions { display: grid; gap: var(--env-space-2); margin: 0; padding: 0; border: 0; }
 .field-legend { margin-block-end: var(--env-space-1); padding: 0; font-weight: 500; }
-.pairing-permission { display: flex; gap: var(--env-space-2); margin: 0; }
-.pairing-permission > span { display: grid; gap: 0.125rem; }
-.pairing-permission-icon { flex: none; color: var(--env-color-fg-success); }
 
 /* Settings: its sections as tabs in a column at the left, the one shown beside them; where the page
    is narrow, the tabs are a row above it. A section holds its parts one under another, each with its

@@ -4,7 +4,7 @@
 // the plans completed marked) and its models and effort. From the host's project.statistics; all
 // plans' statistics (every active project together) are the same page, from its projects.statistics.
 import { useEffect, useState, type ReactNode } from 'react';
-import { Alert, Disclosure, IconButton, Popover, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
+import { Alert, Button, Disclosure, IconButton, Popover, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
 import { InfoIcon, StatisticsIcon } from '../ui/icons';
 import type { ProjectStatistics } from '../types';
@@ -128,7 +128,7 @@ function StatisticsView({ read, revision, trail, scope, all }: {
   // The breadcrumb over the title, how the numbers are counted beside it, the period as its action.
   return <Page title="Statistics" className="statistics-page" breadcrumbs={trail} controlSize="sm"
     actions={<SegmentedControl aria-label="Period" size="sm" value={periodId} onValueChange={value => setPeriodId(value as PeriodId)} items={periods.map(item => ({ value: item.id, label: item.label }))} />}
-    meta={<Popover aria-label="About statistics" title="About these numbers" width="lg" trigger={<IconButton variant="text" icon={<InfoIcon />} aria-label="About these numbers" />}>
+    meta={<Popover aria-label="About statistics" title="About these numbers" width="lg" trigger={<IconButton variant="ghost" icon={<InfoIcon />} aria-label="About these numbers" />}>
       <div className="info-body">
         <p>The figures come from the reports agents record when a session stops, read from their session logs where Coord can (Claude Code and Codex). Agent time adds up every agent's working time, each session and each subagent in full, also while they work at once; the line shows the time at least one of them was working.</p>
         <p>Time counts where it was worked, by the reports' working intervals; a report without them counts at its time. A plan counts as completed on its completion date, and the time it took runs from its acceptance to its completion. Waiting on you counts the time {all ? 'the sessions' : 'the project’s sessions'} waited for you, waits at once counted once.{all ? ' All plans are every active project’s together.' : ''}</p>
@@ -137,7 +137,8 @@ function StatisticsView({ read, revision, trail, scope, all }: {
     {shown?.error && <Alert tone="warning">{shown.error}</Alert>}
     {!shown ? <div className="page-state" aria-busy="true"><Spinner size="lg" label="Reading the statistics" /></div>
       : !statistics ? null
-      : statistics.current.agentMs === 0 && statistics.current.plansCompleted === 0 ? <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No work in this period" description={statistics.from ? 'Agents have not reported on ' + scope + ' since ' + absoluteDate(statistics.from) + '.' : 'Agents have not reported on ' + scope + ' yet.'} />
+      : statistics.current.agentMs === 0 && statistics.current.plansCompleted === 0 ? <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No work in this period" description={statistics.from ? 'Agents have not reported on ' + scope + ' since ' + absoluteDate(statistics.from) + '.' : 'Agents have not reported on ' + scope + ' yet.'}
+        action={periodId !== 'all' ? <Button variant="secondary" onClick={() => setPeriodId('all')}>Show all time</Button> : undefined} />
       : <>
         <Headline statistics={statistics} period={period} />
         <WorkOverTime statistics={statistics} scope={scope} />

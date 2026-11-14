@@ -121,7 +121,7 @@ function StatusLine({ work, status }: { work: Work; status: StatusLook }) {
 
 /**
  * A work item: its plan (or, without one, its README or first document). The breadcrumb names its
- * project and number; then the title, the status line with whose turn it is and what for, its pages
+ * project and number; then the title, under it the status line with whose turn it is and what for, its pages
  * that need the person, and the plan's summary. Beside it the work's progress, its sessions and
  * statistics. Diagrams open from their cards in the plan.
  */
@@ -137,7 +137,7 @@ export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Sna
   // Its pages that need the person, as their agents said in their page.json.
   const asking = Object.entries(snapshot.attention ?? {}).filter(([page]) => page.startsWith(work.path + '/pages/'));
   return <Page className="work-page" breadcrumbs={<Trail work={work.id} items={[{ label: workNumber(work.id) }]} />}
-    title={work.title} meta={<StatusLine work={work} status={status} />} description={summary}>
+    title={work.title} description={<span className="work-heading-detail"><StatusLine work={work} status={status} />{summary && <span className="work-summary">{summary}</span>}</span>}>
     <div className="work-layout">
       <div className="work-main">
         {(listing?.tags?.length || asking.length > 0) && <div className="work-header">

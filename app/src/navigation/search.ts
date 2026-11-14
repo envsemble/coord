@@ -65,7 +65,8 @@ export function hostEntries(results: SearchResult[], projects: Project[]): Searc
       : (result.kind === 'document' || result.kind === 'diagram' || result.kind === 'page') && result.path && !result.anchor && !result.element ? pathKey(result.projectId, result.path) : null;
     return {
       id: 'search:' + index + ':' + result.kind + ':' + result.projectId + ':' + (result.work ?? '') + ':' + (result.path ?? '') + '#' + (result.anchor ?? result.element ?? ''),
-      kind: result.kind, label: result.title, detail: [result.kind === 'project' ? null : result.projectName, work].filter(Boolean).join(' · '),
+      // An element is told apart from its namesakes in other diagrams by its diagram's file.
+      kind: result.kind, label: result.title, detail: [result.kind === 'project' ? null : result.projectName, work, result.element && result.path ? result.path.slice(result.path.lastIndexOf('/') + 1) : null].filter(Boolean).join(' · '),
       snippet: result.snippet, ...result.tags?.length && { tags: result.tags }, destination: resultDestination(result), key,
     };
   });

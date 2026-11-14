@@ -10,7 +10,6 @@ import { Code } from '@envsemble/envui/code';
 import type { AccessSettings, AccessState, ComputerRef, PairedDevice, PairingLinkView } from '../types';
 import { api } from '../api';
 import { absoluteDate, relativeDate } from '../ui/format';
-import { CheckIcon } from '../ui/icons';
 import { CopyButton } from '../ui/CopyButton';
 
 const platforms: Record<string, string> = { win32: 'Windows', linux: 'Linux', darwin: 'macOS', android: 'Android', ios: 'iOS' };
@@ -139,19 +138,22 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
             </div>
             <Text variant="caption" emphasis="muted">In Coord on the other device, choose <strong>Connect to Another Coord…</strong> in <strong>Settings › Computers</strong> and paste the link. Treat it like a password.</Text>
           </div>
-        </div> : <form className="pairing-form" onSubmit={event => { event.preventDefault(); void createLink(); }}>
+        </div> : !state.status.listening ? <Text emphasis="muted" className="settings-description">{here
+          ? 'Turn on “Allow paired devices to connect” above, and then create a one-time pairing link here.'
+          : `Remote access is off on ${computer.name}: devices can pair once Coord there turns it on.`}</Text>
+        : <form className="pairing-form" onSubmit={event => { event.preventDefault(); void createLink(); }}>
           {link && <Text emphasis="muted">That pairing link expired.</Text>}
           <TextField label="Device label (optional)" className="pairing-label" value={label} maxLength={80} onValueChange={setLabel} placeholder="e.g. Work laptop" spellCheck={false} autoComplete="off" disabled={busy || managed} />
           <fieldset className="pairing-permissions">
             <legend className="field-legend">Permissions</legend>
-            <p className="pairing-permission is-fixed"><CheckIcon className="pairing-permission-icon" /><span><span>Use this computer</span><span className="muted">Work on its projects and create new ones. Every paired device can.</span></span></p>
+            {/* Always granted: a checked box that cannot be cleared, lined up with the one below. */}
+            <Checkbox label="Use this computer" description="Work on its projects and create new ones. Every paired device can." checked disabled />
             <Checkbox label="Manage access" description="Create pairing links, and list and revoke paired devices."
               checked={manageAccess} disabled={busy || managed} onCheckedChange={value => setManageAccess(value === true)} />
           </fieldset>
           {chosen?.kind === 'lan' && <Alert tone="warning" className="access-warning">This link works over a local network, where the connection is not encrypted. Someone on that network who captures the device’s traffic could use {here ? 'this computer' : computer.name} as that device until you revoke it. Prefer Tailscale.</Alert>}
           <div className="row-actions">
-            <Button type="submit" variant="primary" pending={busy} disabled={managed || !state.status.listening}>Create pairing link</Button>
-            {!state.status.listening && <Text variant="caption" emphasis="muted">{here ? 'Turn remote access on first.' : `Remote access is off on ${computer.name}.`}</Text>}
+            <Button type="submit" variant="primary" pending={busy} disabled={managed}>Create pairing link</Button>
           </div>
         </form>}
       </section>

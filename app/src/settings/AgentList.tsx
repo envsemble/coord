@@ -204,5 +204,5 @@ function action(agent: AgentState, now: AgentActivity, mode: AgentListMode, stat
   if (retry && !now.running) return agent.connected && now.failed!.action === 'connect' ? <>{retry}{disconnect}</> : retry;
   return agent.connected
     ? disconnect
-    : <Button variant="primary" pending={now.running === 'connect'} disabled={Boolean(now.running)} aria-label={'Connect ' + name} onClick={() => state.connect(agent.id)}>Connect</Button>;
+    : <Button variant="secondary" pending={now.running === 'connect'} disabled={Boolean(now.running)} aria-label={'Connect ' + name} onClick={() => state.connect(agent.id)}>Connect</Button>;
 }

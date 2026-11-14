@@ -2,7 +2,8 @@ import { IconButton, Tooltip } from "@envsemble/envui";
 
 /**
  * An icon-only toolbar action: envUI's IconButton, with its name repeated as a
- * tooltip. `pressed` makes it a toggle, shown with the primary fill while on.
+ * tooltip. `pressed` makes it a toggle: plain while off, and the neutral
+ * secondary fill while on (selection is never the accent, which is for actions).
  * Other props (including a menu's trigger props and ref) reach the button.
  */
 export function ToolButton({
@@ -21,7 +22,7 @@ export function ToolButton({
         aria-label={label}
         aria-pressed={pressed}
         icon={icon}
-        variant={variant ?? (pressed ? "primary" : "secondary")}
+        variant={variant ?? (pressed === false ? "ghost" : "secondary")}
       />
     </Tooltip>
   );

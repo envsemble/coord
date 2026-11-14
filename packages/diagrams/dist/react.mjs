@@ -2325,7 +2325,7 @@ function ToolButton({
       "aria-label": label,
       "aria-pressed": pressed,
       icon,
-      variant: variant ?? (pressed ? "primary" : "secondary")
+      variant: variant ?? (pressed === false ? "ghost" : "secondary")
     }
   ) });
 }
@@ -3515,7 +3515,7 @@ function useChangeReview({
           children: /* @__PURE__ */ jsxs12(
             Button3,
             {
-              variant: showing ? "primary" : "secondary",
+              variant: showing ? "secondary" : "ghost",
               className: "changes-toggle",
               "aria-pressed": showing,
               "aria-label": `Changes, ${rollup.count}`,
