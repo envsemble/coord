@@ -24,12 +24,8 @@ export function App() {
     </header>
     <main>
       <h1>Coord is a desktop app for planning work with your coding agents.</h1>
-      <p className="lead">You and your agent write the plan together: what to build, the steps and the decisions. The agent then implements it step by step, and Coord shows the plan, its progress and what the agent is waiting on you for.</p>
-      <ul className="facts">
-        <li>Connects to Claude Code and Codex through a plugin, wherever you run them: a terminal, an editor or an app like T3 Code.</li>
-        <li>Plans are Markdown files in a Git folder on your computer.</li>
-        <li>Windows and Linux. Free and open source (MIT).</li>
-      </ul>
+      <p className="lead">You and your agent agree on the plan, then it builds the plan step by step while you follow along. Works with Claude Code and Codex wherever you run them, such as a terminal or T3 Code.</p>
+      <p className="facts">Used internally at envsemble. Windows and Linux, free and open source (MIT).</p>
       <div className="downloads">
         {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={stable} loading={builds === 'loading'} />)}
       </div>
@@ -41,7 +37,7 @@ export function App() {
         alt="A plan in Coord: its title, whose turn it is and what to do, its outcome and scope, and beside it the plan's progress, steps and statistics." />
       <section className="nightly" aria-labelledby="nightly-title">
         <h2 id="nightly-title">Nightly</h2>
-        <p>A build of the newest changes, made every night. It can break. <span className="nowrap">Settings › Updates</span> in the app switches between stable and nightly.</p>
+        <p>The newest changes, built every night. It can break. Switch channels in <span className="nowrap">Settings › Updates</span>.</p>
         {nightly ? <>
           <div className="downloads">
             {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={nightly} loading={false} plain />)}

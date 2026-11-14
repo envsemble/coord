@@ -64,11 +64,9 @@ h1 {
   margin: 1.25rem 0 0;
   max-width: 36rem;
   text-wrap: balance;
-  padding: 0;
-  list-style: none;
   color: var(--muted);
   font-size: 0.9375rem;
-  line-height: 1.8;
+  line-height: 1.6;
 }
 
 .downloads {
