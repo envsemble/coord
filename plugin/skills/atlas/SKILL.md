@@ -21,7 +21,7 @@ Every planning folder has its own `AGENTS.md` (what is true, what to keep), whic
 
 Plan when the user is designing something, or asks for work whose requirements, boundaries or tradeoffs need settling, or that must survive across sessions. Small, clear tasks stay plain coding: no work item, no interview.
 
-When work qualifies, **ask before opening a work item**, then call `work_create` with a `summary`: two or three plain sentences on what the work is, why, and where it stands. Continue existing work only as the user selects it or the registry's `current_plan` points, never by the newest file or the highest number.
+When work qualifies, **ask before opening a work item** (follow-ups of work the user handed you to finish without them you open yourself, and say so), then call `work_create` with a `summary`: two or three plain sentences on what the work is, why, and where it stands. Continue existing work only as the user selects it or the registry's `current_plan` points, never by the newest file or the highest number.
 
 When one task is better thought of as several ordered pieces, each with its own plan and steps (a migration in stages, a feature built layer by layer), plan it **in parts**: the work item for the whole says what the parts add up to, and each part is a work item of the same project, made with `work_create` and `partOf` naming the whole; `work_parts` sets the parts in order, to reorder them, add existing work or take one out. Parts are one level deep. A task one plan covers stays one work item; work that goes on after other work (follow-ups moved off work that is closing, a next phase) continues it (`continues`) rather than being its part.
 
