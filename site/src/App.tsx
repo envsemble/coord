@@ -47,7 +47,7 @@ function Home() {
   const visitor = visitorPlatform({ userAgent: navigator.userAgent, platform: navigator.platform });
   const [channel, setChannel] = useState<Channel>('stable');
   const build = typeof builds === 'object' ? builds[channel] : null;
-  // Nightly dims the page to black.
+  // Nightly shows stars behind the page.
   useEffect(() => { document.documentElement.dataset.channel = channel; }, [channel]);
   // The visitor's system first.
   const platforms: Platform[] = visitor === 'linux' ? ['linux', 'windows'] : ['windows', 'linux'];
