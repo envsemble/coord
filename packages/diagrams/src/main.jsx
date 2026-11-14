@@ -12,7 +12,6 @@ createRoot(document.getElementById("root")).render(
         model={MODEL}
         views={VIEWS}
         exports={EXPORTS}
-        snippets={SNIPPETS}
         comparison={typeof COMPARISON === "undefined" ? undefined : COMPARISON}
         scenarios={typeof SCENARIOS === "undefined" ? undefined : SCENARIOS}
       />

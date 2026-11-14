@@ -2,93 +2,8 @@ var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
-// src/model/viewerModelIndex.js
-function indexViewerModel(model, generalizationGroups = []) {
-  const nodes = new Map(model.classes.map((node) => [node.id, node]));
-  const names = new Map(model.classes.map((node) => [node.name, node]));
-  const edges = new Map([
-    ...model.relations.map((edge) => [
-      edge.id,
-      {
-        ...edge,
-        type: "association",
-        source: nodes.get(edge.sourceId),
-        target: nodes.get(edge.targetId)
-      }
-    ]),
-    ...model.generalizations.map((edge) => [
-      edge.id,
-      {
-        ...edge,
-        type: "generalization",
-        source: nodes.get(edge.specificId),
-        target: nodes.get(edge.generalId)
-      }
-    ])
-  ]);
-  const sets = new Map((model.partitions || []).map((set) => [set.id, set]));
-  const groups = new Map(
-    generalizationGroups.map((group) => [
-      group.id,
-      {
-        ...group,
-        ...sets.get(group.id),
-        evidence: sets.get(group.id)?.evidence || [],
-        sources: group.sourceIds.map((id) => nodes.get(id)),
-        target: nodes.get(group.target)
-      }
-    ])
-  );
-  return {
-    nodes,
-    names,
-    edges,
-    groups,
-    getElement: (target) => target?.kind === "node" ? nodes.get(target.id) : target?.kind === "group" ? groups.get(target.id) : edges.get(target?.id)
-  };
-}
-function viewForNode(views, currentKey, node) {
-  return views.find(
-    (view) => view.key === currentKey && view.nodeIds.includes(node.id)
-  ) || views.find((view) => view.nodeIds.includes(node.id));
-}
-
-// src/model/inspectionTarget.js
-function inspectionTarget(model, index2, views, viewKey, id) {
-  const node = index2.nodes.get(id) || model.classes.find(
-    (c) => [...c.attributes, ...c.methods || []].some((m) => m.id === id)
-  );
-  if (node) {
-    const view2 = viewForNode(views, viewKey, node);
-    return view2 ? {
-      viewKey: view2.key,
-      target: { kind: "node", id: node.id },
-      nodeId: node.id,
-      ...node.id !== id ? { memberId: id } : {}
-    } : null;
-  }
-  const holds = (v) => v.diagram.edges.some((e) => e.id === id) || v.diagram.generalizationGroups?.some(
-    (g) => g.id === id || g.memberIds.includes(id)
-  );
-  const view = views.find((v) => v.key === viewKey && holds(v)) || views.find(holds);
-  if (!view) return null;
-  const edge = view.diagram.edges.find((e) => e.id === id);
-  return {
-    viewKey: view.key,
-    target: { kind: index2.edges.has(id) ? "edge" : "group", id },
-    ...edge ? { nodeIds: [edge.source, edge.target] } : {}
-  };
-}
-
 // src/viewer/DiagramViewer.jsx
-import {
-  useCallback as useCallback5,
-  useEffect as useEffect10,
-  useLayoutEffect as useLayoutEffect11,
-  useMemo as useMemo9,
-  useRef as useRef11,
-  useState as useState11
-} from "react";
+import { useMemo as useMemo7, useRef as useRef6, useState as useState10 } from "react";
 
 // src/canvas/DiagramCanvas.jsx
 import {
@@ -252,7 +167,7 @@ function MemberText({ member, x, y, method }) {
 function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
   const target = { kind: "node", id: node.id };
   const methods = node.methods || [];
-  const header = node.attributes.length || methods.length ? 66 : node.height;
+  const header = node.attributes.length || methods.length ? 56 : node.height;
   const change = isChanged(node.changeStatus) ? node.changeStatus : null;
   const tag = change && CHANGE_TAGS[change];
   const tagWidth = tag ? tag.length * 6.4 + 12 : 0;
@@ -325,26 +240,11 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
             }
           )
         ] }),
-        node.stereotype && /* @__PURE__ */ jsxs(
-          "text",
-          {
-            x: node.width / 2,
-            y: header / 2 - 10,
-            textAnchor: "middle",
-            fill: "var(--diagram-muted,#59636e)",
-            fontSize: "11.5",
-            children: [
-              "\xAB",
-              node.stereotype,
-              "\xBB"
-            ]
-          }
-        ),
         /* @__PURE__ */ jsx(
           "text",
           {
             x: node.width / 2,
-            y: header / 2 + (node.stereotype ? 13 : 5),
+            y: header / 2 + 8,
             textAnchor: "middle",
             fill: "var(--text,#1f2328)",
             fontSize: "15",
@@ -358,7 +258,7 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
           /* @__PURE__ */ jsx(
             "path",
             {
-              d: `M0 66 H${node.width}`,
+              d: `M0 56 H${node.width}`,
               stroke: "var(--diagram-divider,#d1d9e0)"
             }
           ),
@@ -373,7 +273,7 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
                 {
                   member: attribute,
                   x: 14,
-                  y: 85 + i * 20
+                  y: 75 + i * 20
                 },
                 attribute.id || i
               ))
@@ -383,7 +283,7 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
             /* @__PURE__ */ jsx(
               "path",
               {
-                d: `M0 ${node.attributes.length ? 76 + node.attributes.length * 20 : 66} H${node.width}`,
+                d: `M0 ${node.attributes.length ? 66 + node.attributes.length * 20 : 56} H${node.width}`,
                 stroke: "var(--diagram-divider,#d1d9e0)"
               }
             ),
@@ -399,7 +299,7 @@ function UMLNode({ node, focus, selected, handlers, idPrefix = "" }) {
                     member: method,
                     method: true,
                     x: 14,
-                    y: (node.attributes.length ? 97 + node.attributes.length * 20 : 85) + i * 20
+                    y: (node.attributes.length ? 87 + node.attributes.length * 20 : 75) + i * 20
                   },
                   method.id || i
                 ))
@@ -490,15 +390,6 @@ function describePart(item) {
   return [columns, ...flags].filter(Boolean).join(", ") || item.name;
 }
 var CHECKS = /* @__PURE__ */ new Set(["c", "x", "f", "t"]);
-function partChange(before, after) {
-  const was = describePart(before), is = describePart(after);
-  if (was !== is) return [was, is];
-  const fields = [.../* @__PURE__ */ new Set([...Object.keys(before), ...Object.keys(after)])].filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k])).map((k) => [k, readable(before[k]), readable(after[k])]);
-  return [
-    `${was}; ${fields.map(([k, b]) => `${k} ${b}`).join("; ")}`,
-    `${is}; ${fields.map(([k, , a]) => `${k} ${a}`).join("; ")}`
-  ];
-}
 var knownColumns = (columns) => Array.isArray(columns) && columns.some((c) => c != null) ? columns : [];
 var comparable = (item) => {
   if (!isForeignKey(item)) return item;
@@ -589,23 +480,11 @@ function movesOf(changes) {
   return moves;
 }
 var memberLabel = (member, method) => method ? `${member.name}()` : member.name;
-function memberSignature(member, method, profile) {
-  if (method) return member.type || `${member.name}()`;
-  if (!member.type) return member.name;
-  return profile === "database" ? `${member.name} ${member.type}` : `${member.name}: ${member.type}`;
-}
-function elementFile(element, model) {
-  if (element?.location?.file) return element.location.file;
-  const source = (model?.sources || []).find(
-    (s) => s.id === element?.primarySource
-  );
-  return source?.file || null;
-}
 var PLAIN_KINDS = /* @__PURE__ */ new Set(["dependency", "foreign key"]);
 function edgeTag(edge) {
   if ("specificId" in edge) return edge.realization ? "implements" : "inherits";
   if (PLAIN_KINDS.has(edge.stereotype)) return "";
-  return edge.stereotype ? `\xAB${edge.stereotype}\xBB` : "";
+  return edge.stereotype || "";
 }
 function index(model) {
   const classes = new Map(model.classes.map((c) => [c.id, c]));
@@ -627,7 +506,7 @@ function drawn(views) {
   if (!views) return null;
   const nodes = /* @__PURE__ */ new Set(), edges = /* @__PURE__ */ new Set();
   for (const view of views)
-    for (const diagram of [view.diagram, view.diagramFields].filter(Boolean)) {
+    for (const diagram of [view.diagram]) {
       for (const node of diagram.nodes || []) nodes.add(node.id);
       for (const edge of diagram.edges || []) edges.add(edge.id);
       for (const group of diagram.generalizationGroups || [])
@@ -987,124 +866,6 @@ function rowFor(rollup, target, model) {
   const id = edge?.originalId || target.id;
   return rollup.rows.find((r) => r.kind === "edge" && r.id === id) || null;
 }
-function describeClassChange(rollup, element, profile) {
-  const entry = rollup?.rows.find(
-    (r) => r.kind === "node" && r.id === element.id
-  );
-  if (!entry) return null;
-  const names = rollup.names;
-  const byId = new Map(entry.changes.map((c) => [c.elementId, c]));
-  const moved = new Map(
-    entry.members.filter((m) => m.moved).map((m) => [m.id, m.moved])
-  );
-  const members = [
-    ...(element.attributes || []).map((m) => ({ member: m, method: false })),
-    ...(element.methods || []).map((m) => ({ member: m, method: true }))
-  ];
-  const seen = /* @__PURE__ */ new Set();
-  const changed = [];
-  for (const { member, method } of members) {
-    const change = byId.get(member.id);
-    if (!change && !(member.changeStatus && member.changeStatus !== "unchanged"))
-      continue;
-    seen.add(member.id);
-    changed.push(
-      memberChange(
-        member,
-        method,
-        change,
-        profile,
-        names,
-        moved.get(member.id)
-      )
-    );
-  }
-  for (const m of entry.members) {
-    if (seen.has(m.id) || entry.status !== "modified") continue;
-    seen.add(m.id);
-    changed.push(
-      memberChange(
-        {
-          id: m.id,
-          name: m.member.name,
-          type: m.member.type,
-          changeStatus: m.status
-        },
-        m.member.method,
-        byId.get(m.id),
-        profile,
-        names,
-        m.moved
-      )
-    );
-  }
-  return {
-    status: entry.status,
-    properties: entry.notes.flatMap((n) => {
-      const parts = itemChanges(n);
-      if (parts?.length && parts.every((c) => isPart(c.after ?? c.before)))
-        return parts.map(({ status, before, after }) => {
-          const part = after ?? before;
-          const [was, is] = before && after ? partChange(before, after) : [
-            before ? describePart(before) : "none",
-            after ? describePart(after) : "none"
-          ];
-          return {
-            key: isForeignKey(part) ? "foreign key" : `${SINGULAR[n.property] ?? n.property} ${partName(part)}`,
-            status,
-            before: was,
-            after: is
-          };
-        });
-      return [
-        {
-          key: n.key,
-          status: "modified",
-          before: cellText(n.before, names, n.property),
-          after: cellText(n.after, names, n.property)
-        }
-      ];
-    }),
-    members: entry.status === "modified" ? changed : [],
-    // Members of a new or removed type that moved there or away.
-    moved: entry.status === "modified" ? [] : entry.members.filter((m) => m.moved),
-    entry
-  };
-}
-function previousMember(before, member) {
-  return {
-    ...member,
-    name: textOf(before.name) ?? member.name,
-    type: typeof before.type === "string" ? before.type : member.type
-  };
-}
-function memberChange(member, method, change, profile, names, moved) {
-  const status = member.changeStatus && member.changeStatus !== "unchanged" ? member.changeStatus : change?.kind;
-  const properties = meaningfulProperties(change).map((p) => ({
-    key: p.key,
-    before: cellText(p.before, names, p.key),
-    after: cellText(p.after, names, p.key)
-  }));
-  const before = change?.before;
-  return {
-    id: member.id,
-    status,
-    method,
-    name: member.name,
-    signature: memberSignature(member, method, profile),
-    // A member that moved in may also have changed on the way.
-    previous: (status === "modified" || moved?.from) && before ? memberSignature(previousMember(before, member), method, profile) : null,
-    properties,
-    moved: moved || null,
-    location: member.location || before?.location || null
-  };
-}
-function fileExists(model, file) {
-  if (!file) return false;
-  return model.classes.some(
-    (c) => c.changeStatus !== "added" && elementFile(c, model) === file
-  );
-}
 function dependencyMembers(source, target) {
   if (!source || !target?.name) return [];
   const pattern = new RegExp(
@@ -1337,20 +1098,7 @@ function UMLRelationLabels({
                 textAnchor: "middle",
                 fill: "var(--diagram-label,#1f2328)",
                 fontSize: "13",
-                children: label.text.split("\n").map((line, i, lines) => {
-                  const stereotype = i === 0 && (lines.length > 1 || /^«.*»$/.test(line));
-                  return /* @__PURE__ */ jsx2(
-                    "tspan",
-                    {
-                      x: label.width / 2,
-                      y: 17 + i * 17,
-                      fontSize: stereotype ? "11.5" : void 0,
-                      fill: stereotype ? "var(--diagram-muted,#59636e)" : void 0,
-                      children: line
-                    },
-                    i
-                  );
-                })
+                children: label.text.split("\n").map((line, i) => /* @__PURE__ */ jsx2("tspan", { x: label.width / 2, y: 17 + i * 17, children: line }, i))
               }
             )
           ] })
@@ -1482,6 +1230,33 @@ import { jsx as jsx4, jsxs as jsxs3 } from "react/jsx-runtime";
 var markerStates = ["", "-active", "-primary"];
 var changeStates = Object.keys(CHANGE_COLORS).map((change) => `-${change}`);
 var markerColor = (state, normal) => state === "-primary" ? "var(--diagram-selection,#9a6700)" : state === "-active" ? "var(--accent,#0969da)" : CHANGE_COLORS[state.slice(1)] || normal;
+function UMLPackages({ packages }) {
+  if (!packages?.length) return null;
+  return /* @__PURE__ */ jsx4("g", { className: "package-layer", "aria-hidden": "true", children: packages.map((p) => /* @__PURE__ */ jsxs3("g", { transform: `translate(${p.x} ${p.y})`, children: [
+    /* @__PURE__ */ jsx4(
+      "rect",
+      {
+        width: p.width,
+        height: p.height,
+        rx: "10",
+        fill: "var(--diagram-package,rgba(130,140,155,0.07))",
+        stroke: "var(--diagram-package-border,rgba(130,140,155,0.3))",
+        vectorEffect: "non-scaling-stroke"
+      }
+    ),
+    /* @__PURE__ */ jsx4(
+      "text",
+      {
+        x: "14",
+        y: "21",
+        fill: "var(--diagram-muted,#59636e)",
+        fontSize: "12.5",
+        fontWeight: "600",
+        children: p.name
+      }
+    )
+  ] }, p.name)) });
+}
 var UMLDiagram = memo(function UMLDiagram2({
   diagram,
   active = null,
@@ -1624,6 +1399,7 @@ var UMLDiagram = memo(function UMLDiagram2({
               state
             ))
           ] }),
+          /* @__PURE__ */ jsx4(UMLPackages, { packages: diagram.packages }),
           /* @__PURE__ */ jsxs3("g", { className: "relation-routes", children: [
             (diagram.generalizationGroups || []).map((group) => /* @__PURE__ */ jsx4(
               UMLGeneralizationGroup,
@@ -1728,7 +1504,8 @@ var UMLDiagram = memo(function UMLDiagram2({
       className: `uml-diagram${focus ? " has-focus" : ""}`,
       style: { width: diagram.width, height: diagram.height },
       children: [
-        interactive && backgroundURL && /* @__PURE__ */ jsx4(
+        interactive && backgroundURL && // eslint-disable-next-line envui/no-raw-graphics -- the diagram's own bitmap backdrop, at the diagram's pixel size under its SVG geometry, not a picture at one of envUI's sizes
+        /* @__PURE__ */ jsx4(
           "img",
           {
             className: `diagram-background${bitmap ? " ready" : ""}`,
@@ -1768,7 +1545,11 @@ function createCamera({
   onZoom,
   onTap,
   onMotion,
-  insets = () => NO_INSETS
+  insets = () => NO_INSETS,
+  // A press on an element drags it, when this says it may: `start(target,
+  // point)` returns whether it takes the press; `move(point)` follows the
+  // pointer and `end(moved)` lets go. Points are in diagram coordinates.
+  elementDrag = null
 }) {
   let camera = { x: 0, y: 0, scale: 1, fitted: true };
   let destination = { ...camera };
@@ -1957,18 +1738,22 @@ function createCamera({
     else snapTo(next);
   }
   function clearPointers(canvas = canvasRef.current) {
+    if (drag?.element) {
+      drag.element = false;
+      elementDrag?.end(false);
+    }
     for (const id of pointers.keys())
       if (canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
     pointers.clear();
     drag = null;
-    canvas.classList.remove("dragging");
+    canvas.classList.remove("dragging", "moving");
   }
-  function restoreView(key, fields, focusIds = []) {
+  function restoreView(key, focusIds = []) {
     cancelMotion();
     clearPointers();
     if (activeKey) cameras.set(activeKey, { ...camera });
     initialFocus = focusIds;
-    activeKey = `${key}:${fields}`;
+    activeKey = key;
     if (cameras.has(activeKey)) {
       snapTo(cameras.get(activeKey));
     } else initialCamera();
@@ -2078,6 +1863,15 @@ function createCamera({
       const rect = canvas.getBoundingClientRect();
       return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
+    const inDiagram = (p) => ({
+      x: (p.x - camera.x) / camera.scale,
+      y: (p.y - camera.y) / camera.scale
+    });
+    const letGo = (moved2) => {
+      if (!drag?.element) return;
+      drag.element = false;
+      elementDrag?.end(moved2);
+    };
     const motionPreference = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
     reducedMotion = motionPreference?.matches || false;
     if (motionPreference)
@@ -2106,6 +1900,7 @@ function createCamera({
       const p = position(e);
       pointers.set(e.pointerId, p);
       canvas.setPointerCapture(e.pointerId);
+      if (pointers.size > 1) letGo(false);
       drag = {
         startX: p.x,
         startY: p.y,
@@ -2113,9 +1908,10 @@ function createCamera({
         lastY: p.y,
         moved: false,
         target: e.target,
-        gesture: gesture()
+        gesture: gesture(),
+        element: pointers.size === 1 && !!elementDrag?.start(e.target, inDiagram(p))
       };
-      canvas.classList.add("dragging");
+      canvas.classList.add(drag.element ? "moving" : "dragging");
     });
     listen(canvas, "pointermove", (e) => {
       if (!pointers.has(e.pointerId) || !drag) return;
@@ -2132,7 +1928,15 @@ function createCamera({
         moved = true;
         drag.gesture = g;
       } else if (g) drag.gesture = g;
-      else {
+      else if (drag.element) {
+        if (Math.hypot(p.x - drag.startX, p.y - drag.startY) > 4)
+          drag.moved = true;
+        if (drag.moved && !moved) onMotion?.();
+        if (drag.moved) {
+          moved = true;
+          elementDrag.move(inDiagram(p));
+        }
+      } else {
         const wasMoved = drag.moved;
         if (Math.hypot(p.x - drag.startX, p.y - drag.startY) > 4)
           drag.moved = true;
@@ -2153,10 +1957,11 @@ function createCamera({
       if (e.type === "pointercancel") moved = true;
       pointers.delete(e.pointerId);
       if (!pointers.size) {
+        letGo(e.type === "pointerup" && !!drag?.moved);
         if (e.type === "pointerup" && drag && !drag.moved && drag.target)
           onTap?.(drag.target);
         drag = null;
-        canvas.classList.remove("dragging");
+        canvas.classList.remove("dragging", "moving");
       } else {
         const p = [...pointers.values()][0];
         drag = {
@@ -2266,9 +2071,10 @@ function useDiagramCamera({
   onZoom,
   onTap,
   onMotion,
-  insets
+  insets,
+  elementDrag = null
 }) {
-  const callbacks = useRef2({ onZoom, onTap, onMotion, insets });
+  const callbacks = useRef2({ onZoom, onTap, onMotion, insets, elementDrag });
   const controls = useMemo2(
     () => createCamera({
       canvasRef,
@@ -2279,17 +2085,22 @@ function useDiagramCamera({
       insets: (canvas) => {
         const value = callbacks.current.insets;
         return typeof value === "function" ? value(canvas) : value;
+      },
+      elementDrag: {
+        start: (target, point) => !!callbacks.current.elementDrag?.start(target, point),
+        move: (point) => callbacks.current.elementDrag?.move(point),
+        end: (moved) => callbacks.current.elementDrag?.end(moved)
       }
     }),
     // A new camera implementation during Vite refresh needs a new controller.
     [createCamera]
   );
   useLayoutEffect2(() => {
-    callbacks.current = { onZoom, onTap, onMotion, insets };
-  }, [onZoom, onTap, onMotion, insets]);
+    callbacks.current = { onZoom, onTap, onMotion, insets, elementDrag };
+  }, [onZoom, onTap, onMotion, insets, elementDrag]);
   useLayoutEffect2(() => {
-    controls.restoreView(diagram.key, diagram.fields, diagram.initialFocus);
-  }, [controls, diagram]);
+    controls.restoreView(diagram.key, diagram.initialFocus);
+  }, [controls, diagram.key, diagram.initialFocus]);
   useLayoutEffect2(() => {
     if (focusRequest?.ids)
       controls.focusNodes(focusRequest.ids, focusRequest.rightInset);
@@ -2313,7 +2124,8 @@ var DiagramCanvas = memo2(
     onSelect,
     onZoom,
     onHover,
-    onClearHover
+    onClearHover,
+    elementDrag = null
   }, ref) {
     const canvasRef = useRef3(null), worldRef = useRef3(null);
     const [focused, setFocused] = useState2(null);
@@ -2331,13 +2143,18 @@ var DiagramCanvas = memo2(
       // invokes this only for taps, so panning and zooming retain selection.
       onTap: (element) => onSelect(readTarget(element)),
       onMotion: clearTransient,
-      insets: fitInsets
+      insets: fitInsets,
+      elementDrag
     });
     useImperativeHandle(ref, () => controls, [controls]);
     useLayoutEffect3(() => {
       if (selected?.kind === "node") controls.revealNode(selected.id);
-    }, [controls, diagram, selected]);
-    useLayoutEffect3(clearTransient, [clearTransient, diagram]);
+    }, [controls, diagram.key, diagram.initialFocus, selected]);
+    useLayoutEffect3(clearTransient, [
+      clearTransient,
+      diagram.key,
+      diagram.initialFocus
+    ]);
     useLayoutEffect3(clearTransient, [clearTransient, selected]);
     useEffect(() => {
       const escape = (e) => {
@@ -2358,6 +2175,7 @@ var DiagramCanvas = memo2(
       {
         ref: canvasRef,
         id: "canvas",
+        className: elementDrag ? "arrangeable" : void 0,
         "aria-label": "Interactive diagram",
         onPointerLeave: () => onHover(null),
         children: [
@@ -2451,19 +2269,46 @@ function useSVGExport(svgSource, theme, scope, fade = false) {
 }
 
 // src/viewer/DiagramViewer.jsx
-import {
-  Dialog,
-  EmptyState,
-  useTheme,
-  useThemePreference
-} from "@envsemble/envui";
+import { Dialog, useTheme, useThemePreference } from "@envsemble/envui";
 
-// src/ui/Panel.jsx
-import { Surface, Text } from "@envsemble/envui";
+// src/ui/EmptyState.jsx
+import { createElement } from "react";
+import { Column, Text } from "@envsemble/envui";
+import { jsx as jsx6, jsxs as jsxs5 } from "react/jsx-runtime";
+function EmptyState({
+  title,
+  description,
+  headingLevel = 4,
+  className
+}) {
+  return /* @__PURE__ */ jsxs5(
+    Column,
+    {
+      gap: 2,
+      className: `atlas-empty-state${className ? ` ${className}` : ""}`,
+      children: [
+        /* @__PURE__ */ jsx6(
+          Text,
+          {
+            render: createElement(`h${headingLevel}`),
+            variant: "title",
+            className: "atlas-section-heading",
+            children: title
+          }
+        ),
+        description && /* @__PURE__ */ jsx6(Text, { variant: "body-sm", children: description })
+      ]
+    }
+  );
+}
+
+// src/viewer/ViewerToolbar.jsx
+import { forwardRef as forwardRef2 } from "react";
+import { Text as Text3, ThemeToggle } from "@envsemble/envui";
 
 // src/ui/ToolButton.jsx
 import { IconButton, Tooltip as Tooltip2 } from "@envsemble/envui";
-import { jsx as jsx6 } from "react/jsx-runtime";
+import { jsx as jsx7 } from "react/jsx-runtime";
 function ToolButton({
   label,
   tooltip = label,
@@ -2473,7 +2318,7 @@ function ToolButton({
   side = "bottom",
   ...props
 }) {
-  return /* @__PURE__ */ jsx6(Tooltip2, { content: tooltip, side, children: /* @__PURE__ */ jsx6(
+  return /* @__PURE__ */ jsx7(Tooltip2, { content: tooltip, side, children: /* @__PURE__ */ jsx7(
     IconButton,
     {
       ...props,
@@ -2485,93 +2330,32 @@ function ToolButton({
   ) });
 }
 
-// src/ui/icons.jsx
-import { AccountTree } from "@envsemble/envui/icons/AccountTree";
-import { Add } from "@envsemble/envui/icons/Add";
-import { ArrowBack } from "@envsemble/envui/icons/ArrowBack";
-import { Category } from "@envsemble/envui/icons/Category";
-import { ChevronLeft } from "@envsemble/envui/icons/ChevronLeft";
-import { ChevronRight } from "@envsemble/envui/icons/ChevronRight";
-import { Close } from "@envsemble/envui/icons/Close";
-import { Code } from "@envsemble/envui/icons/Code";
-import { Contrast } from "@envsemble/envui/icons/Contrast";
-import { Database } from "@envsemble/envui/icons/Database";
-import { Description } from "@envsemble/envui/icons/Description";
-import { Difference } from "@envsemble/envui/icons/Difference";
-import { Download } from "@envsemble/envui/icons/Download";
-import { EditNote } from "@envsemble/envui/icons/EditNote";
-import { FitScreen } from "@envsemble/envui/icons/FitScreen";
-import { FolderZip } from "@envsemble/envui/icons/FolderZip";
-import { Fullscreen } from "@envsemble/envui/icons/Fullscreen";
-import { FullscreenExit } from "@envsemble/envui/icons/FullscreenExit";
-import { Image } from "@envsemble/envui/icons/Image";
-import { Info } from "@envsemble/envui/icons/Info";
-import { OpenInNew } from "@envsemble/envui/icons/OpenInNew";
-import { Polyline } from "@envsemble/envui/icons/Polyline";
-import { Remove } from "@envsemble/envui/icons/Remove";
-import { RightPanelClose } from "@envsemble/envui/icons/RightPanelClose";
-import { RightPanelOpen } from "@envsemble/envui/icons/RightPanelOpen";
-import { School } from "@envsemble/envui/icons/School";
-import { Search } from "@envsemble/envui/icons/Search";
-import { TableRows } from "@envsemble/envui/icons/TableRows";
-
-// src/ui/Panel.jsx
-import { jsx as jsx7, jsxs as jsxs5 } from "react/jsx-runtime";
-function Panel({
-  ref,
-  open,
-  onClose,
-  label = "Diagram details",
-  title = label,
-  toolbar = null,
-  closeLabel = "Close details",
-  resizer = null,
-  children,
-  id = "panel",
-  className = "",
-  ...props
-}) {
-  const compact = !title && !toolbar;
-  return /* @__PURE__ */ jsxs5(
-    Surface,
-    {
-      as: "aside",
-      tone: "pane",
-      padding: 0,
-      id,
-      className: `panel${open ? " open" : ""}${className ? ` ${className}` : ""}`,
-      "aria-label": label,
-      ...props,
-      children: [
-        resizer,
-        /* @__PURE__ */ jsxs5("div", { className: "panel-scroll", ref, children: [
-          /* @__PURE__ */ jsxs5("div", { className: `panel-header${compact ? " compact" : ""}`, children: [
-            toolbar,
-            !toolbar && title && /* @__PURE__ */ jsx7(Text, { as: "h2", variant: "section-heading", className: "panel-title", children: title }),
-            onClose && /* @__PURE__ */ jsx7(
-              ToolButton,
-              {
-                className: "panel-close",
-                label: closeLabel,
-                icon: /* @__PURE__ */ jsx7(Close, {}),
-                onClick: onClose
-              }
-            )
-          ] }),
-          /* @__PURE__ */ jsx7("div", { className: "panel-content", children })
-        ] })
-      ]
-    }
-  );
-}
-
-// src/viewer/ViewerToolbar.jsx
-import { forwardRef as forwardRef2, useMemo as useMemo4 } from "react";
-import { Text as Text3, ThemeToggle } from "@envsemble/envui";
-
 // src/viewer/CameraControls.jsx
 import { useSyncExternalStore } from "react";
 import { Button, ButtonGroup, Kbd, Tooltip as Tooltip3 } from "@envsemble/envui";
+
+// src/ui/icons.jsx
+import { IconAdd } from "@envsemble/envui/icons/Add";
+import { IconChevronLeft } from "@envsemble/envui/icons/ChevronLeft";
+import { IconChevronRight } from "@envsemble/envui/icons/ChevronRight";
+import { IconClose } from "@envsemble/envui/icons/Close";
+import { IconCode } from "@envsemble/envui/icons/Code";
+import { IconContrast } from "@envsemble/envui/icons/Contrast";
+import { IconDatabase } from "@envsemble/envui/icons/Database";
+import { IconDescription } from "@envsemble/envui/icons/Description";
+import { IconDifference } from "@envsemble/envui/icons/Difference";
+import { IconDownload } from "@envsemble/envui/icons/Download";
+import { IconEditNote } from "@envsemble/envui/icons/EditNote";
+import { IconFitScreen } from "@envsemble/envui/icons/FitScreen";
+import { IconFolderZip } from "@envsemble/envui/icons/FolderZip";
+import { IconImage } from "@envsemble/envui/icons/Image";
+import { IconInfo } from "@envsemble/envui/icons/Info";
+import { IconPalette } from "@envsemble/envui/icons/Palette";
+import { IconRemove } from "@envsemble/envui/icons/Remove";
+import { IconRestartAlt } from "@envsemble/envui/icons/RestartAlt";
+import { IconSchool } from "@envsemble/envui/icons/School";
+
+// src/viewer/CameraControls.jsx
 import { Fragment as Fragment3, jsx as jsx8, jsxs as jsxs6 } from "react/jsx-runtime";
 function ZoomReadout({ zoom, onReset }) {
   return /* @__PURE__ */ jsx8(Tooltip3, { content: "Reset to 100%", side: "bottom", children: /* @__PURE__ */ jsxs6(
@@ -2616,7 +2400,7 @@ function CameraControls({
           /* @__PURE__ */ jsx8(Kbd, { children: "\u2212" })
         ] }),
         "aria-keyshortcuts": "-",
-        icon: /* @__PURE__ */ jsx8(Remove, {}),
+        icon: /* @__PURE__ */ jsx8(IconRemove, {}),
         onClick: () => onZoom(1 / 1.25)
       }
     ),
@@ -2631,7 +2415,7 @@ function CameraControls({
           /* @__PURE__ */ jsx8(Kbd, { children: "+" })
         ] }),
         "aria-keyshortcuts": "+",
-        icon: /* @__PURE__ */ jsx8(Add, {}),
+        icon: /* @__PURE__ */ jsx8(IconAdd, {}),
         onClick: () => onZoom(1.25)
       }
     ),
@@ -2645,221 +2429,16 @@ function CameraControls({
           /* @__PURE__ */ jsx8(Kbd, { children: "0" })
         ] }),
         "aria-keyshortcuts": "0",
-        icon: /* @__PURE__ */ jsx8(FitScreen, {}),
+        icon: /* @__PURE__ */ jsx8(IconFitScreen, {}),
         onClick: onFit
       }
     )
   ] });
 }
 
-// src/viewer/ConceptSearch.jsx
-import {
-  memo as memo3,
-  useEffect as useEffect4,
-  useId as useId2,
-  useLayoutEffect as useLayoutEffect5,
-  useMemo as useMemo3,
-  useRef as useRef5,
-  useState as useState4
-} from "react";
-import { Kbd as Kbd2, SearchField, Surface as Surface2 } from "@envsemble/envui";
-
-// src/ui/usePopupDismiss.js
-import { useEffect as useEffect3, useLayoutEffect as useLayoutEffect4, useRef as useRef4 } from "react";
-function usePopupDismiss(onClose, ...roots) {
-  const latest = useRef4({ onClose, roots });
-  useLayoutEffect4(() => {
-    latest.current = { onClose, roots };
-  });
-  useEffect3(() => {
-    const outside = (e) => {
-      if (!latest.current.roots.some((ref) => ref.current?.contains(e.target)))
-        latest.current.onClose();
-    };
-    const escape = (e) => {
-      if (e.key === "Escape") latest.current.onClose();
-    };
-    document.addEventListener("click", outside);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("click", outside);
-      document.removeEventListener("keydown", escape);
-    };
-  }, []);
-}
-
-// src/viewer/ConceptSearch.jsx
-import { Fragment as Fragment4, jsx as jsx9, jsxs as jsxs7 } from "react/jsx-runtime";
-var ConceptSearch = memo3(function ConceptSearch2({
-  classes,
-  onChoose
-}) {
-  const [query, setQuery] = useState4("");
-  const [open, setOpen] = useState4(false);
-  const [showHits, setShowHits] = useState4(false);
-  const inputRef = useRef5(null);
-  const suggestionsRef = useRef5(null);
-  const searchRef = useRef5(null);
-  const fieldId = useId2(), listId = useId2();
-  const q = query.trim().toLowerCase();
-  const searchEntries = useMemo3(
-    () => classes.map((concept) => ({ concept, text: concept.name.toLowerCase() })),
-    [classes]
-  );
-  const hits = useMemo3(() => {
-    if (!q) return [];
-    const matches = [];
-    for (const entry of searchEntries) {
-      if (entry.text.includes(q)) matches.push(entry.concept);
-      if (matches.length === 12) break;
-    }
-    return matches;
-  }, [q, searchEntries]);
-  const close = () => {
-    setShowHits(false);
-    setOpen(false);
-  };
-  useLayoutEffect5(() => {
-    if (open) inputRef.current.focus();
-  }, [open]);
-  usePopupDismiss(close, searchRef);
-  useEffect4(() => {
-    const shortcut = (e) => {
-      if (e.target.closest?.("input,textarea,select,[contenteditable='true']"))
-        return;
-      if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        if (!searchRef.current?.offsetParent) return;
-        const first = [...document.querySelectorAll(".search")].find(
-          (el) => el.offsetParent
-        );
-        if (first && first !== searchRef.current) return;
-        e.preventDefault();
-        setOpen(true);
-        inputRef.current.focus();
-      }
-    };
-    document.addEventListener("keydown", shortcut);
-    return () => document.removeEventListener("keydown", shortcut);
-  }, []);
-  function choose(id) {
-    onChoose(id);
-    setQuery("");
-    close();
-    inputRef.current.blur();
-  }
-  const listOpen = showHits && hits.length > 0;
-  return /* @__PURE__ */ jsxs7("div", { ref: searchRef, className: `search${open ? " open" : ""}`, children: [
-    /* @__PURE__ */ jsx9(
-      ToolButton,
-      {
-        className: "search-toggle",
-        label: "Open concept search",
-        tooltip: /* @__PURE__ */ jsxs7(Fragment4, { children: [
-          "Find concept ",
-          /* @__PURE__ */ jsx9(Kbd2, { children: "/" })
-        ] }),
-        "aria-expanded": open,
-        "aria-controls": fieldId,
-        icon: /* @__PURE__ */ jsx9(Search, {}),
-        onClick: () => setOpen(!open)
-      }
-    ),
-    /* @__PURE__ */ jsxs7("div", { className: "search-field", id: fieldId, children: [
-      /* @__PURE__ */ jsx9(
-        SearchField,
-        {
-          ref: inputRef,
-          label: "Find concept",
-          placeholder: "Find a concept (/)",
-          autoComplete: "off",
-          "aria-keyshortcuts": "/",
-          role: "combobox",
-          "aria-expanded": listOpen,
-          "aria-controls": listId,
-          "aria-autocomplete": "list",
-          value: query,
-          onValueChange: (next) => {
-            setQuery(next);
-            setShowHits(true);
-          },
-          onKeyDown: (e) => {
-            if (e.key === "Enter" && hits.length) {
-              choose(hits[0].id);
-              e.preventDefault();
-            }
-            if (e.key === "ArrowDown") {
-              suggestionsRef.current.querySelector("button")?.focus();
-              e.preventDefault();
-            }
-            if (e.key === "Escape") {
-              e.stopPropagation();
-              if (listOpen) {
-                e.preventDefault();
-                setShowHits(false);
-              } else if (!query) {
-                close();
-                inputRef.current.blur();
-              }
-            }
-          }
-        }
-      ),
-      /* @__PURE__ */ jsx9(
-        Surface2,
-        {
-          ref: suggestionsRef,
-          id: listId,
-          tone: "pane",
-          padding: 1,
-          corners: "standard",
-          className: `suggestions${listOpen ? " open" : ""}`,
-          role: "listbox",
-          "aria-label": "Concepts",
-          onKeyDown: (e) => {
-            const items = [
-              ...suggestionsRef.current.querySelectorAll("button")
-            ];
-            const index2 = items.indexOf(document.activeElement);
-            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-              e.preventDefault();
-              const next = index2 + (e.key === "ArrowDown" ? 1 : -1);
-              if (next < 0) inputRef.current.focus();
-              else items[Math.min(next, items.length - 1)]?.focus();
-            }
-            if (e.key === "Escape") {
-              e.stopPropagation();
-              setShowHits(false);
-              inputRef.current.focus();
-            }
-          },
-          children: hits.map((c) => /* @__PURE__ */ jsxs7(
-            "button",
-            {
-              type: "button",
-              role: "option",
-              "aria-selected": "false",
-              className: "suggestion",
-              onClick: () => choose(c.id),
-              children: [
-                /* @__PURE__ */ jsx9("span", { className: "suggestion-name", children: c.name }),
-                c.stereotype && /* @__PURE__ */ jsxs7("span", { className: "suggestion-detail", children: [
-                  "\xAB",
-                  c.stereotype,
-                  "\xBB"
-                ] })
-              ]
-            },
-            c.id
-          ))
-        }
-      )
-    ] })
-  ] });
-});
-
 // src/ui/ExportMenu.jsx
-import { Menu, MenuItem } from "@envsemble/envui";
-import { jsx as jsx10 } from "react/jsx-runtime";
+import { Menu } from "@envsemble/envui";
+import { jsx as jsx9 } from "react/jsx-runtime";
 function downloadURL(href, filename) {
   const link = document.createElement("a");
   link.href = href;
@@ -2875,21 +2454,21 @@ function downloadData(data, filename, type = "text/plain;charset=utf-8") {
   setTimeout(() => URL.revokeObjectURL(href), 1e4);
 }
 function ExportMenu({ items }) {
-  return /* @__PURE__ */ jsx10(
-    Menu,
+  return /* @__PURE__ */ jsx9(
+    Menu.Root,
     {
       "aria-label": "Export",
-      trigger: /* @__PURE__ */ jsx10(
+      trigger: /* @__PURE__ */ jsx9(
         ToolButton,
         {
           id: "export",
           label: "Export",
           tooltip: "Export the diagram or model",
-          icon: /* @__PURE__ */ jsx10(Download, {})
+          icon: /* @__PURE__ */ jsx9(IconDownload, {})
         }
       ),
-      children: items.map((item) => /* @__PURE__ */ jsx10(
-        MenuItem,
+      children: items.map((item) => /* @__PURE__ */ jsx9(
+        Menu.Item,
         {
           className: item.key,
           icon: item.icon,
@@ -2904,16 +2483,15 @@ function ExportMenu({ items }) {
 }
 
 // src/ui/Island.jsx
-import { Surface as Surface3 } from "@envsemble/envui";
-import { jsx as jsx11 } from "react/jsx-runtime";
+import { Surface } from "@envsemble/envui";
+import { jsx as jsx10 } from "react/jsx-runtime";
 function Island({ label, className = "", children, ...props }) {
-  return /* @__PURE__ */ jsx11(
-    Surface3,
+  return /* @__PURE__ */ jsx10(
+    Surface,
     {
-      tone: "pane",
-      corners: "pill",
+      background: "default",
+      radius: "full",
       padding: 1,
-      density: "compact",
       role: "group",
       "aria-label": label,
       className: `atlas-island${className ? ` ${className}` : ""}`,
@@ -2923,12 +2501,12 @@ function Island({ label, className = "", children, ...props }) {
   );
 }
 function IslandDivider() {
-  return /* @__PURE__ */ jsx11("span", { className: "island-divider", "aria-hidden": "true" });
+  return /* @__PURE__ */ jsx10("span", { className: "island-divider", "aria-hidden": "true" });
 }
 
 // src/ui/ViewSwitcher.jsx
 import { SegmentedControl, Select } from "@envsemble/envui";
-import { jsx as jsx12 } from "react/jsx-runtime";
+import { jsx as jsx11 } from "react/jsx-runtime";
 function ViewSwitcher({
   items,
   value,
@@ -2936,25 +2514,24 @@ function ViewSwitcher({
   label = "Diagram view",
   compact = false
 }) {
-  const options = items.map((item) => ({ value: item.key, label: item.label }));
+  const choices = items.map((item) => ({ value: item.key, label: item.label }));
   if (compact)
-    return /* @__PURE__ */ jsx12(
+    return /* @__PURE__ */ jsx11(
       Select,
       {
         className: "view-select",
         "aria-label": label,
-        options,
+        items: choices,
         value,
         onValueChange: (next) => next && onChange(next)
       }
     );
-  return /* @__PURE__ */ jsx12(
+  return /* @__PURE__ */ jsx11(
     SegmentedControl,
     {
       className: "view-switcher",
       "aria-label": label,
-      size: "compact",
-      options,
+      items: choices,
       value,
       onValueChange: onChange
     }
@@ -2962,9 +2539,9 @@ function ViewSwitcher({
 }
 
 // src/ui/AtlasMark.jsx
-import { jsx as jsx13, jsxs as jsxs8 } from "react/jsx-runtime";
+import { jsx as jsx12, jsxs as jsxs7 } from "react/jsx-runtime";
 function AtlasMark({ size = 28, label = "Atlas" }) {
-  return /* @__PURE__ */ jsxs8(
+  return /* @__PURE__ */ jsxs7(
     "svg",
     {
       width: size,
@@ -2974,8 +2551,8 @@ function AtlasMark({ size = 28, label = "Atlas" }) {
       "aria-label": label || void 0,
       "aria-hidden": label ? void 0 : true,
       children: [
-        /* @__PURE__ */ jsx13("rect", { x: "27", y: "27", width: "189", height: "188", rx: "43", fill: "#111820" }),
-        /* @__PURE__ */ jsxs8(
+        /* @__PURE__ */ jsx12("rect", { x: "27", y: "27", width: "189", height: "188", rx: "43", fill: "#111820" }),
+        /* @__PURE__ */ jsxs7(
           "g",
           {
             fill: "none",
@@ -2984,15 +2561,15 @@ function AtlasMark({ size = 28, label = "Atlas" }) {
             strokeLinecap: "round",
             strokeLinejoin: "round",
             children: [
-              /* @__PURE__ */ jsx13("path", { d: "M76 163 L120 77 L164 163" }),
-              /* @__PURE__ */ jsx13("path", { d: "M96 132 H144" })
+              /* @__PURE__ */ jsx12("path", { d: "M76 163 L120 77 L164 163" }),
+              /* @__PURE__ */ jsx12("path", { d: "M96 132 H144" })
             ]
           }
         ),
-        /* @__PURE__ */ jsxs8("g", { fill: "#fff", children: [
-          /* @__PURE__ */ jsx13("circle", { cx: "120", cy: "77", r: "18" }),
-          /* @__PURE__ */ jsx13("circle", { cx: "76", cy: "163", r: "18" }),
-          /* @__PURE__ */ jsx13("circle", { cx: "164", cy: "163", r: "18" })
+        /* @__PURE__ */ jsxs7("g", { fill: "#fff", children: [
+          /* @__PURE__ */ jsx12("circle", { cx: "120", cy: "77", r: "18" }),
+          /* @__PURE__ */ jsx12("circle", { cx: "76", cy: "163", r: "18" }),
+          /* @__PURE__ */ jsx12("circle", { cx: "164", cy: "163", r: "18" })
         ] })
       ]
     }
@@ -3000,7 +2577,7 @@ function AtlasMark({ size = 28, label = "Atlas" }) {
 }
 
 // src/viewer/ProvenanceBadge.jsx
-import { Badge, Surface as Surface4, Text as Text2 } from "@envsemble/envui";
+import { Badge, Surface as Surface2, Text as Text2 } from "@envsemble/envui";
 
 // src/viewer/provenance.js
 var MONTHS = [
@@ -3063,7 +2640,7 @@ function describeProvenance(document2) {
       kind: "generated",
       label,
       detail: captureDetail(baselineSnapshot(document2)),
-      tone: "accent"
+      tone: "primary"
     };
   } else if (document2.state === "proposal") {
     const date = formatCaptureDate(
@@ -3073,7 +2650,7 @@ function describeProvenance(document2) {
       kind: "proposal",
       label: "Agent proposal",
       detail: date ? `Changes to source captured ${date}` : "",
-      tone: "done"
+      tone: "accent"
     };
   } else if (document2.state === "authored") {
     result = {
@@ -3087,22 +2664,22 @@ function describeProvenance(document2) {
 }
 
 // src/viewer/ProvenanceBadge.jsx
-import { jsx as jsx14, jsxs as jsxs9 } from "react/jsx-runtime";
+import { jsx as jsx13, jsxs as jsxs8 } from "react/jsx-runtime";
 function ProvenanceIcon({ provenance, profile }) {
-  if (provenance.kind === "proposal") return /* @__PURE__ */ jsx14(Difference, {});
-  if (provenance.kind === "authored") return /* @__PURE__ */ jsx14(EditNote, {});
-  if (profile === "database") return /* @__PURE__ */ jsx14(Database, {});
-  if (profile === "code") return /* @__PURE__ */ jsx14(Code, {});
-  return /* @__PURE__ */ jsx14(Description, {});
+  if (provenance.kind === "proposal") return /* @__PURE__ */ jsx13(IconDifference, {});
+  if (provenance.kind === "authored") return /* @__PURE__ */ jsx13(IconEditNote, {});
+  if (profile === "database") return /* @__PURE__ */ jsx13(IconDatabase, {});
+  if (profile === "code") return /* @__PURE__ */ jsx13(IconCode, {});
+  return /* @__PURE__ */ jsx13(IconDescription, {});
 }
 function ProvenanceLabel({ document: document2 }) {
   const provenance = describeProvenance(document2);
   if (provenance.kind === "unknown") return null;
-  return /* @__PURE__ */ jsx14(
+  return /* @__PURE__ */ jsx13(
     Badge,
     {
       tone: provenance.tone,
-      icon: /* @__PURE__ */ jsx14(ProvenanceIcon, { provenance, profile: document2?.profile }),
+      icon: /* @__PURE__ */ jsx13(ProvenanceIcon, { provenance, profile: document2?.profile }),
       children: provenance.label
     }
   );
@@ -3110,50 +2687,46 @@ function ProvenanceLabel({ document: document2 }) {
 function ProvenanceBadge({ document: document2, className = "" }) {
   const provenance = describeProvenance(document2);
   if (provenance.kind === "unknown") return null;
-  return /* @__PURE__ */ jsxs9(
-    Surface4,
+  return /* @__PURE__ */ jsxs8(
+    Surface2,
     {
-      tone: "pane",
-      corners: "pill",
+      background: "default",
+      radius: "full",
       padding: 1,
-      density: "compact",
       className: `atlas-provenance${className ? ` ${className}` : ""}`,
       title: provenance.detail ? `${provenance.label} \xB7 ${provenance.detail}` : provenance.label,
       children: [
-        /* @__PURE__ */ jsx14(ProvenanceLabel, { document: document2 }),
-        provenance.detail && /* @__PURE__ */ jsx14(Text2, { as: "span", variant: "supporting", className: "provenance-detail", children: provenance.detail })
+        /* @__PURE__ */ jsx13(ProvenanceLabel, { document: document2 }),
+        provenance.detail && /* @__PURE__ */ jsx13(Text2, { render: /* @__PURE__ */ jsx13("span", {}), variant: "body-sm", className: "provenance-detail", children: provenance.detail })
       ]
     }
   );
 }
 
 // src/viewer/ViewerToolbar.jsx
-import { jsx as jsx15, jsxs as jsxs10 } from "react/jsx-runtime";
-function exportChoices({ exports, viewKey, fields, theme, diagramURL }) {
+import { Fragment as Fragment4, jsx as jsx14, jsxs as jsxs9 } from "react/jsx-runtime";
+function exportChoices({ exports, viewKey, theme, diagramURL }) {
   const sourceFile = `${exports.slug}.puml`;
   return [
     {
       key: "svg-download",
       label: "SVG image",
-      description: `This view${fields ? " with attributes" : ""}, ${theme} theme`,
-      icon: /* @__PURE__ */ jsx15(Image, {}),
-      onSelect: () => diagramURL && downloadURL(
-        diagramURL,
-        `${exports.slug}-${viewKey}${fields ? "-fields" : ""}-${theme}.svg`
-      )
+      description: `This view, ${theme} theme`,
+      icon: /* @__PURE__ */ jsx14(IconImage, {}),
+      onSelect: () => diagramURL && downloadURL(diagramURL, `${exports.slug}-${viewKey}-${theme}.svg`)
     },
     {
       key: "source-download",
       label: "PlantUML",
       description: "The diagram's source",
-      icon: /* @__PURE__ */ jsx15(Code, {}),
+      icon: /* @__PURE__ */ jsx14(IconCode, {}),
       onSelect: () => downloadData(exports.readText(sourceFile), sourceFile)
     },
     {
       key: "bundle-download",
       label: "Models ZIP",
       description: "Every export, with evidence and validation",
-      icon: /* @__PURE__ */ jsx15(FolderZip, {}),
+      icon: /* @__PURE__ */ jsx14(IconFolderZip, {}),
       onSelect: () => downloadData(
         exports.bundle,
         `${exports.slug}-models.zip`,
@@ -3167,12 +2740,9 @@ var ViewerToolbar = forwardRef2(function ViewerToolbar2({
   views,
   exports,
   viewKey,
-  fields,
   theme,
   zoomStore,
   diagramURL,
-  detailsHidden,
-  detailsOpen,
   scenariosOpen,
   aboutOpen,
   reviewControls,
@@ -3180,49 +2750,42 @@ var ViewerToolbar = forwardRef2(function ViewerToolbar2({
   hasScenarios = false,
   density = 0,
   themeToggle = false,
-  onDetails,
   onView,
-  onFields,
-  onChoose,
   onAbout,
   onScenarios,
   onZoom,
   onReset,
   onFit
 }, ref) {
-  const searchClasses = useMemo4(() => {
-    const visibleIds = new Set(views.flatMap((view) => view.nodeIds));
-    return model.classes.filter((concept) => visibleIds.has(concept.id));
-  }, [model.classes, views]);
   const origin = describeProvenance(provenance);
-  return /* @__PURE__ */ jsxs10(
+  return /* @__PURE__ */ jsxs9(
     "header",
     {
       className: `atlas-overlay-top viewer-toolbar${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`,
       ref,
       children: [
-        /* @__PURE__ */ jsxs10(Island, { label: "Diagram navigation", className: "island-start", children: [
-          /* @__PURE__ */ jsx15("span", { className: "brand-mark", children: /* @__PURE__ */ jsx15(AtlasMark, { label: "" }) }),
-          /* @__PURE__ */ jsx15(
+        /* @__PURE__ */ jsxs9(Island, { label: "Diagram navigation", className: "island-start", children: [
+          /* @__PURE__ */ jsx14("span", { className: "brand-mark", children: /* @__PURE__ */ jsx14(AtlasMark, { label: "" }) }),
+          /* @__PURE__ */ jsx14(
             Text3,
             {
-              as: "span",
-              variant: "section-heading",
-              className: "island-title",
+              render: /* @__PURE__ */ jsx14("span", {}),
+              variant: "title",
+              className: "atlas-section-heading island-title",
               title: model.title,
               children: model.title
             }
           ),
-          origin.kind !== "unknown" && /* @__PURE__ */ jsx15(
+          origin.kind !== "unknown" && /* @__PURE__ */ jsx14(
             "span",
             {
               className: "island-provenance",
               title: origin.detail || void 0,
-              children: /* @__PURE__ */ jsx15(ProvenanceLabel, { document: provenance })
+              children: /* @__PURE__ */ jsx14(ProvenanceLabel, { document: provenance })
             }
           ),
-          (views.length > 1 || reviewControls) && /* @__PURE__ */ jsx15(IslandDivider, {}),
-          views.length > 1 && /* @__PURE__ */ jsx15(
+          (views.length > 1 || reviewControls) && /* @__PURE__ */ jsx14(IslandDivider, {}),
+          views.length > 1 && /* @__PURE__ */ jsx14(
             ViewSwitcher,
             {
               items: views,
@@ -3231,73 +2794,52 @@ var ViewerToolbar = forwardRef2(function ViewerToolbar2({
               compact: density > 0
             }
           ),
-          views.length > 1 && reviewControls && /* @__PURE__ */ jsx15(IslandDivider, {}),
+          views.length > 1 && reviewControls && /* @__PURE__ */ jsx14(IslandDivider, {}),
           reviewControls
         ] }),
-        /* @__PURE__ */ jsxs10(Island, { label: "Diagram tools", className: "island-end", children: [
-          /* @__PURE__ */ jsx15(ConceptSearch, { classes: searchClasses, onChoose }),
-          /* @__PURE__ */ jsx15(
-            ToolButton,
-            {
-              id: "fields",
-              label: "Fields",
-              tooltip: fields ? "Hide attributes" : "Show attributes",
-              pressed: fields,
-              icon: /* @__PURE__ */ jsx15(TableRows, {}),
-              onClick: onFields
-            }
-          ),
-          /* @__PURE__ */ jsx15(
+        /* @__PURE__ */ jsxs9(Island, { label: "Diagram tools", className: "island-end", children: [
+          /* @__PURE__ */ jsx14(
             CameraControls,
             {
               ...{ zoomStore, onZoom, onReset, onFit },
               compact: density > 2
             }
           ),
-          /* @__PURE__ */ jsx15(IslandDivider, {}),
-          hasScenarios && /* @__PURE__ */ jsx15(
-            ToolButton,
-            {
-              id: "scenarios-toggle",
-              label: "Understand the model",
-              pressed: scenariosOpen && detailsOpen,
-              icon: /* @__PURE__ */ jsx15(School, {}),
-              onClick: onScenarios
-            }
-          ),
-          /* @__PURE__ */ jsx15(
-            ToolButton,
-            {
-              id: "details-toggle",
-              label: detailsHidden ? "Show details" : "Hide details",
-              "aria-controls": "inspector",
-              "aria-expanded": detailsOpen,
-              icon: detailsHidden ? /* @__PURE__ */ jsx15(RightPanelOpen, {}) : /* @__PURE__ */ jsx15(RightPanelClose, {}),
-              onClick: onDetails
-            }
-          ),
-          /* @__PURE__ */ jsx15(IslandDivider, {}),
-          themeToggle && /* @__PURE__ */ jsx15(ThemeToggle, { id: "theme-toggle" }),
-          /* @__PURE__ */ jsx15(
+          /* @__PURE__ */ jsx14(IslandDivider, {}),
+          hasScenarios && /* @__PURE__ */ jsxs9(Fragment4, { children: [
+            /* @__PURE__ */ jsx14(
+              ToolButton,
+              {
+                id: "scenarios-toggle",
+                label: "Understand the model",
+                pressed: scenariosOpen,
+                "aria-controls": "side-panel",
+                icon: /* @__PURE__ */ jsx14(IconSchool, {}),
+                onClick: onScenarios
+              }
+            ),
+            /* @__PURE__ */ jsx14(IslandDivider, {})
+          ] }),
+          themeToggle && /* @__PURE__ */ jsx14(ThemeToggle, { id: "theme-toggle" }),
+          /* @__PURE__ */ jsx14(
             ExportMenu,
             {
               items: exportChoices({
                 exports,
                 viewKey,
-                fields,
                 theme,
                 diagramURL
               })
             }
           ),
-          /* @__PURE__ */ jsx15(
+          /* @__PURE__ */ jsx14(
             ToolButton,
             {
               id: "info",
               label: "About and controls",
               "aria-haspopup": "dialog",
               "aria-expanded": aboutOpen,
-              icon: /* @__PURE__ */ jsx15(Info, {}),
+              icon: /* @__PURE__ */ jsx14(IconInfo, {}),
               onClick: onAbout
             }
           )
@@ -3308,16 +2850,16 @@ var ViewerToolbar = forwardRef2(function ViewerToolbar2({
 });
 
 // src/viewer/About.jsx
-import { Kbd as Kbd3, Stack, Text as Text4 } from "@envsemble/envui";
+import { Kbd as Kbd2, Column as Column2, Text as Text4 } from "@envsemble/envui";
 
 // src/ui/DownloadLink.jsx
 import { Button as Button2 } from "@envsemble/envui";
 
 // src/ui/useBlobURL.js
-import { useEffect as useEffect5, useState as useState5 } from "react";
+import { useEffect as useEffect3, useState as useState4 } from "react";
 function useBlobURL(data, type = "text/plain;charset=utf-8") {
-  const [url, setURL] = useState5(void 0);
-  useEffect5(() => {
+  const [url, setURL] = useState4(void 0);
+  useEffect3(() => {
     const next = URL.createObjectURL(new Blob([data], { type }));
     setURL(next);
     return () => URL.revokeObjectURL(next);
@@ -3326,15 +2868,15 @@ function useBlobURL(data, type = "text/plain;charset=utf-8") {
 }
 
 // src/ui/DownloadLink.jsx
-import { jsx as jsx16 } from "react/jsx-runtime";
+import { jsx as jsx15 } from "react/jsx-runtime";
 function DownloadLink({ data, filename, type, children, ...props }) {
   const href = useBlobURL(data, type);
-  return /* @__PURE__ */ jsx16(
+  return /* @__PURE__ */ jsx15(
     Button2,
     {
       ...props,
       variant: "text",
-      startIcon: /* @__PURE__ */ jsx16(Download, {}),
+      startIcon: /* @__PURE__ */ jsx15(IconDownload, {}),
       ...href ? { href, download: filename } : { disabled: true },
       children
     }
@@ -3342,31 +2884,30 @@ function DownloadLink({ data, filename, type, children, ...props }) {
 }
 
 // src/viewer/About.jsx
-import { Fragment as Fragment5, jsx as jsx17, jsxs as jsxs11 } from "react/jsx-runtime";
+import { Fragment as Fragment5, jsx as jsx16, jsxs as jsxs10 } from "react/jsx-runtime";
 function About({ model, exports, provenance }) {
-  return /* @__PURE__ */ jsxs11(Stack, { gap: 4, className: "atlas-portal about-content", children: [
-    /* @__PURE__ */ jsx17(ProvenanceBadge, { document: provenance, className: "inline" }),
-    /* @__PURE__ */ jsx17(Text4, { tone: "muted", children: model.status }),
-    /* @__PURE__ */ jsx17("dl", { className: "shortcut-list", children: [
+  return /* @__PURE__ */ jsxs10(Column2, { gap: 4, className: "atlas-portal about-content", children: [
+    /* @__PURE__ */ jsx16(ProvenanceBadge, { document: provenance, className: "inline" }),
+    /* @__PURE__ */ jsx16(Text4, { emphasis: "muted", children: model.status }),
+    /* @__PURE__ */ jsx16("dl", { className: "shortcut-list", children: [
       ["Scroll or pinch", "Zoom"],
       ["Drag", "Pan"],
       [
-        /* @__PURE__ */ jsxs11(Fragment5, { children: [
-          /* @__PURE__ */ jsx17(Kbd3, { children: "+" }),
+        /* @__PURE__ */ jsxs10(Fragment5, { children: [
+          /* @__PURE__ */ jsx16(Kbd2, { children: "+" }),
           " ",
-          /* @__PURE__ */ jsx17(Kbd3, { children: "\u2212" })
+          /* @__PURE__ */ jsx16(Kbd2, { children: "\u2212" })
         ] }),
         "Zoom in or out"
       ],
-      [/* @__PURE__ */ jsx17(Kbd3, { children: "0" }), "Fit the diagram"],
-      [/* @__PURE__ */ jsx17(Kbd3, { children: "/" }), "Find a concept"],
-      [/* @__PURE__ */ jsx17(Kbd3, { children: "Esc" }), "Clear the selection"]
-    ].map(([keys, action], i) => /* @__PURE__ */ jsxs11("div", { className: "shortcut", children: [
-      /* @__PURE__ */ jsx17("dt", { children: keys }),
-      /* @__PURE__ */ jsx17("dd", { children: action })
+      [/* @__PURE__ */ jsx16(Kbd2, { children: "0" }), "Fit the diagram"],
+      [/* @__PURE__ */ jsx16(Kbd2, { children: "Esc" }), "Clear the selection"]
+    ].map(([keys, action], i) => /* @__PURE__ */ jsxs10("div", { className: "shortcut", children: [
+      /* @__PURE__ */ jsx16("dt", { children: keys }),
+      /* @__PURE__ */ jsx16("dd", { children: action })
     ] }, i)) }),
-    /* @__PURE__ */ jsxs11(Stack, { gap: 1, align: "start", children: [
-      /* @__PURE__ */ jsx17(
+    /* @__PURE__ */ jsxs10(Column2, { gap: 1, align: "start", children: [
+      /* @__PURE__ */ jsx16(
         DownloadLink,
         {
           data: exports.readText(`${exports.slug}-model-notes.txt`),
@@ -3374,7 +2915,7 @@ function About({ model, exports, provenance }) {
           children: "Source notes"
         }
       ),
-      /* @__PURE__ */ jsx17(
+      /* @__PURE__ */ jsx16(
         DownloadLink,
         {
           data: exports.readText(`${exports.slug}-validation.json`),
@@ -3387,1268 +2928,11 @@ function About({ model, exports, provenance }) {
   ] });
 }
 
-// src/viewer/useInspection.js
-import {
-  useCallback as useCallback2,
-  useEffect as useEffect6,
-  useLayoutEffect as useLayoutEffect6,
-  useMemo as useMemo5,
-  useState as useState6
-} from "react";
-import { flushSync } from "react-dom";
-
-// src/viewer/inspection.js
-function createInspectionController({
-  onHover,
-  onPreview,
-  schedule = setTimeout,
-  cancel = clearTimeout
-}) {
-  let hovered = null;
-  let preview = null;
-  let timer = null;
-  let enabled = true;
-  let visible = false;
-  const cancelPreview = () => {
-    if (timer !== null) cancel(timer);
-    timer = null;
-  };
-  const setHover = (target) => {
-    if (sameTarget(hovered, target)) return;
-    hovered = target;
-    onHover(target);
-  };
-  const setPreview = (target) => {
-    if (sameTarget(preview, target)) return;
-    preview = target;
-    onPreview(target);
-  };
-  const controller = {
-    configure({ previewEnabled, previewVisible }) {
-      enabled = previewEnabled;
-      visible = previewVisible;
-      if (!enabled) {
-        cancelPreview();
-        setPreview(null);
-      } else if (visible && hovered) {
-        cancelPreview();
-        setPreview(hovered);
-      }
-    },
-    hover(target) {
-      cancelPreview();
-      setHover(target);
-      if (!enabled) return;
-      if (target) {
-        if (visible || preview) setPreview(target);
-        else
-          timer = schedule(() => {
-            timer = null;
-            if (sameTarget(hovered, target)) setPreview(target);
-          }, 100);
-      } else if (preview) {
-        timer = schedule(() => {
-          timer = null;
-          setPreview(null);
-        }, 160);
-      }
-    },
-    keepHover() {
-      cancelPreview();
-      if (preview) setHover(preview);
-    },
-    clearHover() {
-      cancelPreview();
-      setHover(null);
-      setPreview(null);
-    },
-    dispose: cancelPreview
-  };
-  return controller;
-}
-
-// src/viewer/useInspection.js
-var inspectedTarget = (hovered, selected) => hovered || selected;
-function useInspection({
-  previewEnabled = true,
-  previewVisible = false
-} = {}) {
-  const [hovered, setHovered] = useState6(null);
-  const [preview, setPreview] = useState6(null);
-  const controller = useMemo5(
-    () => createInspectionController({
-      onHover: (target) => setHovered((old) => sameTarget(old, target) ? old : target),
-      // An open inspector follows the same input commit as its highlight.
-      // Memoized details/code avoid rebuilding unchanged source content.
-      onPreview: (target) => setPreview((old) => sameTarget(old, target) ? old : target)
-    }),
-    [createInspectionController]
-  );
-  useLayoutEffect6(() => {
-    controller.configure({ previewEnabled, previewVisible });
-  }, [controller, previewEnabled, previewVisible]);
-  useEffect6(() => () => controller.dispose(), [controller]);
-  const hover = useCallback2(
-    (target) => {
-      flushSync(() => controller.hover(target));
-    },
-    [controller]
-  );
-  return {
-    hovered,
-    preview,
-    hover,
-    keepHover: controller.keepHover,
-    clearHover: controller.clearHover
-  };
-}
-
-// src/scenarios/ScenarioPanel.jsx
-import { useMemo as useMemo6 } from "react";
-import {
-  Badge as Badge2,
-  Button as Button3,
-  DisclosureNote,
-  Notice,
-  Stack as Stack2,
-  Text as Text5
-} from "@envsemble/envui";
-import { Fragment as Fragment6, jsx as jsx18, jsxs as jsxs12 } from "react/jsx-runtime";
-function verdict(scenario) {
-  const met = scenario.result.expectationMet;
-  const expected = scenario.expected === "invalid" ? "Invalid" : "Valid";
-  if (met === null)
-    return { tone: "neutral", text: `${expected} \xB7 not fully checked` };
-  return met ? { tone: "success", text: `${expected} \xB7 as expected` } : { tone: "danger", text: `${expected} expected \xB7 differs` };
-}
-function Examples({ examples, model, names, onInspect }) {
-  const classNames = new Map(model.classes.map((c) => [c.id, c.name]));
-  return /* @__PURE__ */ jsx18(Stack2, { gap: 5, children: examples.map((scenario) => {
-    const { tone, text } = verdict(scenario);
-    const labels = new Map(
-      scenario.instances.map((i) => [i.id, i.label || i.id])
-    );
-    return /* @__PURE__ */ jsxs12(Stack2, { gap: 2, className: "example", children: [
-      /* @__PURE__ */ jsxs12("div", { className: "example-head", children: [
-        /* @__PURE__ */ jsx18(Text5, { as: "h3", variant: "section-heading", children: scenario.title }),
-        /* @__PURE__ */ jsx18(Badge2, { tone, children: text })
-      ] }),
-      scenario.description && /* @__PURE__ */ jsx18(Text5, { children: scenario.description }),
-      scenario.result.issues.map((issue, i) => /* @__PURE__ */ jsxs12(Notice, { tone: "warning", children: [
-        issue.message,
-        issue.elementId && names.has(issue.elementId) && /* @__PURE__ */ jsxs12(Fragment6, { children: [
-          " ",
-          /* @__PURE__ */ jsx18(
-            Button3,
-            {
-              variant: "text",
-              onClick: () => onInspect(issue.elementId),
-              children: names.get(issue.elementId)
-            }
-          )
-        ] })
-      ] }, i)),
-      /* @__PURE__ */ jsxs12(
-        DisclosureNote,
-        {
-          title: `${scenario.instances.length} instances \xB7 ${scenario.links.length} links`,
-          children: [
-            /* @__PURE__ */ jsx18("ul", { className: "example-list", children: scenario.instances.map((instance) => /* @__PURE__ */ jsxs12("li", { children: [
-              /* @__PURE__ */ jsx18("strong", { children: instance.label || instance.id }),
-              ": ",
-              instance.classIds.map((id) => classNames.get(id) || id).join(", ")
-            ] }, instance.id)) }),
-            scenario.links.length > 0 && /* @__PURE__ */ jsx18("ul", { className: "example-list", children: scenario.links.map((link, i) => /* @__PURE__ */ jsxs12("li", { children: [
-              labels.get(link.sourceId) || link.sourceId,
-              " \u2192",
-              " ",
-              /* @__PURE__ */ jsx18("em", { children: names.get(link.relationId) || link.relationId }),
-              " \u2192",
-              " ",
-              labels.get(link.targetId) || link.targetId
-            ] }, i)) }),
-            scenario.result.unassessed.map((u, i) => /* @__PURE__ */ jsx18(Text5, { tone: "muted", children: u.message }, i))
-          ]
-        }
-      )
-    ] }, scenario.id);
-  }) });
-}
-function ScenarioPanel({ model, scenarios = null, onInspect }) {
-  const elementNames = useMemo6(
-    () => new Map(
-      [...model.classes, ...model.relations, ...model.partitions || []].map(
-        (e) => [e.originalId || e.id, e.name]
-      )
-    ),
-    [model]
-  );
-  const examples = scenarios?.scenarios || [];
-  if (!examples.length) return null;
-  return /* @__PURE__ */ jsx18(Stack2, { gap: 6, className: "scenario-panel", children: /* @__PURE__ */ jsxs12(Stack2, { as: "section", gap: 3, "aria-label": "Examples", children: [
-    /* @__PURE__ */ jsx18(Text5, { as: "h3", variant: "caption", className: "detail-section-title", children: "Examples" }),
-    /* @__PURE__ */ jsx18(
-      Examples,
-      {
-        examples,
-        model,
-        names: elementNames,
-        onInspect
-      }
-    )
-  ] }) });
-}
-
-// src/details/ElementDetails.jsx
-import { memo as memo5 } from "react";
-import { Badge as Badge4, Button as Button6, DisclosureNote as DisclosureNote4, Stack as Stack5, Text as Text11 } from "@envsemble/envui";
-
-// src/details/SourceEvidence.jsx
-import { Button as Button4, Card, DisclosureNote as DisclosureNote2, Stack as Stack3, Text as Text6 } from "@envsemble/envui";
-
-// src/ui/CodeSnippet.jsx
-import { Fragment as Fragment7, memo as memo4 } from "react";
-import { jsx as jsx19, jsxs as jsxs13 } from "react/jsx-runtime";
-var CodeSnippet = memo4(function CodeSnippet2({ snippet, label }) {
-  return /* @__PURE__ */ jsx19("pre", { className: "shiki code-snippet", tabIndex: 0, "aria-label": label, children: /* @__PURE__ */ jsx19("code", { children: snippet.lines.map((tokens, i) => /* @__PURE__ */ jsxs13(Fragment7, { children: [
-    /* @__PURE__ */ jsx19("span", { className: "code-line", "data-line": snippet.startLine + i, children: tokens.map((token, j) => /* @__PURE__ */ jsx19("span", { style: token.style, children: token.content }, j)) }),
-    i < snippet.lines.length - 1 ? "\n" : null
-  ] }, i)) }) });
-});
-
-// src/details/SourceEvidence.jsx
-import { jsx as jsx20, jsxs as jsxs14 } from "react/jsx-runtime";
-function SourceExcerpt({ source, snippet }) {
-  if (!snippet)
-    return /* @__PURE__ */ jsxs14(Stack3, { gap: 2, align: "start", className: "source-excerpt", children: [
-      /* @__PURE__ */ jsx20(Text6, { children: source.claim }),
-      source.url && /* @__PURE__ */ jsx20(
-        Button4,
-        {
-          variant: "text",
-          href: source.url,
-          target: "_blank",
-          rel: "noopener noreferrer",
-          endIcon: /* @__PURE__ */ jsx20(OpenInNew, {}),
-          children: "View source"
-        }
-      )
-    ] });
-  const github = snippet.url?.startsWith("https://github.com/");
-  return /* @__PURE__ */ jsx20(
-    Card,
-    {
-      padding: 3,
-      className: "source-file-card",
-      heading: /* @__PURE__ */ jsx20("span", { title: source.file, children: source.file.split("/").pop() }),
-      meta: `${snippet.language} \xB7 lines ${snippet.startLine}\u2013${snippet.endLine}`,
-      actions: snippet.url ? /* @__PURE__ */ jsx20(
-        Button4,
-        {
-          variant: "text",
-          href: snippet.url,
-          target: "_blank",
-          rel: "noopener noreferrer",
-          "aria-label": `View ${source.title} on ${github ? "GitHub" : "its source"}`,
-          endIcon: /* @__PURE__ */ jsx20(OpenInNew, {}),
-          children: github ? "View on GitHub" : "View source"
-        }
-      ) : void 0,
-      children: /* @__PURE__ */ jsx20(
-        CodeSnippet,
-        {
-          snippet,
-          label: `${source.title}, lines ${snippet.startLine} to ${snippet.endLine}`
-        }
-      )
-    }
-  );
-}
-function SourceEvidence({
-  evidence,
-  sources,
-  snippets,
-  primary,
-  label = "Source"
-}) {
-  const records = [...new Set(primary ? [primary, ...evidence] : evidence)].filter((id) => evidence.includes(id)).map((id) => sources.find((s) => s.id === id)).filter(Boolean);
-  if (!records.length) return null;
-  return /* @__PURE__ */ jsxs14(
-    Stack3,
-    {
-      as: "section",
-      gap: 2,
-      className: "source-evidence detail-section",
-      "aria-label": label,
-      children: [
-        label !== "Source" && /* @__PURE__ */ jsx20(Text6, { as: "h2", variant: "caption", className: "detail-section-title", children: label }),
-        records.map(
-          (source, i) => i === 0 ? /* @__PURE__ */ jsx20(
-            SourceExcerpt,
-            {
-              source,
-              snippet: snippets[source.id]
-            },
-            source.id
-          ) : /* @__PURE__ */ jsx20(
-            DisclosureNote2,
-            {
-              title: source.title,
-              className: "additional-source",
-              children: /* @__PURE__ */ jsx20(SourceExcerpt, { source, snippet: snippets[source.id] })
-            },
-            source.id
-          )
-        )
-      ]
-    }
-  );
-}
-
-// src/details/DetailHeader.jsx
-import { Badge as Badge3, Text as Text7 } from "@envsemble/envui";
-
-// src/review/ChangeMark.jsx
-import { jsx as jsx21 } from "react/jsx-runtime";
-function ChangeMark({ status }) {
-  if (!CHANGE_LABELS[status]) return null;
-  return /* @__PURE__ */ jsx21("span", { className: "change-mark", "data-change": status, "aria-hidden": "true", children: changeGlyph(status) });
-}
-function ChangeBadge({ status }) {
-  if (!CHANGE_LABELS[status]) return null;
-  return /* @__PURE__ */ jsx21("span", { className: "change-badge", "data-change": status, children: CHANGE_LABELS[status] });
-}
-
-// src/details/DetailHeader.jsx
-import { jsx as jsx22, jsxs as jsxs15 } from "react/jsx-runtime";
-var STATUSES = {
-  inferred: {
-    label: "Inferred",
-    tone: "neutral",
-    title: "Interpreted from the evidence rather than observed in the source"
-  },
-  unresolved: {
-    label: "Unresolved",
-    tone: "warning",
-    title: "The evidence leaves this open"
-  }
-};
-function DetailHeader({
-  title,
-  owner,
-  tag,
-  status,
-  change,
-  description,
-  icon: Icon = Category
-}) {
-  const evidence = change !== "added" && STATUSES[status];
-  return /* @__PURE__ */ jsxs15("header", { className: "detail-header", children: [
-    /* @__PURE__ */ jsxs15("div", { className: "detail-title", children: [
-      /* @__PURE__ */ jsx22("span", { className: "detail-icon", "aria-hidden": "true", children: /* @__PURE__ */ jsx22(Icon, {}) }),
-      /* @__PURE__ */ jsxs15(Text7, { as: "h1", variant: "page-heading", children: [
-        owner && /* @__PURE__ */ jsxs15("span", { className: "detail-owner", children: [
-          owner,
-          "."
-        ] }),
-        title
-      ] })
-    ] }),
-    (tag || change || evidence) && /* @__PURE__ */ jsxs15("div", { className: "detail-tags", children: [
-      tag && /* @__PURE__ */ jsx22(Badge3, { variant: "outline", children: tag }),
-      /* @__PURE__ */ jsx22(ChangeBadge, { status: change }),
-      evidence && /* @__PURE__ */ jsx22(Badge3, { tone: evidence.tone, title: evidence.title, children: evidence.label })
-    ] }),
-    description && /* @__PURE__ */ jsx22(Text7, { tone: "muted", className: "detail-description", children: description })
-  ] });
-}
-
-// src/details/sections/ChangedValue.jsx
-import { Fragment as Fragment8, jsx as jsx23, jsxs as jsxs16 } from "react/jsx-runtime";
-function ChangedValue({ before, after }) {
-  return /* @__PURE__ */ jsxs16(Fragment8, { children: [
-    /* @__PURE__ */ jsx23("del", { className: "change-before", children: before }),
-    /* @__PURE__ */ jsx23("span", { className: "change-arrow", "aria-hidden": "true", children: "\u2192" }),
-    /* @__PURE__ */ jsx23("span", { className: "visually-hidden", children: " changed to " }),
-    /* @__PURE__ */ jsx23("ins", { className: "change-after", children: after })
-  ] });
-}
-function ChangedProperty({ name, before, after }) {
-  return /* @__PURE__ */ jsxs16("span", { children: [
-    /* @__PURE__ */ jsx23("span", { className: "change-key", children: name }),
-    " ",
-    /* @__PURE__ */ jsx23(ChangedValue, { before, after })
-  ] });
-}
-
-// src/details/sections/CodeWhere.jsx
-import { Button as Button5 } from "@envsemble/envui";
-
-// src/details/sections/Section.jsx
-import { Stack as Stack4, Text as Text8 } from "@envsemble/envui";
-import { jsx as jsx24, jsxs as jsxs17 } from "react/jsx-runtime";
-function Section({ title, label = title, className = "", children }) {
-  return /* @__PURE__ */ jsxs17(
-    Stack4,
-    {
-      as: "section",
-      gap: 2,
-      className: `detail-section${className ? ` ${className}` : ""}`,
-      "aria-label": label,
-      children: [
-        /* @__PURE__ */ jsx24(Text8, { as: "h2", variant: "caption", className: "detail-section-title", children: title }),
-        children
-      ]
-    }
-  );
-}
-
-// src/details/sections/CodeWhere.jsx
-import { jsx as jsx25, jsxs as jsxs18 } from "react/jsx-runtime";
-function sourceOf(element, sources) {
-  const ids = [element.primarySource, ...element.evidence || []].filter(
-    Boolean
-  );
-  return ids.map((id) => sources.find((s) => s.id === id)).find(Boolean);
-}
-function CodeWhere({ element, model, snippets, change }) {
-  if (change === "added") return null;
-  const file = elementFile(element, model);
-  const location2 = element.location;
-  const source = sourceOf(element, model.sources || []);
-  const snippet = source && snippets?.[source.id];
-  if (!file && !snippet) return null;
-  const url = snippet?.url || source?.url;
-  return /* @__PURE__ */ jsxs18(Section, { title: change === "removed" ? "Where it was" : "Where in code", children: [
-    /* @__PURE__ */ jsxs18("div", { className: "code-where", children: [
-      /* @__PURE__ */ jsx25("code", { className: "code-path", title: file || void 0, children: file || source.file }),
-      location2 && /* @__PURE__ */ jsx25("span", { className: "code-lines", children: location2.startLine === location2.endLine ? `line ${location2.startLine}` : `lines ${location2.startLine}\u2013${location2.endLine}` })
-    ] }),
-    snippet && /* @__PURE__ */ jsx25(
-      CodeSnippet,
-      {
-        snippet,
-        label: `${file || source.title}, lines ${snippet.startLine} to ${snippet.endLine}`
-      }
-    ),
-    url && /* @__PURE__ */ jsx25(
-      Button5,
-      {
-        variant: "text",
-        href: url,
-        target: "_blank",
-        rel: "noopener noreferrer",
-        endIcon: /* @__PURE__ */ jsx25(OpenInNew, {}),
-        className: "code-source-link",
-        children: url.startsWith("https://github.com/") ? "View on GitHub" : "View source"
-      }
-    )
-  ] });
-}
-
-// src/details/sections/Members.jsx
-import { useEffect as useEffect7, useRef as useRef6 } from "react";
-import { Text as Text9 } from "@envsemble/envui";
-import { Fragment as Fragment9, jsx as jsx26, jsxs as jsxs19 } from "react/jsx-runtime";
-function useReveal(focused) {
-  const ref = useRef6(null);
-  useEffect7(() => {
-    if (focused) ref.current?.scrollIntoView?.({ block: "nearest" });
-  }, [focused]);
-  return ref;
-}
-function FocusableRow({ focused, change, children }) {
-  const ref = useReveal(focused);
-  return /* @__PURE__ */ jsx26(
-    "li",
-    {
-      ref,
-      className: `member${focused ? " focused" : ""}`,
-      "data-change": change,
-      "aria-current": focused ? "true" : void 0,
-      children
-    }
-  );
-}
-function Described({ description, children }) {
-  if (!description) return children;
-  return /* @__PURE__ */ jsxs19("span", { className: "member-text", children: [
-    children,
-    /* @__PURE__ */ jsx26(Text9, { as: "span", variant: "supporting", className: "member-description", children: description })
-  ] });
-}
-function MemberRow({ member, method, profile, review, focused }) {
-  const status = review ? member.changeStatus : void 0;
-  const marked = status && status !== "unchanged";
-  const ref = useReveal(focused);
-  return /* @__PURE__ */ jsxs19(
-    "li",
-    {
-      ref,
-      className: `member${focused ? " focused" : ""}`,
-      "data-change": marked ? status : void 0,
-      "aria-current": focused ? "true" : void 0,
-      children: [
-        review && /* @__PURE__ */ jsx26(ChangeMark, { status }),
-        marked && /* @__PURE__ */ jsxs19("span", { className: "visually-hidden", children: [
-          CHANGE_LABELS[status],
-          ": "
-        ] }),
-        /* @__PURE__ */ jsx26(Described, { description: member.description, children: /* @__PURE__ */ jsx26("code", { className: "signature", children: method ? member.type || `${member.name}()` : /* @__PURE__ */ jsxs19(Fragment9, { children: [
-          /* @__PURE__ */ jsxs19("span", { className: "member-name", children: [
-            member.name,
-            member.optional ? "?" : ""
-          ] }),
-          member.type && /* @__PURE__ */ jsxs19("span", { className: "member-type", children: [
-            profile === "database" ? " " : ": ",
-            member.type,
-            member.multiplicity ? ` [${member.multiplicity}]` : ""
-          ] })
-        ] }) }) }),
-        member.location && /* @__PURE__ */ jsx26(
-          "span",
-          {
-            className: "member-line",
-            title: `Line ${member.location.startLine}`,
-            children: member.location.startLine
-          }
-        )
-      ]
-    }
-  );
-}
-function Members({ element, profile, review, focus = null }) {
-  const fields = element.attributes || [], methods = element.methods || [];
-  if (!fields.length && !methods.length) return null;
-  const marks = review && element.changeStatus === "modified";
-  const fieldTitle = element.stereotype === "enum" ? "Members" : profile === "code" ? "Fields" : "Attributes";
-  return /* @__PURE__ */ jsxs19(Fragment9, { children: [
-    fields.length > 0 && /* @__PURE__ */ jsx26(Section, { title: `${fieldTitle} \xB7 ${fields.length}`, label: fieldTitle, children: /* @__PURE__ */ jsx26("ul", { className: `member-list${marks ? " marked" : ""}`, children: fields.map((member) => /* @__PURE__ */ jsx26(
-      MemberRow,
-      {
-        member,
-        profile,
-        review: marks,
-        focused: member.id === focus
-      },
-      member.id
-    )) }) }),
-    methods.length > 0 && /* @__PURE__ */ jsx26(Section, { title: `Methods \xB7 ${methods.length}`, label: "Methods", children: /* @__PURE__ */ jsx26("ul", { className: `member-list${marks ? " marked" : ""}`, children: methods.map((member) => /* @__PURE__ */ jsx26(
-      MemberRow,
-      {
-        member,
-        method: true,
-        profile,
-        review: marks,
-        focused: member.id === focus
-      },
-      member.id
-    )) }) })
-  ] });
-}
-
-// src/details/sections/TableSchema.jsx
-import { DisclosureNote as DisclosureNote3 } from "@envsemble/envui";
-import { Fragment as Fragment10, jsx as jsx27, jsxs as jsxs20 } from "react/jsx-runtime";
-function foreignKeys(element, model, rollup) {
-  const outgoing = (model.relations || []).filter(
-    (r) => r.sourceId === element.id && Array.isArray(r.columns)
-  );
-  const current = new Set(
-    outgoing.filter((r) => r.changeStatus !== "removed").map((r) => r.id)
-  );
-  return outgoing.filter((r) => !(r.changeStatus === "removed" && current.has(r.originalId))).map((relation) => {
-    const status = rollup && relation.changeStatus && relation.changeStatus !== "unchanged" ? relation.changeStatus : void 0;
-    const record = status === "modified" ? rowFor(
-      rollup,
-      { kind: "edge", id: relation.id },
-      model
-    )?.changes.find((c) => c.elementId === relation.id) : null;
-    const before = record?.before;
-    const previous = Array.isArray(before?.columns) ? {
-      columns: before.columns,
-      targetId: before.targetId,
-      target: before.target,
-      targetColumns: before.targetColumns
-    } : null;
-    const details = meaningfulProperties(record).filter(
-      (p) => !["columns", "targetId", "target", "targetColumns", "name"].includes(
-        p.key
-      )
-    );
-    return { relation, previous, status, details, names: rollup?.names };
-  });
-}
-function TableSchema({
-  element,
-  model,
-  review,
-  rollup = null,
-  focus = null
-}) {
-  const columns = element.attributes || [];
-  const marks = review && element.changeStatus === "modified";
-  const outgoing = foreignKeys(element, model, rollup);
-  const record = rollup ? rowFor(rollup, { kind: "node", id: element.id })?.changes.find(
-    (c) => c.elementId === element.id
-  ) : null;
-  const keyNote = record?.properties?.find((p) => p.key === "keys");
-  const keyChanges = new Map(
-    (keyNote ? itemChanges(keyNote) || [] : []).filter((c) => !(c.after ?? c.before)?.primary).map((c) => [(c.after ?? c.before).name, c])
-  );
-  const tables = new Map(model.classes.map((c) => [c.id, c.name]));
-  const keyText = (relation) => `${relation.columns.join(", ")} \u2192 ${tables.get(relation.targetId) || relation.target}${referencedColumns(relation.targetColumns)}`;
-  const unique = [
-    ...(element.keys || []).filter((key) => !key.primary),
-    ...[...keyChanges.values()].filter((c) => c.status === "removed").map((c) => c.before)
-  ];
-  const shownByRelation = (key) => outgoing.some(
-    ({ relation }) => relation.changeStatus !== "removed" && JSON.stringify(relation.columns) === JSON.stringify(key.columns) && (relation.target === key.target || tables.get(relation.targetId) === key.target)
-  );
-  const foreignNote = record?.properties?.find((p) => p.key === "foreignKeys");
-  const foreignChanges = new Map(
-    (foreignNote ? itemChanges(foreignNote) || [] : []).map((c) => [
-      partKey(c.after ?? c.before),
-      c
-    ])
-  );
-  const external = [
-    ...(element.foreignKeys || []).filter(
-      (key) => Array.isArray(key.columns) && typeof key.target === "string" && !shownByRelation(key)
-    ),
-    ...[...foreignChanges.values()].filter((c) => c.status === "removed").map((c) => c.before)
-  ];
-  const sql = [
-    element.definition,
-    ...(element.constraints || []).map((c) => c.definition),
-    ...(element.triggers || []).map((t) => t.definition || t.sql)
-  ].filter(Boolean);
-  return /* @__PURE__ */ jsxs20(Fragment10, { children: [
-    columns.length > 0 && /* @__PURE__ */ jsx27(Section, { title: `Columns \xB7 ${columns.length}`, label: "Columns", children: /* @__PURE__ */ jsx27("ul", { className: `member-list columns${marks ? " marked" : ""}`, children: columns.map((column) => {
-      const status = marks ? column.changeStatus : void 0;
-      const marked = status && status !== "unchanged";
-      return /* @__PURE__ */ jsxs20(
-        FocusableRow,
-        {
-          focused: column.id === focus,
-          change: marked ? status : void 0,
-          children: [
-            marks && /* @__PURE__ */ jsx27(ChangeMark, { status }),
-            marked && /* @__PURE__ */ jsxs20("span", { className: "visually-hidden", children: [
-              CHANGE_LABELS[status],
-              ":",
-              " "
-            ] }),
-            /* @__PURE__ */ jsx27(Described, { description: column.description, children: /* @__PURE__ */ jsxs20("code", { className: "signature", children: [
-              /* @__PURE__ */ jsx27("span", { className: "member-name", children: column.name }),
-              " ",
-              /* @__PURE__ */ jsxs20("span", { className: "member-type", children: [
-                column.type,
-                column.nullable ? "" : " not null",
-                column.default !== null && column.default !== void 0 ? ` default ${column.default}` : ""
-              ] })
-            ] }) }),
-            (column.primaryKeyOrder || column.generated) && /* @__PURE__ */ jsxs20("span", { className: "column-flags", children: [
-              column.primaryKeyOrder ? "PK" : "",
-              column.generated ? " generated" : ""
-            ] })
-          ]
-        },
-        column.id
-      );
-    }) }) }),
-    (outgoing.length > 0 || unique.length > 0 || external.length > 0) && /* @__PURE__ */ jsx27(Section, { title: "Keys", children: /* @__PURE__ */ jsxs20(
-      "ul",
-      {
-        className: `member-list${outgoing.some((key) => key.status) || keyChanges.size || foreignChanges.size ? " marked" : ""}`,
-        children: [
-          unique.map((key) => {
-            const change = keyChanges.get(key.name);
-            return /* @__PURE__ */ jsxs20(
-              "li",
-              {
-                className: "member",
-                "data-change": change?.status,
-                children: [
-                  change && /* @__PURE__ */ jsx27(ChangeMark, { status: change.status }),
-                  change && /* @__PURE__ */ jsxs20("span", { className: "visually-hidden", children: [
-                    CHANGE_LABELS[change.status],
-                    ":",
-                    " "
-                  ] }),
-                  /* @__PURE__ */ jsxs20("code", { className: "signature", children: [
-                    /* @__PURE__ */ jsx27("span", { className: "member-name", children: "unique" }),
-                    " ",
-                    /* @__PURE__ */ jsx27("span", { className: "member-type", children: change?.status === "modified" ? /* @__PURE__ */ jsx27(
-                      ChangedValue,
-                      {
-                        before: partChange(change.before, change.after)[0],
-                        after: partChange(change.before, change.after)[1]
-                      }
-                    ) : `(${key.columns.join(", ")})` })
-                  ] })
-                ]
-              },
-              key.name
-            );
-          }),
-          outgoing.map(({ relation, previous, status, details, names }) => /* @__PURE__ */ jsxs20(
-            "li",
-            {
-              className: "member",
-              "data-change": status && status !== "unchanged" ? status : void 0,
-              children: [
-                status && /* @__PURE__ */ jsx27(ChangeMark, { status }),
-                status && CHANGE_LABELS[status] && /* @__PURE__ */ jsxs20("span", { className: "visually-hidden", children: [
-                  CHANGE_LABELS[status],
-                  ":",
-                  " "
-                ] }),
-                /* @__PURE__ */ jsxs20("span", { className: "change-line-text", children: [
-                  /* @__PURE__ */ jsx27("code", { className: "signature", children: previous && keyText(previous) !== keyText(relation) ? /* @__PURE__ */ jsx27(
-                    ChangedValue,
-                    {
-                      before: keyText(previous),
-                      after: keyText(relation)
-                    }
-                  ) : /* @__PURE__ */ jsxs20(Fragment10, { children: [
-                    /* @__PURE__ */ jsx27("span", { className: "member-name", children: relation.columns.join(", ") }),
-                    " ",
-                    /* @__PURE__ */ jsxs20("span", { className: "member-type", children: [
-                      "\u2192 ",
-                      tables.get(relation.targetId) || relation.target,
-                      referencedColumns(relation.targetColumns)
-                    ] })
-                  ] }) }),
-                  details.map((p) => /* @__PURE__ */ jsxs20("span", { className: "change-detail", children: [
-                    p.key,
-                    ":",
-                    " ",
-                    /* @__PURE__ */ jsx27(
-                      ChangedValue,
-                      {
-                        before: cellText(p.before, names, p.key),
-                        after: cellText(p.after, names, p.key)
-                      }
-                    )
-                  ] }, p.key))
-                ] })
-              ]
-            },
-            relation.id
-          )),
-          external.map((key) => {
-            const change = foreignChanges.get(partKey(key));
-            return /* @__PURE__ */ jsxs20(
-              "li",
-              {
-                className: "member",
-                "data-change": change?.status,
-                children: [
-                  change && /* @__PURE__ */ jsx27(ChangeMark, { status: change.status }),
-                  change && /* @__PURE__ */ jsxs20("span", { className: "visually-hidden", children: [
-                    CHANGE_LABELS[change.status],
-                    ":",
-                    " "
-                  ] }),
-                  /* @__PURE__ */ jsx27("code", { className: "signature", children: change?.status === "modified" ? /* @__PURE__ */ jsx27(
-                    ChangedValue,
-                    {
-                      before: partChange(change.before, change.after)[0],
-                      after: partChange(change.before, change.after)[1]
-                    }
-                  ) : /* @__PURE__ */ jsxs20(Fragment10, { children: [
-                    /* @__PURE__ */ jsx27("span", { className: "member-name", children: key.columns.join(", ") }),
-                    " ",
-                    /* @__PURE__ */ jsxs20("span", { className: "member-type", children: [
-                      "\u2192 ",
-                      key.target,
-                      referencedColumns(key.targetColumns)
-                    ] })
-                  ] }) })
-                ]
-              },
-              partKey(key)
-            );
-          })
-        ]
-      }
-    ) }),
-    sql.length > 0 && /* @__PURE__ */ jsx27(DisclosureNote3, { title: "Definition", className: "detail-definition", children: sql.map((text, i) => /* @__PURE__ */ jsx27("pre", { className: "source-code", tabIndex: 0, children: /* @__PURE__ */ jsx27("code", { children: text }) }, i)) })
-  ] });
-}
-
-// src/details/sections/WhatChanges.jsx
-import { Text as Text10 } from "@envsemble/envui";
-import { jsx as jsx28, jsxs as jsxs21 } from "react/jsx-runtime";
-var KIND_WORDS = { "type alias": "type alias", enum: "enum" };
-var countOf = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
-function contents(element, profile, except = /* @__PURE__ */ new Set()) {
-  const own = (members) => (members || []).filter((m) => !except.has(m.id));
-  const fields = own(element.attributes).length, methods = own(element.methods).length;
-  const field = profile === "database" ? "column" : element.stereotype === "enum" ? "member" : profile === "code" ? "field" : "attribute";
-  return [
-    fields ? countOf(fields, field) : "",
-    methods ? countOf(methods, "method") : ""
-  ].filter(Boolean).join(" and ");
-}
-var TYPE_KEYS = ["type"];
-var SIGNATURE_KEYS = [...TYPE_KEYS, "name"];
-var typeChange = (member) => member.properties.some((p) => p.key === "name") ? null : member.properties.find((p) => TYPE_KEYS.includes(p.key)) || null;
-function WhatChanges({ change, element, model, profile }) {
-  if (!change) return null;
-  const kind = KIND_WORDS[element.stereotype] || element.stereotype || (profile === "database" ? "table" : "class");
-  const moved = change.moved || [];
-  const held = contents(element, profile, new Set(moved.map((m) => m.id)));
-  const movedText = moved.length ? `${moved.map(
-    (m) => m.moved.to ? `${m.label} moved to ${m.moved.to}` : `${m.label} moved from ${m.moved.from}`
-  ).join("; ")}.` : "";
-  if (change.status === "added") {
-    const file = profile === "code" ? elementFile(element, model) : null;
-    return /* @__PURE__ */ jsxs21(Section, { title: "What changes", children: [
-      /* @__PURE__ */ jsxs21(Text10, { children: [
-        "New ",
-        kind,
-        held ? ` with ${held}` : "",
-        "."
-      ] }),
-      movedText && /* @__PURE__ */ jsx28(Text10, { children: movedText }),
-      file && /* @__PURE__ */ jsxs21(Text10, { className: "proposed-location", children: [
-        "Proposed in ",
-        /* @__PURE__ */ jsx28("code", { children: file }),
-        fileExists(model, file) ? "" : " (a new file)"
-      ] })
-    ] });
-  }
-  if (change.status === "removed")
-    return /* @__PURE__ */ jsxs21(Section, { title: "What changes", children: [
-      /* @__PURE__ */ jsxs21(Text10, { children: [
-        "The ",
-        kind,
-        " is removed",
-        held ? `, with its ${held}` : "",
-        "."
-      ] }),
-      movedText && /* @__PURE__ */ jsx28(Text10, { children: movedText })
-    ] });
-  if (!change.properties.length && !change.members.length) return null;
-  return /* @__PURE__ */ jsx28(Section, { title: "What changes", children: /* @__PURE__ */ jsxs21("ul", { className: "change-list", children: [
-    change.properties.map((p, i) => /* @__PURE__ */ jsxs21(
-      "li",
-      {
-        className: "change-line",
-        "data-change": p.status,
-        children: [
-          /* @__PURE__ */ jsx28(ChangeMark, { status: p.status }),
-          /* @__PURE__ */ jsx28("span", { className: "change-line-text", children: p.status === "modified" ? /* @__PURE__ */ jsx28(
-            ChangedProperty,
-            {
-              name: p.key,
-              before: p.before,
-              after: p.after
-            }
-          ) : (
-            // A part of a table that is new or removed, as it reads.
-            /* @__PURE__ */ jsxs21("span", { children: [
-              /* @__PURE__ */ jsxs21("span", { className: "visually-hidden", children: [
-                CHANGE_LABELS[p.status],
-                ":",
-                " "
-              ] }),
-              /* @__PURE__ */ jsx28("span", { className: "change-key", children: p.key }),
-              " ",
-              /* @__PURE__ */ jsx28("code", { className: "signature", children: p.status === "added" ? p.after : p.before })
-            ] })
-          ) })
-        ]
-      },
-      `${p.key}-${i}`
-    )),
-    change.members.map((m) => /* @__PURE__ */ jsxs21("li", { className: "change-line", "data-change": m.status, children: [
-      /* @__PURE__ */ jsx28(ChangeMark, { status: m.status }),
-      /* @__PURE__ */ jsxs21("span", { className: "change-line-text", children: [
-        /* @__PURE__ */ jsxs21("span", { className: "visually-hidden", children: [
-          CHANGE_LABELS[m.status],
-          ":",
-          " "
-        ] }),
-        m.status === "modified" && !m.method && typeChange(m) ? (
-          // A field whose type changed reads as its name and both types.
-          /* @__PURE__ */ jsxs21("code", { className: "signature", children: [
-            /* @__PURE__ */ jsx28("span", { className: "member-name", children: m.name }),
-            profile === "database" ? " " : ": ",
-            /* @__PURE__ */ jsx28(
-              ChangedValue,
-              {
-                before: typeChange(m).before,
-                after: typeChange(m).after
-              }
-            )
-          ] })
-        ) : (m.status === "modified" || m.moved) && m.previous && m.previous !== m.signature ? /* @__PURE__ */ jsx28("code", { className: "signature", children: /* @__PURE__ */ jsx28(ChangedValue, { before: m.previous, after: m.signature }) }) : /* @__PURE__ */ jsx28("code", { className: "signature", children: m.signature }),
-        m.properties.filter((p) => !SIGNATURE_KEYS.includes(p.key)).map((p) => /* @__PURE__ */ jsxs21("span", { className: "change-detail", children: [
-          p.key,
-          ": ",
-          /* @__PURE__ */ jsx28(ChangedValue, { before: p.before, after: p.after })
-        ] }, p.key)),
-        m.moved && /* @__PURE__ */ jsx28("span", { className: "change-detail", children: m.moved.from ? `Moved from ${m.moved.from}` : `Moved to ${m.moved.to}` })
-      ] }),
-      m.location && /* @__PURE__ */ jsx28(
-        "span",
-        {
-          className: "member-line",
-          title: `Line ${m.location.startLine}`,
-          children: m.location.startLine
-        }
-      )
-    ] }, m.id))
-  ] }) });
-}
-
-// src/details/ElementDetails.jsx
-import { Fragment as Fragment11, jsx as jsx29, jsxs as jsxs22 } from "react/jsx-runtime";
-var profileOf = (model) => model.document?.profile || "class";
-var changeOf = (review, element) => review && element.changeStatus && element.changeStatus !== "unchanged" ? element.changeStatus : null;
-var ConceptDetails = memo5(function ConceptDetails2({
-  concept,
-  model,
-  snippets,
-  review = null,
-  member = null
-}) {
-  const profile = profileOf(model);
-  const change = changeOf(review, concept);
-  const described = change ? describeClassChange(review.rollup, concept, profile) : null;
-  return /* @__PURE__ */ jsxs22(Fragment11, { children: [
-    /* @__PURE__ */ jsx29(
-      DetailHeader,
-      {
-        title: concept.name,
-        owner: concept.namespace,
-        tag: `\xAB${concept.stereotype || "unspecified"}\xBB`,
-        status: concept.status,
-        change,
-        description: concept.description
-      }
-    ),
-    /* @__PURE__ */ jsx29(
-      WhatChanges,
-      {
-        change: described,
-        element: concept,
-        model,
-        profile
-      }
-    ),
-    profile === "code" && /* @__PURE__ */ jsx29(
-      CodeWhere,
-      {
-        element: concept,
-        model,
-        snippets,
-        change
-      }
-    ),
-    profile === "database" ? /* @__PURE__ */ jsx29(
-      TableSchema,
-      {
-        element: concept,
-        model,
-        review: !!review,
-        rollup: review?.rollup,
-        focus: member
-      }
-    ) : /* @__PURE__ */ jsx29(
-      Members,
-      {
-        element: concept,
-        profile,
-        review: !!review,
-        focus: member
-      }
-    ),
-    profile !== "code" && profile !== "database" && /* @__PURE__ */ jsx29(
-      SourceEvidence,
-      {
-        evidence: concept.evidence,
-        primary: concept.primarySource,
-        sources: model.sources,
-        snippets,
-        label: "Sources"
-      }
-    )
-  ] });
-});
-function RelationEnds({ heading, ends, onChoose }) {
-  return /* @__PURE__ */ jsxs22(Stack5, { gap: 1, className: "relation-ends", children: [
-    heading && /* @__PURE__ */ jsx29(Text11, { as: "h2", variant: "caption", className: "detail-section-title", children: heading }),
-    /* @__PURE__ */ jsx29("ul", { className: "relation-end-list", children: ends.map(([node, count, role], i) => /* @__PURE__ */ jsxs22("li", { className: "relation-end", children: [
-      role && /* @__PURE__ */ jsx29("span", { className: "relation-role", children: role }),
-      /* @__PURE__ */ jsx29(Button6, { variant: "text", onClick: () => onChoose(node.id), children: node.name }),
-      knownMultiplicity(count) && /* @__PURE__ */ jsx29(Badge4, { variant: "outline", className: "count-badge", children: count })
-    ] }, `${node.id}-${i}`)) })
-  ] });
-}
-var setConstraints = (set) => `{${set.complete ? "complete" : "incomplete"}, ${set.disjoint ? "disjoint" : "overlapping"}}`;
-function relationTitle(relation) {
-  if (relation.type === "generalization")
-    return relation.realization ? "Implementation" : "Inheritance";
-  return informativeName(relation) || `${relation.source.name} \u2192 ${relation.target.name}`;
-}
-function relationTag(relation) {
-  if (relation.type === "generalization") return "Generalization";
-  return relation.stereotype ? `\xAB${relation.stereotype}\xBB` : "Association";
-}
-function DeclaredBy({ relation, profile }) {
-  const members = dependencyMembers(relation.source, relation.target);
-  if (!members.length) return null;
-  return /* @__PURE__ */ jsx29(Section, { title: "Declared by", children: /* @__PURE__ */ jsx29("ul", { className: "member-list", children: members.map(({ member, method }) => /* @__PURE__ */ jsxs22(
-    "li",
-    {
-      className: "member",
-      "data-change": member.changeStatus && member.changeStatus !== "unchanged" ? member.changeStatus : void 0,
-      children: [
-        /* @__PURE__ */ jsx29(ChangeMark, { status: member.changeStatus }),
-        /* @__PURE__ */ jsx29("code", { className: "signature", children: memberSignature(member, method, profile) }),
-        member.location && /* @__PURE__ */ jsx29("span", { className: "member-line", children: member.location.startLine })
-      ]
-    },
-    member.id
-  )) }) });
-}
-function ForeignKey({ relation }) {
-  if (!Array.isArray(relation.columns)) return null;
-  return /* @__PURE__ */ jsxs22(Section, { title: "Columns", children: [
-    /* @__PURE__ */ jsxs22(Text11, { children: [
-      /* @__PURE__ */ jsxs22("code", { children: [
-        relation.source.name,
-        "(",
-        relation.columns.join(", "),
-        ")"
-      ] }),
-      " ",
-      "\u2192",
-      " ",
-      /* @__PURE__ */ jsxs22("code", { children: [
-        relation.target.name,
-        referencedColumns(relation.targetColumns)
-      ] })
-    ] }),
-    (relation.onDelete || relation.onUpdate) && /* @__PURE__ */ jsx29(Text11, { tone: "muted", children: [
-      relation.onDelete && `On delete ${relation.onDelete.toLowerCase()}`,
-      relation.onUpdate && `on update ${relation.onUpdate.toLowerCase()}`
-    ].filter(Boolean).join(", ") })
-  ] });
-}
-var RelationDetails = memo5(function RelationDetails2({
-  relation,
-  onChoose,
-  model,
-  snippets,
-  review = null
-}) {
-  const profile = profileOf(model);
-  const generalization = relation.type === "generalization";
-  const change = changeOf(review, relation);
-  const entry = change ? rowFor(review.rollup, { kind: "edge", id: relation.id }, model) : null;
-  const semanticId = relation.originalId || relation.id;
-  return /* @__PURE__ */ jsxs22(Fragment11, { children: [
-    /* @__PURE__ */ jsx29(
-      DetailHeader,
-      {
-        title: relationTitle(relation),
-        icon: generalization ? AccountTree : Polyline,
-        tag: relationTag(relation),
-        change,
-        description: relation.description
-      }
-    ),
-    /* @__PURE__ */ jsx29(
-      RelationEnds,
-      {
-        ends: generalization ? [
-          [relation.source, null, "Subtype"],
-          [
-            relation.target,
-            null,
-            relation.realization ? "Implements" : "Supertype"
-          ]
-        ] : [
-          [relation.source, relation.sourceMultiplicity, "From"],
-          [relation.target, relation.targetMultiplicity, "To"]
-        ],
-        onChoose
-      }
-    ),
-    entry && entry.notes.length > 0 && /* @__PURE__ */ jsx29(Section, { title: "What changes", children: /* @__PURE__ */ jsx29("ul", { className: "change-list", children: entry.notes.map((note, i) => /* @__PURE__ */ jsxs22(
-      "li",
-      {
-        className: "change-line",
-        "data-change": "modified",
-        children: [
-          /* @__PURE__ */ jsx29(ChangeMark, { status: "modified" }),
-          /* @__PURE__ */ jsx29("span", { className: "change-line-text", children: /* @__PURE__ */ jsx29(
-            ChangedProperty,
-            {
-              name: note.key,
-              before: cellText(
-                note.before,
-                review.rollup.names,
-                note.property
-              ),
-              after: cellText(
-                note.after,
-                review.rollup.names,
-                note.property
-              )
-            }
-          ) })
-        ]
-      },
-      `${note.key}-${i}`
-    )) }) }),
-    profile === "code" && !generalization && /* @__PURE__ */ jsx29(DeclaredBy, { relation, profile }),
-    profile === "database" && /* @__PURE__ */ jsx29(ForeignKey, { relation }),
-    generalization && (model.partitions || []).filter((set) => set.generalizations.includes(semanticId)).map((set) => /* @__PURE__ */ jsxs22(Stack5, { gap: 1, className: "generalization-set-summary", children: [
-      /* @__PURE__ */ jsx29(Text11, { as: "h2", variant: "section-heading", children: set.name }),
-      /* @__PURE__ */ jsx29(Text11, { tone: "muted", children: setConstraints(set) })
-    ] }, set.id)),
-    profile !== "code" && relation.evidence?.length > 0 && /* @__PURE__ */ jsx29(
-      SourceEvidence,
-      {
-        evidence: relation.evidence,
-        sources: model.sources,
-        snippets,
-        label: "Sources"
-      }
-    )
-  ] });
-});
-var GeneralizationSetDetails = memo5(function GeneralizationSetDetails2({
-  group,
-  onChoose,
-  model,
-  snippets
-}) {
-  const declared = group.type === "generalizationSet";
-  return /* @__PURE__ */ jsxs22(Fragment11, { children: [
-    /* @__PURE__ */ jsx29(
-      DetailHeader,
-      {
-        title: group.name,
-        tag: declared ? "Generalization set" : "Joined inheritance",
-        icon: AccountTree,
-        description: group.description
-      }
-    ),
-    /* @__PURE__ */ jsx29(
-      RelationEnds,
-      {
-        heading: "Supertype",
-        ends: [[group.target]],
-        onChoose
-      }
-    ),
-    /* @__PURE__ */ jsx29(
-      RelationEnds,
-      {
-        heading: "Subtypes",
-        ends: group.sources.map((node) => [node]),
-        onChoose
-      }
-    ),
-    declared ? /* @__PURE__ */ jsxs22(Fragment11, { children: [
-      /* @__PURE__ */ jsx29(Text11, { className: "set-constraints", children: setConstraints(group) }),
-      /* @__PURE__ */ jsxs22(DisclosureNote4, { title: "Read these constraints", children: [
-        /* @__PURE__ */ jsx29(Text11, { children: group.complete ? "Every instance of the supertype belongs to at least one subtype in this set." : "Instances of the supertype may belong to none of the subtypes in this set." }),
-        /* @__PURE__ */ jsx29(Text11, { children: group.disjoint ? "An instance cannot belong to two subtypes in this set at the same time." : "An instance may belong to more than one subtype in this set at the same time." })
-      ] }),
-      group.memberIds.length < group.totalMembers && /* @__PURE__ */ jsxs22(Text11, { tone: "muted", children: [
-        group.memberIds.length,
-        " of ",
-        group.totalMembers,
-        " members are shown. These constraints apply to the full set."
-      ] })
-    ] }) : /* @__PURE__ */ jsx29(DisclosureNote4, { title: "Read joined inheritance", children: /* @__PURE__ */ jsx29(Text11, { tone: "muted", children: "These inheritance branches share a supertype. Joining their lines does not assert completeness or disjointness. Declare a generalization set in the model to express those constraints." }) }),
-    /* @__PURE__ */ jsx29(
-      SourceEvidence,
-      {
-        evidence: group.evidence,
-        primary: group.primarySource,
-        sources: model.sources,
-        snippets,
-        label: "Sources"
-      }
-    )
-  ] });
-});
-
-// src/details/Inspector.jsx
-import { jsx as jsx30 } from "react/jsx-runtime";
-function Inspector({
-  showScenarios,
-  element,
-  inspected,
-  member = null,
-  model,
-  snippets,
-  scenarios,
-  changes,
-  showOverview,
-  onChoose,
-  onInspectScenario = onChoose
-}) {
-  if (showScenarios)
-    return /* @__PURE__ */ jsx30(
-      ScenarioPanel,
-      {
-        model,
-        scenarios,
-        onInspect: onInspectScenario
-      }
-    );
-  const review = changes?.details ?? null;
-  if (element && inspected.kind === "node")
-    return /* @__PURE__ */ jsx30(
-      ConceptDetails,
-      {
-        concept: element,
-        model,
-        snippets,
-        review,
-        member
-      }
-    );
-  if (element && inspected.kind === "edge")
-    return /* @__PURE__ */ jsx30(
-      RelationDetails,
-      {
-        relation: element,
-        model,
-        snippets,
-        review,
-        onChoose
-      }
-    );
-  if (element && inspected.kind === "group")
-    return /* @__PURE__ */ jsx30(
-      GeneralizationSetDetails,
-      {
-        group: element,
-        model,
-        snippets,
-        onChoose
-      }
-    );
-  if (showOverview) return changes.content;
-  return null;
-}
-
 // src/viewer/useArtifactArchive.js
-import { useMemo as useMemo7 } from "react";
+import { useMemo as useMemo3 } from "react";
 import { unzipSync, strFromU8 } from "fflate";
 function useArtifactArchive(exportData) {
-  return useMemo7(() => {
+  return useMemo3(() => {
     const bundle = Uint8Array.from(
       atob(exportData.bundle),
       (c) => c.charCodeAt(0)
@@ -4691,7 +2975,7 @@ function reviewedPayload(payload) {
   const comparison = payload.comparison;
   const document2 = payload.model.document;
   if (!comparison)
-    return { payload, review: null, provenanceDocument: document2 };
+    return { payload, review: null, plain: null, provenanceDocument: document2 };
   let review = reviews.get(comparison);
   if (!review) {
     const capturedAt = document2?.snapshots?.find(
@@ -4707,148 +2991,16 @@ function reviewedPayload(payload) {
       comparison: void 0
     },
     review,
+    plain: { ...payload, comparison: void 0 },
     provenanceDocument: document2
   };
 }
 
-// src/viewer/useInspectorWidth.jsx
-import { useEffect as useEffect8, useLayoutEffect as useLayoutEffect7, useRef as useRef7, useState as useState7 } from "react";
-import { jsx as jsx31 } from "react/jsx-runtime";
-var MIN = 288;
-var MAX = 1200;
-var SHARE = 0.6;
-var STEP = 16;
-var LARGE_STEP = 48;
-function useInspectorWidth({
-  viewerRef,
-  panelRef,
-  width,
-  onChange,
-  label = "Resize details"
-}) {
-  const [own, setOwn] = useState7(null);
-  const [dragged, setDragged] = useState7(null);
-  const [sizes, setSizes] = useState7({ viewer: 0, panel: 0 });
-  const drag = useRef7(null);
-  useLayoutEffect7(() => {
-    const viewer = viewerRef.current, panel = panelRef.current;
-    if (!viewer || !panel || typeof ResizeObserver !== "function") return;
-    const measure = () => setSizes((old) => {
-      const next = {
-        viewer: viewer.clientWidth,
-        panel: Math.round(panel.getBoundingClientRect().width)
-      };
-      return next.viewer === old.viewer && next.panel === old.panel ? old : next;
-    });
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(viewer);
-    observer.observe(panel);
-    return () => observer.disconnect();
-  }, [viewerRef, panelRef]);
-  const max = Math.max(MIN, Math.min(MAX, Math.floor(sizes.viewer * SHARE)));
-  const clamp = (value) => Math.round(Math.min(max, Math.max(MIN, value)));
-  const chosen = onChange ? width ?? null : own;
-  const shown2 = dragged ?? (chosen === null ? null : clamp(chosen));
-  const resizing = dragged !== null;
-  useLayoutEffect7(() => {
-    const style = viewerRef.current?.style;
-    if (!style || resizing) return;
-    if (shown2 === null) style.removeProperty("--inspector-width");
-    else style.setProperty("--inspector-width", `${shown2}px`);
-  }, [viewerRef, shown2, resizing]);
-  useEffect8(() => () => cancelAnimationFrame(drag.current?.frame), []);
-  const follow = (d, clientX) => {
-    d.width = clamp(d.startWidth + d.startX - clientX);
-    if (d.frame) return;
-    d.frame = requestAnimationFrame(() => {
-      d.frame = 0;
-      viewerRef.current?.style.setProperty("--inspector-width", `${d.width}px`);
-      d.separator.setAttribute("aria-valuenow", String(d.width));
-    });
-  };
-  const end = (d) => {
-    cancelAnimationFrame(d.frame);
-    d.separator.setAttribute("aria-valuenow", String(clamp(d.startWidth)));
-    drag.current = null;
-    setDragged(null);
-  };
-  const commit = (next) => {
-    const value = clamp(next);
-    if (onChange) {
-      if (value !== chosen) onChange(value);
-    } else setOwn(value);
-  };
-  const current = () => shown2 ?? Math.round(panelRef.current?.getBoundingClientRect().width || sizes.panel);
-  const separator = /* @__PURE__ */ jsx31(
-    "div",
-    {
-      role: "separator",
-      "aria-orientation": "vertical",
-      "aria-label": label,
-      "aria-valuenow": shown2 ?? sizes.panel,
-      "aria-valuemin": MIN,
-      "aria-valuemax": max,
-      tabIndex: 0,
-      className: "panel-resize",
-      onPointerDown: (event) => {
-        if (event.button !== 0) return;
-        event.preventDefault();
-        event.currentTarget.setPointerCapture(event.pointerId);
-        const startWidth = current();
-        drag.current = {
-          pointerId: event.pointerId,
-          startX: event.clientX,
-          startWidth,
-          width: clamp(startWidth),
-          frame: 0,
-          separator: event.currentTarget
-        };
-        setDragged(drag.current.width);
-      },
-      onPointerMove: (event) => {
-        const d = drag.current;
-        if (!d || d.pointerId !== event.pointerId) return;
-        follow(d, event.clientX);
-      },
-      onPointerUp: (event) => {
-        const d = drag.current;
-        if (!d || d.pointerId !== event.pointerId) return;
-        end(d);
-        commit(d.startWidth + d.startX - event.clientX);
-      },
-      onPointerCancel: (event) => {
-        const d = drag.current;
-        if (d?.pointerId !== event.pointerId) return;
-        end(d);
-      },
-      onKeyDown: (event) => {
-        if (event.altKey || event.ctrlKey || event.metaKey) return;
-        const step = event.shiftKey ? LARGE_STEP : STEP;
-        let next;
-        if (event.key === "ArrowLeft") next = current() + step;
-        else if (event.key === "ArrowRight") next = current() - step;
-        else if (event.key === "Home") next = MIN;
-        else if (event.key === "End") next = max;
-        else return;
-        event.preventDefault();
-        commit(next);
-      }
-    }
-  );
-  return {
-    width: shown2,
-    style: shown2 === null ? void 0 : { "--inspector-width": `${shown2}px` },
-    resizing,
-    separator
-  };
-}
-
 // src/viewer/useOverlayInsets.js
-import { useCallback as useCallback3, useLayoutEffect as useLayoutEffect8 } from "react";
+import { useCallback as useCallback2, useLayoutEffect as useLayoutEffect4 } from "react";
 var GAP = 8;
 function useOverlayInsets(viewerRef, topRef) {
-  useLayoutEffect8(() => {
+  useLayoutEffect4(() => {
     const viewer = viewerRef.current, top = topRef.current;
     if (!viewer || !top || typeof ResizeObserver !== "function") return;
     const update = () => viewer.style.setProperty(
@@ -4860,14 +3012,14 @@ function useOverlayInsets(viewerRef, topRef) {
     observer.observe(top);
     return () => observer.disconnect();
   }, [viewerRef, topRef]);
-  return useCallback3(
+  return useCallback2(
     (canvas) => {
       const viewer = viewerRef.current || canvas?.parentElement;
       if (!viewer) return null;
       const box = viewer.getBoundingClientRect();
       const edge = (selector) => viewer.querySelector(selector)?.getBoundingClientRect();
       const top = edge(":scope > .atlas-overlay-top");
-      const inspector = edge(":scope > .inspector.open");
+      const inspector = edge(":scope > .side-panel.open");
       return {
         top: top ? Math.max(0, top.bottom - box.top) : 0,
         bottom: 0,
@@ -4890,17 +3042,17 @@ function useOverlayInsets(viewerRef, topRef) {
 }
 
 // src/viewer/useToolbarDensity.js
-import { useLayoutEffect as useLayoutEffect9, useRef as useRef8, useState as useState8 } from "react";
+import { useLayoutEffect as useLayoutEffect5, useRef as useRef4, useState as useState5 } from "react";
 var MAX_LEVEL = 3;
 var HYSTERESIS = 24;
 function useToolbarDensity(topRef, resetKey, contentKey) {
-  const [level, setLevel] = useState8(0);
-  const limits = useRef8([]);
-  useLayoutEffect9(() => {
+  const [level, setLevel] = useState5(0);
+  const limits = useRef4([]);
+  useLayoutEffect5(() => {
     limits.current = [];
     setLevel(0);
   }, [resetKey]);
-  useLayoutEffect9(() => {
+  useLayoutEffect5(() => {
     const top = topRef.current;
     if (!top || typeof ResizeObserver !== "function") return;
     const check = () => {
@@ -4940,29 +3092,140 @@ function useToolbarDensity(topRef, resetKey, contentKey) {
   return level;
 }
 
+// src/viewer/useViewerState.jsx
+import {
+  useCallback as useCallback5,
+  useEffect as useEffect4,
+  useLayoutEffect as useLayoutEffect6,
+  useMemo as useMemo5,
+  useRef as useRef5,
+  useState as useState9
+} from "react";
+
+// src/model/viewerModelIndex.js
+function indexViewerModel(model, generalizationGroups = []) {
+  const nodes = new Map(model.classes.map((node) => [node.id, node]));
+  const names = new Map(model.classes.map((node) => [node.name, node]));
+  const edges = new Map([
+    ...model.relations.map((edge) => [
+      edge.id,
+      {
+        ...edge,
+        type: "association",
+        source: nodes.get(edge.sourceId),
+        target: nodes.get(edge.targetId)
+      }
+    ]),
+    ...model.generalizations.map((edge) => [
+      edge.id,
+      {
+        ...edge,
+        type: "generalization",
+        source: nodes.get(edge.specificId),
+        target: nodes.get(edge.generalId)
+      }
+    ])
+  ]);
+  const sets = new Map((model.partitions || []).map((set) => [set.id, set]));
+  const groups = new Map(
+    generalizationGroups.map((group) => [
+      group.id,
+      {
+        ...group,
+        ...sets.get(group.id),
+        evidence: sets.get(group.id)?.evidence || [],
+        sources: group.sourceIds.map((id) => nodes.get(id)),
+        target: nodes.get(group.target)
+      }
+    ])
+  );
+  return {
+    nodes,
+    names,
+    edges,
+    groups,
+    getElement: (target) => target?.kind === "node" ? nodes.get(target.id) : target?.kind === "group" ? groups.get(target.id) : edges.get(target?.id)
+  };
+}
+function viewForNode(views, currentKey, node) {
+  return views.find(
+    (view) => view.key === currentKey && view.nodeIds.includes(node.id)
+  ) || views.find((view) => view.nodeIds.includes(node.id));
+}
+
+// src/model/inspectionTarget.js
+function inspectionTarget(model, index2, views, viewKey, id) {
+  const node = index2.nodes.get(id) || model.classes.find(
+    (c) => [...c.attributes, ...c.methods || []].some((m) => m.id === id)
+  );
+  if (node) {
+    const view2 = viewForNode(views, viewKey, node);
+    return view2 ? {
+      viewKey: view2.key,
+      target: { kind: "node", id: node.id },
+      nodeId: node.id,
+      ...node.id !== id ? { memberId: id } : {}
+    } : null;
+  }
+  const holds = (v) => v.diagram.edges.some((e) => e.id === id) || v.diagram.generalizationGroups?.some(
+    (g) => g.id === id || g.memberIds.includes(id)
+  );
+  const view = views.find((v) => v.key === viewKey && holds(v)) || views.find(holds);
+  if (!view) return null;
+  const edge = view.diagram.edges.find((e) => e.id === id);
+  return {
+    viewKey: view.key,
+    target: { kind: index2.edges.has(id) ? "edge" : "group", id },
+    ...edge ? { nodeIds: [edge.source, edge.target] } : {}
+  };
+}
+
+// src/viewer/useHover.js
+import { useCallback as useCallback3, useState as useState6 } from "react";
+import { flushSync } from "react-dom";
+function useHover() {
+  const [hovered, setHovered] = useState6(null);
+  const hover = useCallback3((target) => {
+    flushSync(
+      () => setHovered((old) => sameTarget(old, target) ? old : target)
+    );
+  }, []);
+  const clearHover = useCallback3(() => setHovered(null), []);
+  return { hovered, hover, clearHover };
+}
+
 // src/review/useChangeReview.jsx
-import { useCallback as useCallback4, useMemo as useMemo8, useRef as useRef10, useState as useState10 } from "react";
-import { Button as Button8, Counter as Counter2, Tooltip as Tooltip4 } from "@envsemble/envui";
+import { useCallback as useCallback4, useMemo as useMemo4, useState as useState8 } from "react";
+import { Badge as Badge3, Button as Button3, Tooltip as Tooltip4 } from "@envsemble/envui";
 
 // src/review/ChangesOverview.jsx
-import { memo as memo6, useEffect as useEffect9, useLayoutEffect as useLayoutEffect10, useRef as useRef9, useState as useState9 } from "react";
-import { Button as Button7, Counter, DisclosureNote as DisclosureNote5, Stack as Stack6, Text as Text12 } from "@envsemble/envui";
-import { Fragment as Fragment12, jsx as jsx32, jsxs as jsxs23 } from "react/jsx-runtime";
+import { memo as memo3, useState as useState7 } from "react";
+import { Badge as Badge2, Column as Column3, Disclosure, Text as Text5 } from "@envsemble/envui";
+
+// src/review/ChangeMark.jsx
+import { jsx as jsx17 } from "react/jsx-runtime";
+function ChangeMark({ status }) {
+  if (!CHANGE_LABELS[status]) return null;
+  return /* @__PURE__ */ jsx17("span", { className: "change-mark", "data-change": status, "aria-hidden": "true", children: changeGlyph(status) });
+}
+
+// src/review/ChangesOverview.jsx
+import { Fragment as Fragment6, jsx as jsx18, jsxs as jsxs11 } from "react/jsx-runtime";
 function Summary({ row }) {
   const { summary } = row;
-  const note = summary.note && /* @__PURE__ */ jsx32("span", { className: "change-row-note", children: summary.note });
+  const note = summary.note && /* @__PURE__ */ jsx18("span", { className: "change-row-note", children: summary.note });
   if (summary.tokens.length)
-    return /* @__PURE__ */ jsxs23(Fragment12, { children: [
-      /* @__PURE__ */ jsxs23("span", { className: "change-row-summary", children: [
-        summary.tokens.map((token, i) => /* @__PURE__ */ jsxs23("span", { className: "change-token", "data-change": token.status, children: [
-          /* @__PURE__ */ jsx32("span", { className: "change-token-glyph", "aria-hidden": "true", children: changeGlyph(token.status) }),
-          /* @__PURE__ */ jsxs23("span", { className: "visually-hidden", children: [
+    return /* @__PURE__ */ jsxs11(Fragment6, { children: [
+      /* @__PURE__ */ jsxs11("span", { className: "change-row-summary", children: [
+        summary.tokens.map((token, i) => /* @__PURE__ */ jsxs11("span", { className: "change-token", "data-change": token.status, children: [
+          /* @__PURE__ */ jsx18("span", { className: "change-token-glyph", "aria-hidden": "true", children: changeGlyph(token.status) }),
+          /* @__PURE__ */ jsxs11("span", { className: "visually-hidden", children: [
             CHANGE_LABELS[token.status],
             " "
           ] }),
           token.text
         ] }, i)),
-        summary.more > 0 && /* @__PURE__ */ jsxs23("span", { className: "change-token more", children: [
+        summary.more > 0 && /* @__PURE__ */ jsxs11("span", { className: "change-token more", children: [
           "+",
           summary.more,
           " more"
@@ -4971,10 +3234,10 @@ function Summary({ row }) {
       note
     ] });
   if (!summary.text && !summary.more) return note || null;
-  return /* @__PURE__ */ jsxs23(Fragment12, { children: [
-    /* @__PURE__ */ jsxs23("span", { className: "change-row-summary", children: [
+  return /* @__PURE__ */ jsxs11(Fragment6, { children: [
+    /* @__PURE__ */ jsxs11("span", { className: "change-row-summary", children: [
       summary.text,
-      summary.more > 0 && /* @__PURE__ */ jsxs23("span", { className: "change-token more", children: [
+      summary.more > 0 && /* @__PURE__ */ jsxs11("span", { className: "change-token more", children: [
         summary.text ? " " : "",
         "+",
         summary.more,
@@ -4985,19 +3248,19 @@ function Summary({ row }) {
   ] });
 }
 function ChangeRow({ row, active, onSelect, onHover }) {
-  const content = /* @__PURE__ */ jsxs23(Fragment12, { children: [
-    /* @__PURE__ */ jsx32(ChangeMark, { status: row.status }),
-    /* @__PURE__ */ jsxs23("span", { className: "change-row-text", children: [
-      /* @__PURE__ */ jsxs23("span", { className: "change-row-title", children: [
-        /* @__PURE__ */ jsx32("span", { className: "change-row-name", children: row.name }),
-        row.tag && /* @__PURE__ */ jsx32("span", { className: "change-row-tag", children: row.tag })
+  const content = /* @__PURE__ */ jsxs11(Fragment6, { children: [
+    /* @__PURE__ */ jsx18(ChangeMark, { status: row.status }),
+    /* @__PURE__ */ jsxs11("span", { className: "change-row-text", children: [
+      /* @__PURE__ */ jsxs11("span", { className: "change-row-title", children: [
+        /* @__PURE__ */ jsx18("span", { className: "change-row-name", children: row.name }),
+        row.tag && /* @__PURE__ */ jsx18("span", { className: "change-row-tag", children: row.tag })
       ] }),
-      /* @__PURE__ */ jsx32(Summary, { row })
+      /* @__PURE__ */ jsx18(Summary, { row })
     ] })
   ] });
   if (!row.target)
-    return /* @__PURE__ */ jsx32("li", { className: "change-row static", "data-change": row.status, children: content });
-  return /* @__PURE__ */ jsx32("li", { children: /* @__PURE__ */ jsx32(
+    return /* @__PURE__ */ jsx18("li", { className: "change-row static", "data-change": row.status, children: content });
+  return /* @__PURE__ */ jsx18("li", { children: /* @__PURE__ */ jsx18(
     "button",
     {
       type: "button",
@@ -5015,7 +3278,7 @@ function ChangeRow({ row, active, onSelect, onHover }) {
   ) });
 }
 function RowList({ rows, label, active, onSelect, onHover }) {
-  return /* @__PURE__ */ jsx32("ul", { className: "change-rows", "aria-label": label, children: rows.map((row) => /* @__PURE__ */ jsx32(
+  return /* @__PURE__ */ jsx18("ul", { className: "change-rows", "aria-label": label, children: rows.map((row) => /* @__PURE__ */ jsx18(
     ChangeRow,
     {
       row,
@@ -5026,12 +3289,10 @@ function RowList({ rows, label, active, onSelect, onHover }) {
     row.key
   )) });
 }
-function RelationRows({ group, active, returning, onSelect, onHover }) {
+function RelationRows({ group, active, onSelect, onHover }) {
   const rows = group.relations;
-  const [open, setOpen] = useState9(
-    () => rows.some((r) => r.key === active || r.key === returning)
-  );
-  const list = /* @__PURE__ */ jsx32(
+  const [open, setOpen] = useState7(() => rows.some((r) => r.key === active));
+  const list = /* @__PURE__ */ jsx18(
     RowList,
     {
       rows,
@@ -5042,17 +3303,17 @@ function RelationRows({ group, active, returning, onSelect, onHover }) {
     }
   );
   if (rows.length <= 3)
-    return /* @__PURE__ */ jsxs23(Fragment12, { children: [
-      /* @__PURE__ */ jsx32(Text12, { as: "h4", variant: "caption", className: "change-subheading", children: "Relations" }),
+    return /* @__PURE__ */ jsxs11(Fragment6, { children: [
+      /* @__PURE__ */ jsx18(Text5, { render: /* @__PURE__ */ jsx18("h4", {}), variant: "body-sm", className: "change-subheading", children: "Relations" }),
       list
     ] });
-  return /* @__PURE__ */ jsx32(
-    DisclosureNote5,
+  return /* @__PURE__ */ jsx18(
+    Disclosure,
     {
       className: "change-relations",
       title: `Relations \xB7 ${rows.length}`,
       open,
-      onToggle: (event) => setOpen(event.currentTarget.open),
+      onOpenChange: setOpen,
       children: list
     }
   );
@@ -5076,71 +3337,60 @@ function moveFocus(event) {
   event.preventDefault();
   buttons[next]?.focus();
 }
-var ChangesOverview = memo6(function ChangesOverview2({
+var ChangesOverview = memo3(function ChangesOverview2({
   rollup,
   baselineDate,
   profile,
   active,
-  handoff,
   onSelect,
   onHover
 }) {
-  const list = useRef9(null);
-  useEffect9(() => {
-    const request = handoff?.current;
-    if (request?.to !== "overview") return;
-    handoff.current = null;
-    const rows = [
-      ...list.current?.querySelectorAll("button.change-row") || []
-    ];
-    (rows.find((row) => row.dataset.key === request.key) || rows[0])?.focus();
-  }, [handoff]);
   const source = profile === "code" ? "the code" : profile === "database" ? "the database" : "the model";
-  return /* @__PURE__ */ jsxs23(Stack6, { gap: 4, className: "changes-overview", children: [
-    /* @__PURE__ */ jsx32(Text12, { variant: "supporting", children: rollup.total ? `Compared with ${source}${baselineDate ? ` captured ${baselineDate}` : ""}.` : `No changes to ${source}${baselineDate ? ` captured ${baselineDate}` : ""}.` }),
-    rollup.conflicts.length > 0 && /* @__PURE__ */ jsxs23("section", { className: "change-group", "data-change": "conflict", children: [
-      /* @__PURE__ */ jsxs23(
-        Text12,
+  return /* @__PURE__ */ jsxs11(Column3, { gap: 4, className: "changes-overview", children: [
+    /* @__PURE__ */ jsx18(Text5, { variant: "body-sm", children: rollup.total ? `Compared with ${source}${baselineDate ? ` captured ${baselineDate}` : ""}.` : `No changes to ${source}${baselineDate ? ` captured ${baselineDate}` : ""}.` }),
+    rollup.conflicts.length > 0 && /* @__PURE__ */ jsxs11("section", { className: "change-group", "data-change": "conflict", children: [
+      /* @__PURE__ */ jsxs11(
+        Text5,
         {
-          as: "h3",
-          variant: "section-heading",
-          className: "change-group-heading",
+          render: /* @__PURE__ */ jsx18("h3", {}),
+          variant: "title",
+          className: "atlas-section-heading change-group-heading",
           children: [
             "Conflicts",
-            /* @__PURE__ */ jsx32(Counter, { value: rollup.conflicts.length })
+            /* @__PURE__ */ jsx18(Badge2, { count: rollup.conflicts.length })
           ]
         }
       ),
-      rollup.conflicts.map((conflict) => /* @__PURE__ */ jsx32(
-        DisclosureNote5,
+      rollup.conflicts.map((conflict) => /* @__PURE__ */ jsx18(
+        Disclosure,
         {
           title: conflict.path.join(" / ") || "References",
-          children: /* @__PURE__ */ jsx32(Text12, { tone: "muted", children: conflict.reason })
+          children: /* @__PURE__ */ jsx18(Text5, { emphasis: "muted", children: conflict.reason })
         },
         conflict.id
       ))
     ] }),
-    /* @__PURE__ */ jsx32("div", { ref: list, className: "change-groups", onKeyDown: moveFocus, children: rollup.groups.map((group) => /* @__PURE__ */ jsxs23(
+    /* @__PURE__ */ jsx18("div", { className: "change-groups", onKeyDown: moveFocus, children: rollup.groups.map((group) => /* @__PURE__ */ jsxs11(
       "section",
       {
         className: "change-group",
         "data-change": group.status,
         "aria-label": `${group.label}, ${group.elements.length + group.relations.length}`,
         children: [
-          /* @__PURE__ */ jsxs23(
-            Text12,
+          /* @__PURE__ */ jsxs11(
+            Text5,
             {
-              as: "h3",
-              variant: "section-heading",
-              className: "change-group-heading",
+              render: /* @__PURE__ */ jsx18("h3", {}),
+              variant: "title",
+              className: "atlas-section-heading change-group-heading",
               children: [
-                /* @__PURE__ */ jsx32(ChangeMark, { status: group.status }),
+                /* @__PURE__ */ jsx18(ChangeMark, { status: group.status }),
                 group.label,
-                /* @__PURE__ */ jsx32(Counter, { value: group.elements.length + group.relations.length })
+                /* @__PURE__ */ jsx18(Badge2, { count: group.elements.length + group.relations.length })
               ]
             }
           ),
-          group.elements.length > 0 && /* @__PURE__ */ jsx32(
+          group.elements.length > 0 && /* @__PURE__ */ jsx18(
             RowList,
             {
               rows: group.elements,
@@ -5150,12 +3400,11 @@ var ChangesOverview = memo6(function ChangesOverview2({
               onHover
             }
           ),
-          group.relations.length > 0 && /* @__PURE__ */ jsx32(
+          group.relations.length > 0 && /* @__PURE__ */ jsx18(
             RelationRows,
             {
               group,
               active,
-              returning: handoff?.current?.key,
               onSelect,
               onHover
             }
@@ -5166,73 +3415,39 @@ var ChangesOverview = memo6(function ChangesOverview2({
     )) })
   ] });
 });
-function ChangeNavigation({
-  position,
-  total,
-  name,
-  handoff,
-  onBack,
-  onStep
-}) {
-  const back = useRef9(null);
-  useLayoutEffect10(() => {
-    if (handoff?.current?.to !== "details") return;
-    handoff.current = null;
-    back.current?.focus();
-  }, [handoff]);
-  return /* @__PURE__ */ jsxs23("div", { className: "change-navigation", children: [
-    /* @__PURE__ */ jsx32(
-      Button7,
+function ChangeNavigation({ position, total, name, onStep }) {
+  if (!total) return null;
+  return /* @__PURE__ */ jsxs11("span", { className: "change-stepper", role: "group", "aria-label": "Changes", children: [
+    /* @__PURE__ */ jsx18(
+      ToolButton,
       {
-        ref: back,
-        variant: "text",
-        className: "change-back",
-        "aria-label": "All changes",
-        startIcon: /* @__PURE__ */ jsx32(ArrowBack, {}),
-        onClick: onBack,
-        children: /* @__PURE__ */ jsx32("span", { className: "change-back-label", children: "All changes" })
+        label: "Previous change",
+        icon: /* @__PURE__ */ jsx18(IconChevronLeft, {}),
+        "aria-disabled": position === 0 || void 0,
+        onClick: () => onStep(-1)
       }
     ),
-    total > 0 && /* @__PURE__ */ jsxs23("span", { className: "change-stepper", role: "group", "aria-label": "Changes", children: [
-      /* @__PURE__ */ jsx32(
-        ToolButton,
-        {
-          label: "Previous change",
-          icon: /* @__PURE__ */ jsx32(ChevronLeft, {}),
-          "aria-disabled": position === 0 || void 0,
-          onClick: () => onStep(-1)
-        }
-      ),
-      /* @__PURE__ */ jsxs23(
-        "span",
-        {
-          className: "change-position",
-          "aria-live": "polite",
-          "aria-atomic": "true",
-          children: [
-            position >= 0 ? `${position + 1} of ${total}` : `${total} ${total === 1 ? "change" : "changes"}`,
-            position >= 0 && name && /* @__PURE__ */ jsxs23("span", { className: "visually-hidden", children: [
-              ": ",
-              name
-            ] })
-          ]
-        }
-      ),
-      /* @__PURE__ */ jsx32(
-        ToolButton,
-        {
-          label: "Next change",
-          icon: /* @__PURE__ */ jsx32(ChevronRight, {}),
-          "aria-disabled": position === total - 1 || void 0,
-          onClick: () => onStep(1)
-        }
-      )
-    ] })
+    /* @__PURE__ */ jsxs11("span", { className: "change-position", "aria-live": "polite", "aria-atomic": "true", children: [
+      position >= 0 ? `${position + 1} of ${total}` : `${total} ${total === 1 ? "change" : "changes"}`,
+      position >= 0 && name && /* @__PURE__ */ jsxs11("span", { className: "visually-hidden", children: [
+        ": ",
+        name
+      ] })
+    ] }),
+    /* @__PURE__ */ jsx18(
+      ToolButton,
+      {
+        label: "Next change",
+        icon: /* @__PURE__ */ jsx18(IconChevronRight, {}),
+        "aria-disabled": position === total - 1 || void 0,
+        onClick: () => onStep(1)
+      }
+    )
   ] });
 }
 
 // src/review/useChangeReview.jsx
-import { Fragment as Fragment13, jsx as jsx33, jsxs as jsxs24 } from "react/jsx-runtime";
+import { Fragment as Fragment7, jsx as jsx19, jsxs as jsxs12 } from "react/jsx-runtime";
 var ROOMY_WIDTH = 1280;
 var overviewByDefault = () => typeof window !== "undefined" && window.innerWidth >= ROOMY_WIDTH;
 function useChangeReview({
@@ -5240,20 +3455,14 @@ function useChangeReview({
   model,
   views,
   selected,
-  overview,
-  setOverview,
   choose,
-  select,
-  hover,
-  onShowPanel
+  hover
 }) {
-  const rollup = useMemo8(
+  const rollup = useMemo4(
     () => review ? cachedRollup(review.comparison, model, views) : null,
     [review, model, views]
   );
-  const details = useMemo8(() => rollup ? { rollup } : null, [rollup]);
-  const [fade, setFade] = useState10(true);
-  const handoff = useRef10(null);
+  const [fade, setFade] = useState8(true);
   const current = rollup && selected ? rowFor(rollup, selected, model) : null;
   const position = current ? rollup.navigable.indexOf(current) : -1;
   const total = rollup?.navigable.length || 0;
@@ -5272,200 +3481,98 @@ function useChangeReview({
     },
     [rollup, position, total, open]
   );
-  const back = useCallback4(() => {
-    setOverview(true);
-    onShowPanel?.();
-    select(null);
-  }, [select, onShowPanel, setOverview]);
-  const openRow = useCallback4(
-    (row) => {
-      handoff.current = { to: "details" };
-      open(row);
-    },
-    [open]
-  );
-  const backToOverview = useCallback4(() => {
-    handoff.current = { to: "overview", key: current?.key };
-    back();
-  }, [back, current]);
   const baselineDate = review?.baselineDate;
   const profile = model.document?.profile;
   const activeKey = current?.key;
-  const content = useMemo8(
-    () => rollup ? /* @__PURE__ */ jsx33(
+  const content = useMemo4(
+    () => rollup ? /* @__PURE__ */ jsx19(
       ChangesOverview,
       {
         rollup,
         baselineDate,
         profile,
         active: activeKey,
-        handoff,
-        onSelect: openRow,
+        onSelect: open,
         onHover: hover
       }
     ) : null,
-    [rollup, baselineDate, profile, activeKey, openRow, hover]
+    [rollup, baselineDate, profile, activeKey, open, hover]
   );
   if (!rollup) return null;
   return {
     rollup,
-    details,
-    /** Leaving a change's details by keyboard returns focus to it in the overview. */
-    returnFocus: () => {
-      if (overview) handoff.current = { to: "overview", key: current?.key };
-    },
     fade,
     position,
     total,
-    /** Toolbar controls: the changes overview toggle and fading. */
-    controls: (showing) => /* @__PURE__ */ jsxs24(Fragment13, { children: [
-      /* @__PURE__ */ jsx33(
+    /** Toolbar controls: the Changes panel's toggle and fading. */
+    controls: (showing, onToggle) => /* @__PURE__ */ jsxs12(Fragment7, { children: [
+      /* @__PURE__ */ jsx19(
         Tooltip4,
         {
           content: showing ? "Hide the changes" : "Show every change",
           side: "bottom",
-          children: /* @__PURE__ */ jsxs24(
-            Button8,
+          children: /* @__PURE__ */ jsxs12(
+            Button3,
             {
               variant: showing ? "primary" : "secondary",
               className: "changes-toggle",
               "aria-pressed": showing,
               "aria-label": `Changes, ${rollup.count}`,
-              startIcon: /* @__PURE__ */ jsx33(Difference, {}),
-              onClick: () => {
-                if (showing) setOverview(false);
-                else back();
-              },
+              startIcon: /* @__PURE__ */ jsx19(IconDifference, {}),
+              onClick: onToggle,
               children: [
-                /* @__PURE__ */ jsx33("span", { className: "collapsible-label", children: "Changes" }),
-                /* @__PURE__ */ jsx33(
-                  Counter2,
-                  {
-                    value: rollup.count,
-                    tone: showing ? "accent" : "neutral"
-                  }
-                )
+                /* @__PURE__ */ jsx19("span", { className: "collapsible-label", children: "Changes" }),
+                /* @__PURE__ */ jsx19(Badge3, { count: rollup.count })
               ]
             }
           )
         }
       ),
-      /* @__PURE__ */ jsx33(
+      /* @__PURE__ */ jsx19(
         ToolButton,
         {
           label: "Fade unchanged elements",
           pressed: fade,
-          icon: /* @__PURE__ */ jsx33(Contrast, {}),
+          icon: /* @__PURE__ */ jsx19(IconContrast, {}),
           onClick: () => setFade((value) => !value)
         }
       )
     ] }),
-    /** Above a selected element's details: back to every change, previous and next. */
-    navigation: /* @__PURE__ */ jsx33(
+    /** In the Changes panel's header: the previous and next change. */
+    navigation: /* @__PURE__ */ jsx19(
       ChangeNavigation,
       {
         position,
         total,
         name: current?.label && current.label !== current.name ? `${current.name}, ${current.label}` : current?.name,
-        handoff,
-        onBack: backToOverview,
         onStep: step
       }
     ),
-    /** The overview list for the inspector. */
+    /** The overview list for the Changes panel. */
     content
   };
 }
 
-// src/viewer/DiagramViewer.jsx
-import { jsx as jsx34, jsxs as jsxs25 } from "react/jsx-runtime";
-function DiagramViewer(props) {
-  const { payload, review, provenanceDocument } = reviewedPayload(props);
-  if (!payload.views.length)
-    return /* @__PURE__ */ jsxs25("main", { className: "viewer-error", children: [
-      /* @__PURE__ */ jsx34(ProvenanceBadge, { document: provenanceDocument, className: "inline" }),
-      /* @__PURE__ */ jsx34(
-        EmptyState,
-        {
-          headingLevel: 1,
-          title: payload.model.title,
-          description: "No entities in this model."
-        }
-      )
-    ] });
-  return /* @__PURE__ */ jsx34(
-    ViewerContent,
-    {
-      ...payload,
-      focus: props.focus,
-      review,
-      provenanceDocument
-    }
-  );
-}
-var WIDTH_KEY = "atlas-inspector-width";
-function useStoredWidth() {
-  const [width, setWidth] = useState11(() => {
-    try {
-      const stored = Number(localStorage.getItem(WIDTH_KEY));
-      return stored > 0 ? stored : null;
-    } catch {
-      return null;
-    }
-  });
-  const change = useCallback5((next) => {
-    setWidth(next);
-    try {
-      localStorage.setItem(WIDTH_KEY, String(next));
-    } catch {
-    }
-  }, []);
-  return [width, change];
-}
-function useOptionalThemePreference() {
-  try {
-    return useThemePreference();
-  } catch {
-    return null;
-  }
-}
-function ViewerContent({
+// src/viewer/useViewerState.jsx
+function useViewerState({
   model,
   views,
-  exports: exportData,
-  snippets = {},
-  scenarios = null,
-  focus = null,
-  review = null,
-  provenanceDocument
+  scenarios,
+  review,
+  focus,
+  identity,
+  cameraRef
 }) {
-  const exports = useArtifactArchive(exportData);
-  const [viewKey, setViewKey] = useState11(views[0].key), [fields, setFields] = useState11(false);
-  const preference = useOptionalThemePreference();
-  const ambientTheme = useTheme();
-  const theme = preference?.theme || ambientTheme;
-  const [selected, setSelected] = useState11(null);
-  const [aboutOpen, setAboutOpen] = useState11(false);
-  const [scenariosOpen, setScenariosOpen] = useState11(false);
-  const [detailsHidden, setDetailsHidden] = useState11(false);
-  const [overview, setOverview] = useState11(overviewByDefault);
-  const { hovered, preview, hover, keepHover, clearHover } = useInspection({
-    previewEnabled: !detailsHidden && !(review && overview && !selected && !scenariosOpen),
-    previewVisible: !!selected || scenariosOpen
-  });
-  const [focusRequest, setFocusRequest] = useState11(null);
-  const [member, setMember] = useState11(null);
-  const zoomStore = useMemo9(createZoomStore, []);
-  const cameraRef = useRef11(null);
-  const viewerRef = useRef11(null), toolbarRef = useRef11(null);
-  const fitInsets = useOverlayInsets(viewerRef, toolbarRef);
-  const density = useToolbarDensity(
-    toolbarRef,
-    `${model.id}:${views.map((v) => v.key).join()}:${!!review}`
+  const [viewKey, setViewKey] = useState9(views[0].key);
+  const [selected, setSelected] = useState9(null);
+  const [focusRequest, setFocusRequest] = useState9(null);
+  const [side, setSide] = useState9(
+    () => overviewByDefault() ? "changes" : null
   );
+  const { hovered, hover, clearHover } = useHover();
   const view = views.find((v) => v.key === viewKey) || views[0];
-  const diagram = fields ? view.diagramFields : view.diagram;
-  const index2 = useMemo9(
+  const diagram = view.diagram;
+  const index2 = useMemo5(
     () => indexViewerModel(model, diagram.generalizationGroups),
     [model, diagram.generalizationGroups]
   );
@@ -5473,24 +3580,15 @@ function ViewerContent({
     (target) => {
       clearHover();
       setSelected((old) => sameTarget(old, target) ? old : target);
-      setAboutOpen(false);
-      setScenariosOpen(false);
     },
     [clearHover]
   );
-  const clear = useCallback5(() => {
-    setSelected(null);
-    setAboutOpen(false);
-    setScenariosOpen(false);
-    clearHover();
-  }, [clearHover]);
   const choose = useCallback5(
     (id) => {
       const next = inspectionTarget(model, index2, views, viewKey, id);
       if (!next) return;
       setViewKey(next.viewKey);
       select(next.target);
-      setMember(next.memberId || null);
       if (next.nodeId) setFocusRequest({ id: next.nodeId });
       else if (next.nodeIds) setFocusRequest({ ids: next.nodeIds });
     },
@@ -5501,208 +3599,445 @@ function ViewerContent({
     model,
     views,
     selected,
-    overview,
-    setOverview,
     choose,
-    select,
-    hover,
-    onShowPanel: () => {
-      setDetailsHidden(false);
-      setScenariosOpen(false);
-    }
+    hover
   });
-  const { diagramURL, backgroundURL } = useSVGExport(
-    exports.readText(
-      `${exports.slug}-${view.key}${fields ? "-fields" : ""}.svg`
+  const panel = side === "changes" && changes ? "changes" : side === "scenarios" && scenarios ? "scenarios" : null;
+  const togglePanel = useCallback5(
+    (kind) => setSide(panel === kind ? null : kind),
+    [panel]
+  );
+  const closePanel = useCallback5(() => setSide(null), []);
+  const changeView = useCallback5(
+    (key) => {
+      setViewKey(key);
+      setFocusRequest(null);
+      clearHover();
+    },
+    [clearHover]
+  );
+  const lastFocus = useRef5(null);
+  useEffect4(() => {
+    select(null);
+    setViewKey(views[0].key);
+    setFocusRequest(null);
+    lastFocus.current = null;
+  }, [identity, select]);
+  useEffect4(() => {
+    if (!selected) return;
+    const shown2 = selected.kind === "node" ? diagram.nodes.some((n) => n.id === selected.id) : selected.kind === "edge" ? diagram.edges.some((e) => e.id === selected.id) || diagram.generalizationGroups?.some(
+      (g) => g.memberIds.includes(selected.id)
+    ) : diagram.generalizationGroups?.some((g) => g.id === selected.id);
+    if (!index2.getElement(selected) || !shown2) select(null);
+  }, [index2, diagram, selected, select]);
+  useEffect4(() => {
+    if (sameTarget(lastFocus.current, focus)) return;
+    lastFocus.current = focus;
+    if (!focus) return;
+    if (focus.kind === "view" && views.some((v) => v.key === focus.id))
+      setViewKey(focus.id);
+    else choose(focus.id);
+  }, [focus, choose, views]);
+  useEffect4(() => {
+    const escape = (e) => {
+      if (e.key === "Escape" && e.target.closest?.(".viewer")) select(null);
+    };
+    document.addEventListener("keydown", escape);
+    return () => document.removeEventListener("keydown", escape);
+  }, [select]);
+  useLayoutEffect6(() => {
+    if (panel && selected?.kind === "node")
+      cameraRef.current?.revealNode(selected.id);
+  }, [panel]);
+  const inspectScenario = useCallback5(
+    (id) => {
+      if (index2.nodes.has(id)) return choose(id);
+      const groupView = views.find(
+        (v) => v.diagram.generalizationGroups?.some((g) => g.id === id)
+      );
+      if (!groupView) return choose(id);
+      setViewKey(groupView.key);
+      select({ kind: "group", id });
+    },
+    [index2, views, choose, select]
+  );
+  return {
+    view,
+    diagram,
+    selected,
+    select,
+    hovered,
+    hover,
+    clearHover,
+    focusRequest,
+    choose,
+    changes,
+    panel,
+    togglePanel,
+    closePanel,
+    changeView,
+    inspectScenario
+  };
+}
+
+// src/scenarios/ScenarioPanel.jsx
+import { useMemo as useMemo6 } from "react";
+import {
+  Alert,
+  Badge as Badge4,
+  Button as Button4,
+  Column as Column4,
+  Disclosure as Disclosure2,
+  Text as Text6
+} from "@envsemble/envui";
+import { Fragment as Fragment8, jsx as jsx20, jsxs as jsxs13 } from "react/jsx-runtime";
+function verdict(scenario) {
+  const met = scenario.result.expectationMet;
+  const expected = scenario.expected === "invalid" ? "Invalid" : "Valid";
+  if (met === null)
+    return { tone: "neutral", text: `${expected} \xB7 not fully checked` };
+  return met ? { tone: "success", text: `${expected} \xB7 as expected` } : { tone: "danger", text: `${expected} expected \xB7 differs` };
+}
+function Examples({ examples, model, names, onInspect }) {
+  const classNames = new Map(model.classes.map((c) => [c.id, c.name]));
+  return /* @__PURE__ */ jsx20(Column4, { gap: 5, children: examples.map((scenario) => {
+    const { tone, text } = verdict(scenario);
+    const labels = new Map(
+      scenario.instances.map((i) => [i.id, i.label || i.id])
+    );
+    return /* @__PURE__ */ jsxs13(Column4, { gap: 2, className: "example", children: [
+      /* @__PURE__ */ jsxs13("div", { className: "example-head", children: [
+        /* @__PURE__ */ jsx20(
+          Text6,
+          {
+            render: /* @__PURE__ */ jsx20("h3", {}),
+            variant: "title",
+            className: "atlas-section-heading",
+            children: scenario.title
+          }
+        ),
+        /* @__PURE__ */ jsx20(Badge4, { tone, children: text })
+      ] }),
+      scenario.description && /* @__PURE__ */ jsx20(Text6, { children: scenario.description }),
+      scenario.result.issues.map((issue, i) => /* @__PURE__ */ jsxs13(Alert, { tone: "warning", children: [
+        issue.message,
+        issue.elementId && names.has(issue.elementId) && /* @__PURE__ */ jsxs13(Fragment8, { children: [
+          " ",
+          /* @__PURE__ */ jsx20(
+            Button4,
+            {
+              variant: "text",
+              className: "inline-action",
+              onClick: () => onInspect(issue.elementId),
+              children: names.get(issue.elementId)
+            }
+          )
+        ] })
+      ] }, i)),
+      /* @__PURE__ */ jsxs13(
+        Disclosure2,
+        {
+          title: `${scenario.instances.length} instances \xB7 ${scenario.links.length} links`,
+          children: [
+            /* @__PURE__ */ jsx20("ul", { className: "example-list", children: scenario.instances.map((instance) => /* @__PURE__ */ jsxs13("li", { children: [
+              /* @__PURE__ */ jsx20("strong", { children: instance.label || instance.id }),
+              ": ",
+              instance.classIds.map((id) => classNames.get(id) || id).join(", ")
+            ] }, instance.id)) }),
+            scenario.links.length > 0 && /* @__PURE__ */ jsx20("ul", { className: "example-list", children: scenario.links.map((link, i) => /* @__PURE__ */ jsxs13("li", { children: [
+              labels.get(link.sourceId) || link.sourceId,
+              " \u2192",
+              " ",
+              /* @__PURE__ */ jsx20("em", { children: names.get(link.relationId) || link.relationId }),
+              " \u2192",
+              " ",
+              labels.get(link.targetId) || link.targetId
+            ] }, i)) }),
+            scenario.result.unassessed.map((u, i) => /* @__PURE__ */ jsx20(Text6, { emphasis: "muted", children: u.message }, i))
+          ]
+        }
+      )
+    ] }, scenario.id);
+  }) });
+}
+function ScenarioPanel({ model, scenarios = null, onInspect }) {
+  const elementNames = useMemo6(
+    () => new Map(
+      [...model.classes, ...model.relations, ...model.partitions || []].map(
+        (e) => [e.originalId || e.id, e.name]
+      )
     ),
+    [model]
+  );
+  const examples = scenarios?.scenarios || [];
+  if (!examples.length) return null;
+  return /* @__PURE__ */ jsx20(Column4, { gap: 6, className: "scenario-panel", children: /* @__PURE__ */ jsxs13(Column4, { render: /* @__PURE__ */ jsx20("section", {}), gap: 3, "aria-label": "Examples", children: [
+    /* @__PURE__ */ jsx20(
+      Text6,
+      {
+        render: /* @__PURE__ */ jsx20("h3", {}),
+        variant: "body-sm",
+        className: "detail-section-title",
+        children: "Examples"
+      }
+    ),
+    /* @__PURE__ */ jsx20(
+      Examples,
+      {
+        examples,
+        model,
+        names: elementNames,
+        onInspect
+      }
+    )
+  ] }) });
+}
+
+// src/ui/Panel.jsx
+import { Surface as Surface3, Text as Text7 } from "@envsemble/envui";
+import { jsx as jsx21, jsxs as jsxs14 } from "react/jsx-runtime";
+function Panel({
+  open,
+  onClose,
+  label,
+  title = label,
+  toolbar = null,
+  closeLabel = "Close",
+  children,
+  id = "panel",
+  className = "",
+  ...props
+}) {
+  return /* @__PURE__ */ jsx21(
+    Surface3,
+    {
+      render: /* @__PURE__ */ jsx21("aside", {}),
+      background: "default",
+      padding: 0,
+      id,
+      className: `panel${open ? " open" : ""}${className ? ` ${className}` : ""}`,
+      "aria-label": label,
+      ...props,
+      children: /* @__PURE__ */ jsxs14("div", { className: "panel-scroll", children: [
+        /* @__PURE__ */ jsxs14("div", { className: "panel-header", children: [
+          /* @__PURE__ */ jsx21(
+            Text7,
+            {
+              render: /* @__PURE__ */ jsx21("h2", {}),
+              variant: "title",
+              className: "atlas-section-heading panel-title",
+              children: title
+            }
+          ),
+          toolbar,
+          onClose && /* @__PURE__ */ jsx21(
+            ToolButton,
+            {
+              className: "panel-close",
+              label: closeLabel,
+              icon: /* @__PURE__ */ jsx21(IconClose, {}),
+              onClick: onClose
+            }
+          )
+        ] }),
+        /* @__PURE__ */ jsx21("div", { className: "panel-content", children })
+      ] })
+    }
+  );
+}
+
+// src/viewer/SidePanel.jsx
+import { jsx as jsx22, jsxs as jsxs15 } from "react/jsx-runtime";
+function SidePanel({ state, model, scenarios }) {
+  const { panel, changes, closePanel, hover, inspectScenario } = state;
+  if (!panel) return null;
+  const showsChanges = panel === "changes";
+  return /* @__PURE__ */ jsxs15(
+    Panel,
+    {
+      id: "side-panel",
+      className: "side-panel",
+      open: true,
+      title: showsChanges ? "Changes" : "Understand the model",
+      label: showsChanges ? "Changes in this proposal" : "Model guide",
+      toolbar: showsChanges ? changes.navigation : null,
+      closeLabel: showsChanges ? "Hide the changes" : "Close the guide",
+      onClose: closePanel,
+      onPointerLeave: () => hover(null),
+      children: [
+        showsChanges && changes.content,
+        panel === "scenarios" && /* @__PURE__ */ jsx22(
+          ScenarioPanel,
+          {
+            model,
+            scenarios,
+            onInspect: inspectScenario
+          }
+        )
+      ]
+    }
+  );
+}
+
+// src/review/ChangesSwitch.jsx
+import { jsx as jsx23 } from "react/jsx-runtime";
+function ChangesSwitch({ shown: shown2, onChange }) {
+  return /* @__PURE__ */ jsx23(
+    ToolButton,
+    {
+      label: "Show changes",
+      tooltip: shown2 ? "Show the diagram plainly" : "Colour what the proposal changes",
+      pressed: shown2,
+      icon: /* @__PURE__ */ jsx23(IconPalette, {}),
+      onClick: () => onChange(!shown2)
+    }
+  );
+}
+
+// src/viewer/DiagramViewer.jsx
+import { Fragment as Fragment9, jsx as jsx24, jsxs as jsxs16 } from "react/jsx-runtime";
+function DiagramViewer(props) {
+  const { payload, review, plain, provenanceDocument } = reviewedPayload(props);
+  if (!payload.views.length)
+    return /* @__PURE__ */ jsxs16("main", { className: "viewer-error", children: [
+      /* @__PURE__ */ jsx24(ProvenanceBadge, { document: provenanceDocument, className: "inline" }),
+      /* @__PURE__ */ jsx24(
+        EmptyState,
+        {
+          headingLevel: 1,
+          title: payload.model.title,
+          description: "No entities in this model."
+        }
+      )
+    ] });
+  return /* @__PURE__ */ jsx24(
+    ViewerContent,
+    {
+      ...payload,
+      focus: props.focus,
+      review,
+      plain,
+      provenanceDocument
+    }
+  );
+}
+function useOptionalThemePreference() {
+  try {
+    return useThemePreference();
+  } catch {
+    return null;
+  }
+}
+function ViewerContent({ plain = null, ...changeView }) {
+  const [changesShown, setChangesShown] = useState10(true);
+  const plainly = plain && !changesShown;
+  const {
+    model,
+    views,
+    exports: exportData,
+    scenarios = null,
+    focus = null,
+    review = null,
+    provenanceDocument
+  } = plainly ? {
+    ...plain,
+    focus: changeView.focus,
+    provenanceDocument: changeView.provenanceDocument
+  } : changeView;
+  const exports = useArtifactArchive(exportData);
+  const preference = useOptionalThemePreference();
+  const ambientTheme = useTheme();
+  const theme = preference?.theme || ambientTheme;
+  const [aboutOpen, setAboutOpen] = useState10(false);
+  const zoomStore = useMemo7(createZoomStore, []);
+  const cameraRef = useRef6(null);
+  const viewerRef = useRef6(null), toolbarRef = useRef6(null);
+  const fitInsets = useOverlayInsets(viewerRef, toolbarRef);
+  const density = useToolbarDensity(
+    toolbarRef,
+    `${model.id}:${views.map((v) => v.key).join()}:${!!plain}:${changesShown}`
+  );
+  const state = useViewerState({
+    model,
+    views,
+    scenarios,
+    review,
+    focus,
+    identity: changeView.model.id,
+    cameraRef
+  });
+  const { view, diagram, changes, panel } = state;
+  const { diagramURL, backgroundURL } = useSVGExport(
+    exports.readText(`${exports.slug}-${view.key}.svg`),
     theme,
     viewerRef,
     !!changes?.fade
   );
-  const inspected = inspectedTarget(preview, selected);
-  const element = index2.getElement(inspected);
-  const showOverview = !!changes && overview && !element && !scenariosOpen;
-  const detailsOpen = !detailsHidden && (!!element || scenariosOpen || showOverview);
-  useEffect10(() => {
-    setSelected(null);
-    setFocusRequest(null);
-    setViewKey(views[0].key);
-    clearHover();
-  }, [model.id, clearHover]);
-  const onHover = useCallback5(
-    (target) => {
-      if (target) setScenariosOpen(false);
-      hover(target);
-    },
-    [hover]
-  );
-  const latestChanges = useRef11(null);
-  latestChanges.current = changes;
-  useEffect10(() => {
-    const escape = (e) => {
-      if (e.key !== "Escape") return;
-      if (e.target.closest?.(".inspector"))
-        latestChanges.current?.returnFocus();
-      clear();
-    };
-    document.addEventListener("keydown", escape);
-    return () => document.removeEventListener("keydown", escape);
-  }, [clear]);
-  const lastExternalFocus = useRef11(null);
-  useEffect10(() => {
-    if (focus && focus !== lastExternalFocus.current) {
-      lastExternalFocus.current = focus;
-      if (focus.kind === "view" && views.some((v) => v.key === focus.id))
-        setViewKey(focus.id);
-      else choose(focus.id);
-    }
-  }, [focus, choose, views]);
-  useEffect10(() => {
-    if (selected && !index2.getElement(selected)) select(null);
-  }, [index2, selected, select]);
-  const inspector = useRef11(null);
-  const showing = scenariosOpen ? "scenarios" : selected ? `${selected.kind}:${selected.id}` : showOverview ? "overview" : "";
-  useLayoutEffect11(() => {
-    if (inspector.current) inspector.current.scrollTop = 0;
-  }, [showing]);
-  const [storedWidth, setStoredWidth] = useStoredWidth();
-  const resize = useInspectorWidth({
-    viewerRef,
-    panelRef: inspector,
-    width: storedWidth,
-    onChange: setStoredWidth
-  });
-  const settledWidth = resize.resizing ? null : resize.width;
-  useLayoutEffect11(() => {
-    if (detailsOpen && selected?.kind === "node")
-      cameraRef.current?.revealNode(selected.id);
-  }, [detailsOpen, settledWidth]);
-  const inspectScenarioFinding = (id) => {
-    if (index2.nodes.has(id)) return choose(id);
-    const groupView = views.find(
-      (v) => v.diagram.generalizationGroups?.some((g) => g.id === id)
-    );
-    if (groupView) {
-      setViewKey(groupView.key);
-      select({ kind: "group", id });
-      return;
-    }
-    choose(id);
-  };
-  return /* @__PURE__ */ jsxs25(
+  return /* @__PURE__ */ jsxs16(
     "div",
     {
       ref: viewerRef,
-      className: `viewer${detailsOpen ? " inspecting" : ""}${changes?.fade ? " fade-unchanged" : ""}${resize.resizing ? " resizing" : ""}`,
-      style: resize.style,
+      className: `viewer${panel ? " with-panel" : ""}${changes?.fade ? " fade-unchanged" : ""}`,
       children: [
-        /* @__PURE__ */ jsx34(
+        /* @__PURE__ */ jsx24(
           ViewerToolbar,
           {
             ref: toolbarRef,
             density,
-            reviewControls: changes?.controls(detailsOpen && showOverview),
+            reviewControls: plain && /* @__PURE__ */ jsxs16(Fragment9, { children: [
+              /* @__PURE__ */ jsx24(ChangesSwitch, { shown: changesShown, onChange: setChangesShown }),
+              changes?.controls(
+                panel === "changes",
+                () => state.togglePanel("changes")
+              )
+            ] }),
             provenance: provenanceDocument,
             hasScenarios: !!scenarios,
+            scenariosOpen: panel === "scenarios",
             ...{
               model,
               views,
               exports,
-              viewKey,
-              fields,
               theme,
               zoomStore,
               diagramURL
             },
-            detailsHidden,
-            detailsOpen,
-            scenariosOpen,
+            viewKey: view.key,
             aboutOpen,
-            onDetails: () => setDetailsHidden((hidden) => !hidden),
-            onView: (key) => {
-              if (key === viewKey) return;
-              const next = views.find((v) => v.key === key).diagram;
-              const elements = selected?.kind === "edge" ? next.edges : selected?.kind === "group" ? next.generalizationGroups || [] : next.nodes;
-              if (!elements.some((item) => item.id === selected?.id)) clear();
-              setFocusRequest(null);
-              setViewKey(key);
-            },
-            onFields: () => {
-              setFocusRequest(null);
-              setFields(!fields);
-            },
+            onView: state.changeView,
             themeToggle: !!preference,
-            onScenarios: () => {
-              clearHover();
-              setDetailsHidden(false);
-              setScenariosOpen(detailsHidden || !scenariosOpen);
-            },
-            onChoose: choose,
-            onAbout: () => {
-              setAboutOpen(true);
-            },
+            onScenarios: () => state.togglePanel("scenarios"),
+            onAbout: () => setAboutOpen(true),
             onZoom: (factor) => cameraRef.current.zoomBy(factor),
             onReset: () => cameraRef.current.reset(),
             onFit: () => cameraRef.current.fit()
           }
         ),
-        /* @__PURE__ */ jsx34(
+        /* @__PURE__ */ jsx24(
           DiagramCanvas,
           {
             ref: cameraRef,
-            ...{ diagram, selected, hovered, focusRequest, backgroundURL },
+            diagram,
+            selected: state.selected,
+            hovered: state.hovered,
+            focusRequest: state.focusRequest,
+            backgroundURL,
             fitInsets,
-            onSelect: select,
+            onSelect: state.select,
             onZoom: zoomStore.set,
-            onHover,
-            onClearHover: clearHover
+            onHover: state.hover,
+            onClearHover: state.clearHover
           }
         ),
-        /* @__PURE__ */ jsx34(
-          Panel,
-          {
-            ref: inspector,
-            id: "inspector",
-            className: "inspector",
-            open: detailsOpen,
-            label: scenariosOpen ? "Model guide" : showOverview ? "Changes in this proposal" : "Model details",
-            title: scenariosOpen ? "Understand the model" : showOverview ? "Changes" : null,
-            toolbar: !scenariosOpen && element && changes ? changes.navigation : null,
-            closeLabel: "Hide details",
-            onClose: () => setDetailsHidden(true),
-            resizer: resize.separator,
-            onPointerEnter: keepHover,
-            onPointerLeave: () => hover(null),
-            onFocusCapture: keepHover,
-            onBlurCapture: (e) => {
-              if (!e.currentTarget.contains(e.relatedTarget)) hover(null);
-            },
-            children: detailsOpen && /* @__PURE__ */ jsx34(
-              Inspector,
-              {
-                showScenarios: scenariosOpen,
-                element,
-                inspected,
-                member: sameTarget(inspected, selected) ? member : null,
-                model,
-                snippets,
-                scenarios,
-                changes,
-                showOverview,
-                onChoose: choose,
-                onInspectScenario: inspectScenarioFinding
-              }
-            )
-          }
-        ),
-        /* @__PURE__ */ jsx34(
+        /* @__PURE__ */ jsx24(SidePanel, { state, model, scenarios }),
+        /* @__PURE__ */ jsx24(
           Dialog,
           {
             open: aboutOpen,
             onOpenChange: setAboutOpen,
             title: model.title,
             description: "About this diagram and its controls",
-            children: /* @__PURE__ */ jsx34(
+            children: /* @__PURE__ */ jsx24(
               About,
               {
                 model,
@@ -5718,38 +4053,1358 @@ function ViewerContent({
 }
 
 // src/viewer/DiagramPanel.jsx
-import {
-  memo as memo7,
-  useCallback as useCallback6,
-  useEffect as useEffect11,
-  useId as useId3,
-  useLayoutEffect as useLayoutEffect12,
-  useMemo as useMemo10,
-  useRef as useRef12,
-  useState as useState12
-} from "react";
-import { EmptyState as EmptyState2, Theme } from "@envsemble/envui";
-import { jsx as jsx35, jsxs as jsxs26 } from "react/jsx-runtime";
+import { memo as memo4, useMemo as useMemo9, useRef as useRef8, useState as useState12 } from "react";
+import { Theme } from "@envsemble/envui";
+
+// src/viewer/useArrangement.js
+import { useCallback as useCallback6, useEffect as useEffect5, useMemo as useMemo8, useRef as useRef7, useState as useState11 } from "react";
+
+// src/canvas/arrange.mjs
+var MARGIN = 12;
+var STUB = 18;
+var PORT_GAP = 20;
+var BEND = 24;
+var SOFT = 4;
+var JUNCTION = 28;
+var PADDING = 28;
+var PLACE_GAP = 40;
+var NUDGE = 8;
+var PACKAGE_MARGIN = 16;
+var PACKAGE_HEADER = 22;
+var REGION = 64;
+var CELL = 96;
+var RANK = 0.1;
+var TRACK = 10;
+var SHARED = 12;
+var CROSSING = 240;
+var LABEL_CROSSING = 120;
+var DX = [1, 0, -1, 0];
+var DY = [0, 1, 0, -1];
+var round = (n) => Number(n.toFixed(2));
+var clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+var centreOf = (b) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
+var pointBox = (p) => ({ x: p.x, y: p.y, width: 0, height: 0 });
+function parsePath(d) {
+  const n = (d.match(/-?\d+(?:\.\d+)?(?:e[-+]?\d+)?/g) || []).map(Number);
+  const points = [];
+  for (let i = 0; i + 1 < n.length; i += 2)
+    points.push({ x: n[i], y: n[i + 1] });
+  return points;
+}
+var pathOf = (points) => points.map((p, i) => (i ? "L" : "M") + round(p.x) + " " + round(p.y)).join(" ");
+function simplify(points) {
+  const out = [];
+  const same2 = (a, b) => Math.abs(a - b) < 0.01;
+  for (const p of points) {
+    const last = out[out.length - 1];
+    if (last && same2(last.x, p.x) && same2(last.y, p.y)) continue;
+    const before = out[out.length - 2];
+    if (before && (same2(before.x, last.x) && same2(last.x, p.x) || same2(before.y, last.y) && same2(last.y, p.y))) {
+      out[out.length - 1] = p;
+      continue;
+    }
+    out.push(p);
+  }
+  return out;
+}
+function segmentsOf(points) {
+  const out = [];
+  for (let i = 1; i < points.length; i++) out.push([points[i - 1], points[i]]);
+  return out;
+}
+function crosses(a, b, box, inset) {
+  const left = box.x + inset, right = box.x + box.width - inset, top = box.y + inset, bottom = box.y + box.height - inset;
+  if (left >= right || top >= bottom) return false;
+  return Math.max(a.x, b.x) > left && Math.min(a.x, b.x) < right && Math.max(a.y, b.y) > top && Math.min(a.y, b.y) < bottom;
+}
+function hits(points, boxes, skip) {
+  for (let i = 1; i < points.length; i++)
+    for (const box of boxes)
+      if (!skip?.has(box.id) && crosses(points[i - 1], points[i], box, 1))
+        return true;
+  return false;
+}
+function overlapping(a, b, gap = 0) {
+  return a.x < b.x + b.width + gap && a.x + a.width + gap > b.x && a.y < b.y + b.height + gap && a.y + a.height + gap > b.y;
+}
+function rectTouchesSegment(r, a, b, gap) {
+  return Math.max(a.x, b.x) > r.x - gap && Math.min(a.x, b.x) < r.x + r.width + gap && Math.max(a.y, b.y) > r.y - gap && Math.min(a.y, b.y) < r.y + r.height + gap;
+}
+var alongY = (side) => side % 2 === 0;
+function sideRange(box, side) {
+  return alongY(side) ? [box.y, box.y + box.height] : [box.x, box.x + box.width];
+}
+function portPoint(box, side, t) {
+  if (side === 0) return { x: box.x + box.width, y: t };
+  if (side === 1) return { x: t, y: box.y + box.height };
+  if (side === 2) return { x: box.x, y: t };
+  return { x: t, y: box.y };
+}
+function facing(box, other) {
+  const gapX = Math.max(
+    other.x - (box.x + box.width),
+    box.x - (other.x + other.width)
+  );
+  const gapY = Math.max(
+    other.y - (box.y + box.height),
+    box.y - (other.y + other.height)
+  );
+  const a = centreOf(box), b = centreOf(other);
+  if (gapX >= gapY) return b.x >= a.x ? 0 : 2;
+  return b.y >= a.y ? 1 : 3;
+}
+function sideOf(box, p) {
+  for (let side = 0; side < 4; side++) {
+    const t = alongY(side) ? p.y : p.x;
+    const q = portPoint(box, side, t);
+    const [lo, hi] = sideRange(box, side);
+    if (Math.abs(q.x - p.x) < 1.5 && Math.abs(q.y - p.y) < 1.5 && t >= lo - 1 && t <= hi + 1)
+      return side;
+  }
+  return -1;
+}
+function sideSpan(box, side) {
+  const [lo, hi] = sideRange(box, side);
+  const inset = Math.min(16, (hi - lo) / 4);
+  return [lo + inset, hi - inset];
+}
+function preferredAlong(box, side, other) {
+  const [lo, hi] = sideSpan(box, side);
+  const [olo, ohi] = sideSpan(other, side + 2 & 3);
+  const from = Math.max(lo, olo), to = Math.min(hi, ohi);
+  if (from <= to) return (from + to) / 2;
+  const c = alongY(side) ? centreOf(other).y : centreOf(other).x;
+  return clamp(c, lo, hi);
+}
+function spread(items, lo, hi) {
+  const n = items.length;
+  const gap = n > 1 ? Math.min(PORT_GAP, Math.max(0, hi - lo) / (n - 1)) : 0;
+  const top = Math.max(lo, hi - (n - 1) * gap);
+  const blocks = [];
+  items.forEach((item, i) => {
+    let block = {
+      total: (item.pref - i * gap) * item.weight,
+      weight: item.weight,
+      count: 1
+    };
+    while (blocks.length && blocks[blocks.length - 1].total / blocks[blocks.length - 1].weight >= block.total / block.weight) {
+      const last = blocks.pop();
+      block = {
+        total: last.total + block.total,
+        weight: last.weight + block.weight,
+        count: last.count + block.count
+      };
+    }
+    blocks.push(block);
+  });
+  const out = [];
+  for (const block of blocks) {
+    const v = clamp(block.total / block.weight, lo, top);
+    for (let k = 0; k < block.count; k++) out.push(v + out.length * gap);
+  }
+  return out;
+}
+function freePlace(pref, taken, lo, hi, gap) {
+  const clear = (v) => taken.every((t) => Math.abs(t - v) >= gap - 0.01);
+  const candidates = [clamp(pref, lo, hi)];
+  for (const t of taken) candidates.push(t - gap, t + gap);
+  let best = null;
+  for (const c of candidates)
+    if (c >= lo - 0.01 && c <= hi + 0.01 && clear(c)) {
+      if (best === null || Math.abs(c - pref) < Math.abs(best - pref)) best = c;
+    }
+  if (best !== null) return best;
+  const edges = [lo, ...taken.filter((t) => t > lo && t < hi), hi].sort(
+    (a, b) => a - b
+  );
+  let at = clamp(pref, lo, hi), widest = -1;
+  for (let k = 1; k < edges.length; k++)
+    if (edges[k] - edges[k - 1] > widest) {
+      widest = edges[k] - edges[k - 1];
+      at = (edges[k] + edges[k - 1]) / 2;
+    }
+  return at;
+}
+function stubLength(box, side, port, boxes) {
+  let room = Infinity;
+  for (const o of boxes) {
+    if (o.id === box.id) continue;
+    if (alongY(side)) {
+      if (port.y <= o.y - MARGIN || port.y >= o.y + o.height + MARGIN) continue;
+      const d = side === 0 ? o.x - port.x : port.x - (o.x + o.width);
+      if (d >= 0) room = Math.min(room, d);
+    } else {
+      if (port.x <= o.x - MARGIN || port.x >= o.x + o.width + MARGIN) continue;
+      const d = side === 1 ? o.y - port.y : port.y - (o.y + o.height);
+      if (d >= 0) room = Math.min(room, d);
+    }
+  }
+  return clamp(room / 2, 2, STUB);
+}
+var Heap = class {
+  constructor() {
+    this.keys = [];
+    this.values = [];
+  }
+  get size() {
+    return this.keys.length;
+  }
+  push(key, value) {
+    const { keys, values } = this;
+    let i = keys.length;
+    keys.push(key);
+    values.push(value);
+    while (i > 0) {
+      const parent = i - 1 >> 1;
+      if (keys[parent] <= key) break;
+      keys[i] = keys[parent];
+      values[i] = values[parent];
+      i = parent;
+    }
+    keys[i] = key;
+    values[i] = value;
+  }
+  pop() {
+    const { keys, values } = this;
+    const top = values[0];
+    const key = keys.pop(), value = values.pop();
+    if (keys.length) {
+      let i = 0;
+      const n = keys.length;
+      for (; ; ) {
+        let child = 2 * i + 1;
+        if (child >= n) break;
+        if (child + 1 < n && keys[child + 1] < keys[child]) child++;
+        if (keys[child] >= key) break;
+        keys[i] = keys[child];
+        values[i] = values[child];
+        i = child;
+      }
+      keys[i] = key;
+      values[i] = value;
+    }
+    return top;
+  }
+};
+function uniqueSorted(values) {
+  values.sort((a, b) => a - b);
+  const out = [];
+  for (const v of values)
+    if (!out.length || v !== out[out.length - 1]) out.push(v);
+  return out;
+}
+function indexIn(sorted, v) {
+  let lo = 0, hi = sorted.length - 1;
+  while (lo < hi) {
+    const mid = lo + hi >> 1;
+    if (sorted[mid] < v) lo = mid + 1;
+    else hi = mid;
+  }
+  return sorted[lo] === v ? lo : -1;
+}
+function firstAt(sorted, v) {
+  let lo = 0, hi = sorted.length;
+  while (lo < hi) {
+    const mid = lo + hi >> 1;
+    if (sorted[mid] < v) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+function search(from, fromDir, to, arrival, obstacles, region, occupied) {
+  const xv = [region.x0, region.x1, from.x, to.x];
+  const yv = [region.y0, region.y1, from.y, to.y];
+  for (const o of obstacles) {
+    xv.push(round(o.x - MARGIN), round(o.x + o.width + MARGIN));
+    yv.push(round(o.y - MARGIN), round(o.y + o.height + MARGIN));
+  }
+  const inside = (v, lo, hi) => v >= lo && v <= hi;
+  const flat = (occupied?.flat || []).filter(
+    (g) => inside(g.y, region.y0, region.y1) && g.x1 >= region.x0 && g.x0 <= region.x1
+  );
+  const upright = (occupied?.upright || []).filter(
+    (g) => inside(g.x, region.x0, region.x1) && g.y1 >= region.y0 && g.y0 <= region.y1
+  );
+  flat.sort((a, b) => a.y - b.y);
+  upright.sort((a, b) => a.x - b.x);
+  const flatAt = flat.map((g) => g.y), uprightAt = upright.map((g) => g.x);
+  if (!occupied?.wide) {
+    for (const g of flat)
+      for (const y of [g.y - TRACK, g.y + TRACK])
+        if (inside(y, region.y0, region.y1)) yv.push(round(y));
+    for (const g of upright)
+      for (const x of [g.x - TRACK, g.x + TRACK])
+        if (inside(x, region.x0, region.x1)) xv.push(round(x));
+  }
+  const labels = (occupied?.labels || []).filter(
+    (l) => l.x < region.x1 && l.x + l.width > region.x0 && l.y < region.y1 && l.y + l.height > region.y0
+  );
+  const xs = uniqueSorted(xv), ys = uniqueSorted(yv);
+  const nx = xs.length, ny = ys.length;
+  const si = indexIn(xs, from.x), sj = indexIn(ys, from.y), gi = indexIn(xs, to.x), gj = indexIn(ys, to.y);
+  if (si < 0 || sj < 0 || gi < 0 || gj < 0) return null;
+  const states = nx * ny * 4;
+  const GOAL = states;
+  const cost = new Float64Array(states + 1).fill(Infinity);
+  const parent = new Int32Array(states + 1).fill(-1);
+  const closed = new Uint8Array(states + 1);
+  const across = new Float64Array(Math.max(0, (nx - 1) * ny)).fill(-1);
+  const down = new Float64Array(Math.max(0, nx * (ny - 1))).fill(-1);
+  const cells = /* @__PURE__ */ new Map();
+  const cellOf = (v) => Math.floor(v / CELL);
+  obstacles.forEach((o, n) => {
+    for (let cx = cellOf(o.x - MARGIN); cx <= cellOf(o.x + o.width + MARGIN); cx++)
+      for (let cy = cellOf(o.y - MARGIN); cy <= cellOf(o.y + o.height + MARGIN); cy++) {
+        const key = cx * 65536 + cy;
+        if (!cells.has(key)) cells.set(key, []);
+        cells.get(key).push(n);
+      }
+  });
+  const labelCells = /* @__PURE__ */ new Map();
+  labels.forEach((l, n) => {
+    for (let cx = cellOf(l.x); cx <= cellOf(l.x + l.width); cx++)
+      for (let cy = cellOf(l.y); cy <= cellOf(l.y + l.height); cy++) {
+        const key = cx * 65536 + cy;
+        if (!labelCells.has(key)) labelCells.set(key, []);
+        labelCells.get(key).push(n);
+      }
+  });
+  let visit = 0;
+  const seen = new Int32Array(obstacles.length);
+  const labelSeen = new Int32Array(labels.length);
+  const classify = (x1, y1, x2, y2) => {
+    const a = { x: x1, y: y1 }, b = { x: x2, y: y2 };
+    let soft = false;
+    visit++;
+    for (let cx = cellOf(x1); cx <= cellOf(x2); cx++)
+      for (let cy = cellOf(y1); cy <= cellOf(y2); cy++)
+        for (const n of cells.get(cx * 65536 + cy) || []) {
+          if (seen[n] === visit) continue;
+          seen[n] = visit;
+          const o = obstacles[n];
+          if (crosses(a, b, o, 0.5)) return Infinity;
+          if (!soft && crosses(a, b, o, 0.5 - MARGIN)) soft = true;
+        }
+    const length = x2 - x1 + (y2 - y1);
+    let extra = 0;
+    if (y1 === y2) {
+      const near = firstAt(flatAt, y1 - TRACK + 0.5);
+      for (let k = near; k < flat.length && flatAt[k] < y1 + TRACK - 0.5; k++)
+        extra += Math.max(0, Math.min(x2, flat[k].x1) - Math.max(x1, flat[k].x0)) * (SHARED - 1);
+      for (let k = firstAt(uprightAt, x1 + 1e-6); k < upright.length; k++) {
+        if (uprightAt[k] > x2 + 1e-6) break;
+        if (y1 > upright[k].y0 && y1 < upright[k].y1) extra += CROSSING;
+      }
+    } else {
+      const near = firstAt(uprightAt, x1 - TRACK + 0.5);
+      for (let k = near; k < upright.length && uprightAt[k] < x1 + TRACK - 0.5; k++)
+        extra += Math.max(
+          0,
+          Math.min(y2, upright[k].y1) - Math.max(y1, upright[k].y0)
+        ) * (SHARED - 1);
+      for (let k = firstAt(flatAt, y1 + 1e-6); k < flat.length; k++) {
+        if (flatAt[k] > y2 + 1e-6) break;
+        if (x1 > flat[k].x0 && x1 < flat[k].x1) extra += CROSSING;
+      }
+    }
+    for (let cx = cellOf(x1); cx <= cellOf(x2); cx++)
+      for (let cy = cellOf(y1); cy <= cellOf(y2); cy++)
+        for (const n of labelCells.get(cx * 65536 + cy) || []) {
+          if (labelSeen[n] === visit) continue;
+          labelSeen[n] = visit;
+          if (crosses(a, b, labels[n], 0.5))
+            extra += length * (SOFT - 1) + LABEL_CROSSING;
+        }
+    return (soft ? length * SOFT : length) + extra;
+  };
+  const step = (i, j, d) => {
+    if (d === 0 || d === 2) {
+      const a = d === 0 ? i : i - 1;
+      const k2 = j * (nx - 1) + a;
+      if (across[k2] < 0) across[k2] = classify(xs[a], ys[j], xs[a + 1], ys[j]);
+      return across[k2];
+    }
+    const b = d === 1 ? j : j - 1;
+    const k = i * (ny - 1) + b;
+    if (down[k] < 0) down[k] = classify(xs[i], ys[b], xs[i], ys[b + 1]);
+    return down[k];
+  };
+  const goalPoint = gj * nx + gi;
+  const heap = new Heap();
+  const start = (sj * nx + si) * 4 + fromDir;
+  cost[start] = 0;
+  heap.push(Math.abs(from.x - to.x) + Math.abs(from.y - to.y), start);
+  while (heap.size) {
+    const s = heap.pop();
+    if (closed[s]) continue;
+    closed[s] = 1;
+    if (s === GOAL) break;
+    const p = s >> 2, d = s & 3;
+    const i = p % nx, j = (p - i) / nx;
+    if (p === goalPoint) {
+      const total = cost[s] + arrival[d];
+      if (total < cost[GOAL]) {
+        cost[GOAL] = total;
+        parent[GOAL] = s;
+        heap.push(total, GOAL);
+      }
+    }
+    for (let nd = 0; nd < 4; nd++) {
+      if (nd === (d + 2 & 3)) continue;
+      const ni = i + DX[nd], nj = j + DY[nd];
+      if (ni < 0 || nj < 0 || ni >= nx || nj >= ny) continue;
+      const c = step(i, j, nd);
+      if (c === Infinity) continue;
+      const ns = (nj * nx + ni) * 4 + nd;
+      const g = cost[s] + c + (nd === d ? 0 : BEND);
+      if (g < cost[ns]) {
+        cost[ns] = g;
+        parent[ns] = s;
+        heap.push(g + Math.abs(xs[ni] - to.x) + Math.abs(ys[nj] - to.y), ns);
+      }
+    }
+  }
+  if (parent[GOAL] < 0) return null;
+  const points = [];
+  for (let s = parent[GOAL]; s >= 0; s = parent[s]) {
+    const p = s >> 2;
+    const i = p % nx;
+    points.push({ x: xs[i], y: ys[(p - i) / nx] });
+  }
+  return points.reverse();
+}
+function occupancy() {
+  const flat = [], upright = [], labels = [];
+  return {
+    flat,
+    upright,
+    // Labels that stay: a route may cross one, at a cost.
+    labels,
+    wide: false,
+    add(points) {
+      for (let k = 1; k < (points?.length || 0); k++) {
+        const a = points[k - 1], b = points[k];
+        if (a.y === b.y && a.x !== b.x)
+          flat.push({ y: a.y, x0: Math.min(a.x, b.x), x1: Math.max(a.x, b.x) });
+        else if (a.x === b.x && a.y !== b.y)
+          upright.push({
+            x: a.x,
+            y0: Math.min(a.y, b.y),
+            y1: Math.max(a.y, b.y)
+          });
+      }
+    }
+  };
+}
+function regionAround(points, boxes, pad) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const b of [...points.map(pointBox), ...boxes]) {
+    x0 = Math.min(x0, b.x);
+    y0 = Math.min(y0, b.y);
+    x1 = Math.max(x1, b.x + b.width);
+    y1 = Math.max(y1, b.y + b.height);
+  }
+  return {
+    x0: round(x0 - pad),
+    y0: round(y0 - pad),
+    x1: round(x1 + pad),
+    y1: round(y1 + pad)
+  };
+}
+function routeBetween(start, end, boxes, near, everything, occupied) {
+  const local = regionAround([start.stub, end.stub], near, REGION);
+  const tries = [
+    [
+      local,
+      boxes.filter(
+        (o) => o.x - MARGIN < local.x1 && o.x + o.width + MARGIN > local.x0 && o.y - MARGIN < local.y1 && o.y + o.height + MARGIN > local.y0
+      )
+    ],
+    [regionAround([start.stub, end.stub], [everything], REGION), boxes]
+  ];
+  for (const [region, obstacles] of tries) {
+    const found = search(
+      start.stub,
+      start.dir,
+      end.stub,
+      end.arrival,
+      obstacles,
+      region,
+      obstacles === boxes && occupied && !occupied.wide ? { ...occupied, wide: true } : occupied
+    );
+    if (!found) continue;
+    const points = simplify([start.port, ...found, end.port]);
+    if (obstacles === boxes || !hits(points, boxes)) return points;
+  }
+  return simplify([
+    start.port,
+    start.stub,
+    { x: end.stub.x, y: start.stub.y },
+    end.stub,
+    end.port
+  ]);
+}
+function arrivalInto(side) {
+  const arrival = [BEND, BEND, BEND, BEND];
+  arrival[side + 2 & 3] = 0;
+  arrival[side] = Infinity;
+  return arrival;
+}
+function selfLoop(box, k, boxes) {
+  const a = Math.min(16 + 12 * k, box.width / 2, box.height / 2);
+  const r = 20 + 10 * k;
+  const loopAt = (corner) => {
+    const sx = corner === 0 || corner === 1 ? 1 : -1;
+    const sy = corner === 1 || corner === 2 ? 1 : -1;
+    const kx = sx > 0 ? box.x + box.width : box.x;
+    const ky = sy > 0 ? box.y + box.height : box.y;
+    const points = [
+      { x: kx, y: ky - sy * a },
+      { x: kx + sx * r, y: ky - sy * a },
+      { x: kx + sx * r, y: ky + sy * r },
+      { x: kx - sx * a, y: ky + sy * r },
+      { x: kx - sx * a, y: ky }
+    ].map((p) => ({ x: round(p.x), y: round(p.y) }));
+    return { points, sides: [sx > 0 ? 0 : 2, sy > 0 ? 1 : 3] };
+  };
+  for (const corner of [0, 1, 3, 2]) {
+    const loop = loopAt(corner);
+    const area = regionAround(loop.points, [], MARGIN);
+    const clear = !boxes.some(
+      (o) => o.id !== box.id && overlapping(
+        {
+          x: area.x0,
+          y: area.y0,
+          width: area.x1 - area.x0,
+          height: area.y1 - area.y0
+        },
+        o
+      )
+    );
+    if (clear) return loop;
+  }
+  return loopAt(0);
+}
+function centreJogs(route, boxes, others = []) {
+  const p = route.points;
+  for (let k = 1; k < p.length - 2; k++) {
+    const a = p[k], b = p[k + 1], before = p[k - 1], after = p[k + 2];
+    const vertical = Math.abs(a.x - b.x) < 0.01;
+    const axis = vertical ? "x" : "y", cross = vertical ? "y" : "x", size = vertical ? "width" : "height", crossSize = vertical ? "height" : "width";
+    const c = a[axis];
+    const d1 = c - before[axis], d2 = after[axis] - c;
+    if (d1 * d2 <= 0) continue;
+    const firstMin = k === 1 ? route.stubs[0] : 4;
+    const lastMin = k + 2 === p.length - 1 ? route.stubs[1] : 4;
+    let lo = d1 > 0 ? before[axis] + firstMin : after[axis] + lastMin;
+    let hi = d1 > 0 ? after[axis] - lastMin : before[axis] - firstMin;
+    const spanLo = Math.min(a[cross], b[cross]), spanHi = Math.max(a[cross], b[cross]);
+    let blocked = false;
+    for (const o of boxes) {
+      if (o[cross] - MARGIN > spanHi || o[cross] + o[crossSize] + MARGIN < spanLo)
+        continue;
+      const from = o[axis] - MARGIN, to = o[axis] + o[size] + MARGIN;
+      if (to <= c) lo = Math.max(lo, to);
+      else if (from >= c) hi = Math.min(hi, from);
+      else blocked = true;
+    }
+    for (const [m, n] of others) {
+      if (vertical ? m.x !== n.x : m.y !== n.y) continue;
+      if (Math.max(m[cross], n[cross]) < spanLo || Math.min(m[cross], n[cross]) > spanHi)
+        continue;
+      const v = m[axis];
+      if (v <= c) lo = Math.max(lo, v + TRACK);
+      else hi = Math.min(hi, v - TRACK);
+    }
+    if (blocked || lo > hi || c < lo - 0.01 || c > hi + 0.01) continue;
+    a[axis] = b[axis] = round((lo + hi) / 2);
+  }
+}
+function nudge(routes, boxes) {
+  const lines = /* @__PURE__ */ new Map();
+  routes.forEach((route, r) => {
+    const p = route.points;
+    for (let k = 0; k + 1 < p.length; k++) {
+      const vertical = Math.abs(p[k].x - p[k + 1].x) < 0.01;
+      const c = vertical ? p[k].x : p[k].y;
+      const ends = vertical ? [p[k].y, p[k + 1].y] : [p[k].x, p[k + 1].x];
+      const key = (vertical ? "v" : "h") + c;
+      if (!lines.has(key)) lines.set(key, []);
+      lines.get(key).push({
+        r,
+        k,
+        vertical,
+        lo: Math.min(...ends),
+        hi: Math.max(...ends),
+        movable: route.movable && k > 0 && k < p.length - 2
+      });
+    }
+  });
+  const offsets = [
+    0,
+    NUDGE,
+    -NUDGE,
+    2 * NUDGE,
+    -2 * NUDGE,
+    3 * NUDGE,
+    -3 * NUDGE
+  ];
+  const shift = (seg, offset) => {
+    const p = routes[seg.r].points;
+    const axis = seg.vertical ? "x" : "y";
+    const moved = p.map((q) => ({ ...q }));
+    moved[seg.k][axis] = round(moved[seg.k][axis] + offset);
+    moved[seg.k + 1][axis] = round(moved[seg.k + 1][axis] + offset);
+    for (const [i, j] of [
+      [seg.k - 1, seg.k],
+      [seg.k + 1, seg.k + 2]
+    ]) {
+      const before = p[j][axis] - p[i][axis], after = moved[j][axis] - moved[i][axis];
+      if (before * after <= 0 || Math.abs(after) < 4) return false;
+      if (boxes.some((o) => crosses(moved[i], moved[j], o, 0.5))) return false;
+    }
+    if (boxes.some((o) => crosses(moved[seg.k], moved[seg.k + 1], o, -MARGIN / 2)))
+      return false;
+    routes[seg.r].points = moved;
+    return true;
+  };
+  for (const segments of lines.values()) {
+    if (segments.length < 2) continue;
+    segments.sort((a, b) => a.lo - b.lo);
+    let cluster = [];
+    let reach = -Infinity;
+    const settle = () => {
+      if (new Set(cluster.map((s) => s.r)).size > 1 && cluster.some((s) => s.movable)) {
+        const used = new Set(cluster.some((s) => !s.movable) ? [0] : []);
+        for (const seg of cluster.filter((s) => s.movable))
+          for (const offset of offsets) {
+            if (used.has(offset)) continue;
+            if (offset === 0 || shift(seg, offset)) {
+              used.add(offset);
+              break;
+            }
+          }
+      }
+    };
+    for (const seg of segments) {
+      if (seg.lo >= reach - 1 && cluster.length) {
+        settle();
+        cluster = [];
+      }
+      cluster.push(seg);
+      reach = Math.max(reach, seg.hi);
+    }
+    settle();
+  }
+}
+function nameCandidates(label, routes) {
+  const segments = routes.flatMap(segmentsOf).map(([a, b]) => ({
+    a,
+    b,
+    length: Math.abs(b.x - a.x) + Math.abs(b.y - a.y)
+  })).filter((s) => s.length > 0).sort((s, t) => t.length - s.length);
+  const out = [];
+  for (const { a, b, length } of segments) {
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const ux = Math.sign(b.x - a.x), uy = Math.sign(b.y - a.y);
+    for (let n = 0; n < 41; n++) {
+      const offset = n === 0 ? 0 : (n % 2 ? 1 : -1) * Math.ceil(n / 2) * 8;
+      if (Math.abs(offset) > length / 2) break;
+      const x = mid.x + ux * offset, y = mid.y + uy * offset;
+      if (uy === 0)
+        out.push(
+          { x: x - label.width / 2, y: y - label.height - 4 },
+          { x: x - label.width / 2, y: y + 4 }
+        );
+      else
+        out.push(
+          { x: x + 6, y: y - label.height / 2 },
+          { x: x - label.width - 6, y: y - label.height / 2 }
+        );
+    }
+  }
+  return out;
+}
+function endCandidates(label, points) {
+  const endpoint = points[0];
+  const candidates = [];
+  for (const x of [endpoint.x + 4, endpoint.x - label.width - 4])
+    for (const y of [endpoint.y + 4, endpoint.y - label.height - 4])
+      candidates.push({ x, y, score: label.width / 2 + label.height / 2 + 24 });
+  let traveled = 0;
+  for (let i = 1; i < points.length && traveled < 260; i++) {
+    const a = points[i - 1], b = points[i], dx = Math.sign(b.x - a.x), dy = Math.sign(b.y - a.y), length = Math.abs(b.x - a.x) + Math.abs(b.y - a.y);
+    for (let d = 10; d < Math.min(length, 260 - traveled); d += 8) {
+      const x = a.x + dx * d, y = a.y + dy * d;
+      if (dx) {
+        const left = dx > 0 ? x : x - label.width;
+        candidates.push(
+          { x: left, y: y - label.height - 3, score: traveled + d + 4 },
+          { x: left, y: y + 3, score: traveled + d + 6 }
+        );
+      } else
+        candidates.push(
+          { x: x + 4, y: y - label.height / 2, score: traveled + d + 12 },
+          {
+            x: x - label.width - 4,
+            y: y - label.height / 2,
+            score: traveled + d + 14
+          }
+        );
+    }
+    traveled += length;
+  }
+  return candidates.filter(
+    (c) => Math.abs(c.x + label.width / 2 - endpoint.x) + Math.abs(c.y + label.height / 2 - endpoint.y) <= 80
+  ).sort((a, b) => a.score - b.score);
+}
+function placeLabels(tasks, boxes, fixedLabels, allSegments) {
+  const occupied = [...boxes, ...fixedLabels];
+  for (const names of [true, false])
+    for (const task of tasks) {
+      const own = task.routes.flatMap(segmentsOf);
+      for (const label of task.labels) {
+        if (label.kind === "name" !== names) continue;
+        const candidates = names ? nameCandidates(label, task.nameRoutes) : endCandidates(
+          label,
+          label.kind === "target" ? task.routes[0].slice().reverse() : task.routes[0]
+        );
+        const fits = (c, tier) => {
+          const r = {
+            x: c.x,
+            y: c.y,
+            width: label.width,
+            height: label.height
+          };
+          const others = tier < 3 ? occupied : boxes;
+          if (others.some((o) => overlapping(r, o, 2))) return false;
+          if (tier < 2 && own.some(([a, b]) => rectTouchesSegment(r, a, b, 1)))
+            return false;
+          if (tier < 1 && allSegments.some(([a, b]) => rectTouchesSegment(r, a, b, 1)))
+            return false;
+          return true;
+        };
+        let chosen = null, lowest = Infinity;
+        for (let rank = 0; rank < candidates.length; rank++) {
+          if (rank * RANK >= lowest) break;
+          const c = candidates[rank];
+          const r = {
+            x: c.x,
+            y: c.y,
+            width: label.width,
+            height: label.height
+          };
+          if (boxes.some((o) => overlapping(r, o, 2))) continue;
+          let cost = rank * RANK;
+          for (const o of occupied) if (overlapping(r, o, 2)) cost += 400;
+          for (const [a, b] of allSegments)
+            if (rectTouchesSegment(r, a, b, 1)) cost += 120;
+          for (const [a, b] of own)
+            if (rectTouchesSegment(r, a, b, 1)) cost += 60;
+          if (cost < lowest) {
+            lowest = cost;
+            chosen = c;
+          }
+        }
+        if (!chosen)
+          for (let tier = 0; tier < 4 && !chosen; tier++)
+            chosen = candidates.find((c) => fits(c, tier)) || null;
+        chosen || (chosen = candidates[0] || { x: label.x, y: label.y });
+        label.x = round(chosen.x);
+        label.y = round(chosen.y);
+        occupied.push(label);
+      }
+    }
+}
+function placeMissing(scene, target) {
+  const byId = new Map(scene.nodes.map((n) => [n.id, n]));
+  const neighbours = new Map(scene.nodes.map((n) => [n.id, /* @__PURE__ */ new Set()]));
+  const link = (a, b) => {
+    if (a === b || !neighbours.has(a) || !neighbours.has(b)) return;
+    neighbours.get(a).add(b);
+    neighbours.get(b).add(a);
+  };
+  for (const e of scene.edges) link(e.source, e.target);
+  for (const g of scene.generalizationGroups || [])
+    for (const id of g.sourceIds) link(id, g.target);
+  const boxAt = (id, [x, y]) => ({
+    x,
+    y,
+    width: byId.get(id).width,
+    height: byId.get(id).height
+  });
+  const placed = [...target].map(([id, p]) => boxAt(id, p));
+  const free = (b) => !placed.some((o) => overlapping(b, o, PLACE_GAP - 0.01));
+  const right = Math.max(
+    PADDING - PLACE_GAP,
+    ...placed.map((b) => b.x + b.width)
+  );
+  let columnY = placed.length ? Math.min(...placed.map((b) => b.y)) : PADDING;
+  const columnX = right + PLACE_GAP;
+  const pending = scene.nodes.filter((n) => !target.has(n.id));
+  while (pending.length) {
+    let progressed = false;
+    for (let i = 0; i < pending.length; i++) {
+      const node2 = pending[i];
+      const near = [...neighbours.get(node2.id)].filter((id) => target.has(id));
+      if (!near.length) continue;
+      const centres = near.map((id) => centreOf(boxAt(id, target.get(id))));
+      const cx = centres.reduce((s, c) => s + c.x, 0) / centres.length;
+      const cy = centres.reduce((s, c) => s + c.y, 0) / centres.length;
+      const want = { x: cx - node2.width / 2, y: cy - node2.height / 2 };
+      let spot = null;
+      for (let r = 0; r < 400 && !spot; r++) {
+        let best = Infinity;
+        const ring = r ? Array.from({ length: 2 * r + 1 }, (_, k) => k - r).flatMap((k) => [
+          [k, -r],
+          [k, r],
+          [-r, k],
+          [r, k]
+        ]) : [[0, 0]];
+        for (const [i2, j2] of ring) {
+          const b = {
+            x: want.x + i2 * 20,
+            y: want.y + j2 * 20,
+            width: node2.width,
+            height: node2.height
+          };
+          const d = Math.hypot(b.x - want.x, b.y - want.y);
+          if (d < best && free(b)) {
+            best = d;
+            spot = [round(b.x), round(b.y)];
+          }
+        }
+      }
+      target.set(node2.id, spot || [round(want.x), round(want.y)]);
+      placed.push(boxAt(node2.id, target.get(node2.id)));
+      pending.splice(i--, 1);
+      progressed = true;
+    }
+    if (progressed) continue;
+    const node = pending.shift();
+    let y = columnY;
+    while (!free({ x: columnX, y, width: node.width, height: node.height }))
+      y += 20;
+    target.set(node.id, [round(columnX), round(y)]);
+    placed.push(boxAt(node.id, target.get(node.id)));
+    columnY = y + node.height + PLACE_GAP;
+  }
+}
+function positionsOf(scene) {
+  return Object.fromEntries(scene.nodes.map((n) => [n.id, [n.x, n.y]]));
+}
+function arrangeScene(scene, positions = {}, options = {}) {
+  positions = positions || {};
+  if (options.place && !Object.keys(positions).length) return scene;
+  const target = /* @__PURE__ */ new Map();
+  for (const n of scene.nodes) {
+    const p = positions[n.id];
+    if (p) target.set(n.id, Array.isArray(p) ? p : [p.x, p.y]);
+    else if (!options.place) target.set(n.id, [n.x, n.y]);
+  }
+  if (options.place) placeMissing(scene, target);
+  const moved = /* @__PURE__ */ new Set();
+  const nodes = scene.nodes.map((n) => {
+    const [x, y] = target.get(n.id);
+    if (Math.abs(x - n.x) < 5e-3 && Math.abs(y - n.y) < 5e-3) return n;
+    moved.add(n.id);
+    return { ...n, x: round(x), y: round(y) };
+  });
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const boxes = nodes;
+  const everything = regionAround([], boxes, 0);
+  const everythingBox = {
+    x: everything.x0,
+    y: everything.y0,
+    width: everything.x1 - everything.x0,
+    height: everything.y1 - everything.y0
+  };
+  const groups = scene.generalizationGroups || [];
+  const membership = /* @__PURE__ */ new Map();
+  for (const g of groups)
+    for (const id of g.memberIds) {
+      if (!membership.has(id)) membership.set(id, []);
+      membership.get(id).push({ group: g, index: membership.get(id).length });
+    }
+  const edgesById = new Map(scene.edges.map((e) => [e.id, e]));
+  const plain = [];
+  for (const edge of scene.edges) {
+    if (membership.has(edge.id)) continue;
+    const ok = byId.has(edge.source) && byId.has(edge.target);
+    const points = edge.paths?.length ? parsePath(edge.paths[0]) : [];
+    const reroute = ok && (moved.has(edge.source) || moved.has(edge.target) || points.length < 2 || hits(points, boxes, /* @__PURE__ */ new Set([edge.source, edge.target])));
+    plain.push({ edge, points, reroute });
+  }
+  const trees = groups.map((group) => {
+    const members = group.memberIds.map((id) => {
+      const edge = edgesById.get(id);
+      const index2 = membership.get(id).find((m) => m.group === group).index;
+      const d = edge?.branchPaths?.[index2];
+      return { id, edge, index: index2, points: d ? parsePath(d) : [] };
+    });
+    const trunk = group.paths?.length ? parsePath(group.paths[0]) : [];
+    const ok = byId.has(group.target) && members.every((m) => m.edge && byId.has(m.edge.source));
+    const reroute = ok && (moved.has(group.target) || members.some((m) => moved.has(m.edge.source)) || trunk.length < 2 || hits(trunk, boxes, /* @__PURE__ */ new Set([group.target])) || members.some(
+      (m) => m.points.length < 2 || hits(m.points, boxes, /* @__PURE__ */ new Set([m.edge.source]))
+    ));
+    return { group, members, trunk, reroute };
+  });
+  const sides = /* @__PURE__ */ new Map();
+  const addEnd = (box, side, item) => {
+    const key = box.id + "\0" + side;
+    if (!sides.has(key)) sides.set(key, { box, side, items: [] });
+    sides.get(key).items.push(item);
+  };
+  const fixEnd = (id, p) => {
+    const box = byId.get(id);
+    if (!box || !p) return;
+    const side = sideOf(box, p);
+    if (side >= 0) addEnd(box, side, { pref: alongY(side) ? p.y : p.x });
+  };
+  for (const r of plain)
+    if (!r.reroute && r.points.length) {
+      fixEnd(r.edge.source, r.points[0]);
+      fixEnd(r.edge.target, r.points[r.points.length - 1]);
+    }
+  for (const t of trees)
+    if (!t.reroute) {
+      fixEnd(t.group.target, t.trunk[t.trunk.length - 1]);
+      for (const m of t.members) if (m.edge) fixEnd(m.edge.source, m.points[0]);
+    }
+  const loopCount = /* @__PURE__ */ new Map();
+  for (const r of plain)
+    if (r.reroute && r.edge.source === r.edge.target) {
+      const box = byId.get(r.edge.source);
+      const k = loopCount.get(box.id) || 0;
+      loopCount.set(box.id, k + 1);
+      const loop = selfLoop(box, k, boxes);
+      r.route = loop.points;
+      fixEnd(box.id, loop.points[0]);
+      fixEnd(box.id, loop.points[loop.points.length - 1]);
+    }
+  const room = (box, side) => {
+    const [lo, hi] = sideSpan(box, side);
+    const used = sides.get(box.id + "\0" + side)?.items.length || 0;
+    return Math.floor((hi - lo) / PORT_GAP) + 1 - used;
+  };
+  const endOf = (box, primary, other, order = "") => {
+    let side = primary;
+    if (room(box, primary) <= 0) {
+      const o = centreOf(other), c = centreOf(box);
+      const second = alongY(primary) ? o.y >= c.y ? 1 : 3 : o.x >= c.x ? 0 : 2;
+      if (room(box, second) > 0) side = second;
+    }
+    const end = { box, side, along: null };
+    addEnd(box, side, {
+      pref: preferredAlong(box, side, other),
+      weight: 1,
+      order,
+      end
+    });
+    return end;
+  };
+  for (const r of plain)
+    if (r.reroute && !r.route) {
+      const s = byId.get(r.edge.source), t = byId.get(r.edge.target);
+      r.ends = [
+        endOf(s, facing(s, t), t, r.edge.id),
+        endOf(t, facing(t, s), s, r.edge.id)
+      ];
+    }
+  for (const t of trees)
+    if (t.reroute) {
+      const box = byId.get(t.group.target);
+      const sources = t.members.map((m) => centreOf(byId.get(m.edge.source)));
+      const centroid = {
+        x: sources.reduce((s, c) => s + c.x, 0) / sources.length,
+        y: sources.reduce((s, c) => s + c.y, 0) / sources.length
+      };
+      const side = facing(box, pointBox(centroid));
+      const [lo, hi] = sideRange(box, side);
+      const middle = (lo + hi) / 2;
+      const along = round(
+        clamp(
+          alongY(side) ? centroid.y : centroid.x,
+          middle - (hi - lo) / 6,
+          middle + (hi - lo) / 6
+        )
+      );
+      const port = portPoint(box, side, along);
+      const junction = {
+        x: round(port.x + DX[side] * JUNCTION),
+        y: round(port.y + DY[side] * JUNCTION)
+      };
+      t.side = side;
+      t.trunk = [junction, port];
+      addEnd(box, side, { pref: along });
+      for (const m of t.members) {
+        const s = byId.get(m.edge.source);
+        m.end = endOf(
+          s,
+          facing(s, pointBox(junction)),
+          pointBox(junction),
+          m.id
+        );
+      }
+    }
+  for (const { box, side, items } of sides.values()) {
+    if (!items.some((item) => item.end)) continue;
+    const [lo, hi] = sideSpan(box, side);
+    const gap = Math.min(
+      PORT_GAP,
+      Math.max(0, hi - lo) / Math.max(1, items.length - 1)
+    );
+    const fixed = items.filter((item) => !item.end).map((item) => item.pref).sort((p, q) => p - q);
+    const stretches = [];
+    let start = lo;
+    for (const f of fixed) {
+      stretches.push({
+        lo: Math.max(lo, start),
+        hi: Math.min(hi, f - gap),
+        items: []
+      });
+      start = f + gap;
+    }
+    stretches.push({ lo: Math.max(lo, start), hi, items: [] });
+    const open = stretches.filter((st) => st.hi >= st.lo - 0.01);
+    const fresh = items.filter((item) => item.end).sort(
+      (p, q) => p.pref - q.pref || (p.order < q.order ? -1 : p.order > q.order ? 1 : 0)
+    );
+    const capacity = (st) => Math.max(1, Math.floor((st.hi - st.lo) / Math.max(gap, 1e-6) + 1e-6) + 1);
+    const overflow = [];
+    for (const item of fresh) {
+      const ranked = open.map((st) => ({
+        st,
+        away: item.pref < st.lo ? st.lo - item.pref : item.pref > st.hi ? item.pref - st.hi : 0
+      })).sort((p, q) => p.away - q.away);
+      const home = ranked.find(({ st }) => st.items.length < capacity(st))?.st;
+      if (home) home.items.push(item);
+      else overflow.push(item);
+    }
+    const taken = [...fixed];
+    for (const st of open) {
+      if (!st.items.length) continue;
+      const at = spread(st.items, st.lo, Math.max(st.lo, st.hi));
+      st.items.forEach((item, k) => {
+        item.end.along = round(at[k]);
+        taken.push(item.end.along);
+      });
+    }
+    for (const item of overflow) {
+      item.end.along = round(freePlace(item.pref, taken, lo, hi, gap));
+      taken.push(item.end.along);
+    }
+  }
+  const terminal = (end) => {
+    const port = portPoint(end.box, end.side, end.along);
+    const length = round(stubLength(end.box, end.side, port, boxes));
+    const stub = {
+      x: round(port.x + DX[end.side] * length),
+      y: round(port.y + DY[end.side] * length)
+    };
+    return { port, stub, length };
+  };
+  const occupied = occupancy();
+  if (options.quick) occupied.wide = true;
+  for (const r of plain)
+    if (!r.reroute) {
+      occupied.add(r.points);
+      occupied.labels.push(...r.edge.labels || []);
+    }
+  for (const t of trees)
+    if (!t.reroute) {
+      occupied.add(t.trunk);
+      for (const m of t.members) occupied.add(m.points);
+    }
+  const pending = plain.filter((r) => r.reroute && !r.route).map((r) => ({ r, from: terminal(r.ends[0]), to: terminal(r.ends[1]) })).sort(
+    (a, b) => Math.abs(a.from.stub.x - a.to.stub.x) + Math.abs(a.from.stub.y - a.to.stub.y) - (Math.abs(b.from.stub.x - b.to.stub.x) + Math.abs(b.from.stub.y - b.to.stub.y)) || (a.r.edge.id < b.r.edge.id ? -1 : 1)
+  );
+  const routed = [];
+  for (const { r, from, to } of pending) {
+    r.route = routeBetween(
+      { ...from, dir: r.ends[0].side },
+      { ...to, arrival: arrivalInto(r.ends[1].side) },
+      boxes,
+      [r.ends[0].box, r.ends[1].box],
+      everythingBox,
+      occupied
+    );
+    occupied.add(r.route);
+    routed.push({
+      points: r.route,
+      movable: true,
+      stubs: [from.length, to.length],
+      owner: r
+    });
+  }
+  for (const t of trees)
+    if (t.reroute) {
+      const junction = t.trunk[0];
+      const arrival = [0, 0, 0, 0];
+      arrival[t.side] = Infinity;
+      for (const m of t.members) {
+        const from = terminal(m.end);
+        m.points = routeBetween(
+          { ...from, dir: m.end.side },
+          { port: junction, stub: junction, arrival },
+          boxes,
+          [m.end.box, byId.get(t.group.target)],
+          everythingBox,
+          occupied
+        );
+        occupied.add(m.points);
+      }
+    }
+  const everyRoute = [
+    ...routed.map((r) => r.points),
+    ...plain.filter((r) => !r.reroute).map((r) => r.points),
+    ...trees.flatMap((t) => [t.trunk, ...t.members.map((m) => m.points)])
+  ];
+  for (const route of routed)
+    centreJogs(
+      route,
+      boxes,
+      everyRoute.filter((p) => p !== route.points).flatMap(segmentsOf)
+    );
+  const drawn2 = [
+    ...routed,
+    ...plain.filter((r) => !r.reroute || !routed.some((x) => x.owner === r)).map((r) => ({ points: r.route || r.points, movable: false })),
+    ...trees.flatMap((t) => [
+      { points: t.trunk, movable: false },
+      ...t.members.map((m) => ({ points: m.points, movable: false }))
+    ])
+  ];
+  nudge(drawn2, boxes);
+  for (const route of routed) route.owner.route = route.points;
+  const tasks = [];
+  const fixedLabels = [];
+  const newLabels = /* @__PURE__ */ new Map();
+  const relabel = (owner, labels, routes, nameRoutes) => {
+    const copies = labels.map((l) => ({ ...l }));
+    newLabels.set(owner, copies);
+    tasks.push({ labels: copies, routes, nameRoutes });
+  };
+  for (const r of plain) {
+    const labels = r.edge.labels || [];
+    if (!labels.length) continue;
+    const route = r.route || r.points;
+    if (r.route || route.length >= 2 && labels.some((l) => boxes.some((b) => overlapping(l, b, 0))))
+      relabel(r.edge, labels, [route], [route]);
+    else fixedLabels.push(...labels);
+  }
+  for (const t of trees) {
+    const labels = t.group.labels || [];
+    if (!labels.length) continue;
+    const routes = [t.trunk, ...t.members.map((m) => m.points)];
+    if (t.reroute || t.trunk.length >= 2 && labels.some((l) => boxes.some((b) => overlapping(l, b, 0))))
+      relabel(t.group, labels, [t.trunk], routes);
+    else fixedLabels.push(...labels);
+  }
+  const allSegments = drawn2.flatMap((d) => segmentsOf(d.points));
+  placeLabels(tasks, boxes, fixedLabels, allSegments);
+  const changed = /* @__PURE__ */ new Map();
+  for (const r of plain)
+    if (r.route || newLabels.has(r.edge))
+      changed.set(r.edge.id, {
+        ...r.edge,
+        ...r.route ? { paths: [pathOf(r.route)] } : {},
+        labels: newLabels.get(r.edge) || r.edge.labels
+      });
+  const newGroups = trees.map((t) => {
+    if (!t.reroute && !newLabels.has(t.group)) return t.group;
+    if (t.reroute)
+      for (const m of t.members) {
+        const edge = changed.get(m.id) || m.edge;
+        const paths = [...edge.paths];
+        const branchPaths = [...edge.branchPaths || []];
+        paths[m.index] = pathOf([...m.points, ...t.trunk.slice(1)]);
+        branchPaths[m.index] = pathOf(m.points);
+        changed.set(m.id, { ...edge, paths, branchPaths });
+      }
+    return {
+      ...t.group,
+      ...t.reroute ? { paths: [pathOf(t.trunk)] } : {},
+      labels: newLabels.get(t.group) || t.group.labels
+    };
+  });
+  let edges = scene.edges.map((e) => changed.get(e.id) || e);
+  let outGroups = newGroups;
+  let outNodes = nodes;
+  const placedNodes = new Map(nodes.map((n) => [n.id, n]));
+  let packages = (scene.packages || []).map((p) => {
+    const own = (p.members || []).map((id) => placedNodes.get(id)).filter(Boolean);
+    if (!own.length) return p;
+    const px0 = Math.min(...own.map((n) => n.x)) - PACKAGE_MARGIN, py0 = Math.min(...own.map((n) => n.y)) - PACKAGE_MARGIN - PACKAGE_HEADER, px1 = Math.max(...own.map((n) => n.x + n.width)) + PACKAGE_MARGIN, py1 = Math.max(...own.map((n) => n.y + n.height)) + PACKAGE_MARGIN;
+    return {
+      ...p,
+      x: round(px0),
+      y: round(py0),
+      width: round(px1 - px0),
+      height: round(py1 - py0)
+    };
+  });
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const take = (x, y, w = 0, h = 0) => {
+    x0 = Math.min(x0, x);
+    y0 = Math.min(y0, y);
+    x1 = Math.max(x1, x + w);
+    y1 = Math.max(y1, y + h);
+  };
+  for (const n of nodes) take(n.x, n.y, n.width, n.height);
+  for (const p of packages) take(p.x, p.y, p.width, p.height);
+  for (const item of [...edges, ...outGroups]) {
+    for (const d of item.paths || [])
+      for (const p of parsePath(d)) take(p.x, p.y);
+    for (const l of item.labels || []) take(l.x, l.y, l.width, l.height);
+  }
+  if (x0 === Infinity) x0 = y0 = x1 = y1 = PADDING;
+  const dx = x0 < PADDING ? round(PADDING - x0) : 0;
+  const dy = y0 < PADDING ? round(PADDING - y0) : 0;
+  if (dx || dy) {
+    const movePath = (d) => pathOf(parsePath(d).map((p) => ({ x: p.x + dx, y: p.y + dy })));
+    const moveLabel = (l) => ({ ...l, x: round(l.x + dx), y: round(l.y + dy) });
+    const moveItem = (item) => ({
+      ...item,
+      ...item.paths ? { paths: item.paths.map(movePath) } : {},
+      ...item.branchPaths ? { branchPaths: item.branchPaths.map(movePath) } : {},
+      ...item.labels ? { labels: item.labels.map(moveLabel) } : {}
+    });
+    outNodes = nodes.map((n) => ({
+      ...n,
+      x: round(n.x + dx),
+      y: round(n.y + dy)
+    }));
+    edges = edges.map(moveItem);
+    outGroups = outGroups.map(moveItem);
+    packages = packages.map((p) => ({
+      ...p,
+      x: round(p.x + dx),
+      y: round(p.y + dy)
+    }));
+  }
+  return {
+    ...scene,
+    nodes: outNodes,
+    edges,
+    ...scene.generalizationGroups ? { generalizationGroups: outGroups } : {},
+    ...scene.packages ? { packages } : {},
+    width: round(x1 + dx + PADDING),
+    height: round(y1 + dy + PADDING),
+    offset: { x: dx, y: dy }
+  };
+}
+
+// src/viewer/useArrangement.js
+var EDGE = 28;
+var PACKAGE_MARGIN2 = 16;
+var PACKAGE_HEADER2 = 22;
+var same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+var tenth = (n) => Math.round(n * 10) / 10;
+var rounded = (positions) => Object.fromEntries(
+  Object.entries(positions).map(([id, [x, y]]) => [id, [tenth(x), tenth(y)]])
+);
+function useArrangement(base, arrangement, onArrange) {
+  const [positions, setPositions] = useState11(arrangement ?? null);
+  const lastSaved = useRef7(arrangement ?? null);
+  useEffect5(() => {
+    if (same(lastSaved.current, arrangement ?? null)) return;
+    lastSaved.current = arrangement ?? null;
+    setPositions(arrangement ?? null);
+  }, [arrangement]);
+  const scene = useMemo8(
+    () => positions ? arrangeScene(base, positions, { place: true }) : base,
+    [base, positions]
+  );
+  const dragging = useRef7(null);
+  const [drag, setDrag] = useState11(null);
+  const shown2 = useMemo8(
+    // While it moves, routes keep off each other by cost alone (quick);
+    // when it is let go they are routed in full.
+    () => drag?.at ? arrangeScene(scene, { [drag.id]: drag.at }, { quick: true }) : scene,
+    [scene, drag]
+  );
+  const latest = useRef7({ scene, positions });
+  latest.current = { scene, positions };
+  const save = useCallback6(
+    (next) => {
+      const value = next && rounded(next);
+      lastSaved.current = value;
+      setPositions(value);
+      onArrange?.(value);
+    },
+    [onArrange]
+  );
+  const elementDrag = useMemo8(
+    () => onArrange ? {
+      start(target, point) {
+        const id = target?.closest?.("[data-node-id]")?.dataset.nodeId;
+        const node = latest.current.scene.nodes.find((n) => n.id === id);
+        if (!node) return false;
+        const packaged = (latest.current.scene.packages || []).some(
+          (p) => p.members?.includes(id)
+        );
+        dragging.current = {
+          id,
+          grab: [point.x - node.x, point.y - node.y],
+          least: packaged ? [
+            EDGE + PACKAGE_MARGIN2,
+            EDGE + PACKAGE_MARGIN2 + PACKAGE_HEADER2
+          ] : [EDGE, EDGE],
+          at: null
+        };
+        setDrag(dragging.current);
+        return true;
+      },
+      move(point) {
+        const current = dragging.current;
+        if (!current) return;
+        dragging.current = {
+          ...current,
+          at: [
+            Math.max(current.least[0], point.x - current.grab[0]),
+            Math.max(current.least[1], point.y - current.grab[1])
+          ]
+        };
+        setDrag(dragging.current);
+      },
+      end(moved) {
+        const current = dragging.current;
+        dragging.current = null;
+        setDrag(null);
+        if (!moved || !current?.at) return;
+        const { scene: scene2, positions: positions2 } = latest.current;
+        const placed = arrangeScene(scene2, { [current.id]: current.at });
+        save({ ...positions2 || {}, ...positionsOf(placed) });
+      }
+    } : null,
+    [onArrange, save]
+  );
+  const reset = useCallback6(() => save(null), [save]);
+  return { diagram: shown2, elementDrag, arranged: !!positions, reset };
+}
+
+// src/viewer/DiagramPanel.jsx
+import { Fragment as Fragment10, jsx as jsx25, jsxs as jsxs17 } from "react/jsx-runtime";
 function overlayClass(sections, density = 0) {
   return `atlas-overlay-top${sections ? " stacked" : ""}${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`;
 }
-var DiagramPanel = memo7(function DiagramPanel2(props) {
-  const { payload, review } = reviewedPayload(props.payload);
+var DiagramPanel = memo4(function DiagramPanel2(props) {
+  const { payload, review, plain } = reviewedPayload(props.payload);
   if (!payload.views.length) {
     const theme = props.theme || "dark";
-    return /* @__PURE__ */ jsx35(
+    return /* @__PURE__ */ jsx25(
       Theme,
       {
         theme,
         className: "atlas-panel atlas-empty",
         "data-theme": theme,
-        children: /* @__PURE__ */ jsxs26("div", { className: "viewer", children: [
-          (props.leading || props.sections) && /* @__PURE__ */ jsxs26("div", { className: overlayClass(props.sections), children: [
-            props.sections && /* @__PURE__ */ jsx35("div", { className: "atlas-overlay-sections", children: props.sections }),
-            props.leading && /* @__PURE__ */ jsx35(Island, { label: "Diagram navigation", className: "island-start", children: /* @__PURE__ */ jsx35("div", { className: "island-leading", children: props.leading }) })
+        children: /* @__PURE__ */ jsxs17("div", { className: "viewer", children: [
+          (props.leading || props.sections) && /* @__PURE__ */ jsxs17("div", { className: overlayClass(props.sections), children: [
+            props.sections && /* @__PURE__ */ jsx25("div", { className: "atlas-overlay-sections", children: props.sections }),
+            props.leading && /* @__PURE__ */ jsx25(Island, { label: "Diagram navigation", className: "island-start", children: /* @__PURE__ */ jsx25("div", { className: "island-leading", children: props.leading }) })
           ] }),
-          /* @__PURE__ */ jsx35(
-            EmptyState2,
+          /* @__PURE__ */ jsx25(
+            EmptyState,
             {
               className: "atlas-empty-message",
               title: payload.model.title,
@@ -5760,191 +5415,90 @@ var DiagramPanel = memo7(function DiagramPanel2(props) {
       }
     );
   }
-  return /* @__PURE__ */ jsx35(
+  return /* @__PURE__ */ jsx25(
     DiagramPanelContent,
     {
       ...props,
       payload,
       review,
+      plain,
       identity: props.payload.family || payload.model.id
     }
   );
 });
 function DiagramPanelContent({
-  payload,
+  payload: changeView,
   theme = "dark",
   focus = null,
   leading,
   sections,
-  fullscreen = false,
-  onFullscreenChange,
-  inspectorWidth,
-  onInspectorWidthChange,
-  review = null,
-  identity
+  review: changeReview = null,
+  plain = null,
+  identity,
+  arrangement = null,
+  onArrange
 }) {
-  const { model, views, snippets, scenarios = null } = payload;
-  const [viewKey, setViewKey] = useState12(views[0].key);
-  const [fields, setFields] = useState12(true), [selected, setSelected] = useState12(null);
-  const [detailsHidden, setDetailsHidden] = useState12(false), [scenariosOpen, setScenariosOpen] = useState12(false);
-  const [focusRequest, setFocusRequest] = useState12(null);
-  const [member, setMember] = useState12(null);
-  const camera = useRef12(null), zoomStore = useMemo10(createZoomStore, []);
-  const viewerRef = useRef12(null), topRef = useRef12(null);
+  const [changesShown, setChangesShown] = useState12(true);
+  const plainly = plain && !changesShown;
+  const payload = plainly ? plain : changeView;
+  const review = plainly ? null : changeReview;
+  const { model, views, scenarios = null } = payload;
+  const camera = useRef8(null), zoomStore = useMemo9(createZoomStore, []);
+  const viewerRef = useRef8(null), topRef = useRef8(null);
   const fitInsets = useOverlayInsets(viewerRef, topRef);
+  const state = useViewerState({
+    model,
+    views,
+    scenarios,
+    review,
+    focus,
+    identity,
+    cameraRef: camera
+  });
+  const { view, changes, panel } = state;
+  const arranged = useArrangement(view.diagram, arrangement, onArrange);
   const density = useToolbarDensity(
     topRef,
     identity,
-    `${views.map((v) => v.key).join()}:${!!review}`
+    `${views.map((v) => v.key).join()}:${!!plain}:${changesShown}`
   );
-  const lastFocus = useRef12(null), inspectorId = useId3();
-  const view = views.find((v) => v.key === viewKey) || views[0];
-  const diagram = fields ? view.diagramFields : view.diagram;
-  const index2 = useMemo10(
-    () => indexViewerModel(model, diagram.generalizationGroups),
-    [model, diagram.generalizationGroups]
-  );
-  const [overview, setOverview] = useState12(overviewByDefault);
-  const { hovered, preview, hover, keepHover, clearHover } = useInspection({
-    previewEnabled: !detailsHidden && !(review && overview && !selected && !scenariosOpen),
-    previewVisible: !!selected || scenariosOpen
-  });
-  const select = useCallback6(
-    (target) => {
-      clearHover();
-      setSelected((old) => sameTarget(old, target) ? old : target);
-      setScenariosOpen(false);
-    },
-    [clearHover]
-  );
-  const choose = useCallback6(
-    (id) => {
-      const next = inspectionTarget(model, index2, views, viewKey, id);
-      if (!next) return;
-      setViewKey(next.viewKey);
-      select(next.target);
-      setMember(next.memberId || null);
-      if (next.nodeId) setFocusRequest({ id: next.nodeId });
-      else if (next.nodeIds) setFocusRequest({ ids: next.nodeIds });
-    },
-    [index2, model, views, viewKey, select]
-  );
-  const changes = useChangeReview({
-    review,
-    model,
-    views,
-    selected,
-    overview,
-    setOverview,
-    choose,
-    select,
-    hover,
-    onShowPanel: () => {
-      setDetailsHidden(false);
-      setScenariosOpen(false);
-    }
-  });
-  const inspected = inspectedTarget(preview, selected), element = index2.getElement(inspected);
-  const showOverview = !!changes && overview && !element && !scenariosOpen;
-  const detailsOpen = !detailsHidden && (!!element || scenariosOpen || showOverview);
-  useEffect11(() => {
-    select(null);
-    setViewKey(views[0].key);
-    setFocusRequest(null);
-    lastFocus.current = null;
-  }, [identity, select]);
-  useEffect11(() => {
-    const visible = selected?.kind === "node" ? diagram.nodes : selected?.kind === "edge" ? diagram.edges : diagram.generalizationGroups || [];
-    if (selected && (!index2.getElement(selected) || !visible.some((item) => item.id === selected.id) && !(selected.kind === "edge" && diagram.generalizationGroups?.some(
-      (g) => g.memberIds.includes(selected.id)
-    ))))
-      select(null);
-  }, [index2, diagram, selected, select]);
-  useEffect11(() => {
-    if (sameTarget(lastFocus.current, focus)) return;
-    lastFocus.current = focus;
-    if (!focus) return;
-    if (focus.kind === "view" && views.some((v) => v.key === focus.id))
-      setViewKey(focus.id);
-    else choose(focus.id);
-  }, [focus, choose, views]);
-  const inspector = useRef12(null);
-  const showing = scenariosOpen ? "scenarios" : selected ? `${selected.kind}:${selected.id}` : showOverview ? "overview" : "";
-  useLayoutEffect12(() => {
-    if (inspector.current) inspector.current.scrollTop = 0;
-  }, [showing]);
-  const resize = useInspectorWidth({
-    viewerRef,
-    panelRef: inspector,
-    width: inspectorWidth,
-    onChange: onInspectorWidthChange
-  });
-  const settledWidth = resize.resizing ? null : resize.width;
-  useLayoutEffect12(() => {
-    if (detailsOpen && selected?.kind === "node")
-      camera.current?.revealNode(selected.id);
-  }, [detailsOpen, settledWidth]);
-  const latestChanges = useRef12(null);
-  latestChanges.current = changes;
-  useEffect11(() => {
-    const escape = (e) => {
-      if (e.key !== "Escape" || !e.target.closest?.(".atlas-panel")) return;
-      if (e.target.closest(".inspector")) latestChanges.current?.returnFocus();
-      select(null);
-    };
-    document.addEventListener("keydown", escape);
-    return () => document.removeEventListener("keydown", escape);
-  }, [select]);
-  const hasScenarios = !!scenarios;
-  useEffect11(() => {
-    if (!hasScenarios) setScenariosOpen(false);
-  }, [hasScenarios]);
   const showViews = views.length > 1;
-  const hasStart = !!leading || showViews || !!changes;
-  return /* @__PURE__ */ jsx35(Theme, { theme, className: "atlas-panel", "data-theme": theme, children: /* @__PURE__ */ jsxs26(
+  const hasStart = !!leading || showViews || !!plain;
+  return /* @__PURE__ */ jsx25(Theme, { theme, className: "atlas-panel", "data-theme": theme, children: /* @__PURE__ */ jsxs17(
     "div",
     {
       ref: viewerRef,
-      className: `viewer${detailsOpen ? " inspecting" : ""}${changes?.fade ? " fade-unchanged" : ""}${resize.resizing ? " resizing" : ""}`,
-      style: resize.style,
+      className: `viewer${panel ? " with-panel" : ""}${changes?.fade ? " fade-unchanged" : ""}`,
       children: [
-        /* @__PURE__ */ jsxs26("div", { className: overlayClass(sections, density), ref: topRef, children: [
-          sections && /* @__PURE__ */ jsx35("div", { className: "atlas-overlay-sections", children: sections }),
-          hasStart && /* @__PURE__ */ jsxs26(Island, { label: "Diagram navigation", className: "island-start", children: [
-            leading && /* @__PURE__ */ jsx35("div", { className: "island-leading", children: leading }),
-            leading && (showViews || changes) && /* @__PURE__ */ jsx35(IslandDivider, {}),
-            showViews && /* @__PURE__ */ jsx35(
+        /* @__PURE__ */ jsxs17("div", { className: overlayClass(sections, density), ref: topRef, children: [
+          sections && /* @__PURE__ */ jsx25("div", { className: "atlas-overlay-sections", children: sections }),
+          hasStart && /* @__PURE__ */ jsxs17(Island, { label: "Diagram navigation", className: "island-start", children: [
+            leading && /* @__PURE__ */ jsx25("div", { className: "island-leading", children: leading }),
+            leading && (showViews || plain) && /* @__PURE__ */ jsx25(IslandDivider, {}),
+            showViews && /* @__PURE__ */ jsx25(
               ViewSwitcher,
               {
                 items: views,
                 compact: density > 0,
                 value: view.key,
-                onChange: (key) => {
-                  setViewKey(key);
-                  setFocusRequest(null);
-                  clearHover();
-                }
+                onChange: state.changeView
               }
             ),
-            showViews && changes && /* @__PURE__ */ jsx35(IslandDivider, {}),
-            changes?.controls(detailsOpen && showOverview)
-          ] }),
-          /* @__PURE__ */ jsxs26(Island, { label: "Diagram tools", className: "island-end", children: [
-            /* @__PURE__ */ jsx35(ConceptSearch, { classes: model.classes, onChoose: choose }),
-            /* @__PURE__ */ jsx35(
-              ToolButton,
+            showViews && plain && /* @__PURE__ */ jsx25(IslandDivider, {}),
+            plain && /* @__PURE__ */ jsx25(
+              ChangesSwitch,
               {
-                label: "Fields",
-                tooltip: fields ? "Hide attributes" : "Show attributes",
-                pressed: fields,
-                icon: /* @__PURE__ */ jsx35(TableRows, {}),
-                onClick: () => {
-                  setFocusRequest(null);
-                  setFields((v) => !v);
-                }
+                shown: changesShown,
+                onChange: setChangesShown
               }
             ),
-            /* @__PURE__ */ jsx35(
+            changes?.controls(
+              panel === "changes",
+              () => state.togglePanel("changes")
+            )
+          ] }),
+          /* @__PURE__ */ jsxs17(Island, { label: "Diagram tools", className: "island-end", children: [
+            /* @__PURE__ */ jsx25(
               CameraControls,
               {
                 zoomStore,
@@ -5954,89 +5508,47 @@ function DiagramPanelContent({
                 onFit: () => camera.current?.fit()
               }
             ),
-            /* @__PURE__ */ jsx35(IslandDivider, {}),
-            hasScenarios && /* @__PURE__ */ jsx35(
+            onArrange && arranged.arranged && /* @__PURE__ */ jsx25(
               ToolButton,
               {
-                label: "Understand the model",
-                pressed: scenariosOpen && detailsOpen,
-                icon: /* @__PURE__ */ jsx35(School, {}),
-                onClick: () => {
-                  clearHover();
-                  setDetailsHidden(false);
-                  setScenariosOpen((v) => !(v && detailsOpen));
+                label: "Reset layout",
+                tooltip: "Lay the diagram out again, as Atlas arranges it",
+                icon: /* @__PURE__ */ jsx25(IconRestartAlt, {}),
+                onClick: arranged.reset
+              }
+            ),
+            scenarios && /* @__PURE__ */ jsxs17(Fragment10, { children: [
+              /* @__PURE__ */ jsx25(IslandDivider, {}),
+              /* @__PURE__ */ jsx25(
+                ToolButton,
+                {
+                  label: "Understand the model",
+                  pressed: panel === "scenarios",
+                  "aria-controls": "side-panel",
+                  icon: /* @__PURE__ */ jsx25(IconSchool, {}),
+                  onClick: () => state.togglePanel("scenarios")
                 }
-              }
-            ),
-            /* @__PURE__ */ jsx35(
-              ToolButton,
-              {
-                label: detailsHidden ? "Show details" : "Hide details",
-                "aria-controls": inspectorId,
-                "aria-expanded": detailsOpen,
-                icon: detailsHidden ? /* @__PURE__ */ jsx35(RightPanelOpen, {}) : /* @__PURE__ */ jsx35(RightPanelClose, {}),
-                onClick: () => setDetailsHidden((v) => !v)
-              }
-            ),
-            onFullscreenChange && /* @__PURE__ */ jsx35(
-              ToolButton,
-              {
-                label: fullscreen ? "Exit fullscreen" : "Enter fullscreen",
-                variant: "secondary",
-                pressed: fullscreen,
-                icon: fullscreen ? /* @__PURE__ */ jsx35(FullscreenExit, {}) : /* @__PURE__ */ jsx35(Fullscreen, {}),
-                onClick: () => onFullscreenChange(!fullscreen)
-              }
-            )
+              )
+            ] })
           ] })
         ] }),
-        /* @__PURE__ */ jsx35(
+        /* @__PURE__ */ jsx25(
           DiagramCanvas,
           {
             ref: camera,
-            diagram,
-            selected,
-            hovered,
-            focusRequest,
+            diagram: arranged.diagram,
+            elementDrag: arranged.elementDrag,
+            selected: state.selected,
+            hovered: state.hovered,
+            focusRequest: state.focusRequest,
             fitInsets,
-            onSelect: select,
+            onSelect: state.select,
             onZoom: zoomStore.set,
-            onHover: hover,
-            onClearHover: clearHover
+            onHover: state.hover,
+            onClearHover: state.clearHover
           }
         ),
-        /* @__PURE__ */ jsx35(
-          Panel,
-          {
-            ref: inspector,
-            id: inspectorId,
-            className: "inspector",
-            title: scenariosOpen ? "Understand the model" : showOverview ? "Changes" : null,
-            toolbar: !scenariosOpen && element && changes ? changes.navigation : null,
-            label: scenariosOpen ? "Model guide" : showOverview ? "Changes in this proposal" : "Model details",
-            open: detailsOpen,
-            closeLabel: "Hide details",
-            onClose: () => setDetailsHidden(true),
-            resizer: resize.separator,
-            onPointerEnter: keepHover,
-            onPointerLeave: () => hover(null),
-            children: detailsOpen && /* @__PURE__ */ jsx35(
-              Inspector,
-              {
-                showScenarios: scenariosOpen,
-                element,
-                inspected,
-                member: sameTarget(inspected, selected) ? member : null,
-                model,
-                snippets,
-                scenarios,
-                changes,
-                showOverview,
-                onChoose: choose
-              }
-            )
-          }
-        )
+        /* @__PURE__ */ jsx25(SidePanel, { state, model, scenarios })
       ]
     }
   ) });
@@ -6044,8 +5556,8 @@ function DiagramPanelContent({
 
 // src/viewer/ViewerErrorBoundary.jsx
 import { Component } from "react";
-import { Button as Button9, EmptyState as EmptyState3 } from "@envsemble/envui";
-import { jsx as jsx36 } from "react/jsx-runtime";
+import { Alert as Alert2, Button as Button5 } from "@envsemble/envui";
+import { jsx as jsx26 } from "react/jsx-runtime";
 var ViewerErrorBoundary = class extends Component {
   constructor() {
     super(...arguments);
@@ -6060,14 +5572,14 @@ var ViewerErrorBoundary = class extends Component {
   }
   render() {
     if (this.state.failed)
-      return /* @__PURE__ */ jsx36("main", { className: "viewer-error", children: /* @__PURE__ */ jsx36(
-        EmptyState3,
+      return /* @__PURE__ */ jsx26("main", { className: "viewer-error", children: /* @__PURE__ */ jsx26(
+        Alert2,
         {
-          tone: "error",
-          headingLevel: 1,
+          tone: "danger",
+          announce: true,
           title: "The model could not be displayed",
-          description: "Rebuild the viewer from the model and check its validation report.",
-          action: /* @__PURE__ */ jsx36(Button9, { variant: "secondary", onClick: () => location.reload(), children: "Reload" })
+          actions: /* @__PURE__ */ jsx26(Button5, { variant: "secondary", onClick: () => location.reload(), children: "Reload" }),
+          children: "Rebuild the viewer from the model and check its validation report."
         }
       ) });
     return this.props.children;

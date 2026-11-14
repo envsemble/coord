@@ -134,21 +134,6 @@ export function describePart(item) {
 // PostgreSQL's constraint types that only their statement describes: check,
 // exclusion, foreign key and constraint trigger.
 const CHECKS = new Set(["c", "x", "f", "t"]);
-/** A part before and after a change, by what tells them apart. */
-export function partChange(before, after) {
-  const was = describePart(before),
-    is = describePart(after);
-  if (was !== is) return [was, is];
-  // The difference is in a field the description leaves out, such as a
-  // collation: list each such field.
-  const fields = [...new Set([...Object.keys(before), ...Object.keys(after)])]
-    .filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]))
-    .map((k) => [k, readable(before[k]), readable(after[k])]);
-  return [
-    `${was}; ${fields.map(([k, b]) => `${k} ${b}`).join("; ")}`,
-    `${is}; ${fields.map(([k, , a]) => `${k} ${a}`).join("; ")}`,
-  ];
-}
 // A part keeps its identity by its name; a foreign key by its columns and
 // the table and columns it refers to, where those are known.
 const knownColumns = (columns) =>
@@ -309,33 +294,12 @@ function movesOf(changes) {
 export const memberLabel = (member, method) =>
   method ? `${member.name}()` : member.name;
 
-/** A member as it reads in code: a method's signature, or name and type. */
-export function memberSignature(member, method, profile) {
-  if (method) return member.type || `${member.name}()`;
-  if (!member.type) return member.name;
-  return profile === "database"
-    ? `${member.name} ${member.type}`
-    : `${member.name}: ${member.type}`;
-}
-
-/**
- * Where a class lives: its captured location, else the file its evidence
- * names, which a proposal can give a new class to say where it goes.
- */
-export function elementFile(element, model) {
-  if (element?.location?.file) return element.location.file;
-  const source = (model?.sources || []).find(
-    (s) => s.id === element?.primarySource,
-  );
-  return source?.file || null;
-}
-
 // Kinds every relation of a profile shares say nothing in a list of them.
 const PLAIN_KINDS = new Set(["dependency", "foreign key"]);
 function edgeTag(edge) {
   if ("specificId" in edge) return edge.realization ? "implements" : "inherits";
   if (PLAIN_KINDS.has(edge.stereotype)) return "";
-  return edge.stereotype ? `«${edge.stereotype}»` : "";
+  return edge.stereotype || "";
 }
 
 function index(model) {
@@ -364,7 +328,7 @@ function drawn(views) {
   const nodes = new Set(),
     edges = new Set();
   for (const view of views)
-    for (const diagram of [view.diagram, view.diagramFields].filter(Boolean)) {
+    for (const diagram of [view.diagram]) {
       for (const node of diagram.nodes || []) nodes.add(node.id);
       for (const edge of diagram.edges || []) edges.add(edge.id);
       // Inheritance sharing a supertype is drawn as one joined group.
@@ -845,155 +809,6 @@ export function rowFor(rollup, target, model) {
     .find((e) => e.id === target.id);
   const id = edge?.originalId || target.id;
   return rollup.rows.find((r) => r.kind === "edge" && r.id === id) || null;
-}
-
-/**
- * What a proposal changes about one class, for its details: its own property
- * changes and each changed member, with before and after for modified ones.
- */
-export function describeClassChange(rollup, element, profile) {
-  const entry = rollup?.rows.find(
-    (r) => r.kind === "node" && r.id === element.id,
-  );
-  if (!entry) return null;
-  const names = rollup.names;
-  const byId = new Map(entry.changes.map((c) => [c.elementId, c]));
-  const moved = new Map(
-    entry.members.filter((m) => m.moved).map((m) => [m.id, m.moved]),
-  );
-  const members = [
-    ...(element.attributes || []).map((m) => ({ member: m, method: false })),
-    ...(element.methods || []).map((m) => ({ member: m, method: true })),
-  ];
-  const seen = new Set();
-  const changed = [];
-  for (const { member, method } of members) {
-    const change = byId.get(member.id);
-    if (
-      !change &&
-      !(member.changeStatus && member.changeStatus !== "unchanged")
-    )
-      continue;
-    seen.add(member.id);
-    changed.push(
-      memberChange(
-        member,
-        method,
-        change,
-        profile,
-        names,
-        moved.get(member.id),
-      ),
-    );
-  }
-  // Members the change view could not place, such as a removed member of a
-  // class whose proposal no longer lists it.
-  for (const m of entry.members) {
-    if (seen.has(m.id) || entry.status !== "modified") continue;
-    seen.add(m.id);
-    changed.push(
-      memberChange(
-        {
-          id: m.id,
-          name: m.member.name,
-          type: m.member.type,
-          changeStatus: m.status,
-        },
-        m.member.method,
-        byId.get(m.id),
-        profile,
-        names,
-        m.moved,
-      ),
-    );
-  }
-  return {
-    status: entry.status,
-    properties: entry.notes.flatMap((n) => {
-      const parts = itemChanges(n);
-      // A list of a table's parts reads part by part, with what each holds.
-      if (parts?.length && parts.every((c) => isPart(c.after ?? c.before)))
-        return parts.map(({ status, before, after }) => {
-          const part = after ?? before;
-          const [was, is] =
-            before && after
-              ? partChange(before, after)
-              : [
-                  before ? describePart(before) : "none",
-                  after ? describePart(after) : "none",
-                ];
-          return {
-            key: isForeignKey(part)
-              ? "foreign key"
-              : `${SINGULAR[n.property] ?? n.property} ${partName(part)}`,
-            status,
-            before: was,
-            after: is,
-          };
-        });
-      return [
-        {
-          key: n.key,
-          status: "modified",
-          before: cellText(n.before, names, n.property),
-          after: cellText(n.after, names, n.property),
-        },
-      ];
-    }),
-    members: entry.status === "modified" ? changed : [],
-    // Members of a new or removed type that moved there or away.
-    moved:
-      entry.status === "modified" ? [] : entry.members.filter((m) => m.moved),
-    entry,
-  };
-}
-
-// The name and type a member had before the proposal, in the terms the
-// change view shows it now.
-function previousMember(before, member) {
-  return {
-    ...member,
-    name: textOf(before.name) ?? member.name,
-    type: typeof before.type === "string" ? before.type : member.type,
-  };
-}
-
-function memberChange(member, method, change, profile, names, moved) {
-  // The change view's status for this class wins: a member that moved in is
-  // new here, whatever else its own change says.
-  const status =
-    member.changeStatus && member.changeStatus !== "unchanged"
-      ? member.changeStatus
-      : change?.kind;
-  const properties = meaningfulProperties(change).map((p) => ({
-    key: p.key,
-    before: cellText(p.before, names, p.key),
-    after: cellText(p.after, names, p.key),
-  }));
-  const before = change?.before;
-  return {
-    id: member.id,
-    status,
-    method,
-    name: member.name,
-    signature: memberSignature(member, method, profile),
-    // A member that moved in may also have changed on the way.
-    previous:
-      (status === "modified" || moved?.from) && before
-        ? memberSignature(previousMember(before, member), method, profile)
-        : null,
-    properties,
-    moved: moved || null,
-    location: member.location || before?.location || null,
-  };
-}
-
-/** Whether a file holds any declaration the baseline already had. */
-export function fileExists(model, file) {
-  if (!file) return false;
-  return model.classes.some(
-    (c) => c.changeStatus !== "added" && elementFile(c, model) === file,
-  );
 }
 
 /** Classes whose members a code dependency's source declares with the target's type. */

@@ -1,0 +1,5 @@
+/* A page's frame: the page on the page's own background, filling the frame and scrolling inside it. */
+html, body, #root { block-size: 100%; margin: 0; }
+.page-theme { box-sizing: border-box; min-block-size: 100%; background: var(--env-color-bg-page); color: var(--env-color-fg-default); }
+.page-failed { padding: var(--env-space-5); }
+.atlas-page-diagram { position: relative; inline-size: 100%; }

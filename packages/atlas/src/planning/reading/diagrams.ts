@@ -2,11 +2,13 @@
 // planning index lists them), described with their roles, families and problems, and prepared for
 // the viewer. A diagram is identified by its path in the work folder. Plans link diagrams with
 // ordinary Markdown links (see diagramLinks.ts).
-import { createHash } from 'node:crypto';
-import { readFile, stat } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import atlas, { type DiagramFile, type DiagramProblem, type DiagramSummary, type ViewerPayload } from '@envsemble/atlas-diagrams';
 import { PlanningError, readDocument, resolveDocument } from './planningIndex.ts';
 import { describeProvenance, type CaptureSource, type Provenance } from './provenance.ts';
+import { diagramPositions } from '../../host/validate.ts';
 import { samePath, workRelative } from '../../platform/paths.ts';
 import type { Document, PlanningIndex as LoadedIndex } from '../types.ts';
 
@@ -57,7 +59,7 @@ function captureOf(summary: DiagramSummary, byPath: Map<string, DiagramSummary>)
 }
 
 /** Describes a work folder's diagram files for the catalog. */
-export function describeFiles(files: DiagramFile[], oversized: string[] = []): DiagramEntry[] {
+function describeFiles(files: DiagramFile[], oversized: string[] = []): DiagramEntry[] {
   const summaries = atlas.describeDiagrams(files);
   const byPath = new Map(summaries.map(summary => [summary.path, summary]));
   const texts = new Map(files.map(file => [file.path, file.text]));
@@ -84,6 +86,8 @@ interface Read { files: DiagramFile[]; oversized: string[]; key: string }
 export class DiagramCatalog {
   private described = new Map<string, DiagramEntry[]>();
   private layouts = new Map<string, Promise<Map<string, ViewerPayload>>>();
+  /** The arrangement saves under way, by work item. */
+  private saving = new Map<string, Promise<void>>();
   readonly planningRoot: string;
   constructor(planningRoot: string) { this.planningRoot = planningRoot; }
 
@@ -153,6 +157,51 @@ export class DiagramCatalog {
     return siblings.length ? { ...own, siblings } : own;
   }
 
+  /**
+   * Where a diagram's arrangement is kept: beside its family's first file (the diagram itself when
+   * it is alone), `orders.puml` → `orders.layout.json`. The file is found through the index, so it
+   * is inside the planning folder.
+   */
+  private async sidecar(snapshot: PlanningIndex, workId: string, diagram: string) {
+    const work = this.work(snapshot, workId);
+    const entry = this.describe(await this.read(snapshot, work)).find(item => item.path === diagram);
+    if (!entry) throw new PlanningError('This diagram is not in the work folder.', 404);
+    if (!work.path) throw new PlanningError("This work item has no folder.", 404);
+    const root = entry.family ?? entry.path;
+    const filename = await resolveDocument(this.planningRoot, work.path.replace(/\/+$/, '') + '/' + root);
+    return path.join(path.dirname(filename), path.basename(filename).replace(/\.puml$/i, '') + '.layout.json');
+  }
+  /** How a reader arranged a diagram: each element's top-left corner by id, or null when it has no arrangement (or one that cannot be read). */
+  async arrangement(snapshot: PlanningIndex, workId: string, diagram: string): Promise<Record<string, [number, number]> | null> {
+    const file = await this.sidecar(snapshot, workId, diagram);
+    let text: string;
+    try {
+      if ((await stat(file)).size > fileLimit) return null;
+      text = await readFile(file, 'utf8');
+    } catch { return null; }
+    try { return diagramPositions((JSON.parse(text) as { positions?: unknown }).positions, 'positions'); }
+    catch { return null; }
+  }
+  /**
+   * Saves a diagram's arrangement (written whole, then moved into place), or removes it with null.
+   * A work item's saves go one after another, in the order asked for, so the last one asked for is
+   * the one kept.
+   */
+  async arrange(snapshot: PlanningIndex, workId: string, diagram: string, positions: Record<string, [number, number]> | null): Promise<void> {
+    const write = async () => {
+      const file = await this.sidecar(snapshot, workId, diagram);
+      if (positions === null) { await rm(file, { force: true }); return; }
+      const temporary = file + '.' + randomUUID() + '.tmp';
+      try {
+        await writeFile(temporary, JSON.stringify({ positions: diagramPositions(positions, 'positions') }, null, 1) + '\n', 'utf8');
+        await rename(temporary, file);
+      } finally { await rm(temporary, { force: true }); }
+    };
+    const next = (this.saving.get(workId) ?? Promise.resolve()).catch(() => undefined).then(write);
+    this.saving.set(workId, next);
+    try { await next; } finally { if (this.saving.get(workId) === next) this.saving.delete(workId); }
+  }
+
   /** The diagrams a document links to, each under the heading its link sits under. */
   async references(snapshot: PlanningIndex, workId: string | undefined, filename: string): Promise<DiagramReference[]> {
     const same = this.same(snapshot);
@@ -162,7 +211,7 @@ export class DiagramCatalog {
     if (!document || (document.workId !== null && document.workId !== workId)) throw new PlanningError('Choose an indexed document of this work item or of the planning folder.', 403);
     if (!/\.md$/i.test(document.path)) return [];
     const content = await readDocument(this.planningRoot, document.path);
-    // The Markdown parser loads when first needed: this module comes with plan export, which every command loads.
+    // The Markdown parser loads only when a document's diagram links are read.
     const { diagramLinks } = await import('./diagramLinks.ts');
     const listed = new Map<string, Promise<DiagramEntry[]>>();
     const results: DiagramReference[] = [];

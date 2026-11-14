@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { environment, reportsIn, run, temporary } from './testing.ts';
@@ -26,7 +26,7 @@ test('version and help describe the one atlas command', async () => {
   assert.equal(shown.stdout.trim(), version);
   const help = await run(['help']);
   assert.equal(help.status, 0);
-  for (const usage of ['atlas where', 'atlas work create', 'atlas capture', 'atlas mcp', 'atlas hook', 'atlas setup', 'atlas plan export', 'atlas work report']) assert.ok(help.stdout.includes(usage), usage);
+  for (const usage of ['atlas where', 'atlas work create', 'atlas capture', 'atlas mcp', 'atlas hook', 'atlas setup', 'atlas work report']) assert.ok(help.stdout.includes(usage), usage);
   assert.deepEqual(await run([]), help);
 });
 
@@ -95,72 +95,3 @@ test('inside a harness, atlas work report needs only the work and the step: the 
   assert.deepEqual(reportsIn(root, 'work-0001').map(report => [report.session, report.model, Boolean(report.measured)]), [[session, 'claude-opus-5-5', false], [session, 'claude-opus-5-5', true]]);
 });
 
-test('atlas plan export and import share a work item with a preview, --dry-run and 0/1/2 exit codes', async t => {
-  const directory = temporary(t);
-  const source = planningFolder(directory);
-  const target = path.join(directory, 'target');
-  mkdirSync(path.join(target, 'active'), { recursive: true });
-  writeFileSync(path.join(target, 'planning.json'), '{\n  "schema_version": 2,\n  "name": "Target",\n  "folders": [],\n  "work_items": []\n}\n');
-  const shared = path.join(directory, 'shared');
-  mkdirSync(shared);
-
-  const exported = await run(['plan', 'export', 'work-0001', '--planning-dir', source], { cwd: shared });
-  assert.equal(exported.status, 0, exported.stderr);
-  const file = path.join(shared, 'example-work-0001.atlas-plan.html');
-  assert.ok(existsSync(file), 'the default name is <slug>-<work-id>.atlas-plan.html in the current folder');
-  assert.match(exported.stdout, /Exported work-0001 “Example work”/);
-  const refused = await run(['plan', 'export', path.join(source, 'active/0001-example'), '--planning-dir', source], { cwd: shared });
-  assert.equal(refused.status, 1, 'a different existing file needs --force');
-  assert.match(refused.stderr, /--force/);
-  assert.equal((await run(['plan', 'export', path.join(source, 'active/0001-example'), '--force'], { cwd: source })).status, 0, 'a work folder path and the current folder work too');
-  const html = readFileSync(path.join(source, 'example-work-0001.atlas-plan.html'));
-  rmSync(path.join(source, 'example-work-0001.atlas-plan.html'));
-
-  const registry = readFileSync(path.join(target, 'planning.json'));
-  const preview = await run(['plan', 'import', file, '--planning-dir', target, '--dry-run']);
-  assert.equal(preview.status, 0, preview.stderr);
-  assert.match(preview.stdout, /Plan export: “Example work”/);
-  assert.match(preview.stdout, /Import as: +work-0001 in active\/0001-example/);
-  assert.match(preview.stdout, /Dry run: nothing was written/);
-  assert.deepEqual(readdirSync(path.join(target, 'active')), []);
-  assert.deepEqual(readFileSync(path.join(target, 'planning.json')), registry);
-
-  const imported = await run(['plan', 'import', file], { cwd: target });
-  assert.equal(imported.status, 0, imported.stderr);
-  assert.match(imported.stdout, /Import as: +work-0001/);
-  assert.match(imported.stdout, /README/);
-  assert.deepEqual(readFileSync(path.join(target, 'active/0001-example/plan.md')), readFileSync(path.join(source, 'active/0001-example/plan.md')));
-  assert.equal((await run(['check', target])).status, 0);
-
-  // Text from an export cannot drive the terminal: control characters are refused, other invisible controls replaced.
-  const payload = /<script id="atlas-plan-export" type="application\/json">([\s\S]*?)<\/script>/.exec(html.toString())!;
-  const restyled = (change: (value: { source: { title: string } }) => void) => {
-    const value = JSON.parse(payload[1]); change(value);
-    return html.toString().replace(payload[0], () => `<script id="atlas-plan-export" type="application/json">${JSON.stringify(value).replaceAll('<', '\\u003c')}</script>`);
-  };
-  writeFileSync(path.join(shared, 'escape.html'), restyled(value => { value.source.title = 'Harmless' + String.fromCharCode(0x1b) + ']52;c;ZWNobw==' + String.fromCharCode(7); }));
-  const escaped = await run(['plan', 'import', path.join(shared, 'escape.html'), '--planning-dir', target, '--dry-run']);
-  assert.equal(escaped.status, 1);
-  assert.match(escaped.stderr, /control characters/);
-  assert.ok(!escaped.stdout.includes(String.fromCharCode(0x1b)) && !escaped.stderr.includes(String.fromCharCode(0x1b)));
-  writeFileSync(path.join(shared, 'bidi.html'), restyled(value => { value.source.title = 'Plan ' + String.fromCharCode(0x202e) + 'txt.exe'; }));
-  const bidi = await run(['plan', 'import', path.join(shared, 'bidi.html'), '--planning-dir', target, '--dry-run']);
-  assert.equal(bidi.status, 0, bidi.stderr);
-  assert.match(bidi.stdout, /Plan export: “Plan \?txt\.exe”/);
-
-  // Filesystem problems are one-line messages, never stack traces.
-  for (const [args, message] of [
-    [['plan', 'export', 'work-0001', '--planning-dir', source, '--out', shared], /is a folder/],
-    [['plan', 'export', 'work-0001', '--planning-dir', source, '--out', path.join(shared, 'missing/x.html')], /does not exist/],
-    [['plan', 'import', shared, '--planning-dir', target], /is a folder/],
-    [['plan', 'import', path.join(shared, 'absent.html'), '--planning-dir', target], /does not exist/],
-  ] as const) {
-    const failed = await run([...args]);
-    assert.equal(failed.status, 1, args.join(' '));
-    assert.match(failed.stderr, message);
-    assert.doesNotMatch(failed.stderr, /\n\s+at /, 'no stack trace');
-  }
-  for (const args of [['plan', 'import', file, '--dry-run=yes'], ['plan', 'export', 'work-0001', '--forse']]) {
-    assert.equal((await run(args)).status, 2, args.join(' '));
-  }
-});

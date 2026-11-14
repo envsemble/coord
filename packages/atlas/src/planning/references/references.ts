@@ -131,8 +131,7 @@ function checkoutFolders(root: string): Promise<Map<string, string[]>> {
 }
 /**
  * The GitHub repositories checked out in a project's folders, lowercased; kept for a minute. Only
- * the owner sets a project's folders, so a paired device cannot add to them, as it could to the
- * planning files by importing a plan.
+ * the owner sets a project's folders, so a paired device cannot add to them.
  */
 export async function checkedOutRepositories(root: string): Promise<Set<string>> {
   return new Set((await checkoutFolders(root)).keys());

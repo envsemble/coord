@@ -48,6 +48,8 @@ Checkout authorises a one-off `CardSession` created by the acquirer's hosted fie
 
 The [proposed payment methods](diagrams/checkout-proposal.puml#SavedPaymentMethod) show [the token](diagrams/checkout-proposal.puml#PaymentToken), [the brand](diagrams/checkout-proposal.puml#CardBrand) and [the vault](diagrams/checkout-proposal.puml#PaymentMethodVault); the [alternative](diagrams/checkout-alternative.puml#Customer) keeps the methods on the customer.
 
+How a customer picks a saved card is chosen on [the card picker](pages/card-picker).
+
 ## Checkout flow
 
 1. The customer picks a saved method; the default is preselected.

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { Markdown } from '@envsemble/envui/content';
+import { Markdown } from '@envsemble/envui/markdown';
 import { sectionAnchors } from '@envsemble/atlas/planning/headings';
 import { findHeadingId, headingPrefix, isRequestHeading, rehypeFoldRequests, rehypeHeadingIds, type HeadingNode } from './headings.ts';
 import { resolveLink } from './links.ts';

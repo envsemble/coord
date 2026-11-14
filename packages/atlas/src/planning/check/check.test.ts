@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { parseFrontmatter, validatePlanning } from './check.ts';
+import { checkPaths } from './checkPaths.ts';
 import { ledgerStatus } from '../work/ledger.ts';
 
 const valid = { errors: [], warnings: [] };
@@ -258,6 +259,26 @@ test('continues lists work items: malformed or itself is an error, unknown work 
   assert.ok(warnings.some(item => item.includes('the handoffs form a loop')));
 });
 
+test('parts lists work IDs of this project: malformed, itself or twice is an error; unknown work, a part of two groups and a part with parts are warnings', t => {
+  const setup = fixture(t);
+  for (const [parts, message] of [[['shop:work-0002'], 'parts must be a list of work IDs'], [['work-0001'], 'parts names the work item itself'], [['work-0002', 'work-0002'], 'parts lists a work item twice']] as const) {
+    setup.header.parts = [...parts];
+    setup.write();
+    assert.ok(setup.validate().errors.some(item => item.includes(message)), message);
+  }
+  const next = path.join(setup.root, 'active/0002-next');
+  mkdirSync(next, { recursive: true });
+  writeFileSync(path.join(next, 'plan.md'), ['---', 'id: work-0002', 'parts: [work-0003]', '---', ''].join('\n'));
+  setup.registry.work_items.push({ id: 'work-0002', path: 'active/0002-next', current_plan: 'active/0002-next/plan.md' });
+  setup.header.parts = ['work-0002', 'work-0003'];
+  setup.write();
+  const { errors, warnings } = setup.validate();
+  assert.ok(!errors.some(item => item.includes('parts')), errors.join('; '));
+  assert.ok(warnings.some(item => item.startsWith('active/0001-example/plan.md: parts lists work-0003, which names no work item')));
+  assert.ok(warnings.some(item => item.startsWith('active/0002-next/plan.md: parts lists work-0003, which work-0001 lists too')));
+  assert.ok(warnings.some(item => item.startsWith('active/0001-example/plan.md: parts lists work-0002, which has parts of its own')));
+});
+
 test('lifecycle chronology matches the app and preserves unknown dates', t => {
   const setup = fixture(t);
   const valid_ = { ...setup.header, created: '2026-10-01', accepted_at: '2026-10-03', completed_at: '2026-10-05', updated: '2026-10-05', implementation_status: 'complete' };
@@ -440,4 +461,16 @@ test('the planning folder keeps files byte for byte through Git, whatever core.a
   const copy = path.join(setup.root, 'restore-check');
   execFileSync('git', ['-c', 'core.autocrlf=true', 'clone', '--no-hardlinks', setup.root, copy], { stdio: 'pipe' });
   for (const [name, content] of Object.entries(originals)) assert.deepEqual(readFileSync(path.join(copy, 'active/0001-example', name)), content);
+});
+
+test("an active plan's table that reads cramped in Atlas is a warning, with its line, also in a check of that file alone (as the hook runs it)", async t => {
+  const setup = fixture(t);
+  const next = path.join(setup.root, 'active/0002-next');
+  mkdirSync(next, { recursive: true });
+  writeFileSync(path.join(next, 'plan.md'), ['---', 'id: work-0002', '---', '', '| a | b | c | d | e | f |', '|-|-|-|-|-|-|', '| 1 | 2 | 3 | 4 | 5 | 6 |', ''].join('\n'));
+  setup.registry.work_items.push({ id: 'work-0002', path: 'active/0002-next', current_plan: 'active/0002-next/plan.md' });
+  setup.write();
+  assert.ok(setup.validate().warnings.some(item => item.startsWith('active/0002-next/plan.md:5: a table with 6 columns reads cramped in Atlas')));
+  const [alone] = await checkPaths([path.join(next, 'plan.md')]);
+  assert.ok(alone.warnings.some(item => item.startsWith('active/0002-next/plan.md:5: a table with 6 columns')), alone.warnings.join('; '));
 });

@@ -158,7 +158,7 @@ export async function resolvePlanningFolder(options: { planningFolder?: string |
     candidates = registering;
   }
   if (candidates.length === 1) return candidates[0];
-  if (!candidates.length) throw new PlanningNotFoundError(`No project in the Atlas home (${where.home}) covers ${where.cwd}. Ask the user which project to use and give its planning folder, or add a folder this one is in to that project's folders (planning.json's folders, or the Projects page).`);
+  if (!candidates.length) throw new PlanningNotFoundError(`No project in the Atlas home (${where.home}) covers ${where.cwd}. Ask the user which project to use and give its planning folder, or add a folder this one is in to that project's folders (planning.json's folders, or the project menu of the app's plans).`);
   const named = where.matches.filter(match => candidates.includes(match.planningFolder)).map(match => `${match.project} (${match.planningFolder})`);
   throw new PlanningNotFoundError('Several projects cover this folder: ' + named.join(', ') + '. Ask the user which project to plan in, then give its planning folder (--planning-dir, or planningFolder in the Atlas tools).');
 }

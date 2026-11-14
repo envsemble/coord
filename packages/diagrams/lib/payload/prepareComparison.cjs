@@ -1,6 +1,6 @@
 // Families: models laid out once together, each shown alone or compared with
 // its baseline. A family's members are entries (see prepareEntry): a model with
-// its views, snippets and semantic content, and a proposal's baseline entry.
+// its views and semantic content, and a proposal's baseline entry.
 const { clone, fingerprint } = require("../fingerprint.cjs");
 const { semantic, compareModels } = require("./compareModels.cjs");
 const { prepareModel } = require("./buildViewer.cjs");
@@ -523,14 +523,13 @@ async function layoutFamily({ entries, slug, includeArtifacts }) {
     for (const r of reviews) {
       const p = await prepareModel({
         model: r.after,
-        excerpts: r.entry.snippets,
         scenarios: r.entry.scenarios,
         source: r.entry.source,
         slug,
         includeArtifacts,
       });
       p.payload.comparison = {
-        baseline: { model: r.before, views: [], snippets: {} },
+        baseline: { model: r.before, views: [] },
         changes: r.diff,
         conflicts: [],
       };
@@ -541,7 +540,6 @@ async function layoutFamily({ entries, slug, includeArtifacts }) {
         c.entry,
         await prepareModel({
           model: c.model,
-          excerpts: c.entry.snippets,
           scenarios: c.entry.scenarios,
           source: c.entry.source,
           slug,
@@ -552,7 +550,7 @@ async function layoutFamily({ entries, slug, includeArtifacts }) {
   }
   // Shared union positions avoid camera/layout jumps. Relations remain separate
   // during comparison so changed endpoints and overlapping set membership are
-  // unambiguous. Only the views' scenes are kept, so no excerpt is highlighted.
+  // unambiguous. Only the views' scenes are kept.
   union.validation = clone(afters[0].validation);
   const shared = await prepareModel({
     model: union,
@@ -560,7 +558,6 @@ async function layoutFamily({ entries, slug, includeArtifacts }) {
       [...reviews.map((r) => r.views), ...captured.map((c) => c.views)],
       routes,
     ),
-    excerpts: {},
     slug,
     includeArtifacts: false,
   });
@@ -574,11 +571,11 @@ async function layoutFamily({ entries, slug, includeArtifacts }) {
     const routeFilters = new Map(
       views.filter((v) => v.edgeIds).map((v) => [v.key, new Set(v.edgeIds)]),
     );
-    const provider = async (view, classes, edges, generalizations, fields) => {
+    const provider = async (view) => {
       const sharedView =
         shared.payload.views.find((v) => v.key === view.key) ||
         shared.payload.views[0];
-      const template = clone(sharedView[fields ? "diagramFields" : "diagram"]);
+      const template = clone(sharedView.diagram);
       template.title = view.title;
       // The shared view holds every member's version of it, so a member shows
       // the classes its own view lists, as it does alone, and only the routes
@@ -596,8 +593,8 @@ async function layoutFamily({ entries, slug, includeArtifacts }) {
             name: own.name,
             stereotype: own.stereotype,
             isAbstract: own.isAbstract ?? own.abstract,
-            attributes: fields ? own.attributes : [],
-            methods: fields ? own.methods || [] : [],
+            attributes: own.attributes,
+            methods: own.methods || [],
             ...(statuses
               ? { changeStatus: statuses.get(n.id) || "unchanged" }
               : {}),
@@ -683,7 +680,6 @@ async function layoutFamily({ entries, slug, includeArtifacts }) {
     return prepareModel({
       model: { ...model, validation: clone(model.validation) },
       settings: stateSettings.length ? stateSettings : undefined,
-      excerpts: entry.snippets,
       scenarios: entry.scenarios,
       source: entry.source,
       slug,
@@ -787,13 +783,11 @@ async function layoutFamily({ entries, slug, includeArtifacts }) {
       baseline: {
         model: base.model,
         views: base.payload.views,
-        snippets: base.payload.snippets,
         exports: base.payload.exports,
       },
       changeView: {
         model: changes.model,
         views: changes.payload.views,
-        snippets: { ...base.payload.snippets, ...changes.payload.snippets },
         exports: changes.payload.exports,
       },
       changes: diff,

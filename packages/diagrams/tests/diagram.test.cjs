@@ -60,7 +60,6 @@ function diagramFixture() {
   return {
     key: "example",
     title: "Example",
-    fields: false,
     width: 420,
     height: 100,
     initialFocus: [],
@@ -157,12 +156,12 @@ test("same-named entities have unique SVG identities, and abstract classes use U
   assert.equal((svg.match(/font-style="italic"/g) || []).length, 2);
   assert.match(svg, /marker-start="url\(#[^"]+-COMPOSITE\)"/);
 });
-test("every class has the one neutral look, whatever its stereotype", () => {
+test("every class has the one neutral look, and no stereotype is drawn", () => {
   const diagram = diagramFixture();
   diagram.nodes[0].stereotype = "type alias";
   diagram.nodes[1].stereotype = "interface";
   const svg = renderSVG(diagram);
-  assert(svg.includes("«type alias»"));
+  assert(!svg.includes("«"));
   assert.equal(
     svg.match(/class="node-box"[^>]*fill="var\(--surface,#f6f8fa\)"/g).length,
     diagram.nodes.length,

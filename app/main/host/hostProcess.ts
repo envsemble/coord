@@ -4,7 +4,6 @@
 // host through the app's main process, over the same authenticated connection a paired device uses.
 import path from 'node:path';
 import { Host } from '@envsemble/atlas/host';
-import createPlanWorker from './planWorkerEntry.ts?nodeWorker';
 import { RotatingLog } from '../log.ts';
 // The planning templates new projects are made from, as the atlas skill bundles them.
 import agents from '../../../packages/atlas/templates/planning/AGENTS.md?raw';
@@ -29,7 +28,7 @@ parent.on('message', ({ data }) => {
   const log = new RotatingLog(path.join(message.home, 'logs'), { name: 'host' });
   process.on('uncaughtException', error => log.error('Uncaught exception', error));
   process.on('unhandledRejection', error => log.error('Unhandled rejection', error));
-  host = new Host({ home: message.home, version: message.version, log, owner: 'the Atlas app', createPlanWorker: () => createPlanWorker({}), loopbackPort: message.loopbackPort, templates: async () => templates });
+  host = new Host({ home: message.home, version: message.version, log, owner: 'the Atlas app', loopbackPort: message.loopbackPort, templates: async () => templates });
   host.start().then(
     ({ port }) => parent.postMessage({ type: 'ready', port, ownerToken: host!.ownerToken, hostId: host!.descriptor.hostId }),
     error => { log.error('Host could not start', error); parent.postMessage({ type: 'failed', message: (error as Error).message }); },

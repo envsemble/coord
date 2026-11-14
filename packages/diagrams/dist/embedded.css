@@ -8,13 +8,22 @@
      that reads on light canvases. */
   --atlas-elevation:
     0 0 0 0.0625rem
-      color-mix(in srgb, var(--color-text-primary) 9%, transparent),
+      color-mix(in srgb, var(--env-color-fg-default) 9%, transparent),
     0 0.0625rem 0.1875rem
-      color-mix(in srgb, var(--color-canvas-dark) 14%, transparent),
+      oklch(from var(--env-color-bg-page) calc(l * 0.2) c h / 0.14),
     0 0.5rem 1.5rem -0.5rem
-      color-mix(in srgb, var(--color-canvas-dark) 28%, transparent);
-  --atlas-gutter: var(--space-3);
-  --inspector-width: clamp(20rem, 38cqw, 30rem);
+      oklch(from var(--env-color-bg-page) calc(l * 0.2) c h / 0.28);
+  --atlas-gutter: var(--env-space-3);
+  /* Code in panels: envUI's code typeface and size, which its code
+     styles define, with the same values where the host loads none. */
+  --atlas-font-code: var(
+    --env-code-font-family,
+    ui-monospace,
+    "Cascadia Code",
+    Consolas,
+    monospace
+  );
+  --atlas-font-size-code: var(--env-code-font-size, 0.8125rem);
 }
 .atlas-panel {
   margin: 0;
@@ -30,14 +39,14 @@
 }
 .atlas-panel .atlas-overlay-top {
   position: absolute;
-  z-index: 20;
+  z-index: var(--env-z-sticky);
   top: var(--atlas-gutter);
   left: var(--atlas-gutter);
   right: var(--atlas-gutter);
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-  gap: var(--space-2);
+  gap: var(--env-space-2);
   pointer-events: none;
 }
 .atlas-panel .atlas-overlay-top > * {
@@ -74,12 +83,23 @@
   min-width: 0;
 }
 
+/* The toolbars over the canvas hold small controls, as do the provenance
+   pills: envUI's controls take their container's control height. */
+.atlas-panel .atlas-island,.atlas-panel
+.atlas-provenance {
+  --env-control-height: var(--env-control-height-sm);
+}
+/* A heading a step below the title type, for panel titles and the headings
+   inside panels. */
+.atlas-panel .atlas-section-heading {
+  font-size: calc(var(--env-font-size-title) - 0.125rem);
+}
 .atlas-panel .atlas-island {
   position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--env-space-1);
   min-width: 0;
   max-width: 100%;
   box-shadow: var(--atlas-elevation);
@@ -95,21 +115,21 @@
   flex: none;
   width: 0.0625rem;
   height: 1.25rem;
-  margin: 0 var(--space-1);
-  background: var(--color-border-strong);
+  margin: 0 var(--env-space-1);
+  background: var(--env-color-border-muted);
 }
 .atlas-panel .island-leading {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--env-space-1);
   min-width: 0;
 }
 .atlas-panel .brand-mark {
   display: grid;
   place-items: center;
   flex: none;
-  width: var(--control-height-small);
-  height: var(--control-height-small);
+  width: var(--env-control-height);
+  height: var(--env-control-height);
 }
 .atlas-panel .brand-mark svg {
   width: 1.5rem;
@@ -117,7 +137,7 @@
 }
 .atlas-panel .island-title {
   max-width: 28ch;
-  margin: 0 var(--space-2) 0 var(--space-1);
+  margin: 0 var(--env-space-2) 0 var(--env-space-1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -125,77 +145,12 @@
 .atlas-panel .zoom-readout {
   min-width: 4rem;
 }
-/* Concept search: an inline field, or a toggle with a popup when crowded. */
-/* In a crowded toolbar the field opens below the whole tools island. */
-.atlas-panel .search {
-  display: flex;
-  align-items: center;
-}
-.atlas-panel .search-toggle {
-  display: none;
-}
-.atlas-panel .search-field {
-  position: relative;
-  width: clamp(10rem, 20cqw, 15rem);
-}
-.atlas-panel .suggestions {
-  display: none;
-  position: absolute;
-  z-index: 31;
-  top: calc(100% + var(--space-2));
-  left: 0;
-  width: max-content;
-  min-width: 100%;
-  max-width: 20rem;
-  max-height: 18rem;
-  overflow: auto;
-  box-shadow: var(--atlas-elevation);
-}
-.atlas-panel .suggestions.open {
-  display: grid;
-  gap: 0.125rem;
-}
-.atlas-panel .suggestion {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-height: 2.25rem;
-  padding: var(--space-2) var(--space-3);
-  border: 0;
-  border-radius: var(--radius-row-inner);
-  background: transparent;
-  color: var(--color-text-primary);
-  font: var(--type-body-small);
-  text-align: start;
-  cursor: pointer;
-  transition: background-color var(--motion-duration-fast) var(--motion-ease);
-}
-.atlas-panel .suggestion:hover,.atlas-panel
-.suggestion:focus-visible {
-  background: var(--color-state-layer-hover);
-}
-.atlas-panel .suggestion:active {
-  background: var(--color-state-layer-pressed);
-}
-.atlas-panel .suggestion:focus-visible {
-  outline: 0.125rem solid var(--color-focus-ring);
-  outline-offset: -0.125rem;
-}
-.atlas-panel .suggestion-name {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.atlas-panel .suggestion-detail {
-  flex: none;
-  color: var(--color-text-muted);
-}
 
 /* Provenance: where a model came from, as a badge and a detail line. */
 .atlas-panel .atlas-provenance {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--env-space-2);
   max-width: 100%;
   box-shadow: var(--atlas-elevation);
 }
@@ -206,22 +161,23 @@
 .atlas-panel .island-provenance {
   display: inline-flex;
   flex: none;
-  margin-inline-end: var(--space-1);
+  margin-inline-end: var(--env-space-1);
 }
 .atlas-panel .provenance-detail {
   min-width: 0;
-  margin-inline-end: var(--space-2);
+  margin-inline-end: var(--env-space-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Floating panes beside the canvas: the inspector. Its content scrolls
-   inside it, so the resize handle on its inner edge stays in place. */
+/* The pane beside the canvas: a proposal’s changes, or the scenarios. Its
+   content scrolls below its header. */
 .atlas-panel .panel {
   display: none;
   position: absolute;
-  z-index: 15;
+  /* Below the overlay's toolbars, which open their popups over it. */
+  z-index: calc(var(--env-z-sticky) - 1);
   top: var(--atlas-top-inset, 4rem);
   right: var(--atlas-gutter);
   width: min(22.5rem, calc(100% - 2 * var(--atlas-gutter)));
@@ -240,120 +196,34 @@
   overscroll-behavior: contain;
   border-radius: inherit;
 }
-/* The handle straddles the pane's inner edge; a line shows on hover (after a
-   moment, as envUI's sidebar's) and focus, and while dragging. */
-.atlas-panel .panel-resize {
-  position: absolute;
-  z-index: 3;
-  top: 0;
-  bottom: 0;
-  left: -0.3125rem;
-  width: 0.625rem;
-  cursor: col-resize;
-  touch-action: none;
-  outline: none;
-}
-.atlas-panel .panel-resize::after {
-  content: "";
-  position: absolute;
-  top: var(--space-5);
-  bottom: var(--space-5);
-  left: calc(50% - 0.0625rem);
-  width: 0.125rem;
-  border-radius: 0.0625rem;
-  background: transparent;
-  transition: background-color var(--motion-duration-fast) var(--motion-ease);
-}
-.atlas-panel .panel-resize:hover::after {
-  background: var(--color-border-hover);
-  transition-delay: var(--motion-duration-medium);
-}
-.atlas-panel .panel-resize:focus-visible::after,.atlas-panel
-.viewer.resizing .panel-resize::after {
-  background: var(--color-focus-ring);
-  transition-delay: 0s;
-}
-/* While the details are resized, the width follows the pointer and no text
-   is selected. */
-.atlas-panel .viewer.resizing {
-  cursor: col-resize;
-  user-select: none;
-}
-.atlas-panel .viewer.resizing .panel {
-  user-select: none;
-}
 .atlas-panel .panel-header {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: calc(var(--env-z-raised) + 1);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-3) var(--space-2) var(--space-5);
-  background: var(--color-pane);
+  gap: var(--env-space-3);
+  padding: var(--env-space-3) var(--env-space-3) var(--env-space-2)
+    var(--env-space-5);
+  background: var(--env-color-bg-default);
 }
-/* Without a title, the close button floats over the content's top corner on a
-   pane-coloured backing, and stays there while the content scrolls. */
-.atlas-panel .panel-header.compact {
-  top: var(--space-3);
-  width: fit-content;
-  margin: var(--space-3) var(--space-3)
-    calc(-1 * (var(--control-height-small) + var(--space-3))) auto;
-  padding: 0;
-  border-radius: var(--md-sys-shape-corner-full);
+.atlas-panel .panel-title {
+  flex: 1 1 auto;
+  margin: 0;
 }
 .atlas-panel .panel-content {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-2) var(--space-5) var(--space-5);
-}
-.atlas-panel .panel-header.compact + .panel-content {
-  padding-top: var(--space-5);
-}
-.atlas-panel .panel-header.compact + .panel-content > .detail-header:first-child {
-  padding-inline-end: calc(var(--control-height-small) + var(--space-1));
-}
-.atlas-panel .inspector {
-  width: min(var(--inspector-width), calc(100% - 2 * var(--atlas-gutter)));
-}
-
-/* Inspector content. */
-.atlas-panel .detail-header {
-  display: grid;
-  gap: var(--space-3);
-}
-.atlas-panel .detail-title {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-}
-.atlas-panel .detail-icon {
-  display: inline-grid;
-  flex: none;
-  padding-top: 0.0625rem;
-  color: var(--color-icon);
-  font-size: 1.25rem;
-}
-.atlas-panel .detail-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-.atlas-panel .detail-owner {
-  color: var(--color-text-muted);
-  font-weight: 400;
-}
-.atlas-panel .detail-description {
-  white-space: pre-wrap;
+  gap: var(--env-space-4);
+  padding: var(--env-space-2) var(--env-space-5) var(--env-space-5);
 }
 /* Text read by assistive technology, not shown. */
 .atlas-panel .visually-hidden {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
+  width: 0.0625rem;
+  height: 0.0625rem;
+  margin: -0.0625rem;
   padding: 0;
   overflow: hidden;
   clip-path: inset(50%);
@@ -379,39 +249,39 @@
   border-radius: 0.3125rem;
   background: color-mix(in srgb, var(--change-color) 16%, transparent);
   color: var(--change-color);
-  font: 600 0.8125rem / 1 var(--font-family-code);
+  font: 600 0.8125rem / 1 var(--atlas-font-code);
 }
 .atlas-panel .change-badge {
   display: inline-flex;
   align-items: center;
   min-height: 1.5rem;
-  padding: 0 var(--space-3);
-  border-radius: var(--md-sys-shape-corner-full);
+  padding: 0 var(--env-space-3);
+  border-radius: var(--env-radius-full);
   background: color-mix(in srgb, var(--change-color) 16%, transparent);
   color: var(--change-color);
-  font: var(--type-body-small);
+  font: var(--env-type-body-sm);
   font-weight: 500;
 }
 
 /* The changes overview: groups of rows, each a button. */
 .atlas-panel .change-groups {
   display: grid;
-  gap: var(--space-5);
+  gap: var(--env-space-5);
 }
 .atlas-panel .changes-overview .change-group {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--env-space-2);
 }
 .atlas-panel .change-relations {
-  margin-top: var(--space-1);
+  margin-top: var(--env-space-1);
 }
 .atlas-panel .change-group-heading {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--env-space-2);
 }
 .atlas-panel .change-subheading {
-  margin: var(--space-1) 0 0 var(--space-2);
+  margin: var(--env-space-1) 0 0 var(--env-space-2);
 }
 .atlas-panel .change-rows {
   display: grid;
@@ -423,40 +293,41 @@
 .atlas-panel .change-row {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-2);
+  gap: var(--env-space-2);
   width: 100%;
   min-height: 2.5rem;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--env-space-2) var(--env-space-3);
   border: 0;
-  border-radius: var(--radius-row-inner);
-  background: var(--color-row);
-  color: var(--color-row-text);
-  font: var(--type-body-small);
+  border-radius: var(--env-radius-row-inner);
+  background: var(--env-color-bg-list-item);
+  color: var(--env-color-fg-default);
+  font: var(--env-type-body-sm);
   text-align: start;
   cursor: pointer;
-  transition: background-color var(--motion-duration-fast) var(--motion-ease);
+  transition: background-color var(--env-motion-duration-fast)
+    var(--env-motion-ease);
 }
 .atlas-panel .change-rows > li:first-child > .change-row,.atlas-panel
 .change-rows > .change-row:first-child {
-  border-start-start-radius: var(--radius-standard);
-  border-start-end-radius: var(--radius-standard);
+  border-start-start-radius: var(--env-radius-sm);
+  border-start-end-radius: var(--env-radius-sm);
 }
 .atlas-panel .change-rows > li:last-child > .change-row,.atlas-panel
 .change-rows > .change-row:last-child {
-  border-end-start-radius: var(--radius-standard);
-  border-end-end-radius: var(--radius-standard);
+  border-end-start-radius: var(--env-radius-sm);
+  border-end-end-radius: var(--env-radius-sm);
 }
 .atlas-panel .change-row.static {
   cursor: default;
 }
 .atlas-panel button.change-row:hover {
-  background: var(--color-row-hover);
+  background: var(--env-color-bg-list-item-hover);
 }
 .atlas-panel button.change-row:active {
-  background: var(--color-row-pressed);
+  background: var(--env-color-bg-list-item-pressed);
 }
 .atlas-panel button.change-row:focus-visible {
-  outline: 0.125rem solid var(--color-focus-ring);
+  outline: 0.125rem solid var(--env-color-border-focus);
   outline-offset: -0.125rem;
 }
 .atlas-panel button.change-row[aria-current="true"] {
@@ -475,7 +346,7 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: var(--space-2);
+  gap: var(--env-space-2);
 }
 .atlas-panel .change-row-name {
   min-width: 0;
@@ -484,14 +355,14 @@
 }
 .atlas-panel .change-row-tag {
   flex: none;
-  color: var(--color-row-detail);
+  color: var(--env-color-fg-muted);
 }
 .atlas-panel .change-row-summary {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 var(--space-2);
-  color: var(--color-row-detail);
-  font: var(--font-size-code) / 1.5 var(--font-family-code);
+  gap: 0 var(--env-space-2);
+  color: var(--env-color-fg-muted);
+  font: var(--atlas-font-size-code) / 1.5 var(--atlas-font-code);
   overflow-wrap: anywhere;
 }
 .atlas-panel .change-token {
@@ -502,187 +373,26 @@
   font-weight: 500;
 }
 .atlas-panel .change-token.more {
-  color: var(--color-row-detail);
+  color: var(--env-color-fg-muted);
 }
 /* Why a listed change does not open: no view draws it. */
 .atlas-panel .change-row-note {
-  color: var(--color-row-detail);
-  font: var(--type-body-small);
+  color: var(--env-color-fg-muted);
+  font: var(--env-type-body-sm);
   font-style: italic;
-}
-
-/* Above a changed element's details: back, previous and next. */
-.atlas-panel .change-navigation {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  min-width: 0;
-}
-.atlas-panel .change-back {
-  flex: none;
-  white-space: nowrap;
 }
 .atlas-panel .change-stepper {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--env-space-1);
 }
 .atlas-panel .change-position {
   min-width: 4.5rem;
-  color: var(--color-text-muted);
-  font: var(--type-body-small);
+  color: var(--env-color-fg-muted);
+  font: var(--env-type-body-sm);
   font-variant-numeric: tabular-nums;
   text-align: center;
-}
-
-/* Details: titled sections, change lists and code places. */
-.atlas-panel .detail-section {
-  padding-top: var(--space-4);
-  border-top: 0.0625rem solid var(--color-border-strong);
-}
-.atlas-panel .detail-section-title {
-  color: var(--color-text-muted);
-  font-weight: 500;
-  letter-spacing: 0.02em;
-}
-.atlas-panel .change-list,.atlas-panel
-.member-list,.atlas-panel
-.relation-end-list {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.atlas-panel .change-list {
-  gap: var(--space-2);
-}
-.atlas-panel .change-line {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  color: var(--color-text-primary);
-  font: var(--type-body-small);
-}
-.atlas-panel .change-line-text {
-  display: grid;
-  flex: 1;
-  gap: 0.125rem;
-  min-width: 0;
-}
-.atlas-panel .change-key,.atlas-panel
-.change-detail {
-  color: var(--color-text-muted);
-}
-.atlas-panel .change-before {
-  color: var(--color-text-muted);
-  text-decoration: line-through;
-}
-.atlas-panel .change-after {
-  text-decoration: none;
-}
-.atlas-panel .change-arrow {
-  margin: 0 var(--space-1);
-  color: var(--color-text-muted);
-}
-.atlas-panel .signature {
-  min-width: 0;
-  color: var(--color-text-primary);
-  font: var(--font-size-code) / 1.55 var(--font-family-code);
-  overflow-wrap: anywhere;
-}
-.atlas-panel [data-change] > .change-line-text > .signature,.atlas-panel
-.member[data-change] > .signature,.atlas-panel
-.member[data-change] > .member-text > .signature {
-  color: var(--change-color);
-}
-.atlas-panel .member[data-change="removed"] .signature,.atlas-panel
-.change-line[data-change="removed"] .signature {
-  text-decoration: line-through;
-}
-.atlas-panel .member-list {
-  gap: 0;
-}
-.atlas-panel .member {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  padding: 0.3125rem 0;
-  border-bottom: 0.0625rem solid
-    color-mix(in srgb, var(--color-border-strong) 60%, transparent);
-}
-.atlas-panel .member:last-child {
-  border-bottom: 0;
-}
-/* The member a focus asked for, such as a plan's link to it. */
-.atlas-panel .member.focused {
-  border-radius: var(--radius-standard);
-  background: color-mix(in srgb, var(--color-focus-ring) 14%, transparent);
-  box-shadow: inset 0.1875rem 0 0 var(--color-focus-ring);
-  padding-inline-start: var(--space-2);
-}
-.atlas-panel .member > .signature {
-  flex: 1;
-}
-/* A described member: its signature, and its description below it. */
-.atlas-panel .member-text {
-  display: grid;
-  flex: 1;
-  gap: 0.125rem;
-  min-width: 0;
-}
-.atlas-panel .member-description {
-  color: var(--color-text-muted);
-}
-.atlas-panel .member-list.marked .member:not([data-change]) {
-  padding-inline-start: calc(1.125rem + var(--space-2));
-}
-.atlas-panel .member-type,.atlas-panel
-.column-flags {
-  color: var(--color-text-muted);
-}
-.atlas-panel .member-line {
-  flex: none;
-  color: var(--color-text-quiet);
-  font: var(--font-size-code) / 1.55 var(--font-family-code);
-  font-variant-numeric: tabular-nums;
-}
-.atlas-panel .member-line::before {
-  content: "L";
-}
-.atlas-panel .column-flags {
-  flex: none;
-  font: var(--type-body-small);
-}
-.atlas-panel .proposed-location code {
-  font: 0.92em var(--font-family-code);
-  overflow-wrap: anywhere;
-}
-.atlas-panel .code-where {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0 var(--space-3);
-}
-.atlas-panel .code-path {
-  min-width: 0;
-  color: var(--color-text-primary);
-  font: var(--font-size-code) / 1.5 var(--font-family-code);
-  overflow-wrap: anywhere;
-}
-.atlas-panel .code-lines {
-  flex: none;
-  color: var(--color-text-muted);
-  font: var(--type-body-small);
-}
-.atlas-panel .code-source-link {
-  justify-self: start;
-}
-.atlas-panel .relation-ends {
-  gap: var(--space-1);
 }
 
 /* Scenarios: the examples of a class diagram. */
@@ -691,92 +401,35 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-2);
+  gap: var(--env-space-2);
+}
+/* A text button inside a sentence, such as the element a finding names:
+   the line's height, so the sentence keeps its line spacing. */
+.atlas-panel .inline-action {
+  --env-control-height: 1lh;
+  --env-button-touch-height: 0rem;
+  vertical-align: baseline;
 }
 .atlas-panel .example-list {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--env-space-1);
   margin: 0;
-  padding-inline-start: var(--space-4);
-  font: var(--type-body-small);
-}
-.atlas-panel .relation-role {
-  min-width: 4.5rem;
-  color: var(--color-text-muted);
-  font: var(--type-body-small);
-}
-.atlas-panel .relation-end {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  border-bottom: 0.0625rem solid var(--color-border-strong);
-}
-.atlas-panel .relation-end .count-badge {
-  margin-inline-start: auto;
-}
-.atlas-panel .relation-end:last-child {
-  border-bottom: 0;
-}
-.atlas-panel .source-code {
-  margin: 0;
-  padding: var(--space-3);
-  overflow: auto;
-  border-radius: var(--radius-standard);
-  background: var(--color-canvas);
-  color: var(--color-text-primary);
-  font: var(--font-size-code) / 1.6 var(--font-family-code);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.atlas-panel .source-code:focus-visible,.atlas-panel
-.code-snippet:focus-visible {
-  outline: 0.125rem solid var(--color-focus-ring);
-  outline-offset: 0.125rem;
-}
-/* Prepared source excerpts keep their source line numbers. */
-.atlas-panel .code-snippet {
-  margin: 0;
-  padding: var(--space-2) 0;
-  overflow: auto;
-  border-radius: var(--radius-standard);
-  background: var(--color-canvas);
-  color: var(--color-text-primary);
-  font: var(--font-size-code) / 1.65 var(--font-family-code);
-  tab-size: 2;
-}
-.atlas-panel .code-line::before {
-  content: attr(data-line);
-  display: inline-block;
-  position: sticky;
-  left: 0;
-  width: 2.75rem;
-  padding: 0 var(--space-3) 0 var(--space-2);
-  margin-right: var(--space-2);
-  color: var(--color-text-quiet);
-  background: var(--color-canvas);
-  text-align: right;
-  user-select: none;
-}
-/* light-dark() follows the colour scheme envUI's theme sets. GitHub's light
-   and dark themes share their font styles. */
-.atlas-panel .shiki .code-line > span {
-  color: light-dark(var(--shiki-light), var(--shiki-dark));
-  font-style: var(--shiki-dark-font-style, var(--shiki-light-font-style));
-  font-weight: var(--shiki-dark-font-weight, var(--shiki-light-font-weight));
+  padding-inline-start: var(--env-space-4);
+  font: var(--env-type-body-sm);
 }
 .atlas-panel .shortcut-list {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--env-space-2);
   margin: 0;
 }
 .atlas-panel .shortcut {
   display: grid;
   grid-template-columns: minmax(7rem, max-content) minmax(0, 1fr);
-  gap: var(--space-3);
+  gap: var(--env-space-3);
   align-items: baseline;
 }
 .atlas-panel .shortcut dt {
-  color: var(--color-text-muted);
+  color: var(--env-color-fg-muted);
 }
 .atlas-panel .shortcut dd {
   margin: 0;
@@ -784,17 +437,17 @@
 
 .atlas-portal.about-content .shortcut-list {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--env-space-2);
   margin: 0;
 }
 .atlas-portal.about-content .shortcut {
   display: grid;
   grid-template-columns: minmax(7rem, max-content) minmax(0, 1fr);
-  gap: var(--space-3);
+  gap: var(--env-space-3);
   align-items: baseline;
 }
 .atlas-portal.about-content .shortcut dt {
-  color: var(--color-text-muted);
+  color: var(--env-color-fg-muted);
 }
 .atlas-portal.about-content .shortcut dd {
   margin: 0;
@@ -802,38 +455,11 @@
 
 .atlas-panel .viewer-error {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--env-space-4);
   justify-items: start;
   max-width: 32.5rem;
   margin: 15vh auto;
-  padding: var(--space-5);
-}
-
-/* Measured density: when the islands no longer fit on one row, search
-   collapses to a button whose field opens below it. */
-.atlas-panel .atlas-overlay-top.tight .search-toggle {
-  display: inline-flex;
-}
-.atlas-panel .atlas-overlay-top.tight .search-field {
-  display: none;
-  position: absolute;
-  z-index: 31;
-  top: calc(100% + var(--space-2));
-  right: 0;
-  width: min(20rem, calc(100cqw - 2 * var(--space-2)));
-  padding: var(--space-2);
-  border-radius: var(--md-sys-shape-corner-large);
-  background: var(--color-pane);
-  box-shadow: var(--atlas-elevation);
-}
-.atlas-panel .atlas-overlay-top.tight .search.open .search-field {
-  display: block;
-}
-.atlas-panel .atlas-overlay-top.tight .suggestions {
-  left: 0;
-  right: 0;
-  width: auto;
-  max-width: none;
+  padding: var(--env-space-5);
 }
 .atlas-panel .atlas-overlay-top.tight .island-title,.atlas-panel
 .atlas-overlay-top.tight .collapsible-label {
@@ -846,8 +472,8 @@
 /* Narrow panels (embedded cards, phones): tighter gutters, full-width panes. */
 @container atlas-viewer (max-width: 640px) {
   .atlas-panel .atlas-overlay-top {
-    --atlas-gutter: var(--space-2);
-    gap: var(--space-1);
+    --atlas-gutter: var(--env-space-2);
+    gap: var(--env-space-1);
   }
   /* Beside the host's navigation the tools no longer fit: they take the
      row below the diagram's navigation. */
@@ -860,16 +486,11 @@
   .atlas-panel .atlas-overlay-top.stacked > .island-end {
     grid-area: 3 / 1;
   }
-  .atlas-panel .panel,.atlas-panel
-  .inspector {
-    left: var(--space-2);
-    right: var(--space-2);
+  .atlas-panel .panel {
+    left: var(--env-space-2);
+    right: var(--env-space-2);
     width: auto;
-    max-height: calc(100% - var(--atlas-top-inset, 4rem) - var(--space-2));
-  }
-  /* Spanning the width, the details cannot be resized. */
-  .atlas-panel .panel-resize {
-    display: none;
+    max-height: calc(100% - var(--atlas-top-inset, 4rem) - var(--env-space-2));
   }
   .atlas-panel .island-title,.atlas-panel
   .collapsible-label {
@@ -882,57 +503,66 @@
     display: none;
   }
 }
-/* A narrow inspector keeps its change navigation on one row: back becomes an icon. */
-@container atlas-viewer (max-width: 960px) {
-  .atlas-panel .change-back-label {
-    display: none;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .atlas-panel .diagram-element,.atlas-panel
-  .suggestion {
+  .atlas-panel .diagram-element {
     transition: none;
   }
 }
 
-/* The diagram palette is Atlas's own: node fills and stereotype colours stay
-   fixed, while the canvas, grid, text, lines and selection follow envUI's
-   tokens. It is declared on each of Atlas's theme boundaries (the offline
+/* The diagram follows envUI's tokens throughout: the canvas is the page's
+   own background, so a diagram sits in the window as a page does, and its
+   elements are surfaces on it, as envUI's cards are on a page; the grid,
+   text, lines and selection take envUI's colours too. It is declared on each of Atlas's theme boundaries (the offline
    page and every panel), so the canvas follows the nearest Theme as soon as
    React commits a change; light-dark() picks the value for the colour scheme
    that theme sets. */
 .atlas-panel,.atlas-panel
 .atlas-page,
 .atlas-panel {
-  --canvas: var(--color-canvas);
-  --surface: var(--color-surface-muted);
-  --text: var(--color-text-primary);
+  --canvas: var(--env-color-bg-page);
+  /* Elements sit on the canvas as surfaces sit on a page. */
+  --surface: var(--env-color-bg-default);
+  --text: var(--env-color-fg-default);
   --grid: light-dark(
-    var(--color-border-strong),
-    color-mix(in srgb, var(--color-border-strong) 55%, var(--color-canvas))
+    var(--env-color-border-muted),
+    color-mix(
+      in srgb,
+      var(--env-color-border-muted) 55%,
+      var(--env-color-bg-page)
+    )
   );
-  --diagram-selection: var(--color-on-navigation-selected);
+  --diagram-selection: var(--env-color-fg-on-selected);
   --accent: color-mix(
     in srgb,
-    var(--color-on-navigation-selected) 60%,
-    var(--color-canvas)
+    var(--env-color-fg-on-selected) 60%,
+    var(--env-color-bg-page)
   );
   --diagram-border: color-mix(
     in srgb,
-    var(--color-text-muted) 60%,
-    var(--color-canvas)
+    var(--env-color-fg-muted) 60%,
+    var(--env-color-bg-page)
   );
-  --diagram-divider: var(--color-border-strong);
-  --diagram-edge: var(--color-text-muted);
-  --diagram-inheritance: var(--color-icon);
-  --diagram-label: var(--color-text-primary);
-  --diagram-muted: var(--color-text-muted);
-  --diagram-attribute: var(--color-text-muted);
+  --diagram-divider: var(--env-color-border-muted);
+  --diagram-edge: var(--env-color-fg-muted);
+  --diagram-inheritance: var(--env-color-fg-muted);
+  --diagram-label: var(--env-color-fg-default);
+  --diagram-muted: var(--env-color-fg-muted);
+  --diagram-attribute: var(--env-color-fg-muted);
+  /* A package: a quiet region behind its elements. */
+  --diagram-package: color-mix(
+    in srgb,
+    var(--env-color-fg-muted) 7%,
+    transparent
+  );
+  --diagram-package-border: color-mix(
+    in srgb,
+    var(--env-color-fg-muted) 28%,
+    transparent
+  );
   /* A proposal's changes: added, changed and removed elements. */
-  --change-added: var(--color-tone-success);
-  --change-modified: var(--color-tone-warning);
-  --change-removed: var(--color-tone-danger);
+  --change-added: var(--env-color-fg-success);
+  --change-modified: var(--env-color-fg-warning);
+  --change-removed: var(--env-color-fg-danger);
 }
 .atlas-panel #canvas {
   position: absolute;
@@ -944,6 +574,10 @@
   background-color: var(--canvas);
   user-select: none;
 }
+/* The grid is drawn in the diagram's own coordinates, which are pixels:
+   camera.js scales it with the camera and steps its density from these
+   sizes (GRID_OVERHANG is the inset). */
+/* stylelint-disable unit-disallowed-list -- diagram coordinates are pixels */
 .atlas-panel .canvas-grid {
   position: absolute;
   inset: -64px;
@@ -951,6 +585,16 @@
   background-image: radial-gradient(var(--grid) 0.7px, transparent 0.7px);
   background-size: 20px 20px;
   will-change: transform;
+}
+/* stylelint-enable unit-disallowed-list */
+/* An element that can be dragged shows it; one being dragged follows the
+   hand. */
+.atlas-panel #canvas.arrangeable .node {
+  cursor: move;
+}
+.atlas-panel #canvas.moving,.atlas-panel
+#canvas.moving .node {
+  cursor: grabbing;
 }
 .atlas-panel #canvas.dragging {
   cursor: grabbing;
@@ -963,7 +607,7 @@
   will-change: transform;
 }
 /* The canvas keeps the system typeface its layout measures names for; the controls around it use
-   envUI's Inter. */
+   envUI's Geist. */
 .atlas-panel #world svg {
   display: block;
   overflow: visible;
@@ -1139,7 +783,7 @@
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 360px;
+  min-height: 22.5rem;
 }
 .atlas-panel .viewer {
   position: absolute;
@@ -1149,8 +793,8 @@
 .atlas-panel.atlas-empty .viewer {
   display: grid;
   place-content: center;
-  padding: var(--space-5);
-  background: var(--color-canvas);
+  padding: var(--env-space-5);
+  background: var(--env-color-bg-field);
 }
 .atlas-panel .atlas-empty-message {
   max-width: 26rem;

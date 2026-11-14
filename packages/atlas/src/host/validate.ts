@@ -78,10 +78,38 @@ export const workId = string({ min: 6, max: 32, pattern: /^work-[0-9]{4,}$/ });
 /** A moment as clients send it: an ISO time with its zone. */
 export const isoTime = string({ min: 20, max: 40, pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/ });
 /** A diagram file's path in its work folder, relative and inside it. */
+/** A page's folder in the planning folder: `<work path>/pages/<name>`. */
+export const pagePath = string({ min: 8, max: pathLimit, pattern: /^(?![\\/])(?![a-zA-Z]:)(?!.*(?:^|\/)\.\.(?:\/|$)).+\/pages\/[^/]+$/ });
+/** The text a page writes into a file, at most a million characters. */
+export const fileContent = string({ min: 0, max: 1_000_000 });
+/** An Atlas tool's name, as agents call it. */
+export const toolName = string({ min: 1, max: 64, pattern: /^[a-z_]+$/ });
+/** A tool's arguments: a JSON object, as a page passes it (the message size bounds it). */
+export const toolInput: Validator<Record<string, unknown>> = (value, at = '') => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) fail(at, 'an object');
+  return value as Record<string, unknown>;
+};
 export const diagramPath = string({ min: 6, max: pathLimit, pattern: /^(?![\\/])(?![a-zA-Z]:)(?!.*(?:^|\/)\.\.(?:\/|$)).+\.puml$/i });
+/** The most elements an arrangement places. */
+export const arrangementLimit = 5000;
+/**
+ * A diagram's arrangement as a reader made it: each element's top-left corner, by the element's id,
+ * in the diagram's coordinates (rounded to a tenth).
+ */
+export const diagramPositions: Validator<Record<string, [number, number]>> = (value, at = '') => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) fail(at, 'an object');
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length > arrangementLimit) fail(at, `at most ${arrangementLimit} positions`);
+  const positions: Record<string, [number, number]> = {};
+  for (const [id, point] of entries) {
+    if (!id || id.length > 512 || id.includes('\0')) fail(`${at}.${id.slice(0, 40)}`, 'an element id');
+    if (!Array.isArray(point) || point.length !== 2 || !point.every(n => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= 1e6)) fail(`${at}.${id.slice(0, 40)}`, 'a position [x, y]');
+    positions[id] = [Math.round(point[0] * 10) / 10, Math.round(point[1] * 10) / 10];
+  }
+  return positions;
+};
 /** A project's ID, as the project list gives it: `f-` and 32 hex digits. */
 export const projectId = string({ min: 34, max: 34, pattern: /^f-[a-f0-9]{32}$/ });
-export const token = string({ min: 16, max: 80, pattern: /^[a-zA-Z0-9-]+$/ });
 export const deviceId = string({ min: 8, max: 64, pattern: /^d-[a-f0-9]{32}$/ });
 
 /** An IPv4 or IPv6 literal (no host names: a name could be re-pointed at another machine). */
@@ -135,13 +163,14 @@ export const methodParams: { readonly [M in MethodName]: Validator<Methods[M]['p
   'project.document': object({ projectId, path: relativePath }),
   'project.diagrams': object({ projectId, work: workId }),
   'project.diagram': object({ projectId, work: workId, path: diagramPath }),
+  'project.arrangement': object({ projectId, work: workId, path: diagramPath }),
+  'project.arrange': object({ projectId, work: workId, path: diagramPath, positions: nullable(diagramPositions) }),
   'project.references': object({ projectId, work: nullable(workId), path: relativePath }),
   'project.diagramIndex': object({ projectId }),
-  'plan.exportPrepare': object({ projectId, work: workId }),
-  'plan.exportDrop': object({ token }),
-  'plan.importRead': object({ projectId, file: absolutePath }),
-  'plan.importConfirm': object({ projectId, token }),
-  'plan.importDrop': object({ token }),
+  'project.page': object({ projectId, path: pagePath }),
+  'project.readText': object({ projectId, path: relativePath }),
+  'project.write': object({ projectId, path: relativePath, content: fileContent }),
+  'project.tool': object({ projectId, name: toolName, input: toolInput }),
   'access.state': none,
   'access.update': object({ settings: accessSettings }),
   'access.pairingCreate': object({ address: nullable(listenAddress), label: nullable(deviceText(80)), manageAccess: boolean }),

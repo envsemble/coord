@@ -54,6 +54,12 @@ test('the search finds plans, steps, documents, headings, terms, diagrams, eleme
   const diagram = (await search('checkout model'))[0];
   assert.deepEqual([diagram.kind, diagram.title, diagram.path, diagram.work], ['diagram', 'Checkout model', 'active/0012-saved-cards/diagrams/checkout.puml', 'work-0012'], 'a diagram by its title');
   assert.equal((await search('checkout'))[0].kind, 'diagram', 'and by its file name');
+  // A page by its folder's name, words apart; it opens as its folder.
+  mkdirSync(path.join(root, 'active', '0012-saved-cards', 'pages', 'card-layout'), { recursive: true });
+  writeFileSync(path.join(root, 'active', '0012-saved-cards', 'pages', 'card-layout', 'page.tsx'), 'export default function Page() { return null; }\n');
+  index.invalidate();
+  const page = (await search('card layout')).find(hit => hit.kind === 'page')!;
+  assert.deepEqual([page.title, page.path, page.work], ['card-layout', 'active/0012-saved-cards/pages/card-layout', 'work-0012']);
   const element = (await search('saved card')).find(hit => hit.kind === 'element')!;
   assert.deepEqual([element.title, element.element], ['Saved Card', 'SavedCard'], 'an element by its name, opened by its identity');
   assert.deepEqual((await search('savedcard')).map(hit => hit.kind), ['element'], 'or by its identity');

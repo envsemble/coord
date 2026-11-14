@@ -7,27 +7,28 @@
 import type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, ErrorCode, HostErrorValue, PairedDevice, PairingGrant, PairingLink, Project,
   ProjectState, ProjectStatistics, ProjectStatus, ProjectSummary, ProjectWork, ProjectWorkState, ReferenceInput, ResolvedReference, SearchKind, SearchResult, SessionActivity, Snapshot,
-  SnapshotValue, SnapshotWork, WorkActivity, WorkCommit, WorkSession, WorkTimeline,
+  SnapshotValue, SnapshotWork, WorkActivity, WorkCommit, WorkSession, WorkTimeline, PageBuild, PageProblem, ToolOutcome,
 } from '@envsemble/atlas/host/contract';
 import type { DocumentContent } from '@envsemble/atlas/planning/types';
 
 export type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, DocumentContent, ErrorCode, PairedDevice, PairingGrant, Project,
   ProjectState, ProjectStatistics, ProjectStatus, ProjectSummary, ProjectWork, ProjectWorkState, ReferenceInput, ResolvedReference, SearchKind, SearchResult, SessionActivity, Snapshot,
-  SnapshotValue, SnapshotWork, WorkActivity, WorkCommit, WorkSession, WorkTimeline,
+  SnapshotValue, SnapshotWork, WorkActivity, WorkCommit, WorkSession, WorkTimeline, PageBuild, PageProblem, ToolOutcome,
 };
 
 export const invokeChannels = [
   'window:info',
   'projects:list', 'projects:create', 'search:query', 'projects:chooseFolder', 'projects:update', 'project:open', 'project:close',
-  'project:snapshot', 'project:work', 'project:document', 'project:diagrams', 'project:diagram', 'project:references', 'project:diagramIndex',
+  'project:snapshot', 'project:work', 'project:document', 'project:diagrams', 'project:diagram', 'project:arrangement', 'project:arrange', 'project:references', 'project:diagramIndex', 'project:page', 'project:readText', 'project:write', 'project:tool',
   'project:statistics', 'projects:statistics', 'ui:load', 'ui:save',
   'references:resolve', 'work:sessions', 'work:timeline',
-  'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:openShown', 'shell:copy',
-  'app:command', 'app:theme', 'app:setTheme', 'app:editor', 'app:setEditor', 'app:about',
-  'plan:export', 'plan:importChoose', 'plan:importConfirm', 'plan:importCancel',
+  'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:copy',
+  'app:command', 'app:theme', 'app:setTheme', 'app:about',
   'computers:list', 'computers:switch', 'computers:pair', 'computers:forget',
   'access:state', 'access:update', 'access:pairingCreate', 'access:pairingRevoke', 'access:devices', 'access:deviceRevoke',
+  'agents:list', 'agents:checks', 'agents:connect', 'agents:disconnect', 'agents:chooseProgram', 'agents:clearProgram', 'agents:byHand',
+  'onboarding:state', 'onboarding:finish',
 ] as const;
 export type InvokeChannel = typeof invokeChannels[number];
 
@@ -37,15 +38,6 @@ export type EventChannel = typeof eventChannels[number];
 /** Light, dark, or the operating system's choice: kept by main for every window and applied as Electron's native theme. */
 export const themePreferences = ['system', 'light', 'dark'] as const;
 export type ThemePreference = typeof themePreferences[number];
-
-/**
- * The editor files open in: VS Code (the default) and editors like it, each through its own link
- * (`vscode://file/…:line`), or the system's application for the file (`system`, without its line).
- * A fixed choice, so a page can never make Atlas run a command of its own.
- */
-export const editors = ['vscode', 'vscode-insiders', 'cursor', 'windsurf', 'zed', 'system'] as const;
-export type Editor = typeof editors[number];
-export const editorNames: Record<Editor, string> = { vscode: 'VS Code', 'vscode-insiders': 'VS Code Insiders', cursor: 'Cursor', windsurf: 'Windsurf', zed: 'Zed', system: 'The system’s application' };
 
 /**
  * Commands the renderer may ask main to run, from the title bar's menu among others; each one acts
@@ -59,7 +51,7 @@ export type AppCommand = typeof appCommands[number];
 
 /** Menu items that need the renderer (focus, pages, dialogs drawn in the window). */
 export const menuCommands = [
-  'toggleFiles', 'quickOpen', 'openInEditor', 'newProject', 'projects', 'statistics', 'importPlan', 'goBack', 'goForward', 'about',
+  'focusFiles', 'quickOpen', 'newProject', 'plans', 'statistics', 'settings', 'goBack', 'goForward', 'about',
 ] as const;
 export type MenuCommand = typeof menuCommands[number];
 
@@ -121,26 +113,53 @@ export type Target =
   | { kind: 'file'; path: string; anchor?: string | null };
 /** Something of a project (by its ID): a plan, a diagram or a file. */
 export interface ProjectPlace { projectId: string; target: Target }
+/** The Settings page's sections: the agents Atlas connects on this computer, and pairing in both directions. */
+export const settingsSections = ['agents', 'computers'] as const;
+export type SettingsSection = typeof settingsSections[number];
 /**
- * The window's own pages: the hub, with the plans of every project or of one (`projectId`), the
- * Projects page, and a project's statistics (no project only while the computer has none).
+ * The window's own pages: the hub, with the plans of every project or of one (`projectId`), where
+ * projects are made and managed too, a project's statistics (no project only while the computer has none), and a
+ * section of the Settings page.
  */
-export type PagePlace = { page: 'hub'; projectId: string | null } | { page: 'projects' } | { page: 'statistics'; projectId: string | null };
+export type PagePlace = { page: 'hub'; projectId: string | null } | { page: 'statistics'; projectId: string | null } | { page: 'settings'; section: SettingsSection };
 /** What a window shows: one place at a time. */
 export type Place = ProjectPlace | PagePlace;
-/** A window's layout: the place it shows, and the width the reader gave a diagram's details (absent for the default). */
+/** A window's layout: the place it shows. */
 export interface UiState {
   place: Place;
-  inspectorWidth?: number;
   /** Loaded while the window's computer did not answer: a place of a project not listed yet waits to be loaded again. */
   pending?: boolean;
 }
 export const defaultUiState: UiState = { place: { page: 'hub', projectId: null } };
 /** A window's layout as it loads, with its computer's projects as listed for it when the computer answered: the window starts from them. */
 export interface LoadedUi extends UiState { projects?: Project[] }
-export const limits = { path: 2048, folders: 20, inspectorMin: 240, inspectorMax: 1200 } as const;
+export const limits = { path: 2048, folders: 20 } as const;
 /** A folder's full path: from a drive or a share on Windows, from the root elsewhere. */
 export const fullPath = /^(?:[a-zA-Z]:[\\/]|\\\\[^\\/]|\/)/;
+
+/** The agents Atlas can connect on this computer: its plugin installed into each through the agent's own commands. */
+export const agentIds = ['claude', 'codex'] as const;
+export type AgentId = typeof agentIds[number];
+export const agentNames: Record<AgentId, string> = { claude: 'Claude Code', codex: 'Codex' };
+/**
+ * Whether a connected agent runs Atlas: ready (a session of it ran Atlas's hooks since it was
+ * connected, the last at `at`), waiting for a first session, or a warning: Codex does not trust
+ * Atlas's hooks (`untrusted`), or a session used Atlas's tools without its hooks running (`no-hooks`).
+ */
+export type AgentCheck = { status: 'ready'; at: string } | { status: 'waiting' | 'untrusted' | 'no-hooks' };
+/**
+ * An agent on this computer: whether its program is found (`found`: the one chosen for it, else on
+ * the PATH), the program chosen for it (`program`, null when the PATH's is used), whether the Atlas
+ * plugin is installed in it (`connected`), the version of the plugin it has (null when not connected
+ * or unknown), and, connected, whether it runs Atlas (`check`).
+ */
+export interface AgentState { id: AgentId; found: boolean; program: string | null; connected: boolean; version: string | null; check: AgentCheck | null }
+/** What connecting or disconnecting an agent did: its state after, and the error when it failed (a message fit to show). */
+export interface AgentChange { agent: AgentState; error: string | null }
+/** What connecting an agent by hand takes: the marketplace folder the app connects agents to, and the marketplace's name. */
+export interface AgentFolder { directory: string; marketplace: string }
+/** Whether the onboarding has been finished on this computer; it shows on launch until then. */
+export interface OnboardingState { done: boolean }
 
 /** What the menu's About Atlas shows. */
 export interface AboutInfo {
@@ -153,25 +172,6 @@ export interface AboutInfo {
   /** The Atlas home. */
   dataFolder: string;
 }
-
-interface ExportResult { path: string; bytes: number; warnings: string[] }
-export interface ImportPreview {
-  token: string;
-  file: string;
-  title: string;
-  originalId: string | null;
-  origin: string | null;
-  location: string | null;
-  exportedAt: string | null;
-  atlasVersion: string | null;
-  newId: string | null;
-  newFolder: string | null;
-  files: number;
-  bytes: number;
-  diagrams: string[];
-  warnings: string[];
-}
-interface ImportResult { workId: string; path: string; files: number; notes: string[] }
 
 /**
  * The bridge the preload script exposes to the renderer as `window.atlas`. Every method maps to
@@ -203,10 +203,22 @@ export interface AtlasBridge {
   diagrams(projectId: string, work: string): Promise<Result<DiagramEntry[]>>;
   /** A diagram's viewer payload, by its path in the work folder, with its family's. */
   diagram(projectId: string, work: string, path: string): Promise<Result<unknown>>;
+  /** How a reader arranged a diagram (shared by its family's layers): each element's top-left corner by id; null when laid out automatically. */
+  arrangement(projectId: string, work: string, path: string): Promise<Result<Record<string, [number, number]> | null>>;
+  /** Save a diagram's arrangement, or remove it (null) to lay it out automatically again. */
+  arrange(projectId: string, work: string, path: string, positions: Record<string, [number, number]> | null): Promise<Result<null>>;
   /** The diagrams a document links to. */
   references(projectId: string, work: string | null, path: string): Promise<Result<DiagramReference[]>>;
   /** Every diagram of a project, for quick open. */
   diagramIndex(projectId: string): Promise<Result<DiagramIndexEntry[]>>;
+  /** Build a page, by its folder in the planning folder (`<work>/pages/<name>`), for its frame to run. */
+  page(projectId: string, path: string): Promise<Result<PageBuild>>;
+  /** A file of the planning folder as text, whatever its kind, for a page. */
+  readText(projectId: string, path: string): Promise<Result<string>>;
+  /** Write a text file in the planning folder, for a page. */
+  writeFile(projectId: string, path: string, content: string): Promise<Result<null>>;
+  /** Run an Atlas tool (work_status, step and the rest) in the project's planning folder, for a page. */
+  tool(projectId: string, name: string, input: Record<string, unknown>): Promise<Result<ToolOutcome>>;
   /** A project's statistics for a period (ISO times; `from` null: since its first report, `to` null: until now), by day or week. */
   projectStatistics(projectId: string, from: string | null, to: string | null, unit: 'day' | 'week'): Promise<Result<ProjectStatistics>>;
   /** The statistics of every active project together (all plans), for a period as projectStatistics has it. */
@@ -222,16 +234,8 @@ export interface AtlasBridge {
   reveal(projectId: string, path: string): Promise<Result<void>>;
   /** Open a web address in the browser, or an application's link (`t3-thread://`…) in its application, this computer's only. */
   openExternal(url: string): Promise<Result<void>>;
-  /** Open the file a path reference names in the editor, at its line; only for a project on this computer. */
+  /** Open the file a path reference names in VS Code, at its line; only for a project on this computer. */
   openReference(projectId: string, reference: ReferenceInput): Promise<Result<void>>;
-  /**
-   * Open in: open the file the window shows (`place`, as last saved with saveUi) in the editor without
-   * asking (with the system's choice, show it in its folder); only for a project on this computer.
-   */
-  openShown(place: Place, path: string): Promise<Result<void>>;
-  /** The editor files open in, and choosing another. */
-  editor(): Promise<Result<Editor>>;
-  setEditor(editor: Editor): Promise<Result<void>>;
   copy(text: string): Promise<Result<void>>;
   command(command: AppCommand): Promise<Result<void>>;
   /** The app's theme preference. Windows follow it through `prefers-color-scheme`. */
@@ -239,10 +243,6 @@ export interface AtlasBridge {
   setTheme(preference: ThemePreference): Promise<Result<void>>;
   /** The versions and the Atlas home About Atlas shows. */
   about(): Promise<Result<AboutInfo>>;
-  exportPlan(projectId: string, work: string): Promise<Result<ExportResult | null>>;
-  chooseImport(projectId: string): Promise<Result<ImportPreview | null>>;
-  confirmImport(token: string): Promise<Result<ImportResult>>;
-  cancelImport(token: string): Promise<Result<void>>;
   /** This computer and the computers this app paired with, each checked for whether it answers. */
   computers(): Promise<Result<Computer[]>>;
   /** Show another computer's projects, in this window or a new one. */
@@ -257,6 +257,23 @@ export interface AtlasBridge {
   revokePairing(hostId: string | null, code: string): Promise<Result<void>>;
   devices(hostId: string | null): Promise<Result<PairedDevice[]>>;
   revokeDevice(hostId: string | null, deviceId: string): Promise<Result<void>>;
+  /** Claude Code and Codex on this computer, checked now. */
+  agents(): Promise<Result<AgentState[]>>;
+  /** The agents as last checked, with whether each connected one runs Atlas read now (cheap: no agent's command runs). */
+  agentChecks(): Promise<Result<AgentState[]>>;
+  /** Choose an agent's program in a file dialog (null when cancelled); the result's error says why the file chosen cannot be it. */
+  chooseAgentProgram(id: AgentId): Promise<Result<AgentChange | null>>;
+  /** Forget the program chosen for an agent: the PATH's is used again. */
+  clearAgentProgram(id: AgentId): Promise<Result<AgentState>>;
+  /** What connecting an agent by hand takes. */
+  agentFolder(): Promise<Result<AgentFolder>>;
+  /** Install the Atlas plugin into an agent (and grant it the Atlas home); the result says how it went. */
+  connectAgent(id: AgentId): Promise<Result<AgentChange>>;
+  /** Uninstall the Atlas plugin from an agent. */
+  disconnectAgent(id: AgentId): Promise<Result<AgentChange>>;
+  onboarding(): Promise<Result<OnboardingState>>;
+  /** The onboarding was finished: it no longer shows on launch. */
+  finishOnboarding(): Promise<Result<void>>;
   onChanged(listener: (change: ProjectChange) => void): () => void;
   onProjectsChanged(listener: (change: ProjectsChange) => void): () => void;
   onMenu(listener: (command: MenuCommand) => void): () => void;

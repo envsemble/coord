@@ -1,11 +1,7 @@
 // The atlas command: the planning-state operations (also served over MCP by `atlas mcp`), checks,
-// the harness hooks and setup, plan export and import, work statistics and
-// the headless host.
+// the harness hooks and setup, work statistics and the headless host.
 import { createRequire } from 'node:module';
-import { existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
-import { randomUUID } from 'node:crypto';
-import { DatabaseVersionError, PlanExportError, PlanningNotFoundError, WorkError, exportFileName, exportPlan, harnessSessions, importPlan, planImportTarget, planningRelative, readPlanExport, recordWorkReport, validatePlanning } from '../planning/index.ts';
+import { DatabaseVersionError, PlanningNotFoundError, WorkError, harnessSessions, recordWorkReport } from '../planning/index.ts';
 import { parseOptions, UsageError, type Output } from './args.ts';
 import { check, home, planningUsage, project, where, work } from './commands/planning.ts';
 import { capture, CaptureError } from './commands/capture.ts';
@@ -19,10 +15,8 @@ Usage:
 ${planningUsage}
   atlas capture <source.json> (--work <work-id> | --out <file>) [--name <name>] [--compares <capture.puml>] [--force] [--planning-dir <dir>]
   atlas mcp
-  atlas hook <SessionStart|UserPromptSubmit|PostToolUse|ToolUse|Notification|PermissionRequest|Stop|StopFailure|Interrupt|SubagentStart|SubagentStop|SessionEnd>
+  atlas hook <SessionStart|UserPromptSubmit|PageChoices|PostToolUse|ToolUse|Notification|PermissionRequest|Stop|StopFailure|Interrupt|SubagentStart|SubagentStop|SessionEnd>
   atlas setup [--dry-run]
-  atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]
-  atlas plan import <file> [--planning-dir <dir>] [--dry-run]
   atlas work report <planning-root> --work <work-id> [--step <title>] [--model <model>] [--session <id>] [--tokens <n>]
   atlas serve [--address <ip>] [--port <n>] [--home <dir>]
   atlas --version
@@ -48,12 +42,6 @@ hook (Claude Code or Codex) on the JSON it reads from stdin; it always exits 0. 
 Atlas home and its database, grants the home to
 Claude Code and Codex, and installs the Atlas plugin into each harness on PATH; --dry-run prints
 what it would do.
-plan export writes one self-contained HTML file of a work item (default
-<slug>-<work-id>.atlas-plan.html in the current folder; an existing file needs --force).
-plan import prints a preview, then adds the export as new work under the next free number
-and registers it in planning.json without committing; --dry-run only previews. Both use the
-planning folder given by --planning-dir, else the current folder, and exit 0 on success,
-1 for an invalid export or a refused folder and 2 on usage errors.
 work report records a step transition: its time, the model and the step, in the Atlas home's
 database under the planning folder's project, which the app summarizes. Inside Claude Code or Codex it reads the
 session, the model, and the agent's working time and tokens since the session's previous report
@@ -70,8 +58,6 @@ folders, and Atlas keeps its database (atlas.db) and logs beside them.`;
 
 const console_: Output = { stdout: text => process.stdout.write(text + '\n'), stderr: text => process.stderr.write(text + '\n') };
 
-const exportUsage = 'Usage: atlas plan export <work-id|work-folder> [--planning-dir <dir>] [--out <file>] [--force]';
-const importUsage = 'Usage: atlas plan import <file> [--planning-dir <dir>] [--dry-run]';
 const reportUsage = 'Usage: atlas work report <planning-root> --work <work-id> [--step <title>] [--model <model>] [--session <id>] [--tokens <n>]';
 const serveUsage = 'Usage: atlas serve [--address <ip>] [--port <n>] [--home <dir>]';
 
@@ -112,9 +98,7 @@ async function serveCommand(args: string[], out: Output) {
   return 0;
 }
 
-function size(value: number) { return value < 1048576 ? Math.max(1, Math.round(value / 1024)) + ' KB' : (value / 1048576).toFixed(1) + ' MB'; }
-
-// Text from a plan export reaches the terminal: replace control characters (including
+// Text from planning files reaches the terminal: replace control characters (including
 // escape sequences) and bidirectional overrides so it cannot rewrite what is shown.
 const unprintable: [number, number][] = [[0x00, 0x1f], [0x7f, 0x9f], [0x61c, 0x61c], [0x200e, 0x200f], [0x202a, 0x202e], [0x2066, 0x2069]];
 function printable(text: string) {
@@ -136,60 +120,6 @@ function systemFailure(error: unknown): string | null {
   return `cannot ${failure.syscall} ${failure.path ?? ''}: ${reasons[failure.code] ?? failure.code}`.replace(/ {2,}/g, ' ');
 }
 
-async function planExport(args: string[], out: Output) {
-  if (args.length === 1 && ['--help', '-h', 'help'].includes(args[0])) { out.stdout(exportUsage); return 0; }
-  const { positional, values, flags } = parseOptions(args, { values: ['planning-dir', 'out'], flags: ['force'] }, exportUsage);
-  if (positional.length !== 1) throw new UsageError(positional.length ? 'unrecognized arguments: ' + positional.slice(1).join(' ') : 'the following arguments are required: work-id|work-folder', exportUsage);
-  const planningDir = path.resolve(values['planning-dir'] ?? '.');
-  let work = positional[0];
-  // A work folder may be given as a filesystem path; the export API takes it relative to the planning folder.
-  if (!/^work-[0-9]{4,}$/.test(work) && existsSync(work) && statSync(work).isDirectory()) {
-    const relative = planningRelative(planningDir, work);
-    if (!relative) throw new PlanExportError('WORK', `${work} is not a work folder inside the planning folder ${planningDir}.`);
-    work = relative;
-  }
-  const chosen = values.out === undefined ? null : path.resolve(values.out);
-  if (chosen && existsSync(chosen) && statSync(chosen).isDirectory()) throw new PlanExportError('CONFLICT', `${chosen} is a folder; give --out a file name.`);
-  const result = await exportPlan(planningDir, work);
-  const { source } = result.manifest;
-  const file = chosen ?? path.resolve(exportFileName(source.path, source.workId));
-  if (!existsSync(path.dirname(file))) throw new PlanExportError('CONFLICT', `The folder ${path.dirname(file)} does not exist.`);
-  // Every export records its own time, so an existing file always differs.
-  if (existsSync(file) && !flags.has('force')) throw new PlanExportError('CONFLICT', `${file} already exists. Choose another --out file, or pass --force to replace it.`);
-  for (const warning of result.warnings) out.stderr('WARNING: ' + warning);
-  const temporary = file + '.' + randomUUID() + '.tmp';
-  try { writeFileSync(temporary, result.html, { flag: 'wx' }); renameSync(temporary, file); }
-  finally { rmSync(temporary, { force: true }); }
-  const contents = result.manifest.files.reduce((sum, item) => sum + item.size, 0);
-  out.stdout(`Exported ${source.workId} “${source.title}” (${result.manifest.files.length} files, ${size(contents)}) to ${file} (${size(result.bytes)}).`);
-  out.stdout('Open it in any browser to read the plan offline, or import it with atlas plan import.');
-  return 0;
-}
-
-async function planImport(args: string[], out: Output) {
-  if (args.length === 1 && ['--help', '-h', 'help'].includes(args[0])) { out.stdout(importUsage); return 0; }
-  const { positional, values, flags } = parseOptions(args, { values: ['planning-dir'], flags: ['dry-run'] }, importUsage);
-  if (positional.length !== 1) throw new UsageError(positional.length ? 'unrecognized arguments: ' + positional.slice(1).join(' ') : 'the following arguments are required: file', importUsage);
-  const planningDir = path.resolve(values['planning-dir'] ?? '.');
-  let bytes: Buffer;
-  try { bytes = readFileSync(positional[0]); }
-  catch (error) { if (error && typeof error === 'object' && !('path' in error)) Object.assign(error, { path: path.resolve(positional[0]) }); throw error; }
-  const preview = readPlanExport(bytes);
-  const { source } = preview.manifest;
-  const target = await planImportTarget(planningDir, preview.manifest);
-  out.stdout(`Plan export: “${source.title}”`);
-  out.stdout(`  From:       ${source.workId} in ${source.planningFolder} (${source.path}), exported ${preview.manifest.exportedAt} with Atlas ${preview.manifest.atlasVersion}`);
-  out.stdout(`  Import as:  ${target.workId} in ${target.path}`);
-  out.stdout(`  Files:      ${preview.files.length} (${size(preview.totalBytes)})`);
-  out.stdout(`  Diagrams:   ${preview.diagrams.length}`);
-  for (const diagram of preview.diagrams) out.stdout(`    - ${diagram.title}${diagram.provenance.label ? ' (' + diagram.provenance.label + ')' : ''}`);
-  if (flags.has('dry-run')) { out.stdout('Dry run: nothing was written.'); return 0; }
-  // The preview carries the validated contents, so the file is not read twice.
-  const result = await importPlan(planningDir, preview);
-  for (const note of result.notes) out.stdout(note);
-  return 0;
-}
-
 /** Run the command and return its exit code. The MCP server and the host keep running after this resolves. */
 export async function main(args: string[], out: Output = console_): Promise<number> {
   const [command, subcommand, ...rest] = args;
@@ -205,21 +135,19 @@ export async function main(args: string[], out: Output = console_): Promise<numb
     if (command === 'capture') return await capture(args.slice(1), out);
     if (command === 'home') return await home(args.slice(1), out);
     if (command === 'project') return await project(args.slice(1), out);
-    if (command === 'plan' && subcommand === 'export') return await planExport(rest, printableOutput(out));
-    if (command === 'plan' && subcommand === 'import') return await planImport(rest, printableOutput(out));
     if (command === 'work' && subcommand === 'report') return await workReport(rest, printableOutput(out));
     if (command === 'work') return await work(subcommand, rest, out);
     // The QR code is drawn with terminal colour codes; serve prints only local, trusted text.
     if (command === 'serve') return await serveCommand(args.slice(1), out);
-    throw new UsageError(command === 'plan' || command === 'work' ? `unknown ${command} command: ${subcommand ?? '(none)'}` : 'unknown command: ' + command);
+    throw new UsageError(command === 'work' ? `unknown ${command} command: ${subcommand ?? '(none)'}` : 'unknown command: ' + command);
   } catch (error) {
-    if (error instanceof PlanExportError || error instanceof PlanningNotFoundError || error instanceof CaptureError || error instanceof DatabaseVersionError) { out.stderr('atlas: ' + printable(error.message)); return 1; }
+    if (error instanceof PlanningNotFoundError || error instanceof CaptureError || error instanceof DatabaseVersionError) { out.stderr('atlas: ' + printable(error.message)); return 1; }
     if (error instanceof WorkError) {
       out.stderr('atlas: ' + printable(error.message));
       for (const problem of error.problems) out.stderr('  - ' + printable(problem));
       return 1;
     }
-    const failure = ['plan', 'work', 'home', 'project', 'capture'].includes(command) ? systemFailure(error) : null;
+    const failure = ['work', 'home', 'project', 'capture'].includes(command) ? systemFailure(error) : null;
     if (failure) { out.stderr('atlas: ' + printable(failure)); return 1; }
     if (!(error instanceof UsageError)) throw error;
     out.stderr(error.line || usage);

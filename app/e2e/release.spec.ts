@@ -116,6 +116,11 @@ test('the Windows installer installs per user, starts and uninstalls', async () 
     expect(existsSync(path.join(target, 'Atlas.exe'))).toBe(true);
     await runUntilLogged(path.join(target, 'Atlas.exe'), [], ['Window ready', 'Host started']);
   } finally {
-    execFileSync(path.join(target, 'Uninstall Atlas.exe'), ['/S', '/currentuser'], { windowsHide: true });
+    // The uninstaller disconnects agents connected to the home's agent folder and takes its command off
+    // the PATH: here those of a profile of its own, never the runner's.
+    const profile = temporaryDirectory('atlas-uninstall-profile-');
+    cleanup.push(profile);
+    const own = { USERPROFILE: profile, CLAUDE_CONFIG_DIR: path.join(profile, '.claude'), CODEX_HOME: path.join(profile, '.codex') };
+    execFileSync(path.join(target, 'Uninstall Atlas.exe'), ['/S', '/currentuser'], { windowsHide: true, env: { ...process.env, ...own } });
   }
 });

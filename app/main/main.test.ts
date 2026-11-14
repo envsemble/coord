@@ -52,9 +52,6 @@ test('windows, their places per computer and the shared settings are kept in the
     assert.equal(new AppState(database).theme, 'dark');
     state.setTheme('system');
     assert.equal(database.setting('theme'), null);
-    assert.equal(state.inspectorWidth, null);
-    state.setInspectorWidth(480);
-    assert.equal(state.inspectorWidth, 480);
     // A window on this computer with places of a local project, and places of a paired computer's project it showed before.
     const local = database.addProject(path.join(directory, 'planning', 'shop'), 'Shop');
     database.db.prepare('INSERT INTO paired_computer (id, host_id, name, origin, device_id, token, paired_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('c1', 'host-0001', 'Laptop', 'http://100.64.0.2:7346', 'd-' + 'a'.repeat(32), Buffer.from('plain:x'), '2026-10-15T00:00:00.000Z');
@@ -124,9 +121,8 @@ test('a window saves the place it shows as a row of its project, and loads it ba
   assert.deepEqual(placeRow({ projectId, target: { kind: 'work', work: 'work-0001', anchor: null, step: 'Build the hub' } }), { projectId, kind: 'work', target: '{"work":"work-0001","anchor":null}' });
   // The hub filtered to a project, and a project's statistics, are rows of that project.
   for (const page of [{ page: 'hub' as const, projectId }, { page: 'statistics' as const, projectId }]) assert.deepEqual(savedPlace(projectId, placeRow(page)!), page);
-  // The hub of every project and the Projects page are no row: a window without one opens on the hub.
+  // The hub of every project is no row: a window without one opens on the hub.
   assert.equal(placeRow({ page: 'hub', projectId: null }), null);
-  assert.equal(placeRow({ page: 'projects' }), null);
   // A row that cannot be read loads as nothing.
   assert.deepEqual(savedPlace(projectId, { kind: 'file', target: '{"path":"README.md"}' }), { projectId, target: { kind: 'file', path: 'README.md' } });
   assert.equal(savedPlace(projectId, { kind: 'file', target: '{"path":"../x"}' }), null);
@@ -136,10 +132,9 @@ test('a window saves the place it shows as a row of its project, and loads it ba
   assert.deepEqual(savedPlace(projectId, placeRow(statistics)!), statistics);
 });
 
-test('outside Atlas, only applications on the allowlist and editors through their links open', () => {
+test('outside Atlas, only applications on the allowlist and VS Code through its links open', () => {
   assert.equal(appLink('t3-thread://thread/abc'), 't3-thread://thread/abc');
   for (const refused of ['file:///C:/Windows/System32/calc.exe', 'javascript:alert(1)', 'ms-settings:', 'unknown-app://x', 'vscode://file/C:/x.bat', 'slack://open', 'not a link', 't3-thread://x\u0000y']) assert.equal(appLink(refused), null, refused);
-  assert.equal(editorLink('vscode', 'C:\\Dev\\atlas\\app\\src\\a b#.ts', 68), 'vscode://file/C:/Dev/atlas/app/src/a%20b%23.ts:68');
-  assert.equal(editorLink('cursor', '/home/me/atlas/README.md', null), 'cursor://file/home/me/atlas/README.md');
-  assert.equal(editorLink('system', '/home/me/x', 3), null);
+  assert.equal(editorLink('C:\\Dev\\atlas\\app\\src\\a b#.ts', 68), 'vscode://file/C:/Dev/atlas/app/src/a%20b%23.ts:68');
+  assert.equal(editorLink('/home/me/atlas/README.md', null), 'vscode://file/home/me/atlas/README.md');
 });

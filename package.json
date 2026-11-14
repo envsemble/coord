@@ -34,6 +34,7 @@
     "test:e2e": "npm run test:e2e --workspace @envsemble/atlas-app",
     "format": "npm run format --workspace @envsemble/atlas-diagrams && prettier --write \"docs/*.md\" scripts README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json",
     "format:check": "npm run format:check --workspace @envsemble/atlas-diagrams && prettier --check \"docs/*.md\" scripts README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json",
+    "lint": "eslint app/src packages/diagrams/src packages/diagrams/development && stylelint \"app/src/**/*.css\" \"packages/diagrams/src/**/*.css\"",
     "check:types": "npm run check:types --workspaces --if-present",
     "check": "npm run check --workspace @envsemble/atlas-diagrams",
     "check:package": "npm run check:package --workspace @envsemble/atlas-diagrams",
@@ -42,8 +43,14 @@
     "check:release": "node scripts/check-release.cjs"
   },
   "devDependencies": {
+    "@babel/core": "8.1.2",
+    "@babel/eslint-parser": "8.1.2",
+    "@envsemble/eslint-plugin-envui": "1.0.0",
+    "@envsemble/stylelint-config-envui": "1.0.0",
+    "eslint": "10.14.0",
     "fflate": "0.8.3",
-    "prettier": "3.8.0"
+    "prettier": "3.8.0",
+    "stylelint": "17.16.0"
   },
   "overrides": {
     "global-agent": "4.1.3",

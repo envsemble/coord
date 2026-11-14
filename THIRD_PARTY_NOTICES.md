@@ -4,9 +4,7 @@ Atlas's grammar for its subset of PlantUML (`packages/diagrams/lib/plantuml/plan
 
 React and React DOM 19.3.0 are bundled into offline HTML under their MIT licenses. Full license text remains embedded in the HTML, with copies in packages/diagrams/licenses/. The reusable React module uses peer dependencies instead of bundling another React runtime.
 
-The plan export viewer (`packages/atlas/dist/plan-viewer.html`) bundles React and React DOM, react-markdown and remark-gfm with their unified, micromark, mdast and hast dependencies, github-slugger, envUI with Base UI and Floating UI, the Material Symbols icons it uses, the Inter font, and fflate, each under its MIT, ISC, Apache 2.0 or SIL Open Font License. The build lists every bundled package with its version and license and embeds the license texts in the viewer script.
-
-The interface is built on envUI (`@envsemble/envui`), Envsemble's own private component library. It brings [Base UI](https://github.com/mui/base-ui) and Floating UI (MIT), Google's [Material Symbols](https://github.com/google/material-design-icons) (Apache 2.0) and the [Inter](https://github.com/rsms/inter) font (SIL Open Font License 1.1); their notices ship in envUI's package, and the offline diagram and plan files embed them.
+The interface is built on envUI (`@envsemble/envui`), Envsemble's own private component library. It brings [Base UI](https://github.com/mui/base-ui) and Floating UI (MIT), Google's [Material Symbols](https://github.com/google/material-design-icons) (Apache 2.0) and the [Inter](https://github.com/rsms/inter) font (SIL Open Font License 1.1); their notices ship in envUI's package, and the offline diagram files embed them.
 
 The `atlas-grill` skill's interview and domain-modeling methods are adapted from Matt Pocock's [skills](https://github.com/mattpocock/skills) and keep their [MIT license](plugin/skills/atlas-grill/references/LICENSE).
 
@@ -14,11 +12,9 @@ The interface icons are envUI's Material Symbols. The reusable viewer imports th
 
 The AI providers' marks beside model names in the app's statistics (Claude's spark for Anthropic, the OpenAI blossom, the Gemini sparkle, Mistral AI's M and the DeepSeek whale) are SVG paths from [Simple Icons](https://github.com/simple-icons/simple-icons) under CC0 1.0: release 16.35.0, and 15.22.0 for OpenAI's, the last release that included it. Only the path data is copied, in `app/src/ui/ModelName.tsx`. The marks are trademarks of their owners and only identify their models; showing them implies no endorsement or affiliation.
 
-The editors' marks in the app's Open in button (Visual Studio Code's, also for VS Code Insiders, Cursor's, Windsurf's and Zed's) are SVG paths from [Simple Icons](https://github.com/simple-icons/simple-icons) under CC0 1.0: release 16.35.0, and 12.4.0 for Visual Studio Code's, the last release that included it. Only the path data is copied, in `app/src/ui/EditorMark.tsx`. The marks are trademarks of their owners and only identify their editors; showing them implies no endorsement or affiliation.
-
 Vite 8.3.3 and its React plugin 6.1.2 provide the development server and Fast Refresh under their upstream MIT licenses, distributed with the npm dependencies. They are not bundled into offline HTML or required by the library at runtime.
 
-fflate 0.8.3 supplies the compressed export archive and offline decompression. Its MIT license is in packages/diagrams/licenses/fflate-LICENSE and retained in bundled code notices. Shiki 4.5.0 highlights snippets at build time; its MIT license is in packages/diagrams/licenses/shiki-LICENSE. Shiki's runtime, WebAssembly and grammars are not shipped as browser runtime dependencies.
+fflate 0.8.3 supplies the compressed export archive and offline decompression. Its MIT license is in packages/diagrams/licenses/fflate-LICENSE and retained in bundled code notices.
 
 PostgreSQL capture uses node-postgres (`pg`) under its MIT license, retained in its npm distribution. Local D1 fixtures use Wrangler (MIT/Apache 2.0) and workerd (Apache 2.0); these development tools are not bundled in exported HTML.
 

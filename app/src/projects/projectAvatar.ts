@@ -1,6 +1,6 @@
-// What a project's row on the Projects page shows at a glance: its avatar (the initials of its name on
-// a square in its own colour) and its facts from the listing (its open plans, how many agents work on them or wait
-// for the person, when it last changed). Pure, so it is unit-tested.
+// What a project shows at a glance, in the hub's project menu: its avatar (the initials of its name on
+// a square in its own colour) and its facts from the listing (its open plans, how many agents work on
+// them or wait for the person, when it last changed). Pure, so it is unit-tested.
 import type { Project } from '../types';
 
 /** Up to two initials: of its first two words, else of its one word. */

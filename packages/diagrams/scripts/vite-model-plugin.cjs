@@ -56,7 +56,9 @@ function modelPlugin({ root, buildPayload } = {}) {
         const { prepareExample } = require(
           path.join(root, "scripts/build.cjs"),
         );
-        return (await prepareExample("shop", false)).prepared.payload;
+        // With its exports: the viewer reads each view's SVG and the
+        // downloads from them.
+        return (await prepareExample("shop")).prepared.payload;
       }),
   );
   let server,

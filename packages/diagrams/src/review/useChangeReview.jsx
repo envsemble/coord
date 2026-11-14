@@ -1,35 +1,31 @@
-import { useCallback, useMemo, useRef, useState } from "react";
-import { Button, Counter, Tooltip } from "@envsemble/envui";
+import { useCallback, useMemo, useState } from "react";
+import { Badge, Button, Tooltip } from "@envsemble/envui";
 import { ToolButton } from "../ui/ToolButton";
 import { FadeIcon, ProposalIcon } from "../ui/icons";
 import { ChangeNavigation, ChangesOverview } from "./ChangesOverview";
 import { cachedRollup, rowFor } from "./changes";
 
-// The overview opens with a proposal when the window leaves the diagram room
-// beside it; in smaller windows the Changes button opens it.
+// The Changes panel opens with a proposal when the window leaves the diagram
+// room beside it; in smaller windows the Changes button opens it.
 const ROOMY_WIDTH = 1280;
-/** Whether a proposal opens with its changes overview showing. */
+/** Whether a proposal opens with its Changes panel showing. */
 export const overviewByDefault = () =>
   typeof window !== "undefined" && window.innerWidth >= ROOMY_WIDTH;
 
 /**
  * Reviewing a proposal: the rolled-up changes, fading unchanged elements, and
  * stepping through changes. `review` is `{ comparison, baselineDate }`, or
- * null outside a proposal; `model` and `views` are the change view's;
- * `overview` says whether the inspector lists the changes when no element is
- * inspected.
+ * null outside a proposal; `model` and `views` are the change view's. A
+ * change chosen in the overview, or stepped to, is selected and framed on the
+ * canvas.
  */
 export function useChangeReview({
   review,
   model,
   views,
   selected,
-  overview,
-  setOverview,
   choose,
-  select,
   hover,
-  onShowPanel,
 }) {
   // The rollup is shared with the Changes button's count, computed once per
   // comparison.
@@ -37,12 +33,7 @@ export function useChangeReview({
     () => (review ? cachedRollup(review.comparison, model, views) : null),
     [review, model, views],
   );
-  // Details read the rollup; one object per rollup keeps them memoized.
-  const details = useMemo(() => (rollup ? { rollup } : null), [rollup]);
   const [fade, setFade] = useState(true);
-  // Keyboard focus follows the reader between the overview and the details,
-  // whose controls replace each other in the inspector.
-  const handoff = useRef(null);
   const current = rollup && selected ? rowFor(rollup, selected, model) : null;
   const position = current ? rollup.navigable.indexOf(current) : -1;
   const total = rollup?.navigable.length || 0;
@@ -63,23 +54,6 @@ export function useChangeReview({
     },
     [rollup, position, total, open],
   );
-  const back = useCallback(() => {
-    setOverview(true);
-    onShowPanel?.();
-    select(null);
-  }, [select, onShowPanel, setOverview]);
-  const openRow = useCallback(
-    (row) => {
-      handoff.current = { to: "details" };
-      open(row);
-    },
-    [open],
-  );
-  // Focus returns to the change that was open, still listed in the overview.
-  const backToOverview = useCallback(() => {
-    handoff.current = { to: "overview", key: current?.key };
-    back();
-  }, [back, current]);
   // The overview keeps one element while its inputs stay the same, so a hover
   // elsewhere in the viewer does not rebuild the list.
   const baselineDate = review?.baselineDate;
@@ -93,26 +67,20 @@ export function useChangeReview({
           baselineDate={baselineDate}
           profile={profile}
           active={activeKey}
-          handoff={handoff}
-          onSelect={openRow}
+          onSelect={open}
           onHover={hover}
         />
       ) : null,
-    [rollup, baselineDate, profile, activeKey, openRow, hover],
+    [rollup, baselineDate, profile, activeKey, open, hover],
   );
   if (!rollup) return null;
   return {
     rollup,
-    details,
-    /** Leaving a change's details by keyboard returns focus to it in the overview. */
-    returnFocus: () => {
-      if (overview) handoff.current = { to: "overview", key: current?.key };
-    },
     fade,
     position,
     total,
-    /** Toolbar controls: the changes overview toggle and fading. */
-    controls: (showing) => (
+    /** Toolbar controls: the Changes panel's toggle and fading. */
+    controls: (showing, onToggle) => (
       <>
         <Tooltip
           content={showing ? "Hide the changes" : "Show every change"}
@@ -124,16 +92,10 @@ export function useChangeReview({
             aria-pressed={showing}
             aria-label={`Changes, ${rollup.count}`}
             startIcon={<ProposalIcon />}
-            onClick={() => {
-              if (showing) setOverview(false);
-              else back();
-            }}
+            onClick={onToggle}
           >
             <span className="collapsible-label">Changes</span>
-            <Counter
-              value={rollup.count}
-              tone={showing ? "accent" : "neutral"}
-            />
+            <Badge count={rollup.count} />
           </Button>
         </Tooltip>
         <ToolButton
@@ -144,7 +106,7 @@ export function useChangeReview({
         />
       </>
     ),
-    /** Above a selected element's details: back to every change, previous and next. */
+    /** In the Changes panel's header: the previous and next change. */
     navigation: (
       <ChangeNavigation
         position={position}
@@ -155,12 +117,10 @@ export function useChangeReview({
             ? `${current.name}, ${current.label}`
             : current?.name
         }
-        handoff={handoff}
-        onBack={backToOverview}
         onStep={step}
       />
     ),
-    /** The overview list for the inspector. */
+    /** The overview list for the Changes panel. */
     content,
   };
 }

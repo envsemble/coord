@@ -3,14 +3,13 @@
 // the desktop app on this computer, which holds the owner token. When the owner turns remote access
 // on, it also listens on one chosen address (this machine, a local network, or Tailscale) for paired
 // devices. A paired device belongs to the same person and may do what the app can do here: list,
-// create and change the projects, read them, import and export; only the remote-access settings stay
+// create and change the projects and read them; only the remote-access settings stay
 // with the owner, and managing pairings with the devices granted it. Every request is authenticated
 // and every method's scope is checked first.
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { mkdir, open, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, Server } from 'node:http';
 import { isIPv4, isIPv6 } from 'node:net';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Duplex } from 'node:stream';
 import { createAdaptorServer, type HttpBindings } from '@hono/node-server';
@@ -20,21 +19,20 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { readFile, stat } from 'node:fs/promises';
 import {
   canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, handoffsByWork, linkHandoffs, projectStatistics, projectSummary, resolveReferences, storedReports, workDates, workSessions, workTimeline,
-  exportFileName, readRegistry, resolveDocument, setProjectFolders, setRegistryName, WorkError, type LogOptions, type ProjectRow, type ProjectTemplates, type WorkReport,
+  readRegistry, resolveDocument, setProjectFolders, setRegistryName, WorkError, type LogOptions, type ProjectRow, type ProjectTemplates, type WorkReport,
 } from '../planning/index.ts';
 import { compareHits, PlanningSearch, searchQuery } from '../planning/reading/search.ts';
 import { AccessStore, newToken } from './access/access.ts';
 import { hostAddresses } from './access/addresses.ts';
 import {
   closeCodes, methodScopes, pairingUrl, protocolVersion, routes, snapshotValue,
-  type AccessState, type EventName, type Events, type OpenProjectState, type HostDescriptor, type ImportPreviewValue, type MethodName, type Methods,
+  type AccessState, type EventName, type Events, type OpenProjectState, type HostDescriptor, type MethodName, type Methods,
   type NetworkStatus, type PairResponse, type Project, type ProjectSummary, type Scope, type SearchResult, type SnapshotValue, type HandoffLink,
 } from './contract.ts';
 import { HostError, toErrorValue, type Logger } from './errors.ts';
 import type { OpenProject } from './projects/openProject.ts';
 import { OpenProjects } from './projects/openProjects.ts';
 import { ProjectListWatch } from './projects/projectListWatch.ts';
-import { PlanWorkerClient, type WorkerLike } from './export/planWorkerClient.ts';
 import { methodParams, pairRequest, ValidationError } from './validate.ts';
 
 export interface HostOptions {
@@ -45,7 +43,6 @@ export interface HostOptions {
   home: string;
   version: string;
   log: Logger;
-  createPlanWorker(): WorkerLike;
   /** Who runs this host, for messages such as "managed by the Atlas app (process 1234)". */
   owner: string;
   watchDelay?: { debounce: number; maxWait: number };
@@ -70,13 +67,7 @@ export interface HostOptions {
 
 interface Credential { scopes: Set<Scope>; deviceId: string | null; label: string }
 interface Listener { server: Server; address: string; port: number; local: boolean; sockets: Set<WebSocket> }
-interface Held { owner: string; projectId: string; workerToken: string; fileName?: string; expires: number }
 
-const exportLifetime = 10 * 60 * 1000;
-/** A plan export sent for import: the largest an export can be (see planExportMaxBytes), with room for its encoding. */
-const importLimit = 512 * 1024 * 1024;
-/** Prepared exports one client may hold at once; preparing another drops the oldest. */
-const exportsPerHolder = 2;
 /** Files in documents served over HTTP: images and attachments, never whole archives. */
 const fileLimit = 64 * 1024 * 1024;
 /**
@@ -97,12 +88,6 @@ export function acceptableHost(value: string | undefined) {
   return host === 'localhost' || isIPv4(host) || isIPv6(host);
 }
 const bearer = (header: string | undefined) => /^Bearer (\S{1,200})$/.exec(header ?? '')?.[1] ?? null;
-/** A download name for Content-Disposition: plain ASCII, plus the exact UTF-8 name (RFC 6266). */
-export function attachment(fileName: string) {
-  const ascii = fileName.replace(/[^ -~]/g, '_').replace(/["\\]/g, '_');
-  const exact = encodeURIComponent(fileName).replace(/['()*]/g, character => '%' + character.charCodeAt(0).toString(16).toUpperCase());
-  return `attachment; filename="${ascii}"; filename*=UTF-8''${exact}`;
-}
 
 class Connection {
   readonly id = randomBytes(8).toString('hex');
@@ -139,10 +124,8 @@ export class Host {
   readonly access: AccessStore;
   readonly openProjects: OpenProjects;
   private readonly options: HostOptions;
-  private readonly exports: PlanWorkerClient;
   private readonly connections = new Set<Connection>();
-  private readonly held = new Map<string, Held>();
-  private readonly websockets = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
+  private readonly websockets = new WebSocketServer({ noServer: true, maxPayload: 4 * 1024 * 1024 });
   private loopback: Listener | null = null;
   private network: Listener | null = null;
   private networkError: string | null = null;
@@ -162,8 +145,6 @@ export class Host {
   private projectsLookAgain: ReturnType<typeof setTimeout> | null = null;
   /** Each active project's search index, by folder key, built on its first search. */
   private readonly searches = new Map<string, PlanningSearch>();
-  /** Clients preparing an export or reading an import now; each does one at a time. */
-  private readonly preparing = new Set<string>();
   private readonly timers: ReturnType<typeof setInterval>[] = [];
   private lockRetry: ReturnType<typeof setInterval> | null = null;
   private retaking = false;
@@ -173,7 +154,6 @@ export class Host {
     this.options = options;
     this.database = HomeDatabase.open(options.home);
     this.access = new AccessStore(this.database, options.log, options.owner);
-    this.exports = new PlanWorkerClient(options.createPlanWorker);
     this.openProjects = new OpenProjects({ key: () => this.access.projectIdKey, database: this.database, log: options.log, watchDelay: options.watchDelay, idleClose: options.idleClose, onChange: state => this.projectChanged(state) });
   }
 
@@ -195,7 +175,7 @@ export class Host {
     });
     await this.applyNetwork();
     this.checkActivity(false);
-    this.timers.push(setInterval(() => this.expireHeld(), 60000), setInterval(() => this.checkConnections(), this.options.heartbeat ?? 30000),
+    this.timers.push(setInterval(() => this.checkConnections(), this.options.heartbeat ?? 30000),
       setInterval(() => this.checkActivity(), this.options.liveCheck ?? 3000),
       setTimeout(() => this.clearExpired(), 5000), setInterval(() => this.clearExpired(), 60_000));
     for (const timer of this.timers) timer.unref?.();
@@ -216,8 +196,6 @@ export class Host {
     this.projectsWatcher?.close();
     if (this.projectsTimer) clearTimeout(this.projectsTimer);
     if (this.projectsLookAgain) clearTimeout(this.projectsLookAgain);
-    this.held.clear();
-    this.exports.stop();
     this.access.clearPairings();
     this.access.unlock();
     this.database.close();
@@ -267,10 +245,7 @@ export class Host {
     const server = createAdaptorServer({ fetch: this.app(listener).fetch, overrideGlobalObjects: false }) as Server;
     listener.server = server;
     server.headersTimeout = 20000;
-    // A plan sent for import over a slow link can take many minutes, so the network listener allows
-    // a whole request two hours (the app gives an upload one); the routes that take a body also end
-    // one that stalls.
-    server.requestTimeout = local ? 60000 : 2 * 60 * 60 * 1000;
+    server.requestTimeout = 60000;
     server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => this.upgrade(listener, request, socket, head));
     return new Promise((resolve, reject) => {
       server.once('error', reject);
@@ -377,8 +352,6 @@ export class Host {
       }
     });
     app.get(routes.files, c => this.serveFile(c, listener));
-    app.post(routes.imports, c => this.receiveImport(c, listener));
-    app.get(routes.exports, c => this.serveExport(c, listener));
     app.notFound(c => c.json({ code: 'not-found', message: 'Not found.' }, 404));
     app.onError((error, c) => { this.options.log.error('Request failed', error); return c.json({ code: 'internal', message: 'The host could not answer.' }, 500); });
     return app;
@@ -406,78 +379,6 @@ export class Host {
       const { value } = toErrorValue(error);
       return c.json(value, status === 403 || value.code === 'forbidden' ? 403 : 404);
     }
-  }
-
-  private async serveExport(c: Context<{ Bindings: HttpBindings }>, listener: Listener) {
-    const credential = this.authorize(c, listener);
-    if (!credential) return c.json({ code: 'unauthorized', message: 'Pair with this host first.' }, 401);
-    const token = c.req.param('token') ?? '';
-    const held = this.held.get(token);
-    if (!held || held.owner !== this.holder(credential) || !held.fileName) return c.json({ code: 'not-found', message: 'This export is no longer available. Export the plan again.' }, 404);
-    this.held.delete(token);
-    const html = await this.exports.take(held.workerToken);
-    return c.body(html, 200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Disposition': attachment(held.fileName), 'Content-Security-Policy': 'sandbox' });
-  }
-
-  /**
-   * A plan export sent from another computer, to import into a planning folder here: kept in a
-   * private temporary file while the worker reads it, then removed. Answers with the preview; the
-   * import itself is confirmed over the connection (plan.importConfirm), as for a local file.
-   */
-  private async receiveImport(c: Context<{ Bindings: HttpBindings }>, listener: Listener) {
-    const credential = this.authorize(c, listener);
-    if (!credential) return c.json({ code: 'unauthorized', message: 'Pair with this host first.' }, 401);
-    if (!credential.scopes.has('owner') && !credential.scopes.has('computer')) return c.json({ code: 'forbidden', message: 'This device may not do this.' }, 403);
-    const declared = Number(c.req.header('content-length') ?? NaN);
-    if (declared > importLimit) return c.json({ code: 'invalid-argument', message: 'This file is too large to be a plan export.' }, 413);
-    const holder = 'import:' + this.holder(credential);
-    if (this.preparing.has(holder)) return c.json({ code: 'unavailable', message: 'Another plan is being read. Try again when it is done.' }, 429);
-    this.preparing.add(holder);
-    const file = path.join(tmpdir(), 'atlas-import-' + process.pid + '-' + randomBytes(8).toString('hex') + '.html');
-    try {
-      const folder = await this.accessibleProject(credential, c.req.param('projectId') ?? '');
-      const body = c.req.raw.body;
-      if (!body) return c.json({ code: 'invalid-argument', message: 'Send the plan export file.' }, 400);
-      const handle = await open(file, 'wx', 0o600);
-      const reader = body.getReader();
-      let size = 0;
-      try {
-        // However slow the link, the file must keep arriving: a minute without data ends the upload.
-        const stalled = 'The plan stopped arriving. Send it again.';
-        for (let next = await stalls(reader.read(), bodyStall, stalled); !next.done; next = await stalls(reader.read(), bodyStall, stalled)) {
-          size += next.value.byteLength;
-          if (size > importLimit) return c.json({ code: 'invalid-argument', message: 'This file is too large to be a plan export.' }, 413);
-          await handle.write(next.value);
-        }
-      } finally {
-        await handle.close();
-        void reader.cancel().catch(() => undefined);
-      }
-      return c.json(await this.readImport(folder, file, holder.slice('import:'.length)));
-    } catch (error) {
-      const { value, expected } = toErrorValue(error);
-      if (!expected) {
-        // A device that stops sending (its user cancelled, or it went offline) is not a host failure.
-        const ended = /terminated|aborted|ECONNRESET/i.test(String((error as Error).message) + String((error as NodeJS.ErrnoException).code));
-        if (ended) this.options.log.info('Plan upload ended early', { message: (error as Error).message }); else this.options.log.error('Plan upload failed', error);
-      }
-      return c.json(value, value.code === 'forbidden' ? 403 : value.code === 'not-found' ? 404 : 400);
-    } finally {
-      this.preparing.delete(holder);
-      await rm(file, { force: true }).catch(() => undefined);
-    }
-  }
-  /** Read a plan export for import into a folder; the preview is held for its reader until confirmed. */
-  private async readImport(folder: OpenProject, file: string, owner: string): Promise<ImportPreviewValue> {
-    const read = await this.exports.read(folder.root, file);
-    const token = randomBytes(16).toString('hex');
-    this.held.set(token, { owner, projectId: folder.state().projectId, workerToken: read.token, expires: Date.now() + 30 * 60000 });
-    const { manifest, files, totalBytes, diagrams } = read.preview;
-    return {
-      token, title: manifest.source.title, originalId: manifest.source.workId, origin: manifest.source.planningFolder, location: manifest.source.location,
-      exportedAt: manifest.exportedAt, atlasVersion: manifest.atlasVersion, newId: read.target.workId, newFolder: read.target.path,
-      files: files.length, bytes: totalBytes, diagrams: diagrams.map(item => item.title),
-    };
   }
 
   // ---- WebSocket RPC ---------------------------------------------------------------------------
@@ -514,14 +415,10 @@ export class Host {
       this.connections.delete(connection);
       listener.sockets.delete(ws);
       for (const projectId of connection.subscriptions) this.openProjects.release(projectId);
-      for (const [token, held] of this.held) if (held.owner === connection.id || (held.owner === this.holder(credential) && !this.connectedHolder(held.owner))) { this.held.delete(token); void this.exports.drop(held.workerToken).catch(() => undefined); }
       if (credential.deviceId) this.broadcastAccess();
     });
     ws.on('error', error => this.options.log.warn('Connection error', { message: error.message }));
   }
-  private connectedHolder(holder: string) { return [...this.connections].some(connection => this.holder(connection.credential) === holder); }
-  /** Who an export or import belongs to: the owner, or one paired device. */
-  private holder(credential: Credential) { return credential.deviceId ?? 'owner'; }
 
   private async message(connection: Connection, text: string) {
     let id = 0;
@@ -842,7 +739,7 @@ export class Host {
       case 'host.session':
         return { ...this.descriptor, scopes: [...connection.credential.scopes], deviceId: connection.credential.deviceId } as never;
       case 'projects.list': return this.projects(true) as never;
-      // A project's folders are paths on this computer: the app's to choose, like plan.importRead.
+      // A project's folders are paths on this computer: the app's to choose.
       case 'projects.create': {
         const params = p as Methods['projects.create']['params'];
         if (params.folders.length) this.ownerOnly(connection, 'choose the folders a project covers');
@@ -899,56 +796,14 @@ export class Host {
       case 'project.document': { const { projectId, path: file } = p as { projectId: string; path: string }; return this.subscribed(connection, projectId).document(file) as never; }
       case 'project.diagrams': { const { projectId, work } = p as { projectId: string; work: string }; return this.subscribed(connection, projectId).diagrams(work) as never; }
       case 'project.diagram': { const { projectId, work, path: file } = p as { projectId: string; work: string; path: string }; return this.subscribed(connection, projectId).diagram(work, file) as never; }
+      case 'project.arrangement': { const { projectId, work, path: file } = p as { projectId: string; work: string; path: string }; return this.subscribed(connection, projectId).arrangement(work, file) as never; }
+      case 'project.arrange': { const { projectId, work, path: file, positions } = p as { projectId: string; work: string; path: string; positions: Record<string, [number, number]> | null }; return this.subscribed(connection, projectId).arrange(work, file, positions).then(() => null) as never; }
       case 'project.references': { const { projectId, work, path: file } = p as { projectId: string; work: string | null; path: string }; return this.subscribed(connection, projectId).references(work, file) as never; }
       case 'project.diagramIndex': return this.subscribed(connection, (p as { projectId: string }).projectId).diagramIndex() as never;
-      case 'plan.exportPrepare': {
-        const { projectId, work } = p as { projectId: string; work: string };
-        const folder = this.subscribed(connection, projectId);
-        const item = folder.snapshot().work.find(entry => entry.id === work);
-        if (!item) throw new HostError('not-found', 'This work item is not in the planning folder.');
-        // Exports are large and held in memory: a device prepares one at a time and holds a few. The
-        // owner (this computer's app, with a save dialog per window) is not limited.
-        const holder = this.holder(connection.credential);
-        if (!connection.owner) {
-          if (this.preparing.has(holder)) throw new HostError('unavailable', 'Another plan export is being prepared. Try again when it is done.');
-          const mine = [...this.held].filter(([, held]) => held.owner === holder && held.fileName).sort((a, b) => a[1].expires - b[1].expires);
-          for (const [stale, held] of mine.slice(0, Math.max(0, mine.length - exportsPerHolder + 1))) { this.held.delete(stale); void this.exports.drop(held.workerToken).catch(() => undefined); }
-        }
-        if (!connection.owner) this.preparing.add(holder);
-        let prepared;
-        try { prepared = await this.exports.prepare(folder.root, work); }
-        finally { if (!connection.owner) this.preparing.delete(holder); }
-        const token = randomBytes(16).toString('hex');
-        const fileName = exportFileName(item.path, item.id);
-        this.held.set(token, { owner: holder, projectId, workerToken: prepared.token, fileName, expires: Date.now() + exportLifetime });
-        return { token, bytes: prepared.bytes, warnings: prepared.warnings, fileName } as never;
-      }
-      case 'plan.exportDrop':
-      case 'plan.importDrop': {
-        const { token } = p as { token: string };
-        const held = this.held.get(token);
-        if (held && (held.owner === this.holder(connection.credential) || held.owner === connection.id)) { this.held.delete(token); await this.exports.drop(held.workerToken).catch(() => undefined); }
-        return null as never;
-      }
-      case 'plan.importRead': {
-        // A file on this computer; another computer sends its file to routes.imports instead.
-        const { projectId, file } = p as { projectId: string; file: string };
-        return this.readImport(this.subscribed(connection, projectId), file, connection.id) as never;
-      }
-      case 'plan.importConfirm': {
-        const { projectId, token } = p as { projectId: string; token: string };
-        const held = this.held.get(token);
-        // A preview belongs to the connection that read it, or to the device that sent its file.
-        const mine = held && (held.owner === connection.id || held.owner === this.holder(connection.credential));
-        if (!held || !mine || held.projectId !== projectId || held.expires < Date.now()) throw new HostError('invalid-argument', 'This import preview expired. Choose the file again.');
-        this.held.delete(token);
-        const folder = this.subscribed(connection, projectId);
-        try {
-          const result = await this.exports.import(folder.root, held.workerToken);
-          this.options.log.info('Plan imported', { workId: result.workId, files: result.files });
-          return { workId: result.workId, path: result.path, files: result.files, notes: result.notes } as never;
-        } finally { await folder.reload(); }
-      }
+      case 'project.page': { const { projectId, path: folder } = p as { projectId: string; path: string }; return this.subscribed(connection, projectId).page(folder) as never; }
+      case 'project.readText': { const { projectId, path: file } = p as { projectId: string; path: string }; return this.subscribed(connection, projectId).readText(file) as never; }
+      case 'project.write': { const { projectId, path: file, content } = p as { projectId: string; path: string; content: string }; return this.subscribed(connection, projectId).write(file, content).then(() => null) as never; }
+      case 'project.tool': { const { projectId, name, input } = p as { projectId: string; name: string; input: Record<string, unknown> }; return this.subscribed(connection, projectId).tool(name, input) as never; }
       case 'access.state': return this.accessState() as never;
       case 'access.update': {
         const { settings } = p as unknown as Methods['access.update']['params'];
@@ -988,11 +843,6 @@ export class Host {
     for (const other of this.connections) if (other.credential.deviceId === deviceId) other.ws.close(closeCodes.revoked, 'Access was revoked');
     this.options.log.info('Device revoked', { deviceId });
     this.broadcastAccess();
-  }
-
-  private expireHeld() {
-    const now = Date.now();
-    for (const [token, held] of this.held) if (held.expires < now) { this.held.delete(token); void this.exports.drop(held.workerToken).catch(() => undefined); }
   }
 }
 

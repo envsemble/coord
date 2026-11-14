@@ -223,7 +223,7 @@ export const Anonymous = class {};
   const { prepared } = await prepareDiagrams({
     files: [{ path: "c.puml", text: formatDiagram(d) }],
   });
-  const scene = prepared.get("c.puml").views[0].diagramFields;
+  const scene = prepared.get("c.puml").views[0].diagram;
   assert(scene.nodes.find((n) => n.id === "Base").isAbstract);
   assert.equal(scene.nodes.find((n) => n.id === "Child").methods.length, 4);
 });

@@ -1,7 +1,7 @@
 // A work item's tags (its plan header's `tags`): what it can be found by later, the release it
 // ships in (`0.8.0`) and the areas it touches (`search`, `hub`). A tag is lowercase ASCII letters,
-// digits, dots and hyphens, so the search finds it as written. No imports: the app window and the
-// plan export viewer use this module too.
+// digits, dots and hyphens, so the search finds it as written. No imports: the app window uses this
+// module too.
 
 /** The longest tag. */
 export const tagLimit = 40;

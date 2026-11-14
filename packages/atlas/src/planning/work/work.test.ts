@@ -8,7 +8,7 @@ import path from 'node:path';
 import { validatePlanning } from '../check/check.ts';
 import { checkPaths, fileCheckers } from '../check/checkPaths.ts';
 import { remoteRepository } from '../references/remotes.ts';
-import { acceptWork, addSteps, archiveWork, proposeSteps, projectTags, searchWork, tagWork, closeWork, createWork, setContinues, planningLedger, removeStep, renameStep, reopenWork, setBlocked, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
+import { acceptWork, addSteps, archiveWork, proposeSteps, projectTags, searchWork, tagWork, closeWork, createWork, setContinues, setParts, planningLedger, removeStep, renameStep, reopenWork, setBlocked, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
 import { git, plan, planningFolder, read, temporary, today, write } from '../testing.ts';
 
 const errorsOf = (root: string) => validatePlanning(root).errors;
@@ -43,6 +43,21 @@ test('a work item is created under the next unused number, registered, and valid
   await assert.rejects(setContinues(root, 'work-0005', [continuing.workId], today), /a loop/);
   await setContinues(root, continuing.workId, [], today);
   assert.ok(read(root, continuing.plan).includes('\ncontinues: []\n'));
+  // Parts: new work with partOf becomes its group's last part; work_parts sets them in order. Groups
+  // are one level deep, a part belongs to one group, and parts are work items of this project.
+  const part = await createWork(root, { title: 'First part', summary: 'A part.', partOf: 'work-0004' }, today);
+  assert.deepEqual([part.partOf, part.changed.at(-1)], ['work-0004', created.plan]);
+  assert.ok(read(root, created.plan).includes(`\nparts: ["${part.workId}"]\n`));
+  assert.deepEqual((await setParts(root, 'work-0004', ['work-0005', part.workId], today)).parts, ['work-0005', part.workId]);
+  assert.deepEqual(errorsOf(root), []);
+  for (const [group, parts, message] of [
+    ['work-0004', ['work-9999'], /names no work item/], ['work-0004', ['work-0004'], /its own part/], ['work-0004', ['work-0005', 'work-0005'], /twice/],
+    ['work-0004', [path.basename(root) + ':work-0005'], /not a work item of this project/], ['work-0001', ['work-0005'], /already a part of work-0004/],
+    ['work-0001', ['work-0004'], /has parts of its own/], ['work-0005', ['work-0001'], /is a part of work-0004/],
+  ] as const) await assert.rejects(setParts(root, group, [...parts], today), message);
+  await assert.rejects(createWork(root, { title: 'Nested', partOf: 'work-0005' }, today), /is a part of work-0004/);
+  await setParts(root, 'work-0004', [], today);
+  assert.ok(read(root, created.plan).includes('\nparts: []\n'));
   // A summary goes into the header under the title; without one, the check asks for it.
   const summarized = await createWork(root, { title: 'Refunds', summary: ' Refunds to the card: "partial" ones too. Not started. ' }, today);
   assert.equal(summarized.summary, 'Refunds to the card: "partial" ones too. Not started.');

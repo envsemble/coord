@@ -5,12 +5,12 @@ import type { Provenance } from '@envsemble/atlas/planning/provenance';
 import type { StatusLook } from '../plan/status';
 import { AbandonedIcon, BlockedIcon, CompleteIcon, DraftIcon, InProgressIcon, NeedsYouIcon, OpenIcon, PausedIcon, SupersededIcon, UnknownIcon } from './icons';
 
-export type Tone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger' | 'done';
+export type Tone = 'neutral' | 'primary' | 'success' | 'warning' | 'danger' | 'done';
 /**
- * GitHub issue colours: work an agent is on is green, work waiting for the person amber, complete
- * work purple, blocked work red; work nobody is on stays neutral.
+ * envUI's tones by meaning: work an agent is on is success, work waiting for the person warning,
+ * complete work done, blocked work danger, started work primary; work nobody is on stays neutral.
  */
-export const statusTones: Record<StatusLook['tone'], Tone> = { open: 'success', started: 'accent', done: 'done', danger: 'danger', attention: 'warning', muted: 'neutral' };
+export const statusTones: Record<StatusLook['tone'], Tone> = { open: 'success', started: 'primary', done: 'done', danger: 'danger', attention: 'warning', muted: 'neutral' };
 
 const statusIcons = {
   working: InProgressIcon, waiting: NeedsYouIcon, blocked: BlockedIcon, paused: PausedIcon, draft: DraftIcon, ready: OpenIcon,
@@ -24,7 +24,7 @@ export function StatusIcon({ status, decorative = false, ...props }: { status: S
 }
 
 export function StatusBadge({ status }: { status: StatusLook }) {
-  return <Badge className="state-label" tone={statusTones[status.tone]} variant="subtle" icon={<StatusIcon status={status} decorative />}>{status.label}</Badge>;
+  return <Badge className="state-label" tone={statusTones[status.tone]} variant="soft" icon={<StatusIcon status={status} decorative />}>{status.label}</Badge>;
 }
 
 export function ProvenanceBadge({ provenance, title }: { provenance: Provenance; title?: string }) {

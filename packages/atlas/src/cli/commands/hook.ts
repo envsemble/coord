@@ -22,6 +22,7 @@ import path from 'node:path';
 import { HomeDatabase, liveWindowMs, projectOf } from '../../home/database.ts';
 import { homePlanningDirectory } from '../../home/home.ts';
 import { atlasHome } from '../../home/homePath.ts';
+import { harnessOfTranscript } from '../../agents/activity.ts';
 import type { Whereabouts } from '../../planning/projects/findProject.ts';
 import type { insertReport } from '../../planning/reports/reports.ts';
 import type { PreparedReport } from '../../planning/reports/recordReport.ts';
@@ -70,8 +71,6 @@ function readLinks(database: HomeDatabase, session: string, transcriptPath: stri
   }));
   return { session, transcriptPath: transcriptPath ?? saved?.transcript_path ?? null, work, on: work.find(item => item.id === saved?.focus) ?? null, focus: saved?.focus ?? null };
 }
-/** The harness a session runs in, as its log's place tells. */
-const harnessOf = (transcriptPath: string | null) => transcriptPath === null ? 'unknown' : /[\\/]\.codex[\\/]/.test(transcriptPath) ? 'codex' : 'claude-code';
 /** Record what the session's agent did at `at`, from a hook that loaded everything else too. */
 const recordState = (database: HomeDatabase, home: string, links: SessionLinks, activity: Activity, at: string, details?: ActivityDetails) => recordActivity(database, home, links.session, links.transcriptPath, activity, at, liveWindowMs, details);
 /**
@@ -351,6 +350,12 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
     const transcriptPath = typeof input.transcript_path === 'string' ? input.transcript_path : null;
     // A subagent's hook (Claude Code names the subagent; the session is its main agent's).
     const agent = typeof input.agent_id === 'string' && sessionPattern.test(input.agent_id) ? input.agent_id : null;
+    // As the user sends a message: the choices they made on pages since the session last heard.
+    if (event === 'PageChoices') {
+      const { pageChoicesNotice } = await import('./pageChoices.ts');
+      const notice = await pageChoicesNotice(input, home, sessionPattern);
+      return notice ? JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: notice } }) : '';
+    }
     if (event === 'SessionStart') {
       pruneStamps(home);
       const { findPlanning } = await import('../../planning/projects/findProject.ts');
@@ -368,7 +373,7 @@ export async function runHook(event: string, text: string, environment: NodeJS.P
       const target = requests.at(-1)!, targetProject = projects.at(-1)!.id;
       const left = links.on && !(links.on.projectRowId === targetProject && links.on.workId === target.workId) ? links.on : null;
       database.transaction(() => {
-        recordSession(database!, session, harnessOf(transcriptPath), transcriptPath, at, typeof input.cwd === 'string' ? input.cwd : null);
+        recordSession(database!, session, harnessOfTranscript(transcriptPath), transcriptPath, at, typeof input.cwd === 'string' ? input.cwd : null);
         const rows = requests.map((request, index) => link(database!, session, projects[index].id, request.workId, request.amending, at));
         const focus = (database!.db.prepare('SELECT focus FROM session WHERE id = ?').get(session) as { focus: number | null }).focus;
         if (focus !== rows.at(-1)) {

@@ -4,11 +4,11 @@ Diagrams are `.puml` files in a work item, in Atlas's subset of PlantUML. Write 
 
 ## When to make one
 
-Make a diagram when the work settles domain concepts, boundaries or data structure and a picture would help the user and you understand it the same way; plain UI or tooling work gets none. When the work changes existing code or a database, capture it and build proposals on the capture, so the diagram starts from the real structure instead of a remembered one.
+Make a diagram when the work settles domain concepts, boundaries or data structure and a picture would help the user and you understand it the same way; plain UI or tooling work gets none. When the work changes existing code or a database, capture it and build proposals on the capture, so the diagram starts from the real structure instead of a remembered one. A major change to a schema or a model's structure (tables or entities added, removed, split or merged, or their relations changed) gets a `before` and an `after` capture even when no diagram was asked for: they record what the work changed.
 
 ## Where it goes
 
-Put diagrams under the work folder's `diagrams/`. Link each from the plan with an ordinary Markdown link under the heading it explains: `[Order model](diagrams/orders.puml)`, or `diagrams/orders.puml#Order` for one element (its PlantUML name, or a class's display name URL-encoded). The rationale goes in the plan, not in the diagram.
+Put diagrams under the work folder's `diagrams/`. Link each from the plan with an ordinary Markdown link in the sentence it explains: `[Order model](diagrams/orders.puml)`, or `diagrams/orders.puml#Order` for one element (its PlantUML name, or a class's display name URL-encoded). The rationale goes in the plan, not in the diagram.
 
 ## Syntax
 
@@ -47,6 +47,7 @@ Order ..> OrderState
 ```
 
 - One diagram per file: a class diagram (`class`, `abstract class`, `interface`, `enum`), an entity diagram (`entity`) or an object diagram (`object`). Never mix kinds.
+- Put elements that belong together in a `package`: Atlas lays each package out as a group, drawn as a region with its name, with room between the groups, as a person would draw them. Without packages it finds the groups from the relations. A diagram of a few elements needs none.
 - Names are identities and unique across packages. Use `class "Display name" as Name` for names with spaces.
 - Attributes `name : Type [0..1]`; operations `name(params) : Type`; visibility `+ - # ~`.
 - Relations between declared elements, spaces around the arrow: `--` association, `-->` navigable, `--|>` inherits (classes from classes, interfaces from interfaces), `..|>` implements an interface, `o--` aggregation and `*--` composition (whole on the left), `..>` dependency. Quoted multiplicities at either end, label after `:`. Inheritance takes neither.
@@ -66,7 +67,7 @@ At the top of the file:
 
 Directly above an element, member or relation: `' atlas evidence {"file": "src/x.ts", "line": 12}` (where it is declared; a `url` starts with `http://` or `https://`) and `' atlas snippet {"language": "typescript", "code": "…"}` (at most twelve lines). Other `' atlas` words are errors; use plain `'` comments for remarks.
 
-Directly above a class, interface, enum, entity, object or member (not a relation): `' atlas description <text>`, one short sentence of what it is for, in plain text on that line (at most 280 characters, no formatting). The viewer shows it in the element's details and as its tooltip, and a proposal that changes it changes the element. Describe what a reader cannot tell from the name, such as each table of a database diagram; skip the obvious. Why it is designed so is rationale and stays in the plan.
+Directly above a class, interface, enum, entity, object or member (not a relation): `' atlas description <text>`, one short sentence of what it is for, in plain text on that line (at most 280 characters, no formatting). The viewer shows it as the element's tooltip, and a proposal that changes it changes the element. Describe what a reader cannot tell from the name, such as each table of a database diagram; skip the obvious. Why it is designed so is rationale and stays in the plan.
 
 ```plantuml
 ' atlas description A tab of a window, showing something of one project.
@@ -98,7 +99,7 @@ atlas capture capture.json --work work-0012 --name before
 atlas capture capture.json --work work-0012 --name after --compares before.puml
 ```
 
-Without `--name` the file is `diagrams/<identity>-<date>.puml`; `--out <file>` writes elsewhere; an existing file needs `--force`. The command prints a JSON summary; exit 1 means the capture failed or was refused (the reason is on stderr). A capture is frozen: never edit it. At the start of implementing a plan that changes captured code or data, capture `before`; at the end capture `after --compares before.puml`.
+Without `--name` the file is `diagrams/<identity>-<date>.puml`; `--out <file>` writes elsewhere; an existing file needs `--force`. The command prints a JSON summary; exit 1 means the capture failed or was refused (the reason is on stderr). A capture is frozen: never edit it. Before work changes a schema or a model's structure in a major way, capture `before`, writing the source configuration first if there is none; when the change is made, capture `after --compares before.puml`. Link the pair from the plan, where it says what changed.
 
 ## Proposals
 

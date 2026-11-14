@@ -36,7 +36,7 @@ const pause = (milliseconds: number) => new Promise(resolve => setTimeout(resolv
 test('on Linux each visible folder gets its own watch; Git objects and dependencies get none', () => {
   const directory = temporary();
   const root = path.join(directory, 'planning');
-  const fake = linuxSystem(root, ['', 'active', 'active/0001-x', '.git', '.git/objects', '.git/objects/ab', '.git/refs', 'node_modules', 'node_modules/x', '.atlas-import-1a2b']);
+  const fake = linuxSystem(root, ['', 'active', 'active/0001-x', '.git', '.git/objects', '.git/objects/ab', '.git/refs', 'node_modules', 'node_modules/x']);
   const watcher = watchFolder(root, { onChange: () => undefined, onError: () => assert.fail('no error expected') }, fake.system);
   try {
     assert.deepEqual(fake.open(), ['', '.git', '.git/refs', 'active', 'active/0001-x']);
@@ -116,7 +116,7 @@ async function waitFor(condition: () => boolean, timeout = 5000) {
 }
 
 test('folders that are never watched (they would exhaust inotify watches on Linux)', () => {
-  for (const ignored of ['.git/objects', '.git/objects/ab', 'node_modules', 'active/x/node_modules/y', '__pycache__', '.atlas-import.lock', '.atlas-import.lock.takeover', '.atlas-import-1b2c', '.\\node_modules', 'knowledge\\node_modules\\x']) assert.ok(ignoredPath(ignored), ignored);
+  for (const ignored of ['.git/objects', '.git/objects/ab', 'node_modules', 'active/x/node_modules/y', '__pycache__', '.\\node_modules', 'knowledge\\node_modules\\x']) assert.ok(ignoredPath(ignored), ignored);
   for (const watched of ['.git', '.git/HEAD', '.git/refs/heads/main', 'active', 'notes/node.md', 'planning.json']) assert.ok(!ignoredPath(watched), watched);
 });
 
@@ -128,8 +128,6 @@ test('only changes that can alter the view count, and bursts coalesce', async ()
   assert.ok(!relevantChange('.git/index'));
   assert.ok(!relevantChange('.git/refs/heads/main.lock'));
   assert.ok(!relevantChange('node_modules/x/index.js'));
-  assert.ok(!relevantChange('.atlas-import.lock'));
-  assert.ok(!relevantChange('.atlas-import-0f3a/plan.md'));
   const batches: string[][] = [];
   const coalescer = createCoalescer(paths => batches.push(paths), 30, 200);
   for (let index = 0; index < 20; index++) coalescer.add('file-' + (index % 3));
@@ -165,6 +163,6 @@ test('in the home, only what the project list shows counts: registries, plans, l
     ['shop/active/0001-cart/diagrams/orders.puml', false], ['shop/active/0001-cart/evidence/plan.md', false], ['shop/.git/HEAD', false], ['shop/.git/index', false],
     ['shop/notes.txt', false], ['shop/notes/planning.json', false], ['diagrams/active/0001-cart/plan.md', true], ['shop/active/evidence/ledger.md', true], ['shop\\active\\0001-cart\\ledger.md', true],
   ] as const) assert.equal(projectListChange(relative), change, String(relative));
-  for (const folder of ['shop/.git', 'shop/.git/objects', 'shop/active/0001/evidence', 'shop/node_modules', 'shop/.atlas-import-1']) assert.ok(ignoredInHome(folder), folder);
+  for (const folder of ['shop/.git', 'shop/.git/objects', 'shop/active/0001/evidence', 'shop/node_modules']) assert.ok(ignoredInHome(folder), folder);
   for (const folder of ['shop', 'shop/active', 'shop/active/0001', 'shop/active/0001/diagrams', 'shop/notes', 'diagrams', 'evidence/active/0001', 'shop/active/diagrams', 'shop/active/evidence', 'shop/notes/diagrams']) assert.ok(!ignoredInHome(folder), folder);
 });

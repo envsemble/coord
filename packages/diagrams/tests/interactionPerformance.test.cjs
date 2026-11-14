@@ -17,7 +17,6 @@ function load(name) {
 }
 const { focusedElements, interactionIndex } = load("canvas/interaction.js");
 const { createHighlightController } = load("canvas/highlight.js");
-const { createInspectionController } = load("viewer/inspection.js");
 const { createZoomStore } = load("viewer/zoomStore.js");
 
 function graph(count = 1000) {
@@ -277,77 +276,6 @@ test("reattaching to cached geometry clears stale focus and selection state", ()
       (el) => !el.classes.has("highlighted") && !el.classes.has("primary"),
     ),
   );
-});
-
-function inspection() {
-  let time = 0,
-    serial = 0;
-  const jobs = new Map();
-  const events = [];
-  const controller = createInspectionController({
-    onHover: (target) => events.push(["hover", target, time]),
-    onPreview: (target) => events.push(["preview", target, time]),
-    schedule(fn, delay) {
-      const id = ++serial;
-      jobs.set(id, { fn, time: time + delay });
-      return id;
-    },
-    cancel(id) {
-      jobs.delete(id);
-    },
-  });
-  const advance = (amount) => {
-    time += amount;
-    for (const [id, job] of [...jobs])
-      if (job.time <= time) {
-        jobs.delete(id);
-        job.fn();
-      }
-  };
-  return { controller, events, jobs, advance };
-}
-
-test("highlight is immediate; only the first hover-only details opening waits, and stale openings cancel", () => {
-  const h = inspection();
-  const a = { kind: "node", id: "A" },
-    b = { kind: "edge", id: "AB" };
-  h.controller.hover(a);
-  assert.deepEqual(h.events, [["hover", a, 0]]);
-  h.advance(50);
-  h.controller.hover(b);
-  assert.equal(h.events.at(-1)[0], "hover");
-  h.advance(50);
-  assert(!h.events.some((e) => e[0] === "preview"));
-  h.advance(50);
-  assert.deepEqual(h.events.at(-1), ["preview", b, 150]);
-  h.controller.hover(a);
-  assert.deepEqual(h.events.at(-1), ["preview", a, 150]);
-  h.controller.hover(null);
-  assert.deepEqual(h.events.at(-1), ["hover", null, 150]);
-  h.controller.keepHover();
-  h.advance(200);
-  assert.deepEqual(h.events.at(-1), ["hover", a, 150]);
-  h.controller.clearHover();
-  assert.equal(h.jobs.size, 0);
-  assert.deepEqual(h.events.at(-1), ["preview", null, 350]);
-});
-
-test("hidden details do no preview work, visible details update immediately, and disposal cancels pending work", () => {
-  const h = inspection();
-  const target = { kind: "node", id: "A" };
-  h.controller.configure({ previewEnabled: false, previewVisible: false });
-  h.controller.hover(target);
-  h.advance(500);
-  assert.equal(h.events.length, 1);
-  assert.equal(h.jobs.size, 0);
-  h.controller.configure({ previewEnabled: true, previewVisible: true });
-  assert.deepEqual(h.events.at(-1), ["preview", target, 500]);
-  h.controller.clearHover();
-  h.controller.configure({ previewEnabled: true, previewVisible: false });
-  h.controller.hover(target);
-  h.controller.dispose();
-  h.advance(500);
-  assert.equal(h.events.at(-1)[0], "hover");
 });
 
 test("zoom readout subscriptions deduplicate values and stop after unmount", () => {

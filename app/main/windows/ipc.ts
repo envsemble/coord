@@ -2,19 +2,19 @@
 // calls with the wrong number or shape of arguments, from a subframe, or from a page that is not
 // the Atlas renderer are rejected. Results and errors cross back as structured values. Requests
 // about a project go to the host of the window's computer, this one or a paired one.
-import { createReadStream } from 'node:fs';
-import { lstat, realpath, stat, writeFile } from 'node:fs/promises';
+import { lstat, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { Readable } from 'node:stream';
 import QRCode from 'qrcode';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell, type IpcMainInvokeEvent } from 'electron';
 import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atlas/host';
 import { resolveDocument } from '@envsemble/atlas/planning';
 import { accessSettings, deviceText } from '@envsemble/atlas/host/validate';
-import { defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AccessSettings, type Editor, type ImportPreview, type InvokeChannel, type LoadedUi, type PairingGrant, type Project, type PairingLinkView, type Place, type ProjectPlace, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
-import { argumentsOf, array, boolean, command, diagramPath, editor, folderPath, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, place, projectId, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, token, uiState, url, workId, type Validator } from '../../shared/validate.ts';
+import { agentNames, defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AgentId, type AccessSettings, type InvokeChannel, type LoadedUi, type PairingGrant, type Project, type PairingLinkView, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
+import { agentId, argumentsOf, array, boolean, command, diagramPath, diagramPositions, fileContent, folderPath, pagePath, toolInput, toolName, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectId, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, uiState, url, workId, type Validator } from '../../shared/validate.ts';
 import { AtlasError, toErrorValue } from '../errors.ts';
 import type { ProjectView } from '../computers/projectView.ts';
+import type { Agents } from '../agent/agents.ts';
+import { programFilters } from '../agent/programs.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
 import { placeRow, savedPlace } from '../appState.ts';
 import { externalUrl, type AtlasWindow } from './window.ts';
@@ -33,16 +33,6 @@ const grant: Validator<PairingGrant> = object<PairingGrant>({ label: nullable(de
 const folders = array(folderPath, limits.folders);
 const searchQuery = string({ min: 1, max: 200 });
 const projectChange = object<ProjectChangeRequest>({ name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), folders: optional(folders) });
-
-/** Import previews belong to the window that chose the file. */
-const pendingImports = new Map<string, { window: number; view: ProjectView }>();
-export async function dropImports(matches: (entry: { window: number; view: ProjectView }, key: string) => boolean) {
-  for (const [key, entry] of [...pendingImports]) {
-    if (!matches(entry, key)) continue;
-    pendingImports.delete(key);
-    await entry.view.request('plan.importDrop', { token: key }).catch(() => undefined);
-  }
-}
 
 /** Reveal a file or folder inside a project's folder on this computer (never outside it, never hidden parts). */
 async function revealInside(window: AtlasWindow, projectId: string, relative: string) {
@@ -65,23 +55,10 @@ function thisComputer(window: AtlasWindow, what: string) {
   if (window.computer !== null) throw new AtlasError('forbidden', what + ' of a project on another computer cannot be opened here.');
 }
 
-/**
- * Open a file or folder on this computer in the chosen editor, at its line, after asking (`what`:
- * "this file") unless the person opens what the window shows themselves (`ask` false). With the
- * system's application chosen it is only shown in its folder: opening it would run a script or a
- * program a plan names.
- */
-async function openInEditor(manager: WindowManager, window: AtlasWindow, what: string, file: string, line: number | null, ask = true) {
-  const choice: Editor = manager.context.state.editor;
-  const link = editorLink(choice, file, line);
-  const detail = file + (line ? ':' + line : '');
-  if (!link) {
-    if (ask) await confirmed(window, 'Show ' + what + ' in its folder?', 'Show', detail);
-    shell.showItemInFolder(file);
-    return;
-  }
-  if (ask) await confirmed(window, 'Open ' + what + ' in your editor?', 'Open', detail);
-  await shell.openExternal(link);
+/** Open a file on this computer in VS Code, at its line, after asking (`what`: "this file"). */
+async function openInEditor(window: AtlasWindow, what: string, file: string, line: number | null) {
+  await confirmed(window, 'Open ' + what + ' in VS Code?', 'Open', file + (line ? ':' + line : ''));
+  await shell.openExternal(editorLink(file, line));
 }
 
 /** Whether a path is a folder or inside it (both real paths): the way there starts with no `..` segment (a folder named `..cache` is inside). */
@@ -91,7 +68,7 @@ const within = (folder: string, candidate: string) => {
 };
 
 /** Open the file a path reference names, as the host resolves it in the project's folders: never a path the page names itself. */
-async function openReference(manager: WindowManager, window: AtlasWindow, projectId: string, reference: ReferenceInput) {
+async function openReference(window: AtlasWindow, projectId: string, reference: ReferenceInput) {
   thisComputer(window, 'Files');
   if (reference.kind !== 'path') throw new AtlasError('invalid-argument', 'Only a file reference opens in the editor.');
   const view = await window.readable(projectId);
@@ -105,46 +82,9 @@ async function openReference(manager: WindowManager, window: AtlasWindow, projec
   const listed = (await window.projects()).find(entry => entry.id === projectId);
   const folders = (await Promise.all([...listed?.folders ?? [], ...listed ? [listed.path] : []].map(folder => realpath(folder).catch(() => null)))).filter((folder): folder is string => folder !== null);
   if (!real || !folders.some(folder => within(folder, real)) || !(await stat(real)).isFile()) throw missing();
-  await openInEditor(manager, window, 'this file', real, file.line);
+  await openInEditor(window, 'this file', real, file.line);
 }
 
-/**
- * Open in: the file the window shows (`place`, which must be the place the page last saved as the
- * one it shows) in the editor, without asking, as the person opens it themselves. The file must be of
- * that place (the file itself, or a file of the plan shown) and is resolved inside the project's
- * folder (never a link out of it, never a hidden part). A file a page's content names opens through
- * openReference, which asks.
- */
-async function openShown(manager: WindowManager, window: AtlasWindow, shown: Place, relative: string) {
-  thisComputer(window, 'Files');
-  const refused = () => new AtlasError('forbidden', 'Only the file the window shows opens this way.');
-  if ('page' in shown || !window.shown || 'page' in window.shown || !sameShown(shown, window.shown)) throw refused();
-  const { projectId, target } = shown;
-  const view = await window.readable(projectId);
-  if (target.kind === 'file' ? target.path !== relative : !(await view.request('project.work', { projectId })).some(work => work.id === target.work && relative.startsWith(work.path + '/'))) throw refused();
-  const root = (await window.projects()).find(entry => entry.id === projectId)?.path;
-  if (!root) throw new AtlasError('not-found', 'This project is not on this computer.');
-  const real = await resolveDocument(root, relative).catch(() => { throw new AtlasError('forbidden', 'Only files inside the project\'s folder open in the editor.'); });
-  await openInEditor(manager, window, 'this file', real, null, false);
-}
-/** Whether two places of a project show the same thing (where in it aside). */
-function sameShown(a: ProjectPlace, b: ProjectPlace) {
-  const key = ({ projectId, target }: ProjectPlace) => JSON.stringify([projectId, target.kind, 'work' in target ? target.work : null, 'path' in target ? target.path : null]);
-  return key(a) === key(b);
-}
-
-/** Send a plan export on this computer to another computer's host, for its preview there. */
-async function sendImport(view: ProjectView, file: string) {
-  const size = (await stat(file)).size;
-  const stream = createReadStream(file);
-  let response: Response;
-  // The file stays open only while it is sent (or until sending fails, the other computer being offline).
-  try { response = await view.client.fetch(`/api/projects/${view.projectId}/imports`, 3600000, { method: 'POST', body: Readable.toWeb(stream) as ReadableStream<Uint8Array>, length: size }); }
-  finally { stream.destroy(); }
-  const value = await response.json().catch(() => null) as (Omit<ImportPreview, 'file' | 'warnings'> & { code?: string; message?: string }) | null;
-  if (!response.ok || !value || typeof value.token !== 'string') throw new AtlasError('invalid-argument', value?.message ?? 'The plan could not be sent to ' + (view.remote?.hostName ?? 'the other computer') + ' (HTTP ' + response.status + ').');
-  return value;
-}
 
 /** A command a page could misuse runs after a person's press, or once they confirm it. */
 async function confirmed(window: AtlasWindow, message: string, action: string, detail?: string) {
@@ -176,10 +116,9 @@ async function loadUi(manager: WindowManager, window: AtlasWindow): Promise<Load
   const saved = state.places(window.rowId, computerId).find(row => row.active);
   const shownProject = saved ? window.projectIdOfRow(saved.projectRowId) : null;
   const place = saved && shownProject ? savedPlace(shownProject, saved) : null;
-  const inspectorWidth = state.inspectorWidth;
   // The window starts from this listing rather than asking for its own.
   const projects = listed as Project[] | null;
-  return { place: place ?? defaultUiState.place, ...inspectorWidth !== null && { inspectorWidth }, ...saved && !shownProject && { pending: true }, ...projects && { projects } };
+  return { place: place ?? defaultUiState.place, ...saved && !shownProject && { pending: true }, ...projects && { projects } };
 }
 /** Each window's saves, applied one after another in the order they came. */
 const saving = new WeakMap<AtlasWindow, Promise<void>>();
@@ -192,7 +131,6 @@ function queueSave(manager: WindowManager, window: AtlasWindow, ui: UiState) {
 async function saveUi(manager: WindowManager, window: AtlasWindow, ui: UiState) {
   const { state, computers } = manager.context;
   const computer = window.computer;
-  state.setInspectorWidth(ui.inspectorWidth ?? null);
   const row = placeRow(ui.place);
   const projectRowId = row ? window.listedRow(row.projectId) : null;
   const rows = row && projectRowId !== null ? [{ projectRowId, kind: row.kind, target: row.target, active: true }] : [];
@@ -202,7 +140,10 @@ async function saveUi(manager: WindowManager, window: AtlasWindow, ui: UiState) 
   if (window.computer === computer) state.savePlaces(window.rowId, computer === null ? null : computers.idOf(computer), rows, [...window.placesLoaded]);
 }
 
-function channels(manager: WindowManager, actions: { openLogs(): void; about(): AboutInfo }): Record<InvokeChannel, Channel> {
+/** What the message handlers need from the app beyond the windows. */
+export interface IpcActions { openLogs(): void; about(): AboutInfo; agents: Agents }
+
+function channels(manager: WindowManager, actions: IpcActions): Record<InvokeChannel, Channel> {
   const { computers } = manager.context;
   const owner = (): HostClient => computers.local;
   return {
@@ -237,8 +178,15 @@ function channels(manager: WindowManager, actions: { openLogs(): void; about(): 
     'project:document': { args: [projectId, relativePath], handle: async (window, projectId: string, file: string) => (await window.readable(projectId)).request('project.document', { projectId, path: file }) },
     'project:diagrams': { args: [projectId, workId], handle: async (window, projectId: string, work: string) => (await window.readable(projectId)).request('project.diagrams', { projectId, work }) },
     'project:diagram': { args: [projectId, workId, diagramPath], handle: async (window, projectId: string, work: string, file: string) => (await window.readable(projectId)).request('project.diagram', { projectId, work, path: file }) },
+    'project:arrangement': { args: [projectId, workId, diagramPath], handle: async (window, projectId: string, work: string, file: string) => (await window.readable(projectId)).request('project.arrangement', { projectId, work, path: file }) },
+    'project:arrange': { args: [projectId, workId, diagramPath, nullable(diagramPositions)], handle: async (window, projectId: string, work: string, file: string, positions: Record<string, [number, number]> | null) => remoteErrors((await window.readable(projectId)).request('project.arrange', { projectId, work, path: file, positions })) },
     'project:references': { args: [projectId, nullable(workId), relativePath], handle: async (window, projectId: string, work: string | null, file: string) => (await window.readable(projectId)).request('project.references', { projectId, work, path: file }) },
     'project:diagramIndex': { args: [projectId], handle: async (window, projectId: string) => (await window.readable(projectId)).request('project.diagramIndex', { projectId }) },
+    // A page: its build, the files it writes and the Atlas tools it calls, on the project's computer.
+    'project:page': { args: [projectId, pagePath], handle: async (window, projectId: string, folder: string) => remoteErrors((await window.readable(projectId)).request('project.page', { projectId, path: folder }, { timeout: 60000 })) },
+    'project:readText': { args: [projectId, relativePath], handle: async (window, projectId: string, file: string) => remoteErrors((await window.readable(projectId)).request('project.readText', { projectId, path: file })) },
+    'project:write': { args: [projectId, relativePath, fileContent], handle: async (window, projectId: string, file: string, content: string) => remoteErrors((await window.readable(projectId)).request('project.write', { projectId, path: file, content })) },
+    'project:tool': { args: [projectId, toolName, toolInput], handle: async (window, projectId: string, name: string, input: Record<string, unknown>) => remoteErrors((await window.readable(projectId)).request('project.tool', { projectId, name, input }, { timeout: 60000 })) },
     // What a planning file references, a work item's sessions and its time, from the project's computer.
     'references:resolve': { args: [projectId, referenceInputs], handle: async (window, projectId: string, items: ReferenceInput[]) => remoteErrors((await window.readable(projectId)).request('references.resolve', { projectId, items }, { timeout: 30000 })) },
     'work:sessions': { args: [projectId, workId], handle: async (window, projectId: string, work: string) => remoteErrors((await window.readable(projectId)).request('work.sessions', { projectId, work })) },
@@ -248,7 +196,7 @@ function channels(manager: WindowManager, actions: { openLogs(): void; about(): 
     // All plans: the projects this window's computer has active, as the app keeps them.
     'projects:statistics': { args: [nullable(isoTime), nullable(isoTime), statisticsUnit], handle: async (window, from: string | null, to: string | null, unit: 'day' | 'week') => remoteErrors(window.client().request('projects.statistics', { projectIds: [...await window.activeProjects()], from, to, unit }, { timeout: 30000 })) },
     'ui:load': { args: [], handle: window => loadUi(manager, window) },
-    'ui:save': { args: [uiState], handle: (window, state: UiState) => { window.shown = state.place; return queueSave(manager, window, state); } },
+    'ui:save': { args: [uiState], handle: (window, state: UiState) => queueSave(manager, window, state) },
     'shell:reveal': { args: [projectId, relativePath], handle: (window, projectId: string, file: string) => revealInside(window, projectId, file) },
     'shell:openExternal': {
       args: [url],
@@ -262,15 +210,11 @@ function channels(manager: WindowManager, actions: { openLogs(): void; about(): 
         await shell.openExternal(external ?? application!);
       },
     },
-    'shell:openReference': { args: [projectId, referenceInput], handle: (window, projectId: string, reference: ReferenceInput) => openReference(manager, window, projectId, reference) },
-    'shell:openShown': { args: [place, relativePath], handle: (window, shown: Place, file: string) => openShown(manager, window, shown, file) },
+    'shell:openReference': { args: [projectId, referenceInput], handle: (window, projectId: string, reference: ReferenceInput) => openReference(window, projectId, reference) },
     'shell:copy': { args: [string({ min: 1, max: 10000 })], handle: (_window, text: string) => { clipboard.writeText(text); } },
     'app:theme': { args: [], handle: () => manager.context.state.theme },
     // Every window follows the native theme through prefers-color-scheme, so one change reaches them all.
     'app:setTheme': { args: [themePreference], handle: (_window, preference: ThemePreference) => { manager.context.state.setTheme(preference); nativeTheme.themeSource = preference; } },
-    // The editor is one of a fixed list (each opened through its own link), so choosing one runs nothing.
-    'app:editor': { args: [], handle: () => manager.context.state.editor },
-    'app:setEditor': { args: [editor], handle: (_window, choice: Editor) => { manager.context.state.setEditor(choice); } },
     // About Atlas, which the window shows: versions and the data folder, nothing a page could misuse.
     'app:about': { args: [], handle: () => actions.about() },
     'app:command': {
@@ -293,83 +237,12 @@ function channels(manager: WindowManager, actions: { openLogs(): void; about(): 
         }
       },
     },
-    'plan:export': {
-      args: [projectId, workId],
-      handle: async (window, projectId: string, work: string) => {
-        const view = await window.readable(projectId);
-        const prepared = await view.request('plan.exportPrepare', { projectId: view.projectId, work });
-        try {
-          if (prepared.warnings.length) {
-            const { response } = await window.oneDialog(() => dialog.showMessageBox(window.win, { type: 'warning', title: 'Export plan', message: 'Export this plan anyway?', detail: prepared.warnings.join('\n'), buttons: ['Export', 'Cancel'], defaultId: 0, cancelId: 1 }));
-            if (response !== 0) return null;
-          }
-          const choice = await window.oneDialog(() => dialog.showSaveDialog(window.win, {
-            title: 'Export plan', buttonLabel: 'Export',
-            defaultPath: path.join(app.getPath('documents'), prepared.fileName),
-            filters: [{ name: 'Atlas plan export', extensions: ['html'] }],
-          }));
-          if (choice.canceled || !choice.filePath) return null;
-          const download = await view.client.fetch('/api/exports/' + prepared.token, 300000);
-          if (!download.ok) throw new AtlasError('unavailable', 'The export could not be downloaded from ' + (view.remote?.hostName ?? 'the host') + '. Export the plan again.');
-          const bytes = Buffer.from(await download.arrayBuffer());
-          await writeFile(choice.filePath, bytes);
-          manager.context.log.info('Plan exported', { work, bytes: bytes.length, remote: Boolean(view.remote) });
-          return { path: choice.filePath, bytes: bytes.length, warnings: prepared.warnings };
-        } finally {
-          await view.request('plan.exportDrop', { token: prepared.token }).catch(() => undefined);
-        }
-      },
-    },
-    'plan:importChoose': {
-      args: [projectId],
-      handle: async (window, projectId: string) => {
-        const view = await window.readable(projectId);
-        const choice = await window.oneDialog(() => dialog.showOpenDialog(window.win, { title: 'Import plan', buttonLabel: 'Preview', properties: ['openFile'], filters: [{ name: 'Atlas plan export', extensions: ['html'] }] }));
-        if (choice.canceled || !choice.filePaths[0]) return null;
-        const file = choice.filePaths[0];
-        let read;
-        // A folder on another computer gets the file sent to it; this computer's host reads it in place.
-        try { read = view.remote ? await sendImport(view, file) : await view.request('plan.importRead', { projectId: view.projectId, file }); } catch (error) {
-          // A file that is not a valid export, or a folder it cannot go into, is refused before anything is written.
-          if (window.win.isDestroyed()) throw new AtlasError('cancelled', (error as Error).message);
-          await dialog.showMessageBox(window.win, { type: 'error', title: 'Import plan', message: 'This file cannot be imported.', detail: (error as Error).message + '\n\nNothing was written.', buttons: ['OK'] });
-          // Already explained in the dialog; the window does not repeat it.
-          throw new AtlasError('cancelled', (error as Error).message);
-        }
-        if (window.win.isDestroyed()) { await view.request('plan.importDrop', { token: read.token }).catch(() => undefined); return null; }
-        // One preview per window: a newer one replaces (and releases) the window's previous one.
-        await dropImports(entry => entry.window === window.id);
-        pendingImports.set(read.token, { window: window.id, view });
-        const preview: ImportPreview = { ...read, file: path.basename(file), warnings: [] };
-        return preview;
-      },
-    },
-    'plan:importConfirm': {
-      args: [token],
-      handle: async (window, key: string) => {
-        const pending = pendingImports.get(key);
-        if (!pending || pending.window !== window.id || window.views.get(pending.view.projectId) !== pending.view) throw new AtlasError('invalid-argument', 'This import preview expired. Choose the file again.');
-        const view = pending.view;
-        pendingImports.delete(key);
-        // The explicit user action that writes into the planning folder; nothing is committed.
-        try { return await view.request('plan.importConfirm', { projectId: view.projectId, token: key }, { timeout: 600000 }); }
-        catch (error) {
-          if (/rolled back/i.test((error as Error).message)) await dialog.showMessageBox(window.win, { type: 'error', title: 'Import plan', message: 'The import was rolled back.', detail: (error as Error).message, buttons: ['OK'] });
-          throw error;
-        }
-      },
-    },
-    'plan:importCancel': {
-      args: [token],
-      handle: async (window, key: string) => { await dropImports((entry, entryKey) => entryKey === key && entry.window === window.id); },
-    },
     'computers:list': { args: [], handle: () => computers.computers() },
     'computers:switch': {
       args: [computer, boolean],
       handle: async (window, id: string | null, newWindow: boolean) => {
         if (id !== null && !computers.has(id)) throw new AtlasError('not-found', 'This computer is not paired. Connect to it again.');
         if (newWindow) await confirmed(window, 'Open that computer in a new window?', 'Open');
-        void dropImports(entry => entry.window === window.id);
         manager.switchComputer(window, id, newWindow);
       },
     },
@@ -415,6 +288,26 @@ function channels(manager: WindowManager, actions: { openLogs(): void; about(): 
     'access:pairingRevoke': { args: [computer, pairingCode], handle: (_window, id: string | null, code: string) => remoteErrors(computers.use(id, client => client.request('access.pairingRevoke', { code }))) },
     'access:devices': { args: [computer], handle: (_window, id: string | null) => remoteErrors(computers.use(id, client => client.request('access.devices', {}))) },
     'access:deviceRevoke': { args: [computer, deviceId], handle: (_window, id: string | null, device: string) => remoteErrors(computers.use(id, client => client.request('access.deviceRevoke', { deviceId: device }))) },
+    // The agents of this computer, whatever computer the window shows. Connecting installs Atlas's
+    // own plugin, which the app carries, and reaches no one else, so it needs no question.
+    'agents:list': { args: [], handle: () => actions.agents.list() },
+    'agents:checks': { args: [], handle: () => actions.agents.checks() },
+    'agents:connect': { args: [agentId], handle: (_window, id: AgentId) => actions.agents.connect(id) },
+    'agents:disconnect': { args: [agentId], handle: (_window, id: AgentId) => actions.agents.disconnect(id) },
+    // An agent's program is a file chosen here, in main's own dialog: a window names only the agent,
+    // never a path to run.
+    'agents:chooseProgram': {
+      args: [agentId],
+      handle: async (window, id: AgentId) => {
+        const choice = await window.oneDialog(() => dialog.showOpenDialog(window.win, { title: `Choose the ${agentNames[id]} program`, buttonLabel: 'Choose', properties: ['openFile'], filters: programFilters(id) }));
+        const program = choice.canceled ? undefined : choice.filePaths[0];
+        return program ? actions.agents.setProgram(id, program) : null;
+      },
+    },
+    'agents:clearProgram': { args: [agentId], handle: (_window, id: AgentId) => actions.agents.clearProgram(id) },
+    'agents:byHand': { args: [], handle: () => actions.agents.byHand() },
+    'onboarding:state': { args: [], handle: () => actions.agents.onboarding() },
+    'onboarding:finish': { args: [], handle: () => actions.agents.finishOnboarding() },
   };
 }
 
@@ -437,7 +330,7 @@ function trustedSender(event: IpcMainInvokeEvent, manager: WindowManager): Atlas
   return expected !== null && originOf(frame.url) === expected ? window : null;
 }
 
-export function registerIpc(manager: WindowManager, actions: { openLogs(): void; about(): AboutInfo }) {
+export function registerIpc(manager: WindowManager, actions: IpcActions) {
   const table = channels(manager, actions);
   for (const name of invokeChannels) {
     const channel = table[name];

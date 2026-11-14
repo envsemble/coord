@@ -10,7 +10,7 @@
 
 **Atlas is where your coding agents' plans live.** When you design something with an agent, the plan, its steps, the decisions behind it and the diagrams that explain it are written into a planning folder on your computer instead of disappearing with the chat. Every agent session that works in your project finds them again, keeps them current as it works, and you follow all of it in one desktop app.
 
-![The Atlas hub on the computer Workstation: seven open plans of the projects Northwind, Platform and Field app, grouped as Working (one plan an agent is on now, with its model, agent time and tokens), Blocked with their reasons, Paused and Drafts, each with its project, steps done and when it changed](assets/hub.png)
+![The Atlas hub on the computer Workstation: three open plans of the project Northwind, grouped as Blocked (Customer order notifications, with why it is blocked), Paused (Saved payment methods, with the step now worked on, Claude Opus 5.5 and two other models, its agent time and tokens) and Drafts (Order fulfilment model), each with its project, steps done and when it changed; the title bar holds Plans, File, View and Help and the computer menu, and the heading line the search, the project menu and the Open, Closed and All filter](assets/hub.png)
 
 ## Why bother
 
@@ -31,7 +31,7 @@ Atlas fixes that without changing how you work with your agent:
 2. **Implement.** Say "atlas implement". The agent starts the accepted plan with its steps, marks each one as it goes, reviews its work, and delivers it the way the plan says: commits, a branch, or a pull request that passes CI. When the work looks finished, it asks you before closing it.
 3. **Follow along.** Atlas shows the plan with its summary, its steps and what is left, the diagrams under the headings they explain, the sessions that worked on it, and what it cost.
 
-![A plan in Atlas: Saved payment methods, Working, with its outcome and scope; beside it its progress (planning steps done in their own colour, the step being worked on, the steps left), the work it continues, the session working on it and its statistics by model; and its files](assets/plan.png)
+![A plan in Atlas: Saved payment methods, #0001 of Northwind, under the breadcrumb Plans › Northwind › #0001, Paused with 2 of 7 steps; its Outcome and Scope, and a diagram card, Checkout · captured TypeScript, Generated from code, with its elements, under the heading Current checkout. At the left the plan's files with the work folder, plan.md marked; at the right the side column: Progress (2 of 7 steps done, 5 left, the step in progress), Continues #0004 Inventory reservations at checkout, the steps, and Statistics (Claude Opus 5.5 with Claude Sonnet 4.5 and Claude Haiku 5.5, 4 h 8 min of agent time, 13.8M tokens); Search in the title bar](assets/plan.png)
 
 Atlas works with **Claude Code** and **Codex** through its plugin: tools for the planning state, three skills (`atlas`, `atlas-grill` and `atlas-implement`), and hooks that check every planning edit and measure the session as it works. You never have to tell the agent to update its plan or report its time.
 
@@ -51,21 +51,13 @@ Atlas works with **Claude Code** and **Codex** through its plugin: tools for the
 
 ## Get started
 
-Atlas runs on **Windows** and **Linux** and needs **Node 24**, npm and Git.
+Atlas runs on **Windows** and **Linux**, with **Claude Code** or **Codex**.
 
-1. **Install the `atlas` command** from a clone and set Atlas up for your agents. The clone needs a token for Envsemble's private envUI package; [CONTRIBUTING](CONTRIBUTING.md#set-up-and-run) shows how.
+1. **Install the app**: the Windows installer or the Linux AppImage from a [GitHub Release](https://github.com/envsemble/atlas/releases). See [installing the app](app/README.md#install). The app brings everything else: the `atlas` command, which it puts on your PATH, and the Atlas plugin for your agents.
+2. **Connect your agents.** On its first start, Atlas asks which of Claude Code and Codex to connect and installs its plugin into them; **Settings › Agents** does it later.
+3. **Start planning.** Open a new agent session in one of your repositories and ask "What is Atlas and how do I use it?", or describe what you want to build. The agent creates a project for the folder when you plan there.
 
-   ```sh
-   npm ci
-   npm link --workspace @envsemble/atlas
-   atlas setup
-   ```
-
-   `atlas setup` creates the Atlas home (`~/.atlas`) and installs the Atlas plugin into Claude Code and Codex. Start a new agent session afterwards.
-
-2. **Install the app**: the Windows installer or the Linux AppImage from a [GitHub Release](https://github.com/envsemble/atlas/releases), or `npm run package` in the clone. See [installing the app](app/README.md#install).
-3. **Create a project** on the app's **Projects** page: give it a name and the folders where you work on it, such as your repositories. Or just ask your agent to create one.
-4. **Start planning.** Open an agent session in one of the project's folders and describe what you want to build.
+To work on Atlas itself, or to run the command from a checkout instead, see [the atlas command](docs/command.md#install) and [CONTRIBUTING](CONTRIBUTING.md#set-up-and-run).
 
 ## Learn more
 
@@ -73,7 +65,7 @@ Atlas runs on **Windows** and **Linux** and needs **Node 24**, npm and Git.
 - [Agent interface](docs/agent-interface.md): the plugin, its tools, skills and hooks.
 - [Progress and statistics](docs/progress-and-statistics.md): steps, and what Atlas measures and how.
 - [Diagrams](docs/diagrams.md): the PlantUML subset, captures, proposals and comparisons.
-- [Remote access](docs/remote-access.md) and [plan export](docs/plan-export.md).
+- [Remote access](docs/remote-access.md): work on another computer's projects.
 - [The atlas command](docs/command.md) and [all documentation](docs/README.md).
 - [Contributing](CONTRIBUTING.md), the [changelog](CHANGELOG.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
 

@@ -254,25 +254,11 @@ export function UMLRelationLabels({
                 fill="var(--diagram-label,#1f2328)"
                 fontSize="13"
               >
-                {label.text.split("\n").map((line, i, lines) => {
-                  // The «stereotype» line, alone or above the name, is
-                  // smaller and muted.
-                  const stereotype =
-                    i === 0 && (lines.length > 1 || /^«.*»$/.test(line));
-                  return (
-                    <tspan
-                      key={i}
-                      x={label.width / 2}
-                      y={17 + i * 17}
-                      fontSize={stereotype ? "11.5" : undefined}
-                      fill={
-                        stereotype ? "var(--diagram-muted,#59636e)" : undefined
-                      }
-                    >
-                      {line}
-                    </tspan>
-                  );
-                })}
+                {label.text.split("\n").map((line, i) => (
+                  <tspan key={i} x={label.width / 2} y={17 + i * 17}>
+                    {line}
+                  </tspan>
+                ))}
               </text>
             </>
           )}

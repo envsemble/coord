@@ -30,7 +30,7 @@ export function useOverlayInsets(viewerRef, topRef) {
       const edge = (selector) =>
         viewer.querySelector(selector)?.getBoundingClientRect();
       const top = edge(":scope > .atlas-overlay-top");
-      const inspector = edge(":scope > .inspector.open");
+      const inspector = edge(":scope > .side-panel.open");
       return {
         top: top ? Math.max(0, top.bottom - box.top) : 0,
         bottom: 0,
