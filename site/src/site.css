@@ -40,7 +40,7 @@ main {
 }
 
 /* Everything above the screenshot, in one column with one left edge. */
-.intro { width: min(100%, 42rem); }
+.intro { width: min(100%, 34.75rem); }
 
 h1 {
   margin: 0;
@@ -179,7 +179,7 @@ h1 {
   box-shadow: 0 0 0 1px #000;
 }
 
-.nightly { width: min(100%, 42rem); margin-top: 4rem; }
+.nightly { width: min(100%, 34.75rem); margin-top: 4rem; }
 .nightly h2 { margin: 0; font-size: 1.375rem; font-weight: 600; }
 .nightly > p:first-of-type { margin: 0.5rem 0 0; color: var(--muted); line-height: 1.6; }
 .nightly .downloads { margin-top: 1.25rem; }
