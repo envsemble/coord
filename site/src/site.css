@@ -95,8 +95,11 @@ h1 {
   pointer-events: none;
   z-index: 10;
 }
-@media (hover: none) { .peek { display: none; } }
-.features li { cursor: default; }
+@media (hover: none) { .peek, .peek-hint { display: none; } }
+.features li { cursor: zoom-in; }
+/* After each feature, a faint image mark: hovering shows its screenshot. */
+.peek-hint { display: inline-block; width: 0.95em; height: 0.95em; margin-left: 0.45em; vertical-align: -0.15em; color: var(--muted); opacity: 0.45; transition: opacity 120ms; }
+.features li:hover .peek-hint { opacity: 1; }
 
 /* The plan's own inline parts, in the app's dark colours: agents with their marks, state badges,
    and links to a diagram (purple) or a page (teal). Badges and links are inline blocks, so their

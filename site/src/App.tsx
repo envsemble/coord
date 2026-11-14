@@ -9,7 +9,7 @@ import diagrams from './shots/diagrams.png';
 import grill from './shots/grill.png';
 import statistics from './shots/statistics.png';
 import { linuxPath } from './linuxPath.ts';
-import { acceptedPath, claudePath, codexPath, diagramPath, draftPath, pagePath, yourTurnPath } from './marks.ts';
+import { acceptedPath, claudePath, codexPath, diagramPath, draftPath, imagePath, pagePath, yourTurnPath } from './marks.ts';
 import { fetchBuilds, releasesPage, sourcePage, visitorPlatform, type Build, type Channel, type Platform } from './releases.ts';
 
 type Builds = Record<Channel, Build | null> | 'loading' | 'failed';
@@ -60,8 +60,8 @@ export function App() {
 }
 
 /** A Material Symbol from envUI, on its 960-unit grid. */
-function Symbol({ path }: { path: string }) {
-  return <svg className="symbol" viewBox="0 -960 960 960" aria-hidden="true"><path fill="currentColor" d={path} /></svg>;
+function Symbol({ path, className = 'symbol' }: { path: string; className?: string }) {
+  return <svg className={className} viewBox="0 -960 960 960" aria-hidden="true"><path fill="currentColor" d={path} /></svg>;
 }
 /** An agent by its name, with its maker's mark, as the app shows a model. */
 function Agent({ name, path, kind }: { name: string; path: string; kind: 'claude' | 'codex' }) {
@@ -84,7 +84,7 @@ const features: { key: string; text: ReactNode; shot: string; alt: string }[] = 
   { key: 'attention', text: <>Shows which plans are <State kind="turn">Your turn</State></>, shot: attention, alt: 'The hub: Your turn first, saying what to do, then Waiting and Later.' },
 ];
 
-/** The features; with a mouse, each one's screenshot follows the cursor while it is hovered. */
+/** The features; with a mouse, each one's screenshot follows the cursor while it is hovered, as the image mark after each one says. */
 function Features() {
   const [peek, setPeek] = useState<{ index: number; x: number; y: number } | null>(null);
   // Load the screenshots up front, so the first hover shows at once.
@@ -98,7 +98,7 @@ function Features() {
   };
   return <>
     <ul className="features">
-      {features.map((feature, index) => <li key={feature.key} onMouseMove={follow(index)} onMouseLeave={() => setPeek(null)}>{feature.text}</li>)}
+      {features.map((feature, index) => <li key={feature.key} onMouseMove={follow(index)} onMouseLeave={() => setPeek(null)}>{feature.text}<Symbol path={imagePath} className="peek-hint" /></li>)}
     </ul>
     {peek && <img className="peek" src={features[peek.index]!.shot} alt={features[peek.index]!.alt} width={2184} height={1364}
       style={{ transform: `translate(${peek.x}px, ${peek.y}px)` }} />}
