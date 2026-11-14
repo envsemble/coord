@@ -29,7 +29,7 @@ steps:
 ---
 ```
 
-Each step is `todo`, `doing` or `done`; a planning step has `phase: planning`, and a step without a phase is an implementation step. Progress counts all of them. The agent changes them through the `step` tool (actions `set`, `add`, `rename` and `remove`) when a step starts or finishes and at handoff, and sets `blocked` with `work_block`; `work_close` refuses while any step is open or the work is blocked. The ledger has no body except, during implementation, a short `## Final review` list of the minor findings deferred to the final review.
+Each step is `todo`, `doing` or `done`; a planning step has `phase: planning`, and a step without a phase is an implementation step. Progress counts all of them. The agent changes them through the `step` tool (actions `set`, `add`, `rename` and `remove`) when a step starts or finishes and at handoff, and sets `blocked` with `state` (`blocked`, with why); `work_close` refuses while any step is open or the work is blocked. The ledger has no body except, during implementation, a short `## Final review` list of the minor findings deferred to the final review.
 
 In the app:
 
@@ -93,4 +93,4 @@ A plan's sessions come from the home database: each session linked to it, with i
 
 ### What agents do now
 
-The hooks also record what each linked session does: working while its agent is in a turn; waiting for you once it asks: a permission prompt, or the agent's `needs_you` call before its turn ends; and idle when its turn ends without asking, as an agent waiting on CI or a background task (see [hooks](agent-interface.md#hooks)). An idle session keeps its plan **Working**, its agent time stopped. A plan is **Working** while a session on it works, or any of its subagents does (a main agent that ended its turn while its background subagents run is not waiting for you yet), and **Needs you** while one waits; a session on several plans counts for the one it is on, and Needs you ends early when another session works on the plan. While a plan is Working, its agent time counts up live: each working session, and each of its subagents at work (from its start), adds the time since its turn started, since its last report on the plan or since it came to it, whichever is later, leaving out its waits for a permission; a session that waits keeps its time not yet reported until its report is in. Each report sets the figure from the log again (adding the helpers' time then), in the same update as the live count it replaces.
+A plan's status is whose turn its agents declare it is (see [Whose turn it is](agent-interface.md#whose-turn-it-is)), never what its sessions do. Agent time is what the reports measured, updated as each turn ends, subagents' stops and sessions' ends: it does not count up live.
