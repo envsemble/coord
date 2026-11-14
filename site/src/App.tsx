@@ -20,6 +20,7 @@ export function App() {
   const path = location.pathname.replace(/\/+$/, '');
   const Page = path === '/privacy' ? Privacy : path === '/terms' ? Terms : Home;
   return <>
+    <div className="sky" aria-hidden="true"><span className="sky-far" /><span className="sky-a" /><span className="sky-b" /><span className="sky-sparks" /></div>
     <header className="header">
       <a href="/" className="brand"><img src={logo} alt="Coord" width={711} height={241} /></a>
       <a href={sourcePage} className="quiet">GitHub</a>
