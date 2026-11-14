@@ -23,8 +23,13 @@ export function App() {
       <a href={sourcePage} className="quiet">GitHub</a>
     </header>
     <main>
-      <h1><span>Agree on the plan.</span> <span>Then watch it get built.</span></h1>
-      <p className="lead">For the bigger pieces of work. Settle with your agent exactly what it will do, then follow it as it builds the plan, every step and decision in view. Coord plugs into Claude Code and Codex; it doesn’t replace them.</p>
+      <h1>Coord is a desktop app for planning work with Claude Code and Codex.</h1>
+      <p className="lead">You and your agent write the plan together: what to build, the steps and the decisions. The agent then implements it step by step, and Coord shows the plan, its progress and what the agent is waiting on you for.</p>
+      <ul className="facts">
+        <li>Connects to Claude Code and Codex through a plugin.</li>
+        <li>Plans are Markdown files in a Git folder on your computer.</li>
+        <li>Windows and Linux. Free and open source (MIT).</li>
+      </ul>
       <div className="downloads">
         {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={stable} loading={builds === 'loading'} />)}
       </div>
