@@ -110,13 +110,14 @@ function StatusLine({ work, status }: { work: Work; status: StatusLook }) {
     case 'draft': case 'planning': fact = (planning('doing') ?? planning('todo'))?.title; break;
     case 'complete': case 'partial': case 'superseded': case 'abandoned': fact = ended && <span title={absoluteDate(ended)}>{shortDate(ended)}</span>; break;
   }
-  return <div className="work-status" data-status={status.key}>
+  // A span: it sits in the page header's description, a paragraph.
+  return <span className="work-status" data-status={status.key}>
     <StatusBadge status={status} />
     {note ? <span className="work-status-note"><StateNote note={note} /></span> : fact && <span className="work-status-fact">{fact}</span>}
     {state?.since && <span className="work-status-fact" title={'Since ' + absoluteDate(state.since)}>{relativeDate(state.since)}</span>}
     {continued.length > 0 && <span className="work-status-fact"><ContinuedIn items={continued} open={to => go({ projectId: to.projectId, target: workTarget(to.work) })} /></span>}
     {work.location === 'archived' && <span className="work-status-fact">archived</span>}
-  </div>;
+  </span>;
 }
 
 /**
