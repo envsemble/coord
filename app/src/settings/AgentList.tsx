@@ -129,7 +129,7 @@ export function AgentList({ agents: state, mode, label = 'Agents' }: { agents: A
   const shown = agents.filter(agent => mode.kind !== 'connect' || mode.only.includes(agent.id))
     .sort((a, b) => agentIds.indexOf(a.id) - agentIds.indexOf(b.id));
   return <>
-    <List.Root className="text-rows agent-list" aria-label={label}>{shown.map(agent => {
+    <List.Root className="agent-list" aria-label={label}>{shown.map(agent => {
       const now = activity(agent.id);
       return <List.Item key={agent.id} className="agent-row" data-agent={agent.id} data-found={agent.found} aria-busy={now.running ? true : undefined}
         label={<span className="agent-name"><AgentLogo agent={agent.id} /><span className="row-link-title">{agentNames[agent.id]}</span></span>}

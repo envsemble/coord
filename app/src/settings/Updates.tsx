@@ -63,7 +63,7 @@ export function UpdatesSection() {
     <Text emphasis="muted" className="settings-description">
       Coord checks for a newer build of its channel when it starts and every few hours. It never downloads or installs one until you ask.
     </Text>
-    <List.Root className="text-rows settings-rows" aria-label="Updates">
+    <List.Root className="settings-rows" aria-label="Updates">
       <UpdateStatusRow state={state} />
       <List.Item className="settings-row" label={<span id={id + '-title'}>Channel</span>}
         description={<span id={id + '-detail'}>{leavingNightly ? 'This is a nightly build: Coord moves to stable with the next stable release newer than it, never back to an older one.' : channel.description}</span>}

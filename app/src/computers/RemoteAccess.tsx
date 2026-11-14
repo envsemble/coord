@@ -101,7 +101,7 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
 
       {here ? <section className="access-section" aria-label="Network">
         {/* Each setting applies as it changes: a row with its title and what it does, its control at the end. */}
-        <List.Root className="text-rows settings-rows" aria-label="Network">
+        <List.Root className="settings-rows" aria-label="Network">
           <List.Item className="settings-row" label={<span id={id + '-allow'}>Allow paired devices to connect to this computer</span>}
             description={<span id={id + '-status'} className="access-status" data-state={state.status.listening ? 'on' : state.status.error ? 'error' : 'off'} role="status">
               {state.status.listening ? `Listening on ${state.status.address}:${state.status.port}.` : state.status.error ?? 'Remote access is off.'}
@@ -160,7 +160,7 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
 
       <section className="access-section" aria-label="Paired devices">
         <Text render={<h3 />} variant="body" className="settings-subheading">Paired devices</Text>
-        {devices === null ? <Spinner label="Loading paired devices" /> : devices.length ? <List.Root className="text-rows device-list" aria-label="Paired devices">{devices.map(device => <List.Item key={device.deviceId}
+        {devices === null ? <Spinner label="Loading paired devices" /> : devices.length ? <List.Root className="device-list" aria-label="Paired devices">{devices.map(device => <List.Item key={device.deviceId}
           label={<span className="row-title"><strong>{device.name}</strong>{device.scopes.includes('access:manage') && <Badge tone="primary">Manage access</Badge>}{device.connected && <Badge tone="success">Connected</Badge>}</span>}
           description={`${platforms[device.platform] ?? device.platform} · paired ${absoluteDate(device.pairedAt)}${device.lastSeenAt && !device.connected ? ' · last seen ' + relativeDate(device.lastSeenAt) : ''}`}
           end={<ConfirmButton variant="outline" confirmLabel="Revoke access" disabled={managed} onConfirm={() => void revokeDevice(device.deviceId)}>Revoke…</ConfirmButton>} />)}

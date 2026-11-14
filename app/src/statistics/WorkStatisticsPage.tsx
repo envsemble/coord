@@ -11,7 +11,7 @@ import { ModelName } from '../ui/ModelName';
 import { modelPalette, orderModels } from '../ui/modelColours';
 import { absoluteDate, compactNumber, duration, plural, workNumber } from '../ui/format';
 import { workTarget } from '../navigation/targets';
-import { ModelKey, StatsCard } from '../ui/statistics';
+import { KeyFigures, ModelKey, StatsCard } from '../ui/statistics';
 import { useWindow } from '../window/windowContext';
 import { Trail } from '../ui/Trail';
 import { Page } from '../ui/Page';
@@ -33,7 +33,7 @@ function ByModel({ work }: { work: Work }) {
   if (!models.length) return <p className="muted">No model was reported for this plan yet.</p>;
   const rows = orderModels(effortRows(models));
   const colour = modelPalette(rows);
-  return <Table.Root className="plan-statistics-table" regionClassName="plain-table-region" aria-label="Agent time and tokens by model and effort">
+  return <Table.Root className="plan-statistics-table" aria-label="Agent time and tokens by model and effort">
     <Table.Head><Table.Row><Table.HeaderCell>Model and effort</Table.HeaderCell><Table.HeaderCell numeric>Agent time</Table.HeaderCell><Table.HeaderCell numeric>Tokens</Table.HeaderCell></Table.Row></Table.Head>
     <Table.Body>{rows.map(row => <Table.Row key={row.model + ':' + row.effort}>
       <Table.Cell><ModelKey model={row.model} effort={row.effort} colour={colour(row.model, row.effort)} items={rows} /></Table.Cell>
@@ -163,7 +163,7 @@ function Timeline({ timeline, sessions, live }: { timeline: WorkTimeline; sessio
       </div>
       <p id="timeline-help" className="timeline-legend muted"><span className="timeline-key" data-kind="working" /> working <span className="timeline-key" data-kind="waiting" /> waiting for you <span className="timeline-key" data-kind="now" /> now · Shift and the wheel zoom, dragging moves; on the focused chart the arrow keys move and zoom, Home shows all</p>
       <Disclosure title="The timeline as a table">
-        <Table.Root className="plan-statistics-table" regionClassName="plain-table-region" aria-label="Timeline">
+        <Table.Root className="plan-statistics-table" aria-label="Timeline">
           <Table.Head><Table.Row><Table.HeaderCell>Model</Table.HeaderCell><Table.HeaderCell>Session or subagent</Table.HeaderCell><Table.HeaderCell>What</Table.HeaderCell><Table.HeaderCell>From</Table.HeaderCell><Table.HeaderCell>To</Table.HeaderCell><Table.HeaderCell numeric>Length</Table.HeaderCell></Table.Row></Table.Head>
           <Table.Body>{stretches.map((stretch, index) => <Table.Row key={index}>
             <Table.Cell>{stretch.lane.model ? <ModelName model={stretch.lane.model} effort={stretch.lane.effort} /> : laneName(stretch.lane, sessions)}</Table.Cell><Table.Cell>{laneDetail(stretch.lane, sessions).split(' · ')[0]}</Table.Cell><Table.Cell>{stretch.kind}</Table.Cell>
@@ -183,12 +183,12 @@ function Headline({ work, live, sessions, timeline }: { work: Work; live: LiveAc
   const totals = listed(work.id)?.statistics ?? statistics ?? null;
   const now = useHostNow(live);
   const line = timelineLine(timeline, work);
-  return <div className="stats-grid">
+  return <KeyFigures label="Headline figures">
     <StatsCard label="Agent time" value={totals ? <AgentTime totals={totals} activity={live} description={statistics ? agentTimeNote(statistics) : 'Every agent’s working time, added up'} after={statistics ? [measuredSection(statistics)] : []} /> : '—'} note="every agent's time added up" />
     <StatsCard label="At least one agent working" value={totals ? duration(liveActiveMs(totals.activeMs, live, now, totals.lastReport, liveAgentMs(totals.agentMs, live, now))) : '—'} note={totals?.unmergedMs ? roughDuration(totals.unmergedMs) + ' estimated and added as is' : 'agents working at once count once'} />
     <StatsCard label="Tokens" value={statistics?.tokens != null ? compactNumber(statistics.tokens) : '—'} note={statistics?.tokenKinds ? 'measured from session logs' : statistics?.tokens != null ? 'self-reported' : 'none reported yet'} />
     <StatsCard label="Sessions" value={sessions.length || '—'} note={line ?? undefined} />
-  </div>;
+  </KeyFigures>;
 }
 
 /** A plan's statistics page. */

@@ -28,7 +28,7 @@ export function ThemeChoice() {
     setPreference(next);
     api.setTheme(next).catch(() => setPreference(previous));
   };
-  return <List.Root className="text-rows settings-rows" aria-label="Appearance">
+  return <List.Root className="settings-rows" aria-label="Appearance">
     <List.Item className="settings-row" label={<span id={id + '-title'}>Theme</span>} description={<span id={id + '-detail'}>{details[preference ?? 'system']}</span>}
       end={<Select className="settings-row-select" aria-labelledby={id + '-title'} aria-describedby={id + '-detail'} value={preference} onValueChange={choose}
         items={themePreferences.map(value => ({ value, label: labels[value] }))} />} />
