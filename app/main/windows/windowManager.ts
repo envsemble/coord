@@ -26,6 +26,8 @@ interface WindowContext {
   devUrl: string | null;
   rendererDirectory: string;
   devTools: boolean;
+  /** Coord Dev (main/dev.ts). */
+  dev: boolean;
 }
 
 export class WindowManager {
