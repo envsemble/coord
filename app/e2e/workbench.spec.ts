@@ -135,7 +135,7 @@ test("a plan opens from the hub with its summary and its side column, and with i
   await expect(row.locator('.hub-row-steps')).toHaveText('2 of 7');
   await expect(row.locator('.step-bar-planning-done')).toHaveCount(1);
   await openPlan(window, 'Saved payment methods');
-  await expect(window.locator('.work-page .env-page-header-description .work-summary')).toHaveText(summary);
+  await expect(window.locator('.work-page .env-page-header-description')).toHaveText(summary);
   await expect(window.locator('.reader .prose')).toContainText('Current checkout');
   // One list of steps: the planning steps in a colour of their own, and named so.
   const steps = window.locator('.plan-aside .ledger-step');

@@ -55,7 +55,15 @@ export function useSVGExport(svgSource, theme, scope, fade = false) {
     const faded = fade
       ? [...svg.querySelectorAll('[data-change="unchanged"]')]
       : [];
-    for (const element of faded) element.setAttribute("opacity", "0.32");
+    // As on screen (canvas.css): shapes and lines fade most, text less.
+    for (const element of faded) {
+      for (const shape of element.querySelectorAll(
+        "rect,path,line,polyline,polygon",
+      ))
+        shape.setAttribute("opacity", "0.4");
+      for (const text of element.querySelectorAll("text"))
+        text.setAttribute("opacity", "0.72");
+    }
     // A transparent drawing layer lets the world grid show through. The
     // downloadable SVG below has an opaque theme-colored background.
     const backgroundURL = URL.createObjectURL(

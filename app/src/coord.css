@@ -280,9 +280,6 @@ body { margin: 0; }
 .page-attention .page-link { flex: none; font-weight: var(--env-font-weight-medium); }
 .page-attention-text { overflow: hidden; color: var(--env-color-fg-muted); text-overflow: ellipsis; white-space: nowrap; }
 /* Under the title, the status and one fact about it, muted; a blocker's reason is cut short. */
-/* Under a work item's title: whose turn it is and what for on one line, then its summary. */
-.work-heading-detail { display: grid; gap: var(--env-space-2); }
-.work-summary { color: var(--env-color-fg-muted); }
 .work-status { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); font-variant-numeric: tabular-nums; }
 /* What the state is for, after its badge: amber on the user's turn; one line, cut short. */
 .work-status-note { min-inline-size: 0; overflow: hidden; color: var(--env-color-fg-default); text-overflow: ellipsis; white-space: nowrap; }

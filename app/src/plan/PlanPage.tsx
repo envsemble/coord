@@ -110,14 +110,13 @@ function StatusLine({ work, status }: { work: Work; status: StatusLook }) {
     case 'draft': case 'planning': fact = (planning('doing') ?? planning('todo'))?.title; break;
     case 'complete': case 'partial': case 'superseded': case 'abandoned': fact = ended && <span title={absoluteDate(ended)}>{shortDate(ended)}</span>; break;
   }
-  // A span: it sits in the page header's description, a paragraph.
-  return <span className="work-status" data-status={status.key}>
+  return <div className="work-status" data-status={status.key}>
     <StatusBadge status={status} />
     {note ? <span className="work-status-note"><StateNote note={note} /></span> : fact && <span className="work-status-fact">{fact}</span>}
     {state?.since && <span className="work-status-fact" title={'Since ' + absoluteDate(state.since)}>{relativeDate(state.since)}</span>}
     {continued.length > 0 && <span className="work-status-fact"><ContinuedIn items={continued} open={to => go({ projectId: to.projectId, target: workTarget(to.work) })} /></span>}
     {work.location === 'archived' && <span className="work-status-fact">archived</span>}
-  </span>;
+  </div>;
 }
 
 /**
@@ -139,7 +138,7 @@ export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Sna
   // Its pages that need the person, as their agents said in their page.json.
   const asking = Object.entries(snapshot.attention ?? {}).filter(([page]) => page.startsWith(work.path + '/pages/'));
   return <Page className="work-page" breadcrumbs={<Trail work={work.id} items={[{ label: workNumber(work.id) }]} />}
-    title={work.title} description={<span className="work-heading-detail"><StatusLine work={work} status={status} />{summary && <span className="work-summary">{summary}</span>}</span>}>
+    title={work.title} toolbar={<StatusLine work={work} status={status} />} description={summary}>
     <div className="work-layout">
       <div className="work-main">
         {(listing?.tags?.length || asking.length > 0) && <div className="work-header">

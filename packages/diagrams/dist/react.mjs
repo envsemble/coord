@@ -2245,7 +2245,14 @@ function useSVGExport(svgSource, theme, scope, fade = false) {
     for (const [name, colour] of colours) svg.style.setProperty(name, colour);
     svg.querySelectorAll(".selected,.dimmed").forEach((n) => n.classList.remove("selected", "dimmed"));
     const faded = fade ? [...svg.querySelectorAll('[data-change="unchanged"]')] : [];
-    for (const element of faded) element.setAttribute("opacity", "0.32");
+    for (const element of faded) {
+      for (const shape of element.querySelectorAll(
+        "rect,path,line,polyline,polygon"
+      ))
+        shape.setAttribute("opacity", "0.4");
+      for (const text of element.querySelectorAll("text"))
+        text.setAttribute("opacity", "0.72");
+    }
     const backgroundURL = URL.createObjectURL(
       new Blob([new XMLSerializer().serializeToString(svg)], {
         type: "image/svg+xml"
@@ -2331,7 +2338,7 @@ function ToolButton({
       "aria-label": label,
       "aria-pressed": pressed,
       icon,
-      variant: variant ?? (pressed === false ? "ghost" : "secondary")
+      variant: variant ?? (pressed ? "secondary" : "ghost")
     }
   ) });
 }
@@ -2498,7 +2505,7 @@ function Island({ label, className = "", children, ...props }) {
       background: "default",
       radius: "full",
       padding: 1,
-      render: /* @__PURE__ */ jsx10(Toolbar.Root, { "aria-label": label, size: "sm", tooltipDelay: 0 }),
+      render: /* @__PURE__ */ jsx10(Toolbar.Root, { "aria-label": label, size: "sm" }),
       className: `coord-island${className ? ` ${className}` : ""}`,
       ...props,
       children
@@ -3427,7 +3434,6 @@ function ChangeNavigation({ position, total, name, onStep }) {
     /* @__PURE__ */ jsx18(
       ToolButton,
       {
-        variant: "ghost",
         label: "Previous change",
         icon: /* @__PURE__ */ jsx18(IconChevronLeft, {}),
         "aria-disabled": position === 0 || void 0,
@@ -3444,7 +3450,6 @@ function ChangeNavigation({ position, total, name, onStep }) {
     /* @__PURE__ */ jsx18(
       ToolButton,
       {
-        variant: "ghost",
         label: "Next change",
         icon: /* @__PURE__ */ jsx18(IconChevronRight, {}),
         "aria-disabled": position === total - 1 || void 0,
@@ -3841,7 +3846,6 @@ function Panel({
           onClose && /* @__PURE__ */ jsx21(
             ToolButton,
             {
-              variant: "ghost",
               className: "panel-close",
               label: closeLabel,
               icon: /* @__PURE__ */ jsx21(IconClose, {}),

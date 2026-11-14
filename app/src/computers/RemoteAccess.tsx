@@ -139,7 +139,8 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
             <Text variant="caption" emphasis="muted">In Coord on the other device, choose <strong>Connect to Another Coord…</strong> in <strong>Settings › Computers</strong> and paste the link. Treat it like a password.</Text>
           </div>
         </div> : !state.status.listening ? <Text variant="body-sm" emphasis="muted" className="settings-description">{here
-          ? 'Turn on “Allow paired devices to connect” above, and then create a one-time pairing link here.'
+          ? settings!.network.enabled ? 'This computer is not listening yet: its status is above. Pairing links can be created once it listens.'
+            : 'Turn on “Allow paired devices to connect” above, and then create a one-time pairing link here.'
           : `Remote access is off on ${computer.name}: devices can pair once Coord there turns it on.`}</Text>
         : <form className="pairing-form" onSubmit={event => { event.preventDefault(); void createLink(); }}>
           {link && <Text emphasis="muted">That pairing link expired.</Text>}

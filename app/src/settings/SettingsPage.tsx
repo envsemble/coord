@@ -20,7 +20,7 @@ export function SettingsPage({ section, computer, go }: { section: SettingsSecti
   const frame = useRef<HTMLDivElement>(null);
   const size = useContainerSize(frame);
   // The tabs keep a column of their own once the page has room beside the section.
-  const beside = size === undefined || !['compact', 'medium'].includes(windowClassOf(size.inlineSize));
+  const beside = size !== undefined && !['compact', 'medium'].includes(windowClassOf(size.inlineSize));
   const sections: { id: SettingsSection; label: string; icon: ReactNode; content: ReactNode }[] = [
     { id: 'general', label: 'General', icon: <SettingsIcon />, content: <SettingsGroup title="Appearance"><ThemeChoice /></SettingsGroup> },
     { id: 'agents', label: 'Agents', icon: <AgentIcon />, content: <AgentsSection computer={computer} /> },
