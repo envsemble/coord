@@ -95,7 +95,8 @@ function updaterEngine(): UpdaterEngine | { off: string } {
     let moved: string | null = null;
     appImage.on('appimage-filename-updated', (file: string) => { moved = file; });
     appImage.quitAndInstall = () => {
-      if (!appImage.install(true, false)) return;
+      // A failed install is in the log; the next press tries again, as electron-updater's own does.
+      if (!appImage.install(true, false)) { (appImage as unknown as { quitAndInstallCalled: boolean }).quitAndInstallCalled = false; return; }
       app.relaunch({ execPath: moved ?? process.env.APPIMAGE!, args: [] });
       app.quit();
     };
