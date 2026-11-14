@@ -41,6 +41,7 @@ export function Panel({
           {toolbar}
           {onClose && (
             <ToolButton
+              variant="ghost"
               className="panel-close"
               label={closeLabel}
               icon={<CloseIcon />}

@@ -86,7 +86,7 @@ export function OtherComputers({ current }: { current: ComputerRef }) {
   const paired = computers?.filter(computer => computer.hostId !== null) ?? null;
   return <>
     <div className="section-toolbar">
-      <Text emphasis="muted" className="settings-description">The computers this one is paired with. Choose one in the computer menu to work on it in this window.</Text>
+      <Text variant="body-sm" emphasis="muted" className="settings-description">The computers this one is paired with. Choose one in the computer menu to work on it in this window.</Text>
       <Button variant="secondary" className="other-computers-connect" startIcon={<AddIcon />} onClick={() => setConnecting(true)}>Connect to Another Coord…</Button>
     </div>
     {paired === null ? <Spinner label="Checking computers" />

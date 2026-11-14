@@ -60,7 +60,7 @@ export function UpdatesSection() {
   const channel = channels.find(item => item.value === state.channel) ?? channels[0];
   const leavingNightly = state.channel === 'stable' && /-nightly\./.test(state.version);
   return <>
-    <Text emphasis="muted" className="settings-description">
+    <Text variant="body-sm" emphasis="muted" className="settings-description">
       Coord checks for a newer build of its channel when it starts and every few hours. It never downloads or installs one until you ask.
     </Text>
     <List.Root className="settings-rows" aria-label="Updates">

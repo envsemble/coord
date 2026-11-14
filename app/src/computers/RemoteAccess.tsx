@@ -92,7 +92,7 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
 
   if (refused) return <Alert tone="warning" announce>{refused}</Alert>;
   return <>
-    <Text emphasis="muted" className="settings-description">{here
+    <Text variant="body-sm" emphasis="muted" className="settings-description">{here
       ? 'Pair your other devices, such as your laptop, to work on this computer from them: they work on its projects and create new ones, as Coord does here. Pair only your own devices.'
       : `Pair your other devices with ${computer.name}, and revoke the ones that should no longer reach it. Only Coord on ${computer.name} changes how it is reached.`}</Text>
     {!state ? (error ? <Alert tone="danger" announce>{error}</Alert> : <Spinner label="Loading remote access" />) : <>
@@ -138,7 +138,7 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
             </div>
             <Text variant="caption" emphasis="muted">In Coord on the other device, choose <strong>Connect to Another Coord…</strong> in <strong>Settings › Computers</strong> and paste the link. Treat it like a password.</Text>
           </div>
-        </div> : !state.status.listening ? <Text emphasis="muted" className="settings-description">{here
+        </div> : !state.status.listening ? <Text variant="body-sm" emphasis="muted" className="settings-description">{here
           ? 'Turn on “Allow paired devices to connect” above, and then create a one-time pairing link here.'
           : `Remote access is off on ${computer.name}: devices can pair once Coord there turns it on.`}</Text>
         : <form className="pairing-form" onSubmit={event => { event.preventDefault(); void createLink(); }}>

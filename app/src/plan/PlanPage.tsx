@@ -144,10 +144,11 @@ export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Sna
         {(listing?.tags?.length || asking.length > 0) && <div className="work-header">
           {listing && <TagList tags={listing.tags ?? []} className="work-tags" />}
           {asking.length > 0 && <ul className="page-attention" aria-label="Pages that need you">
-            {/* The way to what is asked: a button that opens the page, with what it asks beside it. */}
+            {/* The way to what is asked: a button that opens the page. The status line above says what
+                for; what the page asks is the button's description, beside it only when the status line says nothing. */}
             {asking.map(([page, text]) => <li key={page}>
-              <Button size="sm" variant="secondary" startIcon={<PageIcon />} onClick={() => open(pageTarget(page))}>Open {page.slice(page.lastIndexOf('/') + 1)}</Button>
-              <span className="page-attention-text">{text}</span>
+              <Button size="sm" variant="secondary" startIcon={<PageIcon />} title={text} onClick={() => open(pageTarget(page))}>Open {page.slice(page.lastIndexOf('/') + 1)}</Button>
+              {!work.state?.note && <span className="page-attention-text">{text}</span>}
             </li>)}
           </ul>}
         </div>}

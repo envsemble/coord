@@ -267,6 +267,7 @@ export function ChangeNavigation({ position, total, name, onStep }) {
   return (
     <span className="change-stepper" role="group" aria-label="Changes">
       <ToolButton
+        variant="ghost"
         label="Previous change"
         icon={<PreviousIcon />}
         aria-disabled={position === 0 || undefined}
@@ -281,6 +282,7 @@ export function ChangeNavigation({ position, total, name, onStep }) {
         )}
       </span>
       <ToolButton
+        variant="ghost"
         label="Next change"
         icon={<NextIcon />}
         aria-disabled={position === total - 1 || undefined}

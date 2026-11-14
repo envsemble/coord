@@ -3428,6 +3428,7 @@ function ChangeNavigation({ position, total, name, onStep }) {
     /* @__PURE__ */ jsx18(
       ToolButton,
       {
+        variant: "ghost",
         label: "Previous change",
         icon: /* @__PURE__ */ jsx18(IconChevronLeft, {}),
         "aria-disabled": position === 0 || void 0,
@@ -3444,6 +3445,7 @@ function ChangeNavigation({ position, total, name, onStep }) {
     /* @__PURE__ */ jsx18(
       ToolButton,
       {
+        variant: "ghost",
         label: "Next change",
         icon: /* @__PURE__ */ jsx18(IconChevronRight, {}),
         "aria-disabled": position === total - 1 || void 0,
@@ -3840,6 +3842,7 @@ function Panel({
           onClose && /* @__PURE__ */ jsx21(
             ToolButton,
             {
+              variant: "ghost",
               className: "panel-close",
               label: closeLabel,
               icon: /* @__PURE__ */ jsx21(IconClose, {}),
