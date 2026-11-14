@@ -170,8 +170,7 @@ ${status}`,
       formatVersion: 1,
       version,
       commit,
-      private: true,
-      license: "UNLICENSED",
+      license: "MIT",
       files: [...files]
         .sort(([a], [b]) => a.localeCompare(b, "en"))
         .map(([name, data]) => ({

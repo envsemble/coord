@@ -5,6 +5,6 @@
   "author": { "name": "envsemble" },
   "homepage": "https://github.com/envsemble/coord",
   "repository": "https://github.com/envsemble/coord",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "keywords": ["planning", "plans", "ledger"]
 }
