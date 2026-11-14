@@ -53,7 +53,9 @@ one appears.
    the change.
 5. **Babysit the PR** with the `babysit-pr` skill. Fix real findings and CI
    failures. Get proof for each fix before you push it.
-6. **Merge** when the merge gate passes.
+6. **Merge** when the merge gate passes. In T3 Code, merging a PR linked to the
+   thread settles the thread: call `unlink_pull_request` right before you merge,
+   so the thread stays as it is. Settle a thread only when the user asks.
 7. **Report** in your final message: the PR link, the merge commit, your proof,
    and each decision you made for the user.
 
