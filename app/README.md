@@ -116,7 +116,7 @@ Projects are made and managed in the hub's **project menu**, beside the search. 
 
 **Archived projects** lists the archived ones; choosing one restores it. Coord never deletes a project; to drop one, remove its folder from the home.
 
-**New Project…** (in the project menu, or **File › New Project…**) asks for a name and the project's folders, each chosen in the file manager (the first one names the project until you type a name); a project may have none yet. Coord creates the planning folder in the home from the bundled templates, as a Git repository with a first commit. Agents can create projects too.
+**New Project…** (in the hub's project menu) asks for a name and the project's folders, each chosen in the file manager (the first one names the project until you type a name); a project may have none yet. Coord creates the planning folder in the home from the bundled templates, as a Git repository with a first commit. Agents can create projects too.
 
 ## Statistics
 
@@ -145,7 +145,6 @@ A plan's agent can make pages: views in its work folder's `pages/`, such as a ch
 **Settings** in the title bar (Ctrl+,) opens Settings in the window at **General**; back and forward step through its sections like other places.
 
 - **General**: the theme, **Match the system**, **Light** or **Dark**, for every window.
-
 - **Agents**, this computer's: **Claude Code** and **Codex**, each with its status (**Connected** with the version of the Coord plugin it has, **Not connected**, or **Not found on this computer** with a link to install it) and **Connect** or **Disconnect**. Coord finds an agent as a program, on the PATH as your terminals have it (read again at start); for one it does not find, **Choose program…** picks its program (`claude`, `codex`; `.exe` or Codex's `.cmd` on Windows), which Coord uses until you **Clear** it. Connecting installs the Coord plugin into the agent with the agent's own commands, which can take a minute; the row shows it, and says why if it fails, with **Try again**. A connected agent's row then says whether it runs Coord: **Ready** with its last session, **Waiting for a first session**, or a warning: **Hooks not trusted** (type `/hooks` in Codex and trust them) or **Coord's hooks aren't running** (a session used Coord's tools, but no hook ran; in Codex, `/hooks` trusts them again). A session that ran the hooks makes it Ready, whatever Codex's configuration says. The hub shows this computer's warnings too, until they are resolved. **Connect by hand**, under each agent, lists the commands that install the plugin, to copy (Connect also grants the agent Coord's home). In a window on another computer, Agents is still this computer's: connecting installs the plugin here.
 - **Computers**, both ways of pairing: **Other computers**, the computers this one is paired with, and **Devices that can reach** the window's computer (see [Remote computers](#remote-computers)).
 
