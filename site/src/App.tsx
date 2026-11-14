@@ -24,8 +24,13 @@ export function App() {
     </header>
     <main>
       <h1>Coord is a desktop app for planning work with your coding agents.</h1>
-      <p className="lead">You and your agent agree on the plan, then it builds the plan step by step while you follow along. Works with Claude Code and Codex wherever you run them, such as a terminal or T3 Code.</p>
-      <p className="facts">Used internally at envsemble. Windows and Linux, free and open source (MIT).</p>
+      <ul className="features">
+        <li>Your agent grills you until the plan is settled.</li>
+        <li>It can capture your code and databases as diagrams.</li>
+        <li>It builds live dashboards inside the plan as it works.</li>
+        <li>Coord shows which plans need your attention, and why.</li>
+      </ul>
+      <p className="facts">Works with Claude Code and Codex wherever you run them, such as a terminal or T3 Code. Used internally at envsemble. Windows and Linux, free and open source (MIT).</p>
       <div className="downloads">
         {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={stable} loading={builds === 'loading'} />)}
       </div>
