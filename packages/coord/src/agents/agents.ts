@@ -25,12 +25,12 @@ export interface Harness {
   file: string;
   where: string;
   grant(text: string | null, directory: string): string | null;
-  /** The commands that install the plugin from the marketplace `marketplace` in `directory`. */
-  install(directory: string, marketplace: string): string[][];
+  /** The commands that install the plugin `plugin` (`name@marketplace`) from the marketplace `marketplace` in `directory`. */
+  install(directory: string, marketplace: string, plugin: string): string[][];
   /** The command that removes a marketplace added from another source, for an agent that will not replace it; null when it replaces it itself. */
   replace(marketplace: string): string[] | null;
   /** The commands that uninstall the plugin and remove its marketplace, and what they say when there is nothing to remove. */
-  uninstall(marketplace: string): string[][];
+  uninstall(marketplace: string, plugin: string): string[][];
   absent: RegExp;
   /** The command that lists the installed plugins as JSON, and the Coord plugin in what it prints (null when not installed). */
   list(marketplace: string): string[];
@@ -86,15 +86,15 @@ export const harnesses: readonly Harness[] = [
   {
     id: 'claude', name: 'Claude Code', program: 'claude',
     config: environment => environment.CLAUDE_CONFIG_DIR || path.join(userHome(environment), '.claude'), file: 'settings.json', where: 'permissions.additionalDirectories', grant: grantClaudeDirectory,
-    install: (directory, marketplace) => [['plugin', 'marketplace', 'add', directory], ['plugin', 'install', 'coord@' + marketplace]], replace: () => null,
-    uninstall: marketplace => [['plugin', 'uninstall', 'coord@' + marketplace], ['plugin', 'marketplace', 'remove', marketplace]], absent: /not found|not installed|not configured/i,
+    install: (directory, _marketplace, plugin) => [['plugin', 'marketplace', 'add', directory], ['plugin', 'install', plugin]], replace: () => null,
+    uninstall: (marketplace, plugin) => [['plugin', 'uninstall', plugin], ['plugin', 'marketplace', 'remove', marketplace]], absent: /not found|not installed|not configured/i,
     list: () => ['plugin', 'list', '--json'], installed: claudeInstalled,
   },
   {
     id: 'codex', name: 'Codex', program: 'codex',
     config: environment => environment.CODEX_HOME || path.join(userHome(environment), '.codex'), file: 'config.toml', where: '[sandbox_workspace_write] writable_roots', grant: grantCodexRoot,
-    install: (directory, marketplace) => [['plugin', 'marketplace', 'add', directory], ['plugin', 'add', 'coord@' + marketplace]], replace: marketplace => ['plugin', 'marketplace', 'remove', marketplace],
-    uninstall: marketplace => [['plugin', 'remove', 'coord@' + marketplace], ['plugin', 'marketplace', 'remove', marketplace]], absent: /not configured|not installed|not found/i,
+    install: (directory, _marketplace, plugin) => [['plugin', 'marketplace', 'add', directory], ['plugin', 'add', plugin]], replace: marketplace => ['plugin', 'marketplace', 'remove', marketplace],
+    uninstall: (marketplace, plugin) => [['plugin', 'remove', plugin], ['plugin', 'marketplace', 'remove', marketplace]], absent: /not configured|not installed|not found/i,
     // Only the Coord marketplace's plugins: listing them all asks the remote ones too, which takes seconds.
     list: marketplace => ['plugin', 'list', '--json', '--marketplace', marketplace], installed: (stdout, plugin) => codexInstalled(stdout, plugin),
   },
@@ -103,7 +103,16 @@ export const harness = (id: AgentId) => harnesses.find(item => item.id === id)!;
 
 /** The name of the marketplace in `directory` (its .claude-plugin/marketplace.json), which names the plugin in its plugin/ folder. */
 export function marketplaceName(directory: string) {
-  return (JSON.parse(readFileSync(path.join(directory, '.claude-plugin', 'marketplace.json'), 'utf8')) as { name: string }).name;
+  return marketplaceOf(directory).marketplace;
+}
+/**
+ * The marketplace in `directory` and the plugin it offers, as the agents name it: `name@marketplace`
+ * (`coord@coord` for the release's, `coord-dev@coord-dev` for Coord Dev's; app/scripts/dev-plugin.cjs).
+ */
+export function marketplaceOf(directory: string): { marketplace: string; plugin: string } {
+  const manifest = JSON.parse(readFileSync(path.join(directory, '.claude-plugin', 'marketplace.json'), 'utf8')) as { name: string; plugins?: { name?: unknown }[] };
+  const name = manifest.plugins?.[0]?.name;
+  return { marketplace: manifest.name, plugin: (typeof name === 'string' ? name : 'coord') + '@' + manifest.name };
 }
 
 /**
@@ -203,9 +212,9 @@ export interface AgentStatus { id: AgentId; found: boolean; connected: boolean; 
  */
 export async function agentStatus(harness: Harness, directory: string, environment: NodeJS.ProcessEnv, program = onPath(harness.program, environment)): Promise<AgentStatus> {
   if (!program) return { id: harness.id, found: false, connected: false, version: null, source: null, listed: false };
-  const marketplace = marketplaceName(directory);
+  const { marketplace, plugin: id } = marketplaceOf(directory);
   const listed = await runHarness(program, harness.list(marketplace), environment, 30000);
-  const plugin = harness.installed(listed.stdout, 'coord@' + marketplace, environment);
+  const plugin = harness.installed(listed.stdout, id, environment);
   return { id: harness.id, found: true, connected: Boolean(plugin?.enabled), version: plugin?.version ?? null, source: plugin?.source ?? null, listed: listed.status === 0 };
 }
 
@@ -223,23 +232,69 @@ export async function connectAgent(harness: Harness, directory: string, home: st
   try { await grantHome(harness, home, environment); } catch (error) {
     grantError = `${path.join(harness.config(environment), harness.file)} was left as it is: ${(error as Error).message}.`;
   }
-  const marketplace = marketplaceName(directory);
-  for (const command of harness.install(directory, marketplace)) {
+  const { marketplace, plugin } = marketplaceOf(directory);
+  for (const command of harness.install(directory, marketplace, plugin)) {
     const step = await installStep(harness, program, command, marketplace, environment);
     if (!step.ok) throw new AgentError(`${step.shown} failed: ${lastLines(step.output) || 'exit ' + step.status}`);
   }
-  // Claude Code installs a plugin it had turned off without turning it on.
-  if (harness.id === 'claude' && (await agentStatus(harness, directory, environment, program)).connected === false) {
-    const enabled = await runHarness(program, ['plugin', 'enable', 'coord@' + marketplace], environment);
-    if (enabled.status !== 0 && !/already/i.test(enabled.output)) throw new AgentError(`claude plugin enable coord@${marketplace} failed: ${lastLines(enabled.output)}`);
-  }
+  // Claude Code installs a plugin it had turned off without turning it on; Codex keeps one turned off in its config.
+  if ((await agentStatus(harness, directory, environment, program)).connected === false) await setPluginEnabled(harness, directory, true, environment, program);
   return { grantError };
+}
+
+/**
+ * Turn the plugin of `directory`, installed already, on or off, keeping it installed: Claude Code
+ * with its command; Codex, which has no command for it, in its config.toml
+ * (`[plugins."<plugin>"] enabled`). An agent reads it when a session starts.
+ */
+export async function setPluginEnabled(harness: Harness, directory: string, enabled: boolean, environment: NodeJS.ProcessEnv, program = onPath(harness.program, environment)) {
+  const { plugin } = marketplaceOf(directory);
+  if (harness.id === 'codex') {
+    const file = path.join(harness.config(environment), harness.file);
+    const text = existsSync(file) ? await readFile(file, 'utf8') : '';
+    const next = codexPluginEnabled(text, plugin, enabled);
+    if (next === text) return;
+    await mkdir(path.dirname(file), { recursive: true });
+    const temporary = file + '.' + process.pid + '.tmp';
+    await writeFile(temporary, next);
+    await rename(temporary, file);
+    return;
+  }
+  if (!program) throw new AgentError(`${harness.program} is not on the PATH.`);
+  const action = enabled ? 'enable' : 'disable';
+  const result = await runHarness(program, ['plugin', action, plugin], environment);
+  if (result.status !== 0 && !/already/i.test(result.output)) throw new AgentError(`${harness.program} plugin ${action} ${plugin} failed: ${lastLines(result.output) || 'exit ' + result.status}`);
+}
+
+/**
+ * Codex's config.toml with the plugin's table saying `enabled = <enabled>`: its line changed, or
+ * added where the table has none, or the table added at the end. Everything else stays as written.
+ */
+export function codexPluginEnabled(text: string, plugin: string, enabled: boolean): string {
+  const newline = text.includes('\r\n') ? '\r\n' : '\n';
+  const lines = text.split(/\r?\n/);
+  const header = `[plugins."${plugin}"]`;
+  const value = `enabled = ${enabled}`;
+  const start = lines.findIndex(line => line.trim() === header);
+  if (start < 0) {
+    const body = text.replace(/\s+$/, '');
+    return (body ? body + newline + newline : '') + header + newline + value + newline;
+  }
+  const next = lines.findIndex((line, index) => index > start && /^\s*\[/.test(line));
+  const end = next < 0 ? lines.length : next;
+  const at = lines.findIndex((line, index) => index > start && index < end && /^\s*enabled\s*=/.test(line));
+  if (at >= 0) {
+    if (lines[at].trim() === value) return text;
+    lines[at] = value;
+  } else lines.splice(start + 1, 0, value);
+  return lines.join(newline);
 }
 
 /** Disconnect an agent: uninstall the plugin and remove its marketplace. Nothing there to remove counts as removed. */
 export async function disconnectAgent(harness: Harness, directory: string, environment: NodeJS.ProcessEnv, program = onPath(harness.program, environment)) {
   if (!program) throw new AgentError(`${harness.program} is not on the PATH.`);
-  for (const command of harness.uninstall(marketplaceName(directory))) {
+  const { marketplace, plugin } = marketplaceOf(directory);
+  for (const command of harness.uninstall(marketplace, plugin)) {
     const result = await runHarness(program, command, environment);
     if (result.status !== 0 && !harness.absent.test(result.output)) throw new AgentError(`${[harness.program, ...command].join(' ')} failed: ${lastLines(result.output) || 'exit ' + result.status}`);
   }
@@ -254,8 +309,8 @@ export async function disconnectAgent(harness: Harness, directory: string, envir
 export async function refreshAgent(harness: Harness, directory: string, environment: NodeJS.ProcessEnv, program = onPath(harness.program, environment)): Promise<string | null> {
   const status = await agentStatus(harness, directory, environment, program);
   if (!status.connected || !status.source || !program) return null;
-  const marketplace = marketplaceName(directory);
-  const [add, install] = harness.install(directory, marketplace);
+  const { marketplace, plugin } = marketplaceOf(directory);
+  const [add, install] = harness.install(directory, marketplace, plugin);
   const command = harness.id === 'codex' ? same(status.source, directory) ? install : null : !existsSync(status.source) ? add : null;
   if (!command) return null;
   const step = await installStep(harness, program, command, marketplace, environment);

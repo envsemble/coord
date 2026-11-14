@@ -18,6 +18,9 @@ import { scheme } from './windows/protocol.ts';
 import { AppState } from './appState.ts';
 import { Agents } from './agent/agents.ts';
 import { WindowManager } from './windows/windowManager.ts';
+import updater, { type BaseUpdater } from 'electron-updater';
+import { Updates, type UpdaterEngine } from './updates.ts';
+import { devActions, isCoordDev } from './dev.ts';
 import type { AboutInfo } from '../shared/contract.ts';
 import { isProjectListing } from '../shared/validate.ts';
 
@@ -74,6 +77,35 @@ function endToEndBuild() {
   try { return JSON.parse(readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')).coordEndToEndBuild === true; } catch { return false; }
 }
 
+/**
+ * electron-updater's updater for this build, or why updates are off: they come with the installed
+ * app on Windows and the AppImage on Linux, never with a development or end-to-end build, and a
+ * test run can turn them off (COORD_NO_UPDATES=1).
+ */
+function updaterEngine(): UpdaterEngine | { off: string } {
+  if (!app.isPackaged) return { off: 'This is a development build: updates come with the installed app.' };
+  if (endToEndBuild() || process.env.COORD_NO_UPDATES === '1') return { off: 'Updates are turned off for this run.' };
+  if (process.platform === 'linux' && !process.env.APPIMAGE) return { off: 'Coord updates itself when it runs as its AppImage.' };
+  if (process.platform !== 'win32' && process.platform !== 'linux') return { off: 'Coord updates itself on Windows and Linux.' };
+  const engine = updater.autoUpdater;
+  if (process.platform === 'linux') {
+    // electron-updater starts the new AppImage at once and then quits; while Coord's host stops, the
+    // old process still holds the single-instance lock, and the new one would quit on it. So the new
+    // AppImage is only put in place here, and Electron starts it once this process has exited.
+    const appImage = engine as unknown as BaseUpdater;
+    let moved: string | null = null;
+    appImage.on('appimage-filename-updated', (file: string) => { moved = file; });
+    appImage.quitAndInstall = () => {
+      // A failed install is in the log; the next press tries again, as electron-updater's own does.
+      if (!appImage.install(true, false)) { (appImage as unknown as { quitAndInstallCalled: boolean }).quitAndInstallCalled = false; return; }
+      app.relaunch({ execPath: moved ?? process.env.APPIMAGE!, args: [] });
+      app.quit();
+    };
+  }
+  engine.logger = { info: (message: unknown) => log.info('Updater: ' + String(message)), warn: (message: unknown) => log.warn('Updater: ' + String(message)), error: (message: unknown) => log.warn('Updater: ' + String(message)), debug: () => {} };
+  return engine as unknown as UpdaterEngine;
+}
+
 function refuse(found: Refusal) {
   log.error(found.reason === 'sandbox' ? 'Refused to start without the sandbox' : 'Refused to start with debugging switches', { switches: found.switches });
   if (found.reason === 'debugging') {
@@ -95,6 +127,8 @@ function start(database: HomeDatabase) {
   // The chosen theme reaches every window as prefers-color-scheme, and themes Coord's own menus and dialogs.
   nativeTheme.themeSource = state.theme;
   const devTools = !app.isPackaged;
+  // Coord Dev: `npm run dev`'s app, on a copy of the data with its own plugin (main/dev.ts).
+  const coordDev = isCoordDev(app.isPackaged, process.env);
   let manager: WindowManager;
 
   const openLogs = () => { void shell.openPath(log.directory); };
@@ -123,20 +157,30 @@ function start(database: HomeDatabase) {
     onStatus: (client, status, detail) => manager.connectionChanged(client, status, detail),
   });
 
-  // The coord command and the plugin, which the packaged app carries in resources/agent. Only the
-  // installed app on the user's own home puts the command on the PATH and refreshes the connected
-  // agents after an update: a home chosen with COORD_HOME (tests, a separate instance) leaves the
-  // user's `coord` and agents alone.
+  // The coord command and the plugin, which the packaged app carries in resources/agent, and Coord
+  // Dev gets from its launcher (main/dev.ts). Only the installed app on the user's own home puts the
+  // command on the PATH and refreshes the connected agents after an update: a home chosen with
+  // COORD_HOME (tests, a separate instance, Coord Dev's copy) leaves the user's `coord` and agents alone.
   const agents = new Agents({
     home: dataDirectory, log,
-    bundle: app.isPackaged ? path.join(process.resourcesPath, 'agent') : null,
+    bundle: app.isPackaged ? path.join(process.resourcesPath, 'agent') : coordDev ? process.env.COORD_DEV_BUNDLE! : null,
     checkout: path.resolve(app.getAppPath(), '..'),
     ownHome: app.isPackaged && !process.env.COORD_HOME,
     lastSession: harness => (database.db.prepare('SELECT max(updated_at) AS at FROM session WHERE harness = ?').get(harness) as { at: string | null }).at,
   });
 
+  // Coord's own updates, from its releases on GitHub, in the installed app only.
+  const dev = coordDev ? devActions(agents, log) : null;
+
+  const updates = new Updates({
+    version: app.getVersion(), log,
+    engine: updaterEngine(),
+    setting: { get: () => database.setting('updateChannel'), set: value => database.setSetting('updateChannel', value) },
+    onChange: state => manager?.updatesChanged(state),
+  });
+
   manager = new WindowManager({
-    state, database, log, computers, version: app.getVersion(), icon, devUrl, devTools,
+    state, database, log, computers, version: app.getVersion(), icon, devUrl, devTools, dev: coordDev,
     preload: path.join(import.meta.dirname, '../preload/index.cjs'),
     rendererDirectory: path.join(import.meta.dirname, '../renderer'),
   });
@@ -168,7 +212,7 @@ function start(database: HomeDatabase) {
   void app.whenReady().then(async () => {
     log.info('Coord started', { version: app.getVersion(), packaged: app.isPackaged, platform: process.platform, uptimeMs: Math.round(process.uptime() * 1000) });
     Menu.setApplicationMenu(null);
-    registerIpc(manager, { openLogs, about, agents });
+    registerIpc(manager, { openLogs, about, agents, updates, dev });
     buildMenu(manager, { openLogs, devTools });
     // The host starts while the windows open: the connection waits for its owner token.
     const hostStarted = localHost.start().catch(async error => {
@@ -182,7 +226,8 @@ function start(database: HomeDatabase) {
     powerMonitor.on('resume', () => computers.wakeAll());
     manager.restore();
     // After the windows open: an update copies the command and the plugin into the home.
-    void agents.start();
+    void agents.start().then(() => dev?.start());
+    updates.start();
     await hostStarted;
   });
 }

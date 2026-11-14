@@ -6,11 +6,11 @@
 
 [![CI](https://github.com/envsemble/coord/actions/workflows/ci.yml/badge.svg)](https://github.com/envsemble/coord/actions/workflows/ci.yml)
 [![Version 0.8.0](https://img.shields.io/badge/version-0.8.0-blue)](CHANGELOG.md)
-[![Private source](https://img.shields.io/badge/license-UNLICENSED-lightgrey)](THIRD_PARTY_NOTICES.md)
+[![MIT license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 **Coord is where your coding agents' plans live.** When you design something with an agent, the plan, its steps, the decisions behind it and the diagrams that explain it are written into a planning folder on your computer instead of disappearing with the chat. Every agent session that works in your project finds them again, keeps them current as it works, and you follow all of it in one desktop app.
 
-![The Coord hub on the computer Workstation: three open plans of the project Northwind, grouped as Your turn (Saved payment methods, with what the agent waits on you for: choose how a customer picks a saved card, on the card picker page; Claude Opus 5.5 and two other models, its agent time and tokens), Waiting (Customer order notifications, with why it is blocked) and Later (Order fulfilment model), each with its project, steps done and when it changed; the title bar holds the Coord mark, Plans, File, View and Help and the computer menu, and the heading line the search, the project menu and the Open, Closed and All filter](assets/hub.png)
+![The Coord hub on the computer Workstation: three open plans of the project Northwind, grouped as Your turn (Saved payment methods, with what the agent waits on you for: choose how a customer picks a saved card, on the card picker page; Claude Opus 5.5 and two other models, its agent time and tokens), Waiting (Customer order notifications, with why it is blocked) and Later (Order fulfilment model), each with its project, steps done and when it changed; the title bar holds the Coord mark, Plans, Settings and Help and the computer menu, and the heading line the search, the project menu and the Open, Closed and All filter](assets/hub.png)
 
 ## Why bother
 
@@ -69,4 +69,4 @@ To work on Coord itself, or to run the command from a checkout instead, see [the
 - [The coord command](docs/command.md) and [all documentation](docs/README.md).
 - [Contributing](CONTRIBUTING.md), the [changelog](CHANGELOG.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
 
-Source is currently private (`UNLICENSED`): a source-use status, not an open-source license.
+Coord is open source under the [MIT license](LICENSE).

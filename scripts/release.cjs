@@ -21,6 +21,7 @@ const SOURCE_FILES = [
   "CONTEXT.md",
   "CONTRIBUTING.md",
   "THIRD_PARTY_NOTICES.md",
+  "LICENSE",
   "package.json",
   "package-lock.json",
 ];
@@ -169,8 +170,7 @@ ${status}`,
       formatVersion: 1,
       version,
       commit,
-      private: true,
-      license: "UNLICENSED",
+      license: "MIT",
       files: [...files]
         .sort(([a], [b]) => a.localeCompare(b, "en"))
         .map(([name, data]) => ({

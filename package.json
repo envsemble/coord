@@ -11,13 +11,14 @@
   "bugs": {
     "url": "https://github.com/envsemble/coord/issues"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "engines": {
     "node": ">=24"
   },
   "workspaces": [
     "packages/*",
-    "app"
+    "app",
+    "site"
   ],
   "scripts": {
     "dev": "npm run dev --workspace @envsemble/coord-app",
@@ -40,7 +41,8 @@
     "check:package": "npm run check:package --workspace @envsemble/coord-diagrams",
     "check:performance": "npm run check:performance --workspace @envsemble/coord-diagrams",
     "release:assemble": "node scripts/release.cjs",
-    "check:release": "node scripts/check-release.cjs"
+    "check:release": "node scripts/check-release.cjs",
+    "dev:site": "npm run dev --workspace @envsemble/coord-site"
   },
   "devDependencies": {
     "@babel/core": "8.1.2",

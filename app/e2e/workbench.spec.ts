@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
-  addProject, applicationMenu, chooseMenu, close, closeMenus, expectArchived, expectHub, expectProjects, fileMenu, filesSidebar, filterHub, goHome, hubRows, launch, launchProject, openPlan,
+  addProject, applicationMenu, close, closeMenus, expectArchived, expectHub, expectProjects, titleButton, filesSidebar, filterHub, goHome, hubRows, launch, launchProject, openPlan,
   openProjectMenu, pageScroll, settledScroll, listedProjects, projectAction, projectButton, projectDetails, projectHome, removeDirectory, restoreProject, searchPopup, showFiles, temporaryDirectory, titleBar, type Launched,
 } from './app';
 
@@ -378,7 +378,7 @@ test("the hub's project menu makes a project from a name and a folder, gives a p
   await expectHub(launched.window);
 });
 
-test('one row at the top: the logo, back and forward, the Plans, File, View and Help menus, the computer, search, record health and the theme', async () => {
+test('one row at the top: the logo, back and forward, Plans, Settings and Help, the computer, search and record health', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
   addProject(home.dataDirectory, 'harbor', 'Harbor');
@@ -386,12 +386,12 @@ test('one row at the top: the logo, back and forward, the Plans, File, View and 
   const { window, app } = launched;
   await expect(hubRows(window)).toHaveCount(6);
   const bar = titleBar(window);
-  await expect(bar.getByRole('menubar', { name: 'Application menu' }).getByRole('menuitem')).toHaveText(['Plans', 'File', 'View', 'Help']);
+  await expect(bar.getByRole('menubar')).toHaveCount(0);
+  await expect(bar.getByRole('button', { name: 'Theme' })).toHaveCount(0);
   await openPlan(window, 'Customer order notifications');
-  const left = async (name: string, role: 'button' | 'menuitem' = 'button') => (await bar.getByRole(role, { name, exact: true }).boundingBox())!.x;
-  const order = [await left('Back'), await left('Forward'), await left('Plans', 'menuitem'), await left('File', 'menuitem'), await left('Search'), await left('Theme')];
+  const left = async (name: string) => (await bar.getByRole('button', { name, exact: true }).boundingBox())!.x;
+  const order = [await left('Back'), await left('Forward'), await left('Plans'), await left('Settings'), await left('Help'), (await bar.getByRole('button', { name: /^Computer:/ }).boundingBox())!.x, await left('Search')];
   expect(order).toEqual([...order].sort((a, b) => a - b));
-  await expect(bar.getByRole('button', { name: /^Computer:/ })).toBeVisible();
   const regions = await window.evaluate(() => {
     const region = (element: Element | null) => element ? getComputedStyle(element).getPropertyValue('-webkit-app-region') : null;
     return { bar: region(document.querySelector('.window-title-bar')), search: region(document.querySelector('.search-button')) };
@@ -404,47 +404,20 @@ test('one row at the top: the logo, back and forward, the Plans, File, View and 
     expect(sidebar.y, String(width)).toBeGreaterThanOrEqual(top.y + top.height);
   }
 
-  // Plans: every plan, each active project's (the one shown marked) and all plans' statistics.
-  const plans = window.getByRole('menu', { name: 'Plans' });
-  await fileMenu(window, 'Plans').click();
-  await expect(plans.getByRole('menuitem')).toHaveText(['All Plans', 'Northwind', 'Harbor', 'Statistics']);
-  await plans.getByRole('menuitem', { name: 'Harbor', exact: true }).click();
-  await expectHub(window, 'Harbor');
-  await fileMenu(window, 'Plans').click();
-  await expect(plans.locator('[aria-current="page"]')).toHaveText('Harbor');
-  await plans.getByRole('menuitem', { name: 'Statistics', exact: true }).click();
-  await expect(window.locator('.statistics-page .breadcrumb')).toHaveText(/^Plans.*Statistics$/);
-  // An archived project leaves it until it is restored.
-  await goHome(window);
-  await projectAction(window, 'Harbor', 'Archive');
+  // Plans goes to every plan, marked while it shows; Help holds the logs and About Coord.
+  await titleButton(window, 'Plans').click();
   await expectHub(window);
-  await fileMenu(window, 'Plans').click();
-  await expect(plans.getByRole('menuitem')).toHaveText(['All Plans', 'Northwind', 'Statistics']);
-  await closeMenus(window);
-  await restoreProject(window, 'Harbor');
-  await expect(hubRows(window)).toHaveCount(6);
-
-  // File holds the window's commands and Settings; the computer menu only switches computers.
-  await fileMenu(window).click();
-  const menu = window.getByRole('menu', { name: 'File' });
-  await expect(menu.getByRole('menuitem')).toHaveText([/^New Window\s*Ctrl\s*\+?\s*Shift\s*\+?\s*N$/, 'New Project…', /^Settings…\s*Ctrl\s*\+?\s*,$/, 'Exit']);
+  await expect(titleButton(window, 'Plans')).toHaveAttribute('aria-current', 'page');
+  await titleButton(window, 'Help').click();
+  const help = window.getByRole('menu', { name: 'Help' });
+  await expect(help.getByRole('menuitem')).toHaveText(['Open Logs', 'About Coord']);
   await window.keyboard.press('Escape');
-  await expect(menu).toHaveCount(0);
-  // Alt+F opens it from the keyboard, at its first item.
-  await window.keyboard.press('Alt+F');
-  await expect(menu).toBeVisible();
-  await expect(menu.getByRole('menuitem', { name: /^New Window/ })).toBeFocused();
-  await window.keyboard.press('Escape');
-  await expect(menu).toHaveCount(0);
-  // New Project… opens its dialog where the window is.
-  await chooseMenu(window, 'New Project…');
-  await expect(window.getByRole('dialog', { name: 'Create project' })).toBeVisible();
-  await window.keyboard.press('Escape');
-  await expectHub(window);
-  // Settings… (Ctrl+,) opens Settings at Agents, a place of its own; Computer settings… opens it at Computers.
-  await window.keyboard.press('Control+,');
+  await expect(help).toHaveCount(0);
+  // Settings opens Settings at General, with the theme; Computer settings… opens it at Computers.
+  await titleButton(window, 'Settings').click();
   await expect(window.locator('.settings-page h1')).toHaveText('Settings');
-  await expect(window.getByRole('navigation', { name: 'Settings' }).locator('[aria-current="page"]')).toHaveText('Agents');
+  await expect(window.getByRole('navigation', { name: 'Settings' }).locator('[aria-current="page"]')).toHaveText('General');
+  await expect(window.getByRole('group', { name: 'Theme' }).getByRole('radio')).toHaveCount(3);
   await bar.getByRole('button', { name: /^Computer:/ }).click();
   const computerMenu = window.getByRole('menu', { name: /^Computer/ });
   await expect(computerMenu.getByRole('menuitem')).toHaveText(['Computer settings…']);
@@ -453,7 +426,7 @@ test('one row at the top: the logo, back and forward, the Plans, File, View and 
   await expect(window.getByRole('heading', { name: /^Devices that can reach / })).toBeVisible();
   await expect(computerMenu).toHaveCount(0);
   await window.keyboard.press('Alt+ArrowLeft');
-  await expect(window.getByRole('navigation', { name: 'Settings' }).locator('[aria-current="page"]')).toHaveText('Agents');
+  await expect(window.getByRole('navigation', { name: 'Settings' }).locator('[aria-current="page"]')).toHaveText('General');
   await window.keyboard.press('Alt+ArrowLeft');
   await expectHub(window);
   // Main's application menu keeps the shortcuts (and is the menu bar on macOS), with Plans and Statistics in View.

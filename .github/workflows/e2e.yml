@@ -1,16 +1,14 @@
 name: End-to-end
 # The end-to-end suite against the packaged app, for pull requests into main (the releases) once
 # they are ready for review. It is a workflow of its own so that pull requests into dev never report
-# an End-to-end check: a pull request retargeted to main then waits for one. The job runs on the
-# Linux runner the envsemble organization variable CI_LINUX_RUNNER names.
+# an End-to-end check: a pull request retargeted to main then waits for one. The job runs on
+# GitHub's own Linux runner (free for a public repository).
 on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
 permissions:
   contents: read
-  # @envsemble/envui comes from GitHub Packages, which needs a token even to install.
-  packages: read
 defaults:
   run:
     shell: bash
@@ -22,7 +20,7 @@ jobs:
   e2e:
     name: End-to-end
     if: ${{ !github.event.pull_request.draft }}
-    runs-on: ${{ vars.CI_LINUX_RUNNER }}
+    runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -30,11 +28,7 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          registry-url: https://npm.pkg.github.com
-          scope: "@envsemble"
       - run: npm ci
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor, which Chromium's
       # sandbox needs. Allow them where the kernel has the setting (see the app README) rather than
       # running without the sandbox.

@@ -79,10 +79,16 @@ export const api: Omit<Unwrapped, 'snapshot'> & { snapshot(projectId: string): P
   disconnectAgent: id => unwrap(bridge().disconnectAgent(id)),
   onboarding: () => unwrap(bridge().onboarding()),
   finishOnboarding: () => unwrap(bridge().finishOnboarding()),
+  updates: () => unwrap(bridge().updates()),
+  checkForUpdates: () => unwrap(bridge().checkForUpdates()),
+  downloadUpdate: () => unwrap(bridge().downloadUpdate()),
+  installUpdate: () => unwrap(bridge().installUpdate()),
+  setUpdateChannel: channel => unwrap(bridge().setUpdateChannel(channel)),
   onChanged: listener => bridge().onChanged(listener),
   onProjectsChanged: listener => bridge().onProjectsChanged(listener),
   onMenu: listener => bridge().onMenu(listener),
   onAccessChanged: listener => bridge().onAccessChanged(listener),
+  onUpdatesChanged: listener => bridge().onUpdatesChanged(listener),
 };
 
 /** A file inside a project's planning folder, served by the window's own `coord:` protocol. */

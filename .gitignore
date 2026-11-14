@@ -18,3 +18,6 @@ app/out/
 app/release/
 app/test-results/
 app/playwright-report/
+
+# The website's build output
+site/dist/

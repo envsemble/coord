@@ -39,3 +39,4 @@ export { IconDevices as DevicesIcon } from '@envsemble/envui/icons/Devices';
 export { IconSettingsRemote as RemoteAccessIcon } from '@envsemble/envui/icons/SettingsRemote';
 export { IconSettings as SettingsIcon } from '@envsemble/envui/icons/Settings';
 export { IconSmartToy as AgentIcon } from '@envsemble/envui/icons/SmartToy';
+export { IconSystemUpdateAlt as UpdateIcon } from '@envsemble/envui/icons/SystemUpdateAlt';

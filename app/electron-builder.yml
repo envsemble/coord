@@ -1,4 +1,5 @@
-# Packages the desktop app: an unsigned NSIS installer on Windows and an AppImage on Linux.
+# Packages the desktop app: an unsigned NSIS installer on Windows and an AppImage on Linux, each with
+# the update file the installed app updates from.
 appId: dev.envsemble.coord
 productName: Coord
 copyright: Copyright © 2026 envsemble
@@ -16,7 +17,17 @@ files:
 # archive, and only add protection to signed builds; these builds are unsigned (ADR 0001).
 asar: false
 npmRebuild: false
-publish: null
+# Where the installed app looks for its updates (app-update.yml, read by electron-updater): the
+# GitHub Releases of envsemble/coord. Packaging also writes the channel's update file beside the
+# installer: latest.yml and latest-linux.yml for a stable release. The release workflow builds a
+# nightly with `-c.publish.channel=nightly`, which writes
+# nightly.yml and nightly-linux.yml instead. Nothing is uploaded from here (--publish never): the
+# workflow attaches the files to the release.
+publish:
+  provider: github
+  owner: envsemble
+  repo: coord
+  releaseType: release
 # Prunes the app's node_modules and assembles resources/agent: the coord command, the Node.js it
 # runs on and the plugin, which the app copies into the Coord home (scripts/agent-payload.cjs,
 # main/agent/agentFolder.ts).

@@ -1,17 +1,23 @@
 # Coord desktop app
 
-![The Coord hub on the computer Workstation: three open plans of the project Northwind, grouped as Your turn (Saved payment methods, with what the agent waits on you for: choose how a customer picks a saved card, on the card picker page; Claude Opus 5.5 and two other models, its agent time and tokens), Waiting (Customer order notifications, with why it is blocked) and Later (Order fulfilment model), each with its project, steps done and when it changed; the title bar holds the Coord mark, Plans, File, View and Help and the computer menu, and the heading line the search, the project menu and the Open, Closed and All filter](../assets/hub.png)
+![The Coord hub on the computer Workstation: three open plans of the project Northwind, grouped as Your turn (Saved payment methods, with what the agent waits on you for: choose how a customer picks a saved card, on the card picker page; Claude Opus 5.5 and two other models, its agent time and tokens), Waiting (Customer order notifications, with why it is blocked) and Later (Order fulfilment model), each with its project, steps done and when it changed; the title bar holds the Coord mark, Plans, Settings and Help and the computer menu, and the heading line the search, the project menu and the Open, Closed and All filter](../assets/hub.png)
 
 Coord is a desktop app for your Coord projects and their plans. Every window opens on the hub, one list of every plan of the computer's projects, and shows one place at a time: the hub, a plan, its statistics, a diagram, a file, statistics or Settings. Discuss changes with your agent in chat; the agent edits the records, and Coord shows them as they change.
 
 ## Install
 
-Coord is built for Windows and Linux. Builds are unsigned, by decision for a single user; a newer version installs over an older one, and there is no auto-update. Each [GitHub Release](../docs/releases.md#github-releases) carries both; `npm run package` in a checkout builds the one for its system into `app/release/`.
+Coord is built for Windows and Linux. Builds are unsigned for now; a newer version installs over an older one, and the installed app updates itself (see [Updates](#updates)). Each [GitHub Release](../docs/releases.md#github-releases) carries both; `npm run package` in a checkout builds the one for its system into `app/release/`.
 
 - **Windows:** run `Coord-Setup-<version>.exe`. SmartScreen warns about an unsigned app the first time: choose **More info › Run anyway**. It installs for the current user only, without administrator rights (you can pick the folder), and adds Coord to the Start menu. Uninstall it from **Settings › Apps**; your Coord home is kept.
 - **Linux:** make `Coord-<version>-x86_64.AppImage` executable (`chmod +x`) and run it.
 
 The app carries the [`coord` command](../docs/command.md) and the Coord plugin for agents. Each start of a new version copies them to `agent/` in the Coord home, and the first start puts the command on your PATH without asking, as VS Code does with `code`: the user `Path` on Windows, a link at `~/.local/bin/coord` on Linux (an existing file there is left alone). The command runs on a Node.js the app ships with it, copied there too, so nothing else needs installing. The copy of the plugin calls the command by its full path, so an agent started before the PATH changed runs it too. Then the onboarding connects your agents (see [Settings](#settings)); after an update, Coord refreshes the plugin in the agents it connected. Uninstalling on Windows (not updating) disconnects Claude Code and Codex where Coord connected them, since their plugin calls the command, and takes the command off the PATH.
+
+### Updates
+
+The installed app updates itself from the [GitHub Releases](../docs/releases.md#github-releases) of envsemble/coord, on one of two channels: **stable**, the releases, or **nightly**, a build of `dev` each night. A build follows its own channel until **Settings › Updates** chooses the other. Coord checks the channel when it starts and every four hours. A newer build shows as **Update** in the title bar and in Settings › Updates: a click downloads it, and **Restart to update** installs it and starts it again (on Windows the installer runs without its pages, into the same folder; on Linux the AppImage replaces itself). Nothing downloads or installs on its own.
+
+Coord never moves to an older build, whose code may not read the home this one wrote: a nightly switched to stable stays until a stable release newer than it is out. Updates are off in a development build (`npm run dev`), in the end-to-end build, on Linux when Coord does not run as its AppImage, and with `COORD_NO_UPDATES=1`; Settings › Updates then says why. The builds are not code-signed, so an update's integrity rests on HTTPS and the SHA-512 in the channel's update file (`latest.yml` or `nightly.yml`).
 
 ### Linux sandbox
 
@@ -36,14 +42,14 @@ Coord also refuses `--no-sandbox` and `ELECTRON_DISABLE_SANDBOX` given any other
 A window has one row at the top, its title bar, from the left:
 
 - the Coord mark, then the **back** and **forward** arrows;
-- **Plans**: **All Plans** (the hub), each active project (its plans in the hub) and **Statistics** (all plans');
-- **File**: **New Window** (Ctrl+Shift+N), **New Project…**, **Settings…** (Ctrl+,; see [Settings](#settings)) and **Exit**;
-- **View**: **Zoom In** (Ctrl++), **Zoom Out** (Ctrl+-), **Actual Size** (Ctrl+0) and **Full Screen** (F11), with **Reload** and **Developer Tools** in development builds;
+- **Plans**, a button that opens the hub with every plan (the hub leads on to each project's plans and the statistics);
+- **Settings**, a button that opens [Settings](#settings) (Ctrl+,);
 - **Help**: **Open Logs** and **About Coord**;
 - the **computer menu**, the name of the computer the window works on: this computer and the paired ones (choosing one shows its plans in this window), and **Computer settings…**, which opens **Settings › Computers** (see [Remote computers](#remote-computers));
-- at the right: **Search** (Ctrl+P; on the hub its own **Search every project** takes its place), record-health notes when the shown project has any, the theme menu (**Match the system**, **Light** or **Dark**, for every window) and the system's window buttons.
+- **Update**, beside the computer, while a newer Coord is on offer, downloading or ready (see [Updates](#updates));
+- at the right: **Search** (Ctrl+P; on the hub its own **Search every project** takes its place), record-health notes when the shown project has any, and the system's window buttons.
 
-Alt opens the menus from the keyboard (Alt+P, Alt+F, Alt+V, Alt+H). Empty space in the title bar moves the window, and a double click maximizes it.
+The window's other commands (New Window, zoom, full screen) keep their shortcuts, Ctrl+Shift+N, Ctrl++, Ctrl+-, Ctrl+0 and F11. Empty space in the title bar moves the window, and a double click maximizes it.
 
 **The breadcrumbs** of each page lead back the way you came: **Plans** (every plan), the project (its plans), then the plan, as in Plans › Northwind › #0001; a part has its group before it (Plans › Northwind › #0005 › #0006).
 
@@ -110,7 +116,7 @@ Projects are made and managed in the hub's **project menu**, beside the search. 
 
 **Archived projects** lists the archived ones; choosing one restores it. Coord never deletes a project; to drop one, remove its folder from the home.
 
-**New Project…** (in the project menu, or **File › New Project…**) asks for a name and the project's folders, each chosen in the file manager (the first one names the project until you type a name); a project may have none yet. Coord creates the planning folder in the home from the bundled templates, as a Git repository with a first commit. Agents can create projects too.
+**New Project…** (in the hub's project menu) asks for a name and the project's folders, each chosen in the file manager (the first one names the project until you type a name); a project may have none yet. Coord creates the planning folder in the home from the bundled templates, as a Git repository with a first commit. Agents can create projects too.
 
 ## Statistics
 
@@ -136,8 +142,9 @@ A plan's agent can make pages: views in its work folder's `pages/`, such as a ch
 
 ## Settings
 
-**File › Settings…** (Ctrl+,) opens Settings in the window, a page with two sections; back and forward step through them like other places.
+**Settings** in the title bar (Ctrl+,) opens Settings in the window at **General**; back and forward step through its sections like other places.
 
+- **General**: the theme, **Match the system**, **Light** or **Dark**, for every window.
 - **Agents**, this computer's: **Claude Code** and **Codex**, each with its status (**Connected** with the version of the Coord plugin it has, **Not connected**, or **Not found on this computer** with a link to install it) and **Connect** or **Disconnect**. Coord finds an agent as a program, on the PATH as your terminals have it (read again at start); for one it does not find, **Choose program…** picks its program (`claude`, `codex`; `.exe` or Codex's `.cmd` on Windows), which Coord uses until you **Clear** it. Connecting installs the Coord plugin into the agent with the agent's own commands, which can take a minute; the row shows it, and says why if it fails, with **Try again**. A connected agent's row then says whether it runs Coord: **Ready** with its last session, **Waiting for a first session**, or a warning: **Hooks not trusted** (type `/hooks` in Codex and trust them) or **Coord's hooks aren't running** (a session used Coord's tools, but no hook ran; in Codex, `/hooks` trusts them again). A session that ran the hooks makes it Ready, whatever Codex's configuration says. The hub shows this computer's warnings too, until they are resolved. **Connect by hand**, under each agent, lists the commands that install the plugin, to copy (Connect also grants the agent Coord's home). In a window on another computer, Agents is still this computer's: connecting installs the plugin here.
 - **Computers**, both ways of pairing: **Other computers**, the computers this one is paired with, and **Devices that can reach** the window's computer (see [Remote computers](#remote-computers)).
 
@@ -168,7 +175,7 @@ The app follows Electron's security checklist:
 - Commands a page could misuse wait for you. Right after your click, key press or tap in the window, which a page cannot fake, Coord runs one: exiting, opening a window or the logs, turning remote access on or moving it, pairing with another computer, opening a web address in the browser, a link in its application, or a file in your editor. Otherwise it first asks in a system dialog the page cannot answer. Creating a pairing link always asks first.
 - Electron fuses turn off running as Node.js and `NODE_OPTIONS`; the `coord` command runs on its own Node.js, which the app ships and copies to the Coord home. The installer and AppImage also turn off `--inspect`, and refuse to start with `--remote-debugging-port`, `--remote-debugging-pipe` or `--inspect`, which would let other programs control the window.
 - Planning folders are read by the Coord host in a separate process, which the main process reaches over loopback with a token made at each start; windows never reach it directly.
-- No data leaves the computer unless you turn on remote access; then the devices you paired can work on its projects. There is no telemetry, update check or crash upload.
+- No data leaves the computer unless you turn on remote access; then the devices you paired can work on its projects. The one request Coord makes on its own is the update check, which reads the release list and update file of envsemble/coord on GitHub and sends nothing of yours. There is no telemetry or crash upload.
 
 ## Diagnostics
 
@@ -178,4 +185,4 @@ Coord keeps its own data in the Coord home, `~/.coord` (or `COORD_HOME`), shared
 
 ## Develop
 
-From the repository root, `npm ci`, then `npm run dev` starts the app with hot reload (give it a home of its own: `COORD_HOME=~/.coord-dev npm run dev`, or `npm run dev:home`). `npm run package` builds the installer or AppImage, and `npm run test:e2e` drives it. [Contributing](../CONTRIBUTING.md) covers set-up, the repository layout, the tests and the checks.
+From the repository root, `npm ci`, then `npm run dev` starts Coord Dev: the app with hot reload, beside your installed Coord, on a copy of your Coord data, with a `dev-` plugin of its own in your agents ([Coord Dev](../CONTRIBUTING.md#coord-dev)); `npm run dev:home` starts it on a demo home instead. `npm run package` builds the installer or AppImage, and `npm run test:e2e` drives it. [Contributing](../CONTRIBUTING.md) covers set-up, the repository layout, the tests and the checks.

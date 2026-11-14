@@ -10,7 +10,7 @@
 import { readFileSync } from 'node:fs';
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { AgentError, agentStatus, connectAgent, disconnectAgent, harness, harnesses, marketplaceName, onPath, refreshAgent, type AgentId } from '@envsemble/coord/agents';
+import { AgentError, agentStatus, connectAgent, disconnectAgent, harness, harnesses, marketplaceOf, onPath, refreshAgent, type AgentId } from '@envsemble/coord/agents';
 import { readActivity } from '@envsemble/coord/agents/activity';
 import { codexTrust } from '@envsemble/coord/agents/trust';
 import type { AgentChange, AgentCheck, AgentFolder, AgentState, OnboardingState } from '../../shared/contract.ts';
@@ -277,9 +277,9 @@ export class Agents {
     });
   }
 
-  /** What connecting an agent by hand takes: the folder agents are connected to, and the marketplace's name. */
+  /** What connecting an agent by hand takes: the folder agents are connected to, the marketplace's name and the plugin's. */
   byHand(): AgentFolder {
-    return { directory: this.directory, marketplace: marketplaceName(this.source) };
+    return { directory: this.directory, ...marketplaceOf(this.source) };
   }
 
   private get onboardingFile() { return path.join(this.folder, 'onboarding.json'); }

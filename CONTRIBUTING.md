@@ -12,14 +12,26 @@ This is where Coord's development lives: set-up, the repository's layout, conven
 
 Use Node 24, npm and Git, and Java 21 for the Java capture tests. The interface comes from envUI (`@envsemble/envui`, from npm), whose documentation ships in `node_modules/@envsemble/envui/docs/` ([AGENTS.md](AGENTS.md) says how to use it). Run `npm ci`, then:
 
-- `npm run dev` starts the desktop app with electron-vite: the window reloads React changes in place, and the app restarts when main-process or preload code changes. There is no browser mode. Give it a home of its own with `COORD_HOME` (`COORD_HOME=~/.coord-dev npm run dev`): it then keeps all its files there, Electron's included, and runs beside your installed Coord. Without it, a development run uses your Coord home and shares the installed app's single-instance lock.
-- `npm run dev:home` starts it on a home of its own in `artifacts/dev-home`, seeded with a demo project and agent reports, with this checkout's `coord` command first on the `PATH` (shims in `artifacts/dev-bin`), so the plugin's hooks and MCP server run this version too.
+- `npm run dev` starts **Coord Dev**, the desktop app in development, beside your installed Coord (see [Coord Dev](#coord-dev)): the window reloads React changes in place, and the app restarts when main-process or preload code changes. There is no browser mode.
+- `npm run dev:home` starts Coord Dev on a home of its own in `artifacts/dev-home`, seeded with a demo project and agent reports, in place of the copy of your data, with this checkout's `coord` command first on the `PATH` (shims in `artifacts/dev-bin`).
 - `npm run dev:envui` does the same against a local envUI checkout beside this one (`../envUI`, or `ENVUI_PATH`), with live reload for envUI's components too; it links that checkout into the app and the diagram viewer without changing `package.json` or the lockfile. `npm run envui:unlink` returns to the published version, and `node scripts/dev-envui.mjs --link` links again after an `npm install` replaced the link.
 - `npm run dev:diagrams` starts the diagram viewer alone at `http://127.0.0.1:5173/`, showing the shop example, with live updates.
 - `npm run build` builds every workspace: the app and the diagram package's `index.html`, `downloads/` and reusable React module. The HTML opens directly from disk (or with `npm run preview` at port 4173) and needs no network or model service.
 - `npm run package` builds the app's installer on Windows or AppImage on Linux into `app/release/`.
+- `npm run dev:site` serves the [website](site/README.md) at `http://127.0.0.1:5180/`.
 
 To use this checkout's `coord` command, run `npm link --workspace @envsemble/coord`, then `coord setup`.
+
+### Coord Dev
+
+Coord Dev lets you develop Coord on the computer where you use it, on your real plans, without touching them or your agents' Coord plugin. `npm run dev` ([app/scripts/dev.mjs](app/scripts/dev.mjs)):
+
+- **Runs on a copy of your data.** The first time, it copies your Coord home (`~/.coord`) into `~/.coord-dev`: the planning folders and the database, with the projects pointed at the copied folders, remote access off and no paired device or computer. Your real home is never written. A project whose planning folder is outside your Coord home is not copied: Coord Dev works on it where it is. The **Dev** tag in its title bar is also its menu: **Copy My Real Data Again…** replaces the copy with your current data and restarts Coord Dev. `COORD_HOME` chooses another home; it is never your real one.
+- **Runs beside the installed Coord**, with Electron's files in its home, so the two never share a window or a single-instance lock. Its title bar says **Dev**.
+- **Has a plugin of its own, `coord-dev`.** It is the release's agent bundle (as `npm run package` builds it) with only its names changed ([app/scripts/dev-plugin.cjs](app/scripts/dev-plugin.cjs)): every skill as `dev-<name>` (`dev-coord-implement`, `dev-full-stop`, …), its tools as `coord-dev`, its command calling `~/.coord-dev`. Coord Dev installs it in Claude Code and Codex beside the real plugin and turns it on while it runs; quitting `npm run dev` turns it off. **Remove the Dev Plugin…**, in the same menu, takes it out of both agents.
+- **Stays out of your sessions unless you ask.** Its skills apply only when you say "dev" ("dev coord implement") or in a **dev session**: say "dev session" in a prompt, and for the rest of that session the agent uses the `dev-` skills and `coord-dev` tools in place of Coord's, the ones that apply on their own included, and the dev plugin's hooks record into the copy. In any other session its hooks do nothing. An agent loads its plugins when a session starts, so a session open before Coord Dev started or quit keeps what it had.
+
+A release has none of it: no dev plugin, no Dev tag, no copy. A test checks that the dev plugin differs from the release's only in its names.
 
 The examples in `packages/diagrams/examples` are work folders of diagram files: `shop`, a TypeScript capture with a proposal of saved payment methods, shown by [index.html](packages/diagrams/index.html), and `enrollment`, a class diagram with four scenarios. `npm run check` checks them and the committed showcase.
 
@@ -31,6 +43,7 @@ The examples in `packages/diagrams/examples` are work folders of diagram files: 
 | `packages/coord`    | The `coord` command (`src/cli`, [command reference](docs/command.md)); the Coord host (`src/host`), which reads and watches planning folders for the app and serves them to paired computers ([remote access](docs/remote-access.md)); the planning reader and work tools they share (`src/planning`); the Coord home and its database (`src/home`); processes, Git and paths (`src/platform`); and the planning folder templates (`templates/planning`). |
 | `packages/diagrams` | The diagram package: the Node library in `lib/` (`plantuml`, `capture`, `layout`, `payload`, `render`, `scenarios`), the React viewer in `src/` (`canvas`, `details`, `model`, `review`, `scenarios`, `ui`, `viewer`), the development page in `development/`, the example diagrams in `examples/`, and its build and check scripts in `scripts/`.                                                                                                        |
 | `plugin/`           | The Coord plugin for Claude Code and Codex: its manifests, MCP server configuration, hooks, the `coord`, `coord-grill` and `coord-implement` skills, the delivery skills beside them and the reviewer agent they use, with their packaging test in `plugin/tests` ([agent interface](docs/agent-interface.md)). The marketplace manifests that name it are `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`.                      |
+| `site/`             | Coord's website (coord.envsemble.com): one static dark page with Vite and React that offers the newest Windows and Linux builds, read from GitHub Releases in the browser ([site guide](site/README.md)).                                                                                                                                                                                                                                                 |
 | `scripts/`          | The development home and envUI link (`dev-home.mjs`, `dev-envui.mjs`), the test tiers (`test-tier.mjs`, `test-home.mjs`), and release assembly and its check (`release.cjs`, `check-release.cjs`).                                                                                                                                                                                                                                                        |
 | `docs/`             | The documentation ([index](docs/README.md)), with the [repository history maps](docs/history/README.md).                                                                                                                                                                                                                                                                                                                                                  |
 | `assets/`           | Editable branding (SVG) and the screenshots the documents show.                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -42,7 +55,7 @@ The [architecture](docs/architecture.md), [agent](docs/agent-interface.md) and a
 ## Conventions
 
 - `packages/coord` is TypeScript that Node 24 runs directly without a build step, so it uses only erasable syntax (no enums, namespaces or parameter properties; `erasableSyntaxOnly` enforces it) and `.ts` import extensions.
-- The interface uses envUI's components, tokens and icons; `npm run lint` runs envUI's ESLint rules on the app's window and the diagram viewer and its Stylelint rules on their style sheets. Where a raw element or a literal colour is needed, disable the rule on that line and say why.
+- The interface uses envUI's components, tokens and icons (the website, `site/`, is its own design); `npm run lint` runs envUI's ESLint rules on the app's window and the diagram viewer and its Stylelint rules on their style sheets. The lint is a helper while working, not a gate: CI does not run it, and a raw element or a literal colour is fine where it serves the design better (say why beside it).
 - Code is not formatted with Prettier. Prettier covers `docs/*.md`, `scripts/`, the root `README.md`, `CONTEXT.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `THIRD_PARTY_NOTICES.md` and `package.json`, and the diagram package's own list; `npm run format` fixes them and `npm run format:check` checks them.
 - Commit generated output with its source: `index.html`, `downloads/` and `dist/` in `packages/diagrams`. CI fails when they are stale.
 - Screenshots show the actual application and have alternative text that says what they show. Keep private source excerpts scoped and attributed.
@@ -57,7 +70,6 @@ The tests come in tiers, from quick to slow ([AGENTS.md](AGENTS.md) gives agents
 
 ```sh
 npm run format:check
-npm run lint
 npm run build
 npm run check
 npm run check:package
@@ -79,14 +91,15 @@ A PR description says what behaviour changes, its scope, and how it was validate
 
 CI is one Linux job, `CI` (`.github/workflows/ci.yml`), for pull requests into `dev` and `main` once they are ready for review; drafts run nothing, and a new push cancels the run for the older head. It runs formatting, types, the unit tests, the plugin suite, the builds and the diagram, package, performance and release checks (the versioned [release ZIP](docs/releases.md) must assemble reproducibly), checks that committed build output is current, and scans the Git history with Betterleaks (version- and hash-pinned). A pull request that changes only documentation (Markdown files and `docs/`, but not the plugin's skills or the end-to-end fixtures) runs only Betterleaks.
 
-Pull requests into `main`, the releases, also run the `End-to-end` workflow (`e2e.yml`) against the packaged AppImage; a pull request retargeted to `main` runs it after its next push, or after closing and reopening it. Run the end-to-end suite yourself when a change into `dev` affects the app. `CI` and, into `main`, `End-to-end` are required checks. CI keeps nothing from a passing run; a failed end-to-end run keeps its report for the organization's artifact retention. Jobs run on the runners the organization variables `CI_LINUX_RUNNER` and `CI_WINDOWS_RUNNER` name.
+Pull requests into `main`, the releases, also run the `End-to-end` workflow (`e2e.yml`) against the packaged AppImage; a pull request retargeted to `main` runs it after its next push, or after closing and reopening it. Run the end-to-end suite yourself when a change into `dev` affects the app. `CI` and, into `main`, `End-to-end` are required checks. CI keeps nothing from a passing run; a failed end-to-end run keeps its report for the organization's artifact retention. Jobs run on GitHub's own runners (`ubuntu-latest`, `windows-latest`), which cost nothing in a public repository.
 
 ## Releases
 
-Merge the release into `main`, then tag `main` with the version: `git fetch origin && git tag v0.8.0 origin/main && git push origin v0.8.0`. The release workflow (`release.yml`) makes a GitHub Release with the release ZIP, the AppImage and the Windows installer; nothing is deployed or published to a registry. [Releases](docs/releases.md) describes the ZIP, the workflow and how to recover from a failed run. Record each version in the [changelog](CHANGELOG.md).
+Merge the release into `main`, then tag `main` with the version: `git fetch origin && git tag v0.9.0 origin/main && git push origin v0.9.0`. The release workflow (`release.yml`) makes a GitHub Release with the release ZIP, the AppImage and the Windows installer, and their update files; it also makes a nightly prerelease of `dev` every night. Installed apps update from them; nothing is deployed or published to a registry. [Releases](docs/releases.md) describes the ZIP, the workflow and how to recover from a failed run. Record each version in the [changelog](CHANGELOG.md).
 
-## Branding, history and source status
+## Branding, history and license
 
 - The logos in `assets/`, the app's icons in `app/build/` and the viewer's icon `packages/diagrams/assets/icon.svg` are copies of the generated files in the brand repository, envsemble/brand-assets. Change them there: its `npm run update-apps` opens a pull request here with the new files.
 - The app and the skills arrived from earlier repositories with rewritten history; the [repository history maps](docs/history/README.md) translate their old commit IDs.
-- Source is currently private and `UNLICENSED`: a source-use status, not an open-source license. Do not introduce a public license without the owner's decision. Dependency licenses and attributed example excerpts remain preserved; [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists them.
+- Coord is open source under the [MIT license](LICENSE). Dependency licenses and attributed example excerpts remain preserved; [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists them.
+- Outside pull requests are not taken yet; issues are welcome.

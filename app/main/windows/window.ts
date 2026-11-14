@@ -383,7 +383,7 @@ export class CoordWindow {
   }
 
   info(): WindowInfo {
-    return { computer: { hostId: this.computer, name: this.computerName }, version: this.manager.context.version, platform: process.platform, devTools: this.manager.context.devTools };
+    return { computer: { hostId: this.computer, name: this.computerName }, version: this.manager.context.version, platform: process.platform, devTools: this.manager.context.devTools, dev: this.manager.context.dev };
   }
 
   send(channel: EventChannel, payload: unknown) {

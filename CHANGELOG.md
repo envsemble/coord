@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+**Releases and updates**
+
+- **Coord updates itself.** The installed app checks GitHub Releases when it starts and every four hours; a newer build shows as **Update** in the title bar, beside the computer, and in the new **Settings › Updates**, a click downloads it and **Restart to update** installs it. Nothing downloads or installs on its own, and Coord never moves to an older build.
+- **Stable and nightly:** stable releases come from version tags on `main` as before; a nightly build of `dev` is published every night as a prerelease. **Settings › Updates** chooses the channel, and a nightly build says **Nightly** beside the logo in the title bar.
+- **A website:** `site/` is Coord's download page, for coord.envsemble.com: what Coord is, download buttons for Windows and Linux, and a link to the newest nightly.
+- **Open source:** Coord is under the MIT license, and its CI and releases run on GitHub's own runners.
+
+**Coord Dev**
+
+- **`npm run dev` starts Coord Dev:** the app in development, beside the installed Coord, on a copy of your Coord data in `~/.coord-dev`, with a **Dev** tag in the title bar that is also its menu (copy the real data again, remove the dev plugin).
+- **A dev plugin of its own:** Coord Dev installs `coord-dev` in Claude Code and Codex beside the real plugin, every skill prefixed `dev-` (`dev-coord-implement`, `dev-full-stop`, …), on while it runs. It is the release's plugin with its names changed, so what it tests is what ships. Its skills and hooks act only when you ask for them with "dev" or in a session you start with "dev session".
+- **The agents' plugin is named by its marketplace,** so connecting, listing and removing serve both plugins; and a command installed in a Coord home's agent folder uses that home.
+
 **Atlas is now Coord**
 
 - **Atlas is now called Coord**, everywhere: the app and its installer, the `coord` command, the agent plugin `coord@coord` with its skills `coord`, `coord-grill` and `coord-implement` ("coord grill", "coord implement"), the MCP server `coord`, the packages `@envsemble/coord`, `@envsemble/coord-diagrams` and `@envsemble/coord-app`, the `coord://` scheme, and a new mark. The name was free once the first product called Coord became envsemble.
@@ -10,7 +23,7 @@
 **A simpler window, on envUI 1.0**
 
 - **envUI 1.0:** the app and the diagram viewer move to envUI 1.0.0, now on npm, keeping Coord's look: the same pages, density and colours (the work statuses keep GitHub's colours). Installing from a checkout no longer needs a GitHub token.
-- **One row at the top:** **Plans** joins File, View and Help in the title bar (every plan, each project's plans and all plans' statistics), and the Plans and Projects sections below it are gone. Breadcrumbs start at Plans: Plans › Northwind › #0001.
+- **One row at the top:** the title bar holds **Plans**, **Settings** and **Help**, then the computer and Coord's update. Plans and Settings are plain buttons that open their pages; Help holds Open Logs and About Coord. The File and View menus are gone (their shortcuts stay), and the theme moves from the title bar to **Settings › General**, where Settings now opens. The Plans and Projects sections below the title bar are gone too. Breadcrumbs start at Plans: Plans › Northwind › #0001.
 - **Projects are managed from the hub:** the Projects page is gone; the hub's project menu chooses a project, shows what agents do on each, and makes, renames, archives and restores projects and changes their folders.
 - **Files at the left:** a plan's files move from the card at the top right to the left of the plan and its pages; Ctrl+Shift+E brings the keyboard to them, and their edge drags to make them wider or narrower.
 - **Work in parts:** a work item can be made of ordered parts, other work items of the project, each with its own plan and steps. A rail at the right of the group and of each part lists them in order with their status and steps, the hub says **Part 2 of #0005**, and agents set them up with `work_create` (`partOf`) and the new `work_parts` tool (`coord work parts`); `coord check` checks them.

@@ -5,7 +5,7 @@
   "private": true,
   "description": "Coord desktop app: plans, models and shared understanding for agents and the people they work with",
   "author": "envsemble",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "homepage": "https://github.com/envsemble/coord",
   "repository": {
     "type": "git",
@@ -18,7 +18,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "node scripts/electron.mjs electron-vite dev --watch --",
+    "dev": "node scripts/dev.mjs",
     "build": "npm run check:types && electron-vite build",
     "package": "npm run build && electron-builder --config electron-builder.yml --publish never --dir -c.directories.output=release/e2e -c.electronFuses.enableNodeCliInspectArguments=true -c.extraMetadata.coordEndToEndBuild=true && electron-builder --config electron-builder.yml --publish never",
     "test": "node ../scripts/test-tier.mjs full --runner tsx --import ../scripts/test-home.mjs src && node ../scripts/test-tier.mjs full --import ../scripts/test-home.mjs main shared",
@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@envsemble/coord-diagrams": "*",
+    "electron-updater": "6.8.12",
     "esbuild": "0.28.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
