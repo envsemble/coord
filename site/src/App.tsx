@@ -9,6 +9,7 @@ import diagrams from './shots/diagrams.png';
 import grill from './shots/grill.png';
 import statistics from './shots/statistics.png';
 import { Privacy, Terms } from './legal.tsx';
+import { Sky } from './Sky.tsx';
 import { linuxPath } from './linuxPath.ts';
 import { acceptedPath, claudePath, codexPath, diagramPath, draftPath, moonPath, pagePath, previewPath, yourTurnPath } from './marks.ts';
 import { fetchBuilds, releasesPage, sourcePage, visitorPlatform, type Build, type Channel, type Platform } from './releases.ts';
@@ -20,7 +21,6 @@ export function App() {
   const path = location.pathname.replace(/\/+$/, '');
   const Page = path === '/privacy' ? Privacy : path === '/terms' ? Terms : Home;
   return <>
-    <div className="sky" aria-hidden="true"><span className="sky-far" /><span className="sky-a" /><span className="sky-b" /><span className="sky-sparks" /></div>
     <header className="header">
       <a href="/" className="brand"><img src={logo} alt="Coord" width={711} height={241} /></a>
       <a href={sourcePage} className="quiet">GitHub</a>
@@ -48,11 +48,11 @@ function Home() {
   const visitor = visitorPlatform({ userAgent: navigator.userAgent, platform: navigator.platform });
   const [channel, setChannel] = useState<Channel>('stable');
   const build = typeof builds === 'object' ? builds[channel] : null;
-  // Nightly shows stars behind the page.
-  useEffect(() => { document.documentElement.dataset.channel = channel; }, [channel]);
   // The visitor's system first.
   const platforms: Platform[] = visitor === 'linux' ? ['linux', 'windows'] : ['windows', 'linux'];
   return <main>
+    {/* Nightly shows a starry sky behind the page. */}
+    <Sky shown={channel === 'nightly'} />
       {/* One box as wide as its longest line, centred; its lines break where they read best. */}
       <div className="intro">
         <h1>A desktop app for planning <br />with <Agent name="Claude Code" path={claudePath} kind="claude" /> or <Agent name="Codex" path={codexPath} kind="codex" /></h1>
