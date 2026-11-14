@@ -70,7 +70,7 @@ export interface HubRowFacts {
   size: HubRowSize;
   /**
    * Steps done and in progress (the step worked on, as the project list names one) of all of them, the
-   * planning steps among them; on a draft or other open work only the planning steps, when it has some.
+   * planning steps among them; on a draft only the planning steps, when it has some.
    */
   progress: { done: number; doing: number; total: number; planning: { done: number; doing: number }; text: string } | null;
   /** The step being worked on (Now) or next to do (Next), on a large row whose state says nothing more. */
