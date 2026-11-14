@@ -1,0 +1,89 @@
+/* Coord's website: one column of sections on the page background, with envUI's tokens. */
+
+.site {
+  /* The Coord mark's green, for the headline's one accent word and the glow behind the hero. */
+  /* stylelint-disable-next-line color-no-hex -- the brand's own color, not a role envUI names */
+  --site-brand: #02a878;
+  min-block-size: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--env-color-bg-page);
+  color: var(--env-color-fg-default);
+  /* The hero's backdrop reaches past the column to the window's edges, never past them. */
+  overflow-x: clip;
+}
+
+.site main {
+  flex: 1;
+  display: grid;
+  gap: calc(var(--env-space-9) * 2);
+  inline-size: min(100% - 2 * var(--env-space-5), 72rem);
+  margin-inline: auto;
+  padding-block-end: calc(var(--env-space-9) * 2);
+}
+
+.site-header,
+.site-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--env-space-4);
+  inline-size: min(100% - 2 * var(--env-space-5), 72rem);
+  margin-inline: auto;
+  padding-block: var(--env-space-4);
+}
+.site-brand { display: inline-flex; align-items: center; gap: var(--env-space-2); color: inherit; }
+.site-wordmark { font-size: var(--env-font-size-title); font-weight: 600; letter-spacing: -0.01em; }
+.site-nav, .site-footer-links { display: flex; align-items: center; gap: var(--env-space-5); }
+.site-footer { border-block-start: 1px solid var(--env-color-border-muted); padding-block: var(--env-space-6); flex-wrap: wrap; }
+
+/* The hero: the headline, the lead and the one download button, centred over a faint grid and glow. */
+.hero {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--env-space-5);
+  padding-block: calc(var(--env-space-9) * 2) var(--env-space-6);
+  text-align: center;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0 -50vw;
+  background:
+    radial-gradient(40rem 22rem at 50% 30%, color-mix(in srgb, var(--site-brand) 16%, transparent), transparent 70%),
+    linear-gradient(var(--env-color-border-muted) 0.0625rem, transparent 0.0625rem) 0 0 / 3rem 3rem,
+    linear-gradient(90deg, var(--env-color-border-muted) 0.0625rem, transparent 0.0625rem) 0 0 / 3rem 3rem;
+  /* Only the mask's alpha counts: any opaque color fades the grid out towards the edges. */
+  mask-image: radial-gradient(60rem 30rem at 50% 30%, var(--env-color-bg-page), transparent 75%);
+  opacity: 0.7;
+}
+/* Positioned after the backdrop, so they paint over it. */
+.hero > * { position: relative; }
+.hero-title { margin: 0; max-inline-size: 16ch; font-size: clamp(2.5rem, 7vw, 4.75rem); line-height: 1.04; letter-spacing: -0.035em; text-wrap: balance; }
+.hero-accent { color: var(--site-brand); }
+.hero-lead { margin: 0; max-inline-size: 40rem; font-size: var(--env-font-size-title); line-height: 1.5; text-wrap: pretty; }
+.hero-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--env-space-3); margin-block-start: var(--env-space-3); }
+.hero-note { margin: 0; }
+
+.screenshot {
+  margin: 0;
+  border: 1px solid var(--env-color-border-default);
+  border-radius: var(--env-radius-xl);
+  overflow: hidden;
+  background: var(--env-color-bg-default);
+  box-shadow: 0 2rem 4rem -2rem color-mix(in srgb, var(--env-color-fg-default) 30%, transparent);
+}
+.screenshot > * { display: block; inline-size: 100%; }
+
+.section-title { margin: 0; text-align: center; text-wrap: balance; }
+
+.features { display: grid; gap: var(--env-space-7); }
+.feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: var(--env-space-4); }
+
+.downloads { display: grid; justify-items: center; gap: var(--env-space-4); scroll-margin-block-start: var(--env-space-6); }
+.channel-text, .build-version, .downloads-note { margin: 0; text-align: center; }
+.inline-icon { inline-size: 1em; block-size: 1em; vertical-align: -0.125em; margin-inline-start: 0.125em; }
+.downloads-loading { padding-block: var(--env-space-6); }
+.platform-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: var(--env-space-4); inline-size: min(100%, 48rem); }
+.platform code { font-size: 0.95em; }
