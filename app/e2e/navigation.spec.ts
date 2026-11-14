@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { addProject, applicationMenu, close, expectHub, fileMenu, filterHub, goHome, launchProject, openDocument, openPlan, pageScroll, projectHome, removeDirectory, searchPopup, settledScroll, showFiles, shownFile, titleBar, type Launched } from './app';
+import { addProject, applicationMenu, close, expectHub, titleButton, filterHub, goHome, launchProject, openDocument, openPlan, pageScroll, projectHome, removeDirectory, searchPopup, settledScroll, showFiles, shownFile, titleBar, type Launched } from './app';
 
 let launched: (Launched & { folder: string }) | undefined;
 const homes: string[] = [];
@@ -97,7 +97,7 @@ test('back and forward step through the hub, two plans and a diagram', async () 
   await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setContentSize(640, 600); });
   // The window's minimum size can keep it a few pixels wider than asked.
   await expect.poll(() => window.evaluate(() => innerWidth)).toBeLessThan(700);
-  const menu = (await fileMenu(window, 'Plans').boundingBox())!;
+  const menu = (await titleButton(window, 'Plans').boundingBox())!;
   const arrow = (await forward.boundingBox())!;
   expect(arrow.x + arrow.width).toBeLessThanOrEqual(menu.x);
 });
@@ -235,7 +235,7 @@ test('the mouse buttons close an open menu without going back, and one press goe
   const windowReports = (command: 'browser-backward' | 'browser-forward') => app.evaluate(({ BrowserWindow }, name) => { BrowserWindow.getAllWindows()[0].emit('app-command', {}, name); }, command);
 
   // A menu open as the button goes down: the press only closes it, also when the window reports it.
-  await fileMenu(window).click();
+  await titleButton(window, 'Help').click();
   await expect(window.getByRole('menu')).toBeVisible();
   expect(await mouseButton(window, 3)).toBe(true);
   await windowReports('browser-backward');

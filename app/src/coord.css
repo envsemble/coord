@@ -33,6 +33,7 @@ body { margin: 0; }
 .title-bar-start { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; }
 /* In a narrow window the arrows and the menus keep their width; the computer's name gives way. */
 .title-bar-start > :not(.computer-trigger) { flex-shrink: 0; }
+.title-bar-commands { display: flex; align-items: center; }
 .title-bar-start > .computer-trigger { min-inline-size: 0; }
 /* The logo is only a picture: Plans goes to every plan. */
 .title-bar-logo { display: inline-flex; align-items: center; justify-content: center; inline-size: var(--env-control-height-sm); block-size: var(--env-control-height-sm); flex: none; }
@@ -535,7 +536,7 @@ body { margin: 0; }
 .settings-group .section-toolbar > .settings-description { flex: 1 1 20rem; }
 /* Remote access's fields keep a form's width on the wide page. */
 .settings-group :is(.access-fields, .pairing-label) { max-inline-size: 36rem; }
-.updates-channel { inline-size: min(100%, 36rem); }
+.updates-channel, .settings-choice { inline-size: min(100%, 36rem); }
 .updates-status { display: flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-2) var(--env-space-3); min-block-size: var(--env-control-height-md); }
 .updates-progress { inline-size: min(100%, 24rem); }
 .updates-failure { flex: 1 1 100%; max-inline-size: 48rem; }

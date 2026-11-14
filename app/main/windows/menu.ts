@@ -15,7 +15,7 @@ export function buildMenu(manager: WindowManager, actions: { openLogs(): void; d
         { label: 'New &Window', accelerator: 'CmdOrCtrl+Shift+N', click: () => { manager.create(window()?.computer ?? null); } },
         { label: 'New &Project…', click: () => manager.sendMenu('newProject') },
         { type: 'separator' },
-        // Settings: the agents on this computer, and the computers; the window takes the key itself too.
+        // Settings, at General; the window takes the key itself too.
         { label: '&Settings…', accelerator: 'CmdOrCtrl+,', click: () => manager.sendMenu('settings') },
         { type: 'separator' },
         { label: 'Close Win&dow', accelerator: 'CmdOrCtrl+Shift+W', click: () => window()?.win.close() },
