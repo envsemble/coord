@@ -28,10 +28,11 @@ export function App() {
       <a href={sourcePage} className="quiet">GitHub</a>
     </header>
     <main>
+      <div className="intro">
       <h1>A desktop app for planning bigger changes with <Agent name="Claude Code" path={claudePath} kind="claude" /> or <Agent name="Codex" path={codexPath} kind="codex" /></h1>
       <p className="lead">Agents are fast, and very happy to build the wrong thing. Coord makes yours agree on a plan with you first.</p>
       <Features />
-      <p className="facts">Wherever you run your agent: a terminal, your editor, T3 Code. Windows and Linux. Free and open source, MIT.</p>
+      <p className="facts">Wherever you run your agent: a terminal, your editor, <span className="nowrap">T3 Code</span>. Windows and Linux. Free and open source, MIT.</p>
       <div className="downloads">
         {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={stable} loading={builds === 'loading'} />)}
       </div>
@@ -39,6 +40,7 @@ export function App() {
         {stable ? <><a href={stable.page}>Version {stable.version}</a> · </> : null}
         <a href={releasesPage}>All releases</a>
       </p>
+      </div>
       <img className="screenshot" src={plan} width={2163} height={1352}
         alt="A plan in Coord: its title, whose turn it is and what to do, its outcome and scope, and beside it the plan's progress, steps and statistics." />
       <section className="nightly" aria-labelledby="nightly-title">
@@ -76,7 +78,7 @@ function Ref({ kind, children }: { kind: 'diagram' | 'page'; children: ReactNode
 
 const features: { key: string; text: ReactNode; shot: string; alt: string }[] = [
   { key: 'grill', text: <>Your agent grills you until the plan goes from <State kind="draft">Draft</State> to <span className="nowrap"><State kind="accepted">Accepted</State>.</span></>, shot: grill, alt: 'A draft plan being settled: its items marked Settled or Proposed, and its planning steps.' },
-  { key: 'diagrams', text: <>It can draw your code and database as a <Ref kind="diagram">class diagram</Ref> and show what the plan changes.</>, shot: diagrams, alt: "An agent's proposal drawn over the captured code, with what it adds and changes marked." },
+  { key: 'diagrams', text: <>It can capture your code and database in a <Ref kind="diagram">class diagram</Ref>, before and after.</>, shot: diagrams, alt: "An agent's proposal drawn over the captured code, with what it adds and changes marked." },
   { key: 'dashboards', text: <>It builds live <Ref kind="page">dashboards</Ref> inside the plan while it works.</>, shot: dashboard, alt: "A page inside a plan: two layouts to choose between, above the proposal's diagram." },
   { key: 'attention', text: <>Coord shows every plan that’s <span className="nowrap"><State kind="turn">Your turn</State>,</span> and what it needs from you.</>, shot: attention, alt: 'The hub: Your turn first, saying what to do, then Waiting and Later.' },
 ];
