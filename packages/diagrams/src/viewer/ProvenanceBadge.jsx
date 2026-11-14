@@ -41,7 +41,7 @@ export function ProvenanceBadge({ document, className = "" }) {
       background="default"
       radius="full"
       padding={1}
-      className={`atlas-provenance${className ? ` ${className}` : ""}`}
+      className={`coord-provenance${className ? ` ${className}` : ""}`}
       title={
         provenance.detail
           ? `${provenance.label} · ${provenance.detail}`

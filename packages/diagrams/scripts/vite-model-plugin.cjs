@@ -1,5 +1,5 @@
 const path = require("node:path");
-const virtualId = "virtual:atlas/model";
+const virtualId = "virtual:coord/model";
 const resolvedId = `\0${virtualId}`;
 
 function createPayloadCache(build) {
@@ -74,7 +74,7 @@ function modelPlugin({ root, buildPayload } = {}) {
       server.ws.send({ type: "update", updates: [] });
       server.ws.send({
         type: "custom",
-        event: "atlas:model-update",
+        event: "coord:model-update",
         data: payload,
       });
     } catch (error) {
@@ -85,7 +85,7 @@ function modelPlugin({ root, buildPayload } = {}) {
         err: {
           message: error.message,
           stack: error.stack || "",
-          plugin: "atlas-model",
+          plugin: "coord-model",
         },
       });
     }
@@ -97,7 +97,7 @@ function modelPlugin({ root, buildPayload } = {}) {
     timer = setTimeout(refresh, 80);
   }
   return {
-    name: "atlas-model",
+    name: "coord-model",
     apply: "serve",
     resolveId(id) {
       if (id === virtualId) return resolvedId;

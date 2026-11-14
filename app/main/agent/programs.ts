@@ -6,7 +6,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { harness, lastLines, runHarness, type AgentId } from '@envsemble/atlas/agents';
+import { harness, lastLines, runHarness, type AgentId } from '@envsemble/coord/agents';
 
 const file = (folder: string) => path.join(folder, 'programs.json');
 

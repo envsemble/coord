@@ -1,7 +1,7 @@
-// Atlas's badges on envUI: a work item's status as an icon or a badge, and a provenance badge.
+// Coord's badges on envUI: a work item's status as an icon or a badge, and a provenance badge.
 import type { SVGProps } from 'react';
 import { Badge } from '@envsemble/envui';
-import type { Provenance } from '@envsemble/atlas/planning/provenance';
+import type { Provenance } from '@envsemble/coord/planning/provenance';
 import type { StatusLook } from '../plan/status';
 import { AbandonedIcon, BlockedIcon, CompleteIcon, DraftIcon, InProgressIcon, NeedsYouIcon, NoStateIcon, OpenIcon, SupersededIcon, UnknownIcon, WaitingIcon } from './icons';
 

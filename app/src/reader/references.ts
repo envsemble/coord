@@ -1,8 +1,8 @@
 // What a planning file references, as the reader finds it in its text: PRs and issues
-// (`envsemble/atlas#22`, a GitHub URL), commits (`envsemble/atlas@4ab195a`, a GitHub URL), files in
+// (`envsemble/coord#22`, a GitHub URL), commits (`envsemble/coord@4ab195a`, a GitHub URL), files in
 // the project's folders (`app/src/hub/Hub.tsx:68`), other work items (`work-0023`) and applications'
 // links (`t3-thread://…`). The host resolves the first three (references.resolve); the reader links
-// what leads somewhere. A PR or commit names its repository in full: `atlas#22`, `#22` and a bare hash
+// what leads somewhere. A PR or commit names its repository in full: `coord#22`, `#22` and a bare hash
 // are text. Careful with what only looks like a reference: a path needs a folder or a code span and
 // ends in a file's extension. Pure, so it is unit-tested.
 import type { ReferenceInput } from '../types';
@@ -38,9 +38,9 @@ const patterns: { pattern: RegExp; found(match: RegExpExecArray, code: boolean):
   { pattern: /https?:\/\/[^\s<>()[\]`'"]+/g, found: match => { const input = fromUrl(trimEnd(match[0])); return input ? { kind: 'host', input } : 'skip'; } },
   { pattern: new RegExp('\\b(?:' + appSchemes.join('|') + '):\\/\\/[^\\s<>()[\\]`\'"]+', 'g'), found: match => ({ kind: 'app', url: trimEnd(match[0]) }) },
   { pattern: /\bwork-\d{4}\b/g, found: match => ({ kind: 'work', work: match[0] }) },
-  // envsemble/atlas#22: a repository's PR or issue (not a URL's fragment or an HTML entity).
+  // envsemble/coord#22: a repository's PR or issue (not a URL's fragment or an HTML entity).
   { pattern: new RegExp('(?<![\\w/&#.-])(' + repository + ')#(\\d{1,7})\\b', 'g'), found: match => ({ kind: 'host', input: { kind: 'pull', repository: match[1], value: match[2], line: null } }) },
-  // envsemble/atlas@4ab195a: a repository's commit (not an e-mail address).
+  // envsemble/coord@4ab195a: a repository's commit (not an e-mail address).
   { pattern: new RegExp('(?<![\\w/.-])(' + repository + ')@([0-9a-f]{7,40})(?![\\w-]|\\.\\w)', 'g'), found: match => ({ kind: 'host', input: { kind: 'commit', repository: match[1], value: match[2], line: null } }) },
   // A path with a file's extension, at a line: in a code span also without a folder.
   {
@@ -72,7 +72,7 @@ export function findReferences(text: string, code = false): Match[] {
 
 /** A node of the document's HTML tree, as the markdown renderer hands it to plugins. */
 interface Node { type: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: Node[] }
-/** A reference an address names as a whole, as the reader finds one (`app/src/x.ts:12`, `envsemble/atlas#22`, `t3-thread://…`). */
+/** A reference an address names as a whole, as the reader finds one (`app/src/x.ts:12`, `envsemble/coord#22`, `t3-thread://…`). */
 export function wholeReference(href: string): Found | null {
   const [match] = findReferences(href, true);
   return match && match.start === 0 && match.end === href.length ? match.found : null;

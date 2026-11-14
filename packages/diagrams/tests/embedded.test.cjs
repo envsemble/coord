@@ -28,7 +28,7 @@ test("native panel consumes lean payloads and CSS cannot restyle its host", asyn
   );
   // The host's theme reaches the panel root, the panel's envUI Theme.
   const panel = html.slice(0, html.indexOf(">"));
-  assert.match(panel, /^<div [^>]*class="(?:[^"]* )?atlas-panel[ "]/);
+  assert.match(panel, /^<div [^>]*class="(?:[^"]* )?coord-panel[ "]/);
   assert.match(panel, / data-theme="light"/);
   assert(html.includes('aria-label="Account"'));
   assert(!html.includes("Models ZIP"));
@@ -45,7 +45,7 @@ test("native panel consumes lean payloads and CSS cannot restyle its host", asyn
     rules++;
     selectors((tree) =>
       tree.each((selector) => {
-        // Every rule starts inside an Atlas-owned root (the panel, or Atlas
+        // Every rule starts inside a Coord-owned root (the panel, or Coord
         // content portalled by envUI), so it cannot restyle the host page.
         assert.equal(selector.first.type, "class", rule.selector);
         assert(SCOPES.includes(selector.first.value), rule.selector);
@@ -68,7 +68,7 @@ test("an empty diagram prepares and exports a readable viewer", async () => {
     ).includes("No entities"),
   );
   const exported = await buildViewer({ prepared, file });
-  assert(exported.html.includes('<script id="atlas-diagram"'));
+  assert(exported.html.includes('<script id="coord-diagram"'));
 });
 
 test("A proposal opens its change view in both viewers, with the focus and the review it was given", () => {
@@ -147,7 +147,7 @@ test("Focus on a member or a removed element of a proposal resolves in its chang
       },
       {
         path: "proposal.puml",
-        text: "@startuml\n' atlas proposal base.puml\nclass A\n@enduml\n",
+        text: "@startuml\n' coord proposal base.puml\nclass A\n@enduml\n",
       },
     ],
   });

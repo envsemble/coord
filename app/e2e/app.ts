@@ -2,17 +2,17 @@
 // (release/: installer or AppImage, and the unpacked app they contain), and an otherwise identical
 // unpacked copy with the inspector fuse on (release/e2e), which Playwright needs to drive the app.
 // The suite drives release/e2e; release.spec.ts starts the release build itself. Set
-// ATLAS_E2E_EXECUTABLE to drive another build, or ATLAS_E2E_UNPACKAGED=1 to run out/ with Electron.
+// COORD_E2E_EXECUTABLE to drive another build, or COORD_E2E_UNPACKAGED=1 to run out/ with Electron.
 // The app's windows open off screen and never take focus, so a run stays out of the way of whoever
-// works at the computer; ATLAS_E2E_VISIBLE=1 shows them where the app puts them, to watch a run.
+// works at the computer; COORD_E2E_VISIBLE=1 shows them where the app puts them, to watch a run.
 import { execFileSync, spawnSync, type ChildProcess } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test';
-import { canonicalProjectFolderSync, HomeDatabase, insertReport, type WorkReport } from '@envsemble/atlas/planning';
-import type { AtlasBridge } from '../shared/contract.ts';
+import { canonicalProjectFolderSync, HomeDatabase, insertReport, type WorkReport } from '@envsemble/coord/planning';
+import type { CoordBridge } from '../shared/contract.ts';
 
 const appDirectory = path.resolve(import.meta.dirname, '..');
 const fixture = path.join(import.meta.dirname, 'fixtures', 'planning');
@@ -22,13 +22,13 @@ const fixtureReports = path.join(import.meta.dirname, 'fixtures', 'reports.json'
 /** The AppImage or Windows installer built by `npm run package`, when present. */
 export function packagedInstaller(): string | null {
   const release = path.join(appDirectory, 'release');
-  const name = existsSync(release) ? readdirSync(release).find(item => process.platform === 'win32' ? /^Atlas-Setup-.*\.exe$/.test(item) : item.endsWith('.AppImage')) : undefined;
+  const name = existsSync(release) ? readdirSync(release).find(item => process.platform === 'win32' ? /^Coord-Setup-.*\.exe$/.test(item) : item.endsWith('.AppImage')) : undefined;
   return name ? path.join(release, name) : null;
 }
 
 function unpackedExecutable(release: string): string {
-  if (process.platform === 'win32') return path.join(release, 'win-unpacked', 'Atlas.exe');
-  if (process.platform === 'linux') return path.join(release, 'linux-unpacked', 'atlas-desktop');
+  if (process.platform === 'win32') return path.join(release, 'win-unpacked', 'Coord.exe');
+  if (process.platform === 'linux') return path.join(release, 'linux-unpacked', 'coord-desktop');
   throw new Error('The end-to-end suite runs on Windows and Linux.');
 }
 /** The unpacked end-to-end build: the release with the inspector fuse on, for Playwright. */
@@ -36,7 +36,7 @@ export function endToEndExecutable(): string {
   return unpackedExecutable(path.join(appDirectory, 'release', 'e2e'));
 }
 function packagedExecutable(): string {
-  return process.env.ATLAS_E2E_EXECUTABLE ? path.resolve(process.env.ATLAS_E2E_EXECUTABLE) : endToEndExecutable();
+  return process.env.COORD_E2E_EXECUTABLE ? path.resolve(process.env.COORD_E2E_EXECUTABLE) : endToEndExecutable();
 }
 /** The unpacked release build: what the installer and AppImage contain (inspector fuse off). */
 export function releaseExecutable(): string {
@@ -52,26 +52,26 @@ export function temporaryDirectory(prefix: string) {
  * A fresh copy of the committed fixture planning folder, as its own Git repository, at `root` (by
  * default a new temporary folder); `name` names its project.
  */
-export function planningFixture(name?: string, root = path.join(temporaryDirectory('atlas-e2e-'), 'planning')): string {
+export function planningFixture(name?: string, root = path.join(temporaryDirectory('coord-e2e-'), 'planning')): string {
   cpSync(fixture, root, { recursive: true });
   if (name) writeFileSync(path.join(root, 'planning.json'), readFileSync(path.join(root, 'planning.json'), 'utf8').replace('"name": "Northwind"', JSON.stringify('name') + ': ' + JSON.stringify(name)));
   const git = (...args: string[]) => execFileSync('git', ['-C', root, ...args], { stdio: 'ignore', windowsHide: true });
   try {
     git('init', '-q', '-b', 'main');
-    git('-c', 'user.name=Atlas fixture', '-c', 'user.email=fixture@example.test', '-c', 'commit.gpgsign=false', 'add', '-A');
-    git('-c', 'user.name=Atlas fixture', '-c', 'user.email=fixture@example.test', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Fixture planning folder');
+    git('-c', 'user.name=Coord fixture', '-c', 'user.email=fixture@example.test', '-c', 'commit.gpgsign=false', 'add', '-A');
+    git('-c', 'user.name=Coord fixture', '-c', 'user.email=fixture@example.test', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Fixture planning folder');
   } catch { /* Activity is empty without Git; other tests still run. */ }
   return root;
 }
 
 /**
- * An Atlas home with the fixture as a project in its planning folder (`<home>/planning/<slug>`), with
+ * A Coord home with the fixture as a project in its planning folder (`<home>/planning/<slug>`), with
  * the agents' reports on its work in the home's database, as the hooks record them. `name` renames
  * the project in its planning.json. More projects join with addProject. The home is removed with the
  * launched app, or with removeDirectory.
  */
 export function projectHome(options: { slug?: string; name?: string; dataDirectory?: string } = {}) {
-  const dataDirectory = options.dataDirectory ?? temporaryDirectory('atlas-e2e-data-');
+  const dataDirectory = options.dataDirectory ?? temporaryDirectory('coord-e2e-data-');
   const slug = options.slug ?? 'northwind';
   const folder = planningFixture(options.name, path.join(dataDirectory, 'planning', slug));
   const reports = JSON.parse(readFileSync(fixtureReports, 'utf8')) as Record<string, WorkReport[]>;
@@ -92,7 +92,7 @@ export function removeDirectory(directory: string) {
 export function environment(dataDirectory: string) {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) if (value !== undefined && key !== 'ELECTRON_RUN_AS_NODE') env[key] = value;
-  env.ATLAS_HOME = dataDirectory;
+  env.COORD_HOME = dataDirectory;
   // The agents the app lists (claude and codex plugin list) read configurations of the test's own.
   env.CLAUDE_CONFIG_DIR = path.join(dataDirectory, 'claude');
   env.CODEX_HOME = path.join(dataDirectory, 'codex');
@@ -102,9 +102,9 @@ export function environment(dataDirectory: string) {
   return env;
 }
 
-/** Start the app again, as a user does while Atlas runs; returns its exit code. */
+/** Start the app again, as a user does while Coord runs; returns its exit code. */
 export function secondInstance(dataDirectory: string, args: string[]): number | null {
-  const unpackaged = process.env.ATLAS_E2E_UNPACKAGED === '1';
+  const unpackaged = process.env.COORD_E2E_UNPACKAGED === '1';
   const command = unpackaged ? electronBinary() : packagedExecutable();
   const result = spawnSync(command, unpackaged ? [appDirectory, ...args] : args, { env: environment(dataDirectory), timeout: 30_000, windowsHide: true });
   return result.status;
@@ -114,7 +114,7 @@ function electronBinary(): string {
   return createRequire(import.meta.url)('electron') as unknown as string;
 }
 
-const visible = process.env.ATLAS_E2E_VISIBLE === '1';
+const visible = process.env.COORD_E2E_VISIBLE === '1';
 /** Chromium keeps painting a window off screen as it does one on screen, instead of treating it as hidden. */
 const offScreenSwitches = visible ? [] : ['--disable-features=CalculateNativeWinOcclusion', '--disable-backgrounding-occluded-windows'];
 
@@ -142,7 +142,7 @@ export interface Launched { app: ElectronApplication; window: Page; dataDirector
  */
 export async function launch(options: { dataDirectory?: string; args?: string[]; executable?: string; ownsData?: boolean; onboarding?: boolean } = {}): Promise<Launched> {
   const ownsData = options.ownsData ?? !options.dataDirectory;
-  const dataDirectory = options.dataDirectory ?? temporaryDirectory('atlas-e2e-data-');
+  const dataDirectory = options.dataDirectory ?? temporaryDirectory('coord-e2e-data-');
   // Where the app records the onboarding as done (main/agent/agents.ts).
   const onboarding = path.join(dataDirectory, 'agent', 'onboarding.json');
   if (!options.onboarding && !existsSync(onboarding)) {
@@ -151,10 +151,10 @@ export async function launch(options: { dataDirectory?: string; args?: string[];
   }
   const env = environment(dataDirectory);
   const extra = [...offScreenSwitches, ...options.args ?? []];
-  // Playwright adds --no-sandbox on Linux unless told to keep the sandbox; Atlas refuses to run without it.
+  // Playwright adds --no-sandbox on Linux unless told to keep the sandbox; Coord refuses to run without it.
   const common = { args: extra, env, chromiumSandbox: true };
   const app = options.executable ? await electron.launch({ ...common, executablePath: options.executable })
-    : process.env.ATLAS_E2E_UNPACKAGED === '1'
+    : process.env.COORD_E2E_UNPACKAGED === '1'
     ? await electron.launch({ ...common, args: [appDirectory, ...extra], cwd: appDirectory })
     : await electron.launch({ ...common, executablePath: packagedExecutable() });
   if (!visible) await keepOffScreen(app);
@@ -166,10 +166,10 @@ export async function launch(options: { dataDirectory?: string; args?: string[];
   try {
     window = await app.firstWindow();
   } catch (error) {
-    // The app logs to atlas.log, and the Atlas host it runs to host.log.
+    // The app logs to coord.log, and the Coord host it runs to host.log.
     const recorded = (name: string) => { const log = path.join(dataDirectory, 'logs', name); return existsSync(log) ? readFileSync(log, 'utf8') : '(no log)'; };
     await app.close().catch(() => undefined);
-    throw new Error(`${(error as Error).message}\nApp output:\n${output.slice(-4000)}\nApp log:\n${recorded('atlas.log').slice(-4000)}\nHost log:\n${recorded('host.log').slice(-2000)}`);
+    throw new Error(`${(error as Error).message}\nApp output:\n${output.slice(-4000)}\nApp log:\n${recorded('coord.log').slice(-4000)}\nHost log:\n${recorded('host.log').slice(-2000)}`);
   }
   await window.waitForLoadState('domcontentloaded');
   return { app, window, dataDirectory, ownsData, process: app.process() };
@@ -220,7 +220,7 @@ export async function goHome(window: Page) {
 }
 /** The projects as the window's computer lists them, asked through the window's bridge. */
 export const listedProjects = (window: Page) => window.evaluate(async () => {
-  const result = await (globalThis as unknown as { atlas: AtlasBridge }).atlas.projects();
+  const result = await (globalThis as unknown as { coord: CoordBridge }).coord.projects();
   return result.ok ? result.value : [];
 });
 /** The search popup: the hub's search field, the title bar's search and Ctrl+P open it. */

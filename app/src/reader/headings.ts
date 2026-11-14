@@ -1,5 +1,5 @@
 import { slug } from 'github-slugger';
-import { headingAnchors } from '@envsemble/atlas/planning/headings';
+import { headingAnchors } from '@envsemble/coord/planning/headings';
 
 export const headingPrefix = 'planning-heading-';
 function headingSlug(text: string) {

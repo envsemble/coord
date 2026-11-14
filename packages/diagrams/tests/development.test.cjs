@@ -39,7 +39,7 @@ test("a failed live model build can recover on the next read", async () => {
 });
 
 test("static HTTP preview serves offline HTML and downloads without exposing source", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "atlas-preview-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "coord-preview-"));
   const server = createPreviewServer(root);
   try {
     await fs.mkdir(path.join(root, "downloads"));

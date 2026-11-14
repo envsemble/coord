@@ -1,26 +1,26 @@
 // The renderer's view of the main process: typed calls over the preload bridge. Failures arrive as
-// structured values and are rethrown here as AtlasError (app/shared/errors.ts), so components can check `code`.
-import { withWorkDocuments } from '@envsemble/atlas/host/contract';
-import type { AtlasBridge, Result, Snapshot } from '../shared/contract';
-import { AtlasError } from '../shared/errors';
+// structured values and are rethrown here as CoordError (app/shared/errors.ts), so components can check `code`.
+import { withWorkDocuments } from '@envsemble/coord/host/contract';
+import type { CoordBridge, Result, Snapshot } from '../shared/contract';
+import { CoordError } from '../shared/errors';
 
-export { AtlasError };
+export { CoordError };
 
 declare global {
-  interface Window { atlas: AtlasBridge }
+  interface Window { coord: CoordBridge }
 }
 
 async function unwrap<T>(pending: Promise<Result<T>>): Promise<T> {
   const result = await pending;
   if (result.ok) return result.value;
-  throw new AtlasError(result.error.code, result.error.message);
+  throw new CoordError(result.error.code, result.error.message);
 }
 
 type Unwrapped = {
-  [K in keyof AtlasBridge]: AtlasBridge[K] extends (...args: infer A) => Promise<Result<infer R>> ? (...args: A) => Promise<R> : AtlasBridge[K];
+  [K in keyof CoordBridge]: CoordBridge[K] extends (...args: infer A) => Promise<Result<infer R>> ? (...args: A) => Promise<R> : CoordBridge[K];
 };
 
-const bridge = (): AtlasBridge => window.atlas;
+const bridge = (): CoordBridge => window.coord;
 
 /** The snapshot arrives with each document once; the work items get theirs again here. */
 export const api: Omit<Unwrapped, 'snapshot'> & { snapshot(projectId: string): Promise<Snapshot> } = {
@@ -85,7 +85,7 @@ export const api: Omit<Unwrapped, 'snapshot'> & { snapshot(projectId: string): P
   onAccessChanged: listener => bridge().onAccessChanged(listener),
 };
 
-/** A file inside a project's planning folder, served by the window's own `atlas:` protocol. */
+/** A file inside a project's planning folder, served by the window's own `coord:` protocol. */
 export function fileUrl(projectId: string, path: string) {
-  return 'atlas://planning/' + projectId + '/' + path.split('/').map(encodeURIComponent).join('/');
+  return 'coord://planning/' + projectId + '/' + path.split('/').map(encodeURIComponent).join('/');
 }

@@ -97,12 +97,12 @@ test('Unicode aliases navigate with connected semantics without merging distinct
 
 test('a link into a sibling project in the home names that folder and the path in it', () => {
   const plan = 'active/0020-agent-interface/plan.md';
-  assert.deepEqual(siblingReference('../../../atlas/active/0013-x/plan.md#why', plan), { folder: 'atlas', path: 'active/0013-x/plan.md', anchor: 'why' });
+  assert.deepEqual(siblingReference('../../../coord/active/0013-x/plan.md#why', plan), { folder: 'coord', path: 'active/0013-x/plan.md', anchor: 'why' });
   assert.deepEqual(siblingReference('../../../envui/README.md', plan), { folder: 'envui', path: 'README.md', anchor: null });
   // Inside the project itself, above the home's planning folder, absolute or external: none.
-  for (const href of ['../0019-x/plan.md', '../../../../elsewhere/plan.md', '/etc/passwd', 'https://example.com/a', '../../../atlas', '../../../.git/config']) assert.equal(siblingReference(href, plan), null, href);
-  const projects = [{ id: 'f-1', path: 'C:\\Users\\me\\.atlas\\planning\\coord' }, { id: 'f-2', path: 'C:\\Users\\me\\.atlas\\planning\\Atlas' }, { id: 'f-3', path: 'D:\\old\\atlas' }];
-  assert.equal(siblingProject(projects, 'f-1', 'atlas'), 'f-2', 'Windows paths compare without case');
+  for (const href of ['../0019-x/plan.md', '../../../../elsewhere/plan.md', '/etc/passwd', 'https://example.com/a', '../../../coord', '../../../.git/config']) assert.equal(siblingReference(href, plan), null, href);
+  const projects = [{ id: 'f-1', path: 'C:\\Users\\me\\.coord\\planning\\harbor' }, { id: 'f-2', path: 'C:\\Users\\me\\.coord\\planning\\Coord' }, { id: 'f-3', path: 'D:\\old\\coord' }];
+  assert.equal(siblingProject(projects, 'f-1', 'coord'), 'f-2', 'Windows paths compare without case');
   assert.equal(siblingProject(projects, 'f-1', 'envui'), null);
-  assert.equal(siblingProject([{ id: 'a', path: '/home/me/.atlas/planning/coord' }, { id: 'b', path: '/home/me/.atlas/planning/Atlas' }], 'a', 'atlas'), null, 'POSIX paths keep their case');
+  assert.equal(siblingProject([{ id: 'a', path: '/home/me/.coord/planning/harbor' }, { id: 'b', path: '/home/me/.coord/planning/Coord' }], 'a', 'coord'), null, 'POSIX paths keep their case');
 });

@@ -21,7 +21,7 @@ function generalizationGroups(view, generalizations) {
     const parent = members[0].generalId;
     if (members.some((g) => g.generalId !== parent))
       throw new Error(`Generalization set ${data.id} has different supertypes`);
-    const junctionId = unique(`atlas-junction-${data.id}`);
+    const junctionId = unique(`coord-junction-${data.id}`);
     groups.push({
       ...data,
       target: parent,
@@ -29,7 +29,7 @@ function generalizationGroups(view, generalizations) {
       memberIds: members.map((g) => g.id),
       sourceIds: members.map((g) => g.specificId),
       junctionId,
-      trunkId: unique(`atlas-trunk-${data.id}`),
+      trunkId: unique(`coord-trunk-${data.id}`),
       branchIds: members.map((_, i) => unique(`${junctionId}-branch-${i}`)),
     });
     members.forEach((g) => assigned.add(g.id));
@@ -63,7 +63,7 @@ function generalizationGroups(view, generalizations) {
     if (members.length > 1)
       add(
         {
-          id: unique(`atlas-inheritance-${parent}`),
+          id: unique(`coord-inheritance-${parent}`),
           type: "generalizationJoin",
           name: "Inheritance",
           totalMembers: members.length,

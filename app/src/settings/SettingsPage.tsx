@@ -1,5 +1,5 @@
 // Settings (File › Settings…), a page of the window with two sections, each a place of its own:
-// Agents, the agents on this computer that Atlas connects (Claude Code and Codex), and Computers,
+// Agents, the agents on this computer that Coord connects (Claude Code and Codex), and Computers,
 // pairing in both directions: the other computers this one connects to, and the devices that can
 // reach the window's computer. In a window on another computer, Agents is still this computer's (it
 // installs here), Devices that can reach follows the window's computer, and Other computers is this
@@ -39,12 +39,12 @@ function SettingsGroup({ title, aside, children }: { title: string; aside?: Reac
   </section>;
 }
 
-/** The agents on this computer: each one's status and plugin version, whether it runs Atlas, connected or disconnected here. */
+/** The agents on this computer: each one's status and plugin version, whether it runs Coord, connected or disconnected here. */
 function AgentsSection({ computer }: { computer: ComputerRef }) {
   const agents = useAgents();
   return <SettingsGroup title="Agents" aside={<span className="settings-scope"><ComputerIcon /> This computer</span>}>
-    <Text emphasis="muted" className="settings-description">Atlas connects Claude Code and Codex by installing its plugin into them: their sessions then plan with Atlas and report their work here. Updates of Atlas update the plugin in the connected agents.</Text>
-    {computer.hostId !== null && <Alert tone="info">These are the agents on this computer, not on {computer.name}: connecting one installs Atlas’s plugin here. Agents on {computer.name} are connected in Atlas there.</Alert>}
+    <Text emphasis="muted" className="settings-description">Coord connects Claude Code and Codex by installing its plugin into them: their sessions then plan with Coord and report their work here. Updates of Coord update the plugin in the connected agents.</Text>
+    {computer.hostId !== null && <Alert tone="info">These are the agents on this computer, not on {computer.name}: connecting one installs Coord’s plugin here. Agents on {computer.name} are connected in Coord there.</Alert>}
     {agents.error && <Alert tone="warning" announce>{agents.error}</Alert>}
     <AgentList agents={agents} mode={{ kind: 'manage' }} label="Agents on this computer" />
   </SettingsGroup>;

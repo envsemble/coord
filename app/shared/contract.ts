@@ -2,14 +2,14 @@
 // is on `invokeChannels`; every message main can push is on `eventChannels`. Only types and
 // constants live here, so the preload, main and renderer can all import it.
 // A window shows the projects of one computer: this one, or another one this app paired with. The
-// planning data is the Atlas host's (packages/atlas/src/host/contract.ts): main forwards the window's
+// planning data is the Coord host's (packages/coord/src/host/contract.ts): main forwards the window's
 // requests about a project to the host of its computer, naming the project by its ID (`projectId`).
 import type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, ErrorCode, HostErrorValue, PairedDevice, PairingGrant, PairingLink, Project,
   ProjectState, ProjectStatistics, ProjectStatus, ProjectSummary, ProjectWork, ProjectWorkState, ReferenceInput, ResolvedReference, SearchKind, SearchResult, SessionActivity, Snapshot,
   SnapshotValue, SnapshotWork, WorkActivity, WorkCommit, WorkSession, WorkTimeline, PageBuild, PageProblem, ToolOutcome,
-} from '@envsemble/atlas/host/contract';
-import type { DocumentContent } from '@envsemble/atlas/planning/types';
+} from '@envsemble/coord/host/contract';
+import type { DocumentContent } from '@envsemble/coord/planning/types';
 
 export type {
   AccessSettings, AccessState, DiagramEntry, DiagramIndexEntry, DiagramReference, DocumentContent, ErrorCode, PairedDevice, PairingGrant, Project,
@@ -56,9 +56,9 @@ export const menuCommands = [
 export type MenuCommand = typeof menuCommands[number];
 
 /** An error as it crosses the process boundary: one of the host's error codes, with a message fit to show. */
-export type AtlasErrorValue = HostErrorValue;
+export type CoordErrorValue = HostErrorValue;
 /** Errors cross the process boundary as values, never as thrown Error objects. */
-export type Result<T> = { ok: true; value: T } | { ok: false; error: AtlasErrorValue };
+export type Result<T> = { ok: true; value: T } | { ok: false; error: CoordErrorValue };
 
 /** A computer whose projects a window can show: this one (hostId null) or one this app paired with. */
 export interface ComputerRef { hostId: string | null; name: string }
@@ -113,7 +113,7 @@ export type Target =
   | { kind: 'file'; path: string; anchor?: string | null };
 /** Something of a project (by its ID): a plan, a diagram or a file. */
 export interface ProjectPlace { projectId: string; target: Target }
-/** The Settings page's sections: the agents Atlas connects on this computer, and pairing in both directions. */
+/** The Settings page's sections: the agents Coord connects on this computer, and pairing in both directions. */
 export const settingsSections = ['agents', 'computers'] as const;
 export type SettingsSection = typeof settingsSections[number];
 /**
@@ -137,21 +137,21 @@ export const limits = { path: 2048, folders: 20 } as const;
 /** A folder's full path: from a drive or a share on Windows, from the root elsewhere. */
 export const fullPath = /^(?:[a-zA-Z]:[\\/]|\\\\[^\\/]|\/)/;
 
-/** The agents Atlas can connect on this computer: its plugin installed into each through the agent's own commands. */
+/** The agents Coord can connect on this computer: its plugin installed into each through the agent's own commands. */
 export const agentIds = ['claude', 'codex'] as const;
 export type AgentId = typeof agentIds[number];
 export const agentNames: Record<AgentId, string> = { claude: 'Claude Code', codex: 'Codex' };
 /**
- * Whether a connected agent runs Atlas: ready (a session of it ran Atlas's hooks since it was
+ * Whether a connected agent runs Coord: ready (a session of it ran Coord's hooks since it was
  * connected, the last at `at`), waiting for a first session, or a warning: Codex does not trust
- * Atlas's hooks (`untrusted`), or a session used Atlas's tools without its hooks running (`no-hooks`).
+ * Coord's hooks (`untrusted`), or a session used Coord's tools without its hooks running (`no-hooks`).
  */
 export type AgentCheck = { status: 'ready'; at: string } | { status: 'waiting' | 'untrusted' | 'no-hooks' };
 /**
  * An agent on this computer: whether its program is found (`found`: the one chosen for it, else on
- * the PATH), the program chosen for it (`program`, null when the PATH's is used), whether the Atlas
+ * the PATH), the program chosen for it (`program`, null when the PATH's is used), whether the Coord
  * plugin is installed in it (`connected`), the version of the plugin it has (null when not connected
- * or unknown), and, connected, whether it runs Atlas (`check`).
+ * or unknown), and, connected, whether it runs Coord (`check`).
  */
 export interface AgentState { id: AgentId; found: boolean; program: string | null; connected: boolean; version: string | null; check: AgentCheck | null }
 /** What connecting or disconnecting an agent did: its state after, and the error when it failed (a message fit to show). */
@@ -161,7 +161,7 @@ export interface AgentFolder { directory: string; marketplace: string }
 /** Whether the onboarding has been finished on this computer; it shows on launch until then. */
 export interface OnboardingState { done: boolean }
 
-/** What the menu's About Atlas shows. */
+/** What the menu's About Coord shows. */
 export interface AboutInfo {
   version: string;
   electron: string;
@@ -169,16 +169,16 @@ export interface AboutInfo {
   node: string;
   /** The operating system, its version and the processor architecture, such as Windows 10.0.26200 (x64). */
   system: string;
-  /** The Atlas home. */
+  /** The Coord home. */
   dataFolder: string;
 }
 
 /**
- * The bridge the preload script exposes to the renderer as `window.atlas`. Every method maps to
+ * The bridge the preload script exposes to the renderer as `window.coord`. Every method maps to
  * one channel and resolves to a Result; errors arrive as structured values, never as exceptions.
  * A `projectId` is a project's ID on the window's computer; a `hostId` of null means this computer.
  */
-export interface AtlasBridge {
+export interface CoordBridge {
   info(): Promise<Result<WindowInfo>>;
   /** The projects of the window's computer, in their order. */
   projects(): Promise<Result<Project[]>>;
@@ -217,7 +217,7 @@ export interface AtlasBridge {
   readText(projectId: string, path: string): Promise<Result<string>>;
   /** Write a text file in the planning folder, for a page. */
   writeFile(projectId: string, path: string, content: string): Promise<Result<null>>;
-  /** Run an Atlas tool (work_status, step and the rest) in the project's planning folder, for a page. */
+  /** Run a Coord tool (work_status, step and the rest) in the project's planning folder, for a page. */
   tool(projectId: string, name: string, input: Record<string, unknown>): Promise<Result<ToolOutcome>>;
   /** A project's statistics for a period (ISO times; `from` null: since its first report, `to` null: until now), by day or week. */
   projectStatistics(projectId: string, from: string | null, to: string | null, unit: 'day' | 'week'): Promise<Result<ProjectStatistics>>;
@@ -241,13 +241,13 @@ export interface AtlasBridge {
   /** The app's theme preference. Windows follow it through `prefers-color-scheme`. */
   theme(): Promise<Result<ThemePreference>>;
   setTheme(preference: ThemePreference): Promise<Result<void>>;
-  /** The versions and the Atlas home About Atlas shows. */
+  /** The versions and the Coord home About Coord shows. */
   about(): Promise<Result<AboutInfo>>;
   /** This computer and the computers this app paired with, each checked for whether it answers. */
   computers(): Promise<Result<Computer[]>>;
   /** Show another computer's projects, in this window or a new one. */
   switchComputer(hostId: string | null, newWindow: boolean): Promise<Result<void>>;
-  /** Pair with another computer's Atlas from its pairing link (or its address and a code). */
+  /** Pair with another computer's Coord from its pairing link (or its address and a code). */
   pairComputer(link: string, code: string | null): Promise<Result<Computer>>;
   /** Forget a paired computer here, with this app's rows of its projects. */
   forgetComputer(hostId: string): Promise<Result<void>>;
@@ -259,7 +259,7 @@ export interface AtlasBridge {
   revokeDevice(hostId: string | null, deviceId: string): Promise<Result<void>>;
   /** Claude Code and Codex on this computer, checked now. */
   agents(): Promise<Result<AgentState[]>>;
-  /** The agents as last checked, with whether each connected one runs Atlas read now (cheap: no agent's command runs). */
+  /** The agents as last checked, with whether each connected one runs Coord read now (cheap: no agent's command runs). */
   agentChecks(): Promise<Result<AgentState[]>>;
   /** Choose an agent's program in a file dialog (null when cancelled); the result's error says why the file chosen cannot be it. */
   chooseAgentProgram(id: AgentId): Promise<Result<AgentChange | null>>;
@@ -267,9 +267,9 @@ export interface AtlasBridge {
   clearAgentProgram(id: AgentId): Promise<Result<AgentState>>;
   /** What connecting an agent by hand takes. */
   agentFolder(): Promise<Result<AgentFolder>>;
-  /** Install the Atlas plugin into an agent (and grant it the Atlas home); the result says how it went. */
+  /** Install the Coord plugin into an agent (and grant it the Coord home); the result says how it went. */
   connectAgent(id: AgentId): Promise<Result<AgentChange>>;
-  /** Uninstall the Atlas plugin from an agent. */
+  /** Uninstall the Coord plugin from an agent. */
   disconnectAgent(id: AgentId): Promise<Result<AgentChange>>;
   onboarding(): Promise<Result<OnboardingState>>;
   /** The onboarding was finished: it no longer shows on launch. */

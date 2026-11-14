@@ -1,6 +1,6 @@
 // What a page's frame and the window that shows it say to each other. The window opens the frame
-// (atlas://page/page-frame.html, an origin of its own), hands it a MessagePort with `init`, and
-// answers its requests there: the frame reaches Atlas only through the window, which asks the
+// (coord://page/page-frame.html, an origin of its own), hands it a MessagePort with `init`, and
+// answers its requests there: the frame reaches Coord only through the window, which asks the
 // page's host. Only types and small helpers live here, for both sides.
 
 /** The page as the frame knows it. Paths are relative to the planning folder. */
@@ -37,7 +37,7 @@ export type FromFrame =
 export type Request = Extract<FromFrame, { type: 'request' }>;
 
 /** The first message, posted to the frame's window with the port. */
-export interface FrameInit { type: 'atlas-page:init'; page: PageInfo; theme: ColorScheme }
+export interface FrameInit { type: 'coord-page:init'; page: PageInfo; theme: ColorScheme }
 
 /**
  * A path a page gives, as a path in the planning folder: relative to the page's folder, or to the

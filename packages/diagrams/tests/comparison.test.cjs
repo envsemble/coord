@@ -2,7 +2,7 @@
 // out presentation, drawn on the layout both share.
 const { test } = require("node:test"),
   assert = require("node:assert/strict");
-const atlas = require("../lib/index.cjs");
+const coord = require("../lib/index.cjs");
 const { validateDiagram } = require("../lib/layout/validateDiagram.cjs");
 
 const ENROLLMENT = `class Student {
@@ -12,12 +12,12 @@ class Enrollment
 Student "1" -- "0..*" Enrollment : enrolled`;
 // A class diagram and a proposal of it: the proposal's prepared viewer.
 async function proposal(base, proposed) {
-  const { prepared } = await atlas.prepareDiagrams({
+  const { prepared } = await coord.prepareDiagrams({
     files: [
       { path: "base.puml", text: `@startuml\n${base}\n@enduml\n` },
       {
         path: "proposal.puml",
-        text: `@startuml\n' atlas proposal base.puml\n${proposed}\n@enduml\n`,
+        text: `@startuml\n' coord proposal base.puml\n${proposed}\n@enduml\n`,
       },
     ],
   });
@@ -48,7 +48,7 @@ test("Comparison finds changed types and counts by identity, and nothing in a re
       .some((p) => ["x", "location", "evidence", "line"].includes(p.key)),
   );
   const reordered = `class Enrollment
-' atlas evidence {"file":"moved.ts","line":99}
+' coord evidence {"file":"moved.ts","line":99}
 class Student {
   name : string
 }

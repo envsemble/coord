@@ -1,7 +1,7 @@
 @startuml
 title Inventory · captured before reservations
-' atlas capture {"capturedAt":"2026-09-09T12:40:00.000Z","adapter":{"id":"atlas-sqlite","version":"1.0.0"},"source":{"kind":"sqlite","identity":"northwind-inventory","scope":["main"]},"coverage":{"status":"complete","diagnostics":[]},"limitations":["Declared metadata only; no application rows or runtime invariants were inspected."]}
-' atlas fingerprint 3008670e1b56a5e0fee81280c4dd0bb51ad49e22a37dcb440a3fc6dbdc582a68
+' coord capture {"capturedAt":"2026-09-09T12:40:00.000Z","adapter":{"id":"coord-sqlite","version":"1.0.0"},"source":{"kind":"sqlite","identity":"northwind-inventory","scope":["main"]},"coverage":{"status":"complete","diagnostics":[]},"limitations":["Declared metadata only; no application rows or runtime invariants were inspected."]}
+' coord fingerprint a523bb8c8afa5aedf735d0c29358e87bd0dd57a4d60b1dfe57b455ba5651a376
 
 entity product {
   *sku : TEXT <<PK>>

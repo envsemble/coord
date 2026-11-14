@@ -9,7 +9,7 @@ let dataDirectory: string;
 test.beforeEach(() => { ({ dataDirectory, folder } = projectHome()); });
 test.afterEach(async () => { await close(launched); launched = undefined; removeDirectory(dataDirectory); });
 
-test('a page opens in place from its plan link, Files and search, saves a choice, follows its files live, and a broken one shows why while Atlas carries on', async () => {
+test('a page opens in place from its plan link, Files and search, saves a choice, follows its files live, and a broken one shows why while Coord carries on', async () => {
   launched = await launchProject({ dataDirectory, folder });
   const { window } = launched;
   const page = path.join(folder, 'active/0001-saved-payment-methods/pages/card-picker');
@@ -24,10 +24,10 @@ test('a page opens in place from its plan link, Files and search, saves a choice
   await expect(window.locator('.page-view .breadcrumb')).toContainText('#0001');
   await expect(window.locator('.plan-files [role="treeitem"][data-id="d:active/0001-saved-payment-methods/pages/card-picker"]')).toHaveAttribute('aria-selected', 'true');
   const frame = window.frameLocator('iframe.page-frame');
-  // Built on the stack: envUI, an icon, its data, the Atlas tools and the work item's diagram.
+  // Built on the stack: envUI, an icon, its data, the Coord tools and the work item's diagram.
   await expect(frame.getByRole('heading', { name: 'Choosing a saved card' })).toBeVisible();
   await expect(frame.getByText('the plan has 7 steps')).toBeVisible();
-  await expect(frame.locator('.atlas-page-diagram .node').first()).toBeVisible();
+  await expect(frame.locator('.coord-page-diagram .node').first()).toBeVisible();
   // A choice is saved beside the page, where the agent reads it.
   await frame.getByRole('button', { name: 'Choose Tiles' }).click();
   await expect(frame.getByText('Chosen')).toBeVisible();

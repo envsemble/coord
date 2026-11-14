@@ -1,4 +1,4 @@
-// Validates the Atlas plugin's packaging: its skills (Atlas's three and the delivery skills beside
+// Validates the Coord plugin's packaging: its skills (Coord's three and the delivery skills beside
 // them) and the reviewer agent, their invocation rules, the commands and tools they name, and the
 // plugin and marketplace manifests.
 // Run with `npm run test:skills`.
@@ -12,10 +12,10 @@ const PLUGIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const REPO = path.dirname(PLUGIN);
 const SKILLS = path.join(PLUGIN, "skills");
 
-// Atlas's own skills, which name no model or provider, and the delivery skills the plugin carries
+// Coord's own skills, which name no model or provider, and the delivery skills the plugin carries
 // beside them (filing, babysitting and reviewing PRs, full send and full stop), which are the user's
 // as they wrote them and name the reviewers they choose.
-const ATLAS_SKILLS = ["atlas", "atlas-grill", "atlas-implement"];
+const COORD_SKILLS = ["coord", "coord-grill", "coord-implement"];
 const DELIVERY_SKILLS = [
   "babysit-pr",
   "council",
@@ -25,12 +25,12 @@ const DELIVERY_SKILLS = [
   "leaving-pr-comments",
   "opus-loop",
 ];
-const PLUGIN_SKILLS = [...ATLAS_SKILLS, ...DELIVERY_SKILLS].sort();
+const PLUGIN_SKILLS = [...COORD_SKILLS, ...DELIVERY_SKILLS].sort();
 const EXPLICIT_ONLY = new Set();
 // Skills the user triggers by saying their names: the description is that trigger and nothing else.
 const BY_NAME = {
-  "atlas-grill": ["atlas grill", "grill", "grill me"],
-  "atlas-implement": ["atlas implement"],
+  "coord-grill": ["coord grill", "grill", "grill me"],
+  "coord-implement": ["coord implement"],
 };
 const ALL = PLUGIN_SKILLS.map((name) => path.join(SKILLS, name));
 // Keys valid for both Codex and Claude Code skill frontmatter.
@@ -39,7 +39,7 @@ const FRONTMATTER_KEYS = new Set([
   "description",
   "disable-model-invocation",
 ]);
-// Each harness event the plugin hooks, with the Atlas hooks it runs: after every tool use, the
+// Each harness event the plugin hooks, with the Coord hooks it runs: after every tool use, the
 // session's state besides the checks of planning edits. Each harness has its own hooks file without
 // the events it lacks (Claude Code warns about unknown ones): Claude Code's hooks/hooks.json, which
 // it loads by default, and Codex's hooks/codex.json, which its manifest names instead.
@@ -79,13 +79,13 @@ const textFiles = () =>
   );
 
 // The command's usage lines (main.ts and the planning commands) and the MCP server's tool names, read from the code.
-const CLI = path.join(REPO, "packages", "atlas", "src", "cli", "commands");
+const CLI = path.join(REPO, "packages", "coord", "src", "cli", "commands");
 const USAGE = [
   read(path.join(CLI, "..", "main.ts")),
   read(path.join(CLI, "planning.ts")),
 ]
   .flatMap((text) => [
-    ...text.matchAll(/(?:^|`) {2}atlas ([a-z][^\n`]*)(?:`;)?$/gm),
+    ...text.matchAll(/(?:^|`) {2}coord ([a-z][^\n`]*)(?:`;)?$/gm),
   ])
   .map((match) =>
     match[1]
@@ -107,7 +107,7 @@ const TOOLS = [
 const TOOL_MENTION =
   /`(?!work_(?:items|id)`)((?:work|step|project)_[a-z_]+|where|step)`/g; // Registry and ledger fields are not tools.
 
-/** Whether `atlas <words>` names a command: it and a usage line agree for as long as both have words. */
+/** Whether `coord <words>` names a command: it and a usage line agree for as long as both have words. */
 function knownCommand(words) {
   return USAGE.some(
     (usage) =>
@@ -117,7 +117,7 @@ function knownCommand(words) {
   );
 }
 function commandMentions(text) {
-  return [...text.matchAll(/(?:`|^ {4}|^)atlas((?: [a-z][a-z-]*)+)/gm)].map(
+  return [...text.matchAll(/(?:`|^ {4}|^)coord((?: [a-z][a-z-]*)+)/gm)].map(
     (match) => match[1].trim().split(" "),
   );
 }
@@ -248,12 +248,12 @@ test("skills triggered by name describe only their trigger", () => {
   }
 });
 
-test("Codex interface metadata uses the Atlas names", () => {
+test("Codex interface metadata uses the Coord names", () => {
   for (const dir of ALL) {
     const name = path.basename(dir);
     const ui = openaiMetadata(dir).interface;
     if (!ui) continue;
-    assert.match(ui.display_name, /^Atlas\b/, `${name}: display_name`);
+    assert.match(ui.display_name, /^Coord\b/, `${name}: display_name`);
     if (ui.default_prompt)
       assert.ok(
         ui.default_prompt.includes(`$${name} `),
@@ -262,9 +262,9 @@ test("Codex interface metadata uses the Atlas names", () => {
   }
 });
 
-test("Atlas's skills name no model, provider or harness-specific reviewer", () => {
+test("Coord's skills name no model, provider or harness-specific reviewer", () => {
   for (const file of textFiles().filter((name) =>
-    ATLAS_SKILLS.some((skill) =>
+    COORD_SKILLS.some((skill) =>
       name.startsWith(path.join(SKILLS, skill) + path.sep),
     ),
   )) {
@@ -279,7 +279,7 @@ test("Atlas's skills name no model, provider or harness-specific reviewer", () =
   }
 });
 
-test("every atlas command and Atlas tool the skills and docs name exists in the code", () => {
+test("every coord command and Coord tool the skills and docs name exists in the code", () => {
   assert.ok(
     USAGE.length > 15 &&
       USAGE.some((words) => words.join(" ") === "work step set"),
@@ -304,12 +304,12 @@ test("every atlas command and Atlas tool the skills and docs name exists in the 
     for (const words of commandMentions(text))
       assert.ok(
         knownCommand(words),
-        `${rel(file)}: unknown command "atlas ${words.join(" ")}"`,
+        `${rel(file)}: unknown command "coord ${words.join(" ")}"`,
       );
     for (const [, tool] of text.matchAll(TOOL_MENTION))
       assert.ok(
         TOOLS.includes(tool),
-        `${rel(file)}: unknown Atlas tool ${tool}`,
+        `${rel(file)}: unknown Coord tool ${tool}`,
       );
   }
 });
@@ -342,13 +342,13 @@ test("relative links resolve and stay inside their skill set", () => {
 test("the plugin manifests agree with each other and the repository", () => {
   const version = json(path.join(REPO, "package.json")).version;
   assert.equal(
-    json(path.join(REPO, "packages", "atlas", "package.json")).version,
+    json(path.join(REPO, "packages", "coord", "package.json")).version,
     version,
     "the command's version",
   );
   for (const harness of [".claude-plugin", ".codex-plugin"]) {
     const manifest = json(path.join(PLUGIN, harness, "plugin.json"));
-    assert.equal(manifest.name, "atlas", `${harness}: name`);
+    assert.equal(manifest.name, "coord", `${harness}: name`);
     assert.equal(manifest.version, version, `${harness}: version`);
     for (const field of ["skills", "mcpServers", "hooks"])
       if (manifest[field])
@@ -358,24 +358,24 @@ test("the plugin manifests agree with each other and the repository", () => {
         );
   }
   const servers = json(path.join(PLUGIN, ".mcp.json")).mcpServers;
-  assert.deepEqual(Object.keys(servers), ["atlas"]);
-  assert.equal(servers.atlas.command, "atlas");
-  assert.deepEqual(servers.atlas.args, ["mcp"]);
+  assert.deepEqual(Object.keys(servers), ["coord"]);
+  assert.equal(servers.coord.command, "coord");
+  assert.deepEqual(servers.coord.args, ["mcp"]);
   const claude = json(path.join(REPO, ".claude-plugin", "marketplace.json"));
   const codex = json(path.join(REPO, ".agents", "plugins", "marketplace.json"));
-  assert.equal(claude.name, "atlas");
-  assert.equal(codex.name, "atlas");
+  assert.equal(claude.name, "coord");
+  assert.equal(codex.name, "coord");
   for (const [entry, source] of [
     [
-      claude.plugins.find((plugin) => plugin.name === "atlas"),
+      claude.plugins.find((plugin) => plugin.name === "coord"),
       (plugin) => plugin.source,
     ],
     [
-      codex.plugins.find((plugin) => plugin.name === "atlas"),
+      codex.plugins.find((plugin) => plugin.name === "coord"),
       (plugin) => plugin.source.path,
     ],
   ]) {
-    assert.ok(entry, "the marketplace lists the atlas plugin");
+    assert.ok(entry, "the marketplace lists the coord plugin");
     assert.equal(
       path.resolve(REPO, source(entry)),
       PLUGIN,
@@ -384,7 +384,7 @@ test("the plugin manifests agree with each other and the repository", () => {
   }
 });
 
-test("the plugin's hooks are the ones Atlas handles", () => {
+test("the plugin's hooks are the ones Coord handles", () => {
   assert.equal(
     json(path.join(PLUGIN, ".codex-plugin", "plugin.json")).hooks,
     "./hooks/codex.json",
@@ -401,15 +401,15 @@ test("the plugin's hooks are the ones Atlas handles", () => {
       );
       assert.deepEqual(
         commands,
-        HOOK_EVENTS[event].map((name) => `atlas hook ${name}`),
+        HOOK_EVENTS[event].map((name) => `coord hook ${name}`),
         `${file}: ${event}: runs ${HOOK_EVENTS[event].join(" and ")}`,
       );
     }
   }
   assert.match(
-    read(path.join(REPO, "packages", "atlas", "src", "cli", "main.ts")),
+    read(path.join(REPO, "packages", "coord", "src", "cli", "main.ts")),
     new RegExp(
-      `atlas hook <${[...new Set(Object.values(HOOK_EVENTS).flat())].join("\\|")}>`,
+      `coord hook <${[...new Set(Object.values(HOOK_EVENTS).flat())].join("\\|")}>`,
     ),
   );
 });

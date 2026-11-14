@@ -1,21 +1,21 @@
-// The atlas command, the Node.js it runs on and the Atlas plugin the app carries (resources/agent,
-// assembled by scripts/agent-payload.cjs), copied into the Atlas home's agent/ folder whenever the
+// The coord command, the Node.js it runs on and the Coord plugin the app carries (resources/agent,
+// assembled by scripts/agent-payload.cjs), copied into the Coord home's agent/ folder whenever the
 // build there is another. There they have a stable path: the agents read the plugin in place, and
 // the launchers in bin/, on the PATH, run the command on its own Node.js. Nothing runs from or
 // points into the app itself: an AppImage is mounted at a new path on every run, and an MCP server
 // running from the install folder would hold it while the installer replaces or removes it.
 //
 //   agent/
-//     .claude-plugin/, .agents/   the marketplace manifests, naming plugin/ (atlas setup finds them too)
+//     .claude-plugin/, .agents/   the marketplace manifests, naming plugin/ (coord setup finds them too)
 //     plugin/                     the plugin, replaced as a whole, its hooks and MCP server calling the
 //                                 command by its full path (pluginCommands.ts)
-//     command/<build>/            the @envsemble/atlas package and its dependencies, one folder per build,
+//     command/<build>/            the @envsemble/coord package and its dependencies, one folder per build,
 //                                 with the Node.js it runs on in runtime/
-//     bin/atlas, bin/atlas.cmd    the launchers (atlas.cmd on Windows only), with paths relative to themselves
+//     bin/coord, bin/coord.cmd    the launchers (coord.cmd on Windows only), with paths relative to themselves
 //     state.json                  the build copied, whether bin/ was put on the PATH, and when each
 //                                 agent was connected
 //     programs.json               the program chosen for an agent not found on the PATH (agents.ts)
-//     activity/                   when Atlas last ran in each agent (@envsemble/atlas/agents/activity)
+//     activity/                   when Coord last ran in each agent (@envsemble/coord/agents/activity)
 //     onboarding.json             whether the onboarding was finished
 //
 // A hook or MCP server starting meanwhile never reads a half-copied tree: each folder is copied
@@ -25,7 +25,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { chmod, cp, mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
-import type { AgentId } from '@envsemble/atlas/agents';
+import type { AgentId } from '@envsemble/coord/agents';
 import { pointPluginAtCommand } from './pluginCommands.ts';
 
 /** What resources/agent/build.json says: the app's version, and the build (the version and a hash of the files). */
@@ -78,26 +78,26 @@ export function launchers(build: string, platform: NodeJS.Platform = process.pla
   // through its link in ~/.local/bin on Linux, so the link is followed to bin/ first.
   const sh = [
     '#!/bin/sh',
-    '# The atlas command, run on the Node.js the Atlas app ships, from the agent folder. The app rewrites this file.',
+    '# The coord command, run on the Node.js the Coord app ships, from the agent folder. The app rewrites this file.',
     'agent=$(dirname "$(dirname "$(readlink -f "$0" 2>/dev/null || printf %s "$0")")")',
-    `exec "$agent/${node}" "$agent/${command}/bin/atlas.js" "$@"`,
+    `exec "$agent/${node}" "$agent/${command}/bin/coord.js" "$@"`,
     '',
   ].join('\n');
-  if (platform !== 'win32') return [{ name: 'atlas', text: sh, mode: 0o755 }];
+  if (platform !== 'win32') return [{ name: 'coord', text: sh, mode: 0o755 }];
   // cmd.exe reads a batch file a line at a time, so a launcher rewritten while it runs must hold
   // everything on the line it is running: `call exit /b` returns the command's status without
   // reading on. %~dp0 is the launcher's folder, with its trailing backslash.
   const windows = (value: string) => '"%~dp0..\\' + value.replace(/\//g, '\\') + '"';
   const cmd = [
-    '@rem The atlas command, run on the Node.js the Atlas app ships, from the agent folder. The app rewrites this file.',
-    `@${windows(node)} ${windows(command + '/bin/atlas.js')} %* & call exit /b %%errorlevel%%`,
+    '@rem The coord command, run on the Node.js the Coord app ships, from the agent folder. The app rewrites this file.',
+    `@${windows(node)} ${windows(command + '/bin/coord.js')} %* & call exit /b %%errorlevel%%`,
     '',
   ].join('\r\n');
-  return [{ name: 'atlas', text: sh, mode: 0o755 }, { name: 'atlas.cmd', text: cmd, mode: 0o644 }];
+  return [{ name: 'coord', text: sh, mode: 0o755 }, { name: 'coord.cmd', text: cmd, mode: 0o644 }];
 }
 
 /** Whether a command's folder has its command and its Node.js. */
-const complete = (command: string, platform: NodeJS.Platform) => existsSync(path.join(command, 'bin', 'atlas.js')) && existsSync(path.join(command, 'runtime', runtimeName(platform)));
+const complete = (command: string, platform: NodeJS.Platform) => existsSync(path.join(command, 'bin', 'coord.js')) && existsSync(path.join(command, 'runtime', runtimeName(platform)));
 
 /** Whether the folder needs this build copied in: another build, or one whose files are gone. */
 export function needsCopy(state: FolderState | null, folder: string, build: string, platform: NodeJS.Platform = process.platform) {

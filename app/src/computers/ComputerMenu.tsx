@@ -56,7 +56,7 @@ export function ComputerMenu({ current, onError, onSettings }: { current: Comput
 
 /**
  * Settings › Computers › Other computers: the computers this one is paired with, each opened in a new
- * window or forgotten, and Connect to Another Atlas… to pair with one more.
+ * window or forgotten, and Connect to Another Coord… to pair with one more.
  */
 export function OtherComputers({ current }: { current: ComputerRef }) {
   const [error, setError] = useState('');
@@ -87,7 +87,7 @@ export function OtherComputers({ current }: { current: ComputerRef }) {
   return <>
     <div className="section-toolbar">
       <Text emphasis="muted" className="settings-description">The computers this one is paired with. Choose one in the computer menu to work on it in this window.</Text>
-      <Button variant="secondary" className="other-computers-connect" startIcon={<AddIcon />} onClick={() => setConnecting(true)}>Connect to Another Atlas…</Button>
+      <Button variant="secondary" className="other-computers-connect" startIcon={<AddIcon />} onClick={() => setConnecting(true)}>Connect to Another Coord…</Button>
     </div>
     {paired === null ? <Spinner label="Checking computers" />
       : !paired.length ? <Text emphasis="muted">Not paired with another computer yet.</Text>

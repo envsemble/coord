@@ -1,9 +1,9 @@
 // The app's own state in the home database (never in a planning folder): each window with its
 // bounds, the computer it shows and the place it shows there (a row of the place table: something of
 // one project, or the hub or statistics of one project), and the settings every window shares: the
-// theme and the width the reader gave a diagram's details. Windows stay in the database when Atlas
+// theme and the width the reader gave a diagram's details. Windows stay in the database when Coord
 // quits, and open again at the next start; a window closed by hand is removed with its places.
-import type { HomeDatabase } from '@envsemble/atlas/planning';
+import type { HomeDatabase } from '@envsemble/coord/planning';
 import { type Place, type ThemePreference } from '../shared/contract.ts';
 import { target as savedTarget } from '../shared/validate.ts';
 
@@ -60,7 +60,7 @@ export class AppState {
   }
   setTheme(theme: ThemePreference) { this.database.setSetting('theme', theme === 'system' ? null : theme); }
 
-  /** The windows to open: those open when Atlas quit, and any opened since. */
+  /** The windows to open: those open when Coord quit, and any opened since. */
   windows(): WindowRow[] {
     return (this.database.db.prepare('SELECT * FROM "window" ORDER BY id').all() as Row[]).map(row => ({
       id: Number(row.id), computerId: (row.computer_id as string | null) ?? null, maximized: Boolean(row.maximized),

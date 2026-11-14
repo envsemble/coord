@@ -24,7 +24,7 @@ export const statuses = {
  * else whose turn its agents declare it is (Your turn in amber, Working and Planning in green,
  * Waiting in blue, Blocked in red), else what its plan's statuses say: a draft nobody has declared,
  * accepted work not started (Ready), or work under way that declares nothing (No state, which its
- * next agent sets right). Atlas never guesses it from what sessions do.
+ * next agent sets right). Coord never guesses it from what sessions do.
  */
 export function statusOf(work: Pick<Work, 'design' | 'implementation' | 'progress' | 'location'> & { state?: WorkState | null }): StatusLook {
   if (work.design === 'superseded') return statuses.superseded;

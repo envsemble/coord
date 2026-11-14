@@ -34,7 +34,7 @@ export function Panel({
           <Text
             render={<h2 />}
             variant="title"
-            className="atlas-section-heading panel-title"
+            className="coord-section-heading panel-title"
           >
             {title}
           </Text>

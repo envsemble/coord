@@ -1,4 +1,4 @@
-// What Atlas opens outside itself on this computer, beyond web pages: applications' links (a T3 Code
+// What Coord opens outside itself on this computer, beyond web pages: applications' links (a T3 Code
 // thread) and files in VS Code. Each is built from a fixed form here, never from a command a page
 // sends: an application link only with a scheme on the allowlist, a file only through VS Code's link.
 // Pure, so it is unit-tested.

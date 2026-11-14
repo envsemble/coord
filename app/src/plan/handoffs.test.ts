@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { continuation, handoffs } from './handoffs.ts';
-import type { HandoffLink } from '@envsemble/atlas/planning/types';
+import type { HandoffLink } from '@envsemble/coord/planning/types';
 
 const own = 'f-' + '1'.repeat(32), other = 'f-' + '2'.repeat(32);
-const link = (change: Partial<HandoffLink>): HandoffLink => ({ projectId: own, project: 'atlas', projectName: 'Atlas', workId: 'work-0023', title: 'Plans hub', state: 'closed', outcome: 'complete', ...change });
+const link = (change: Partial<HandoffLink>): HandoffLink => ({ projectId: own, project: 'coord', projectName: 'Coord', workId: 'work-0023', title: 'Plans hub', state: 'closed', outcome: 'complete', ...change });
 
 test('a plan\'s handoffs: by number and title, another project\'s by its name too, opening the plan unless it cannot be found', () => {
   const { continues, continuedIn } = handoffs({ continues: [link({})], continuedIn: [link({ projectId: other, project: 'shop', projectName: 'Shop', workId: 'work-0002', title: 'Checkout' }), link({ projectId: null, project: 'gone', projectName: '', workId: 'work-0009', title: null })] }, own);

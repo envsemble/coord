@@ -4,14 +4,14 @@
 // one can take a while: its row shows it, and the others stay usable. An agent not found on this
 // computer is greyed, with a link to install it and Choose program… for one the PATH does not have;
 // the list checks again whenever it shows and as the window comes forward, so one installed (or
-// trusted) meanwhile shows as it is. A connected agent's row says whether it runs Atlas, and in
+// trusted) meanwhile shows as it is. A connected agent's row says whether it runs Coord, and in
 // Settings each row can show the commands that connect it by hand.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Checkbox, Disclosure, List, Spinner } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/code';
 import { agentIds, agentNames } from '../../shared/contract';
 import type { AgentFolder, AgentId, AgentState } from '../types';
-import { api, AtlasError } from '../api';
+import { api, CoordError } from '../api';
 import { AgentLogo } from './AgentLogo';
 import { agentCheckLine, agentInstallPages, agentStatus, agentWarnings, byHandCommands, finished, idle, started, withAgent, type AgentActivity } from './agents';
 import { CheckIcon } from '../ui/icons';
@@ -49,7 +49,7 @@ export function useAgents() {
       setActivity(current => ({ ...current, [id]: finished(action, { change }) }));
     } catch (failure) {
       if (!mounted.current) return;
-      const cancelled = (failure as AtlasError).code === 'cancelled';
+      const cancelled = (failure as CoordError).code === 'cancelled';
       setActivity(current => ({ ...current, [id]: finished(action, { error: cancelled ? null : (failure as Error).message }) }));
     } finally { running.current--; }
   }, []);
@@ -77,7 +77,7 @@ export function useAgents() {
 export type Agents = ReturnType<typeof useAgents>;
 
 /**
- * The agents as last checked, with whether each connected one runs Atlas, read again as the window
+ * The agents as last checked, with whether each connected one runs Coord, read again as the window
  * comes forward: cheap (no agent's command runs), for the hub's notice.
  */
 export function useAgentChecks() {
@@ -101,9 +101,9 @@ const withCode = (text: string) => text.split('/hooks').flatMap((part, index) =>
  */
 export function AgentWarnings({ agents, action }: { agents: readonly AgentState[] | null; action?: ReactNode }) {
   return <>{agentWarnings(agents).map(agent => <Alert key={agent.id} tone="warning" className="agent-warning" data-agent={agent.id} actions={action}>
-    {agent.check?.status === 'untrusted' ? <>Codex on this computer doesn’t trust Atlas’s hooks yet: type <Code>/hooks</Code> in Codex and trust them.</>
-      : agent.id === 'codex' ? <>Codex on this computer isn’t running Atlas’s hooks: type <Code>/hooks</Code> in Codex and trust them.</>
-      : <>{agentNames[agent.id]} on this computer isn’t running Atlas’s hooks.</>}
+    {agent.check?.status === 'untrusted' ? <>Codex on this computer doesn’t trust Coord’s hooks yet: type <Code>/hooks</Code> in Codex and trust them.</>
+      : agent.id === 'codex' ? <>Codex on this computer isn’t running Coord’s hooks: type <Code>/hooks</Code> in Codex and trust them.</>
+      : <>{agentNames[agent.id]} on this computer isn’t running Coord’s hooks.</>}
   </Alert>)}</>;
 }
 
@@ -135,7 +135,7 @@ export function AgentList({ agents: state, mode, label = 'Agents' }: { agents: A
   })}</List.Root>;
 }
 
-/** An agent's status (with, connected, whether it runs Atlas), what is happening to it, or why the last change failed. */
+/** An agent's status (with, connected, whether it runs Coord), what is happening to it, or why the last change failed. */
 function AgentDetail({ agent, activity, state, mode, folder }: { agent: AgentState; activity: AgentActivity; state: Agents; mode: AgentListMode; folder: AgentFolder | null }) {
   let line: ReactNode = agentStatus(agent);
   if (activity.running) line = <span className="agent-progress"><Spinner size="sm" label="" />{activity.running === 'connect' ? 'Connecting… this can take a minute.' : 'Disconnecting…'}</span>;
@@ -162,7 +162,7 @@ function ByHand({ agent, folder }: { agent: AgentState; folder: AgentFolder }) {
   const { terminal, session } = byHandCommands(agent.id, folder);
   const command = (text: string) => <li key={text}><Code>{text}</Code><CopyButton text={text} label="Copy" /></li>;
   return <Disclosure className="agent-by-hand" title="Connect by hand">
-    <p>In a terminal (this installs the plugin; Connect also grants the agent Atlas’s home):</p>
+    <p>In a terminal (this installs the plugin; Connect also grants the agent Coord’s home):</p>
     <ol className="agent-commands">{terminal.map(command)}</ol>
     <p>{agent.id === 'claude' ? 'Or in a Claude Code session:' : 'Then in Codex, to see it:'}</p>
     <ol className="agent-commands">{session.map(command)}</ol>

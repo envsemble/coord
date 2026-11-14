@@ -2,7 +2,7 @@
 // requests about it go through the host connection; its state follows the host's project.changed
 // events and the connection's status. The revision counts up here, in main, so a host that restarted
 // (and counts from zero again) never makes the window ignore fresh data.
-import type { ClientStatus, HostClient, OpenProjectState } from '@envsemble/atlas/host';
+import type { ClientStatus, HostClient, OpenProjectState } from '@envsemble/coord/host';
 import type { OpenProjectChange, ProjectStatus } from '../../shared/contract.ts';
 
 export class ProjectView {

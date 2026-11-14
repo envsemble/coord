@@ -1,12 +1,12 @@
 // Making and changing projects, from the hub's project menu: Create project (a name and the folders
 // it covers: an agent working in one of them, or inside one, belongs to the project), Rename, and a
 // project's folders. Folders are paths on the project's own computer, so they are only chosen in
-// Atlas there.
+// Coord there.
 import { useState } from 'react';
 import { Alert, Button, Dialog, IconButton, List, Text, TextField, Tooltip } from '@envsemble/envui';
 import { AddFolderIcon, AddIcon, CloseIcon, ComputerIcon, FolderIcon } from '../ui/icons';
 import type { Project, ProjectChangeRequest } from '../types';
-import { api, AtlasError } from '../api';
+import { api, CoordError } from '../api';
 import type { Place } from '../navigation/targets';
 
 /** What the hub's project menu does with a project. */
@@ -41,7 +41,7 @@ const folderKey = (folder: string) => {
 /** A folder chosen in the system's folder dialog (Explorer, Finder): its path, or null when the person cancelled. */
 async function pickFolder(): Promise<string | null> {
   try { return await api.chooseFolder(); }
-  catch (failure) { if ((failure as AtlasError).code === 'cancelled') return null; throw failure; }
+  catch (failure) { if ((failure as CoordError).code === 'cancelled') return null; throw failure; }
 }
 
 /**
@@ -72,8 +72,8 @@ function FolderList({ value, onChange, disabled, computer }: { value: string[]; 
 }
 
 /**
- * Create project: a name and the folders it covers, made as a planning folder in the computer's Atlas
- * home. On another computer it gets a name only: its folders are chosen in Atlas on that computer.
+ * Create project: a name and the folders it covers, made as a planning folder in the computer's Coord
+ * home. On another computer it gets a name only: its folders are chosen in Coord on that computer.
  */
 export function NewProjectDialog({ computer, local, onClose, onCreated }: { computer: string; local: boolean; onClose(): void; onCreated(project: Project): void }) {
   const [name, setName] = useState('');
@@ -94,7 +94,7 @@ export function NewProjectDialog({ computer, local, onClose, onCreated }: { comp
   };
   const chooseFolders = (next: string[]) => { setFolders(next); if (!named) setName(next.length ? folderName(next[0]) : ''); };
   return <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }} pending={busy} className="new-project-dialog" title="Create project"
-    description={local ? 'Add the folders where you work on it, such as its repositories. An agent working in one of them keeps its plans in this project.' : <>Its folders are chosen in Atlas on {computer}, from the project menu of its plans.</>}
+    description={local ? 'Add the folders where you work on it, such as its repositories. An agent working in one of them keeps its plans in this project.' : <>Its folders are chosen in Coord on {computer}, from the project menu of its plans.</>}
     closeLabel="Cancel" actions={<Button variant="primary" type="submit" form="new-project" pending={busy} disabled={!ready}>Create project</Button>}>
     <form id="new-project" className="dialog-form" onSubmit={event => { event.preventDefault(); if (ready) void create(); }}>
       <TextField label="Project name" placeholder="Project name" startIcon={<FolderIcon />} value={name} onValueChange={value => { setName(value); setNamed(Boolean(value)); }} autoFocus maxLength={100} disabled={busy} />
@@ -153,7 +153,7 @@ export function FoldersDialog({ project, computer, local, onClose, onChange }: {
           start={<FolderIcon className="folder-list-icon" />} label={<bdi className="project-details-path">{folder}</bdi>}
           end={local ? <IconButton variant="ghost" size="sm" icon={<CloseIcon />} aria-label={'Remove ' + folder} disabled={busy} onClick={() => void remove(folder)} /> : undefined} />)}
         </List.Root> : <Text render={<p />} emphasis="muted">None: agents find the project only in its planning folder.</Text>}
-        {!local && <Text render={<p />} emphasis="muted">Folders are chosen in Atlas on {computer}.</Text>}
+        {!local && <Text render={<p />} emphasis="muted">Folders are chosen in Coord on {computer}.</Text>}
       </section>
       {error && <Alert tone="danger" announce>{error}</Alert>}
     </div>

@@ -1,16 +1,16 @@
 {
-  "name": "@envsemble/atlas-diagrams",
+  "name": "@envsemble/coord-diagrams",
   "version": "0.8.0",
   "private": true,
-  "description": "Internal Atlas diagram package: Atlas's PlantUML subset, captures from code and databases, layout, the React viewer and offline export",
+  "description": "Internal Coord diagram package: Coord's PlantUML subset, captures from code and databases, layout, the React viewer and offline export",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/envsemble/atlas.git",
+    "url": "git+https://github.com/envsemble/coord.git",
     "directory": "packages/diagrams"
   },
-  "homepage": "https://github.com/envsemble/atlas",
+  "homepage": "https://github.com/envsemble/coord",
   "bugs": {
-    "url": "https://github.com/envsemble/atlas/issues"
+    "url": "https://github.com/envsemble/coord/issues"
   },
   "scripts": {
     "dev": "vite",
@@ -67,7 +67,7 @@
       "default": "./dist/react.mjs"
     },
     "./mark": {
-      "types": "./src/ui/AtlasMark.d.ts",
+      "types": "./src/ui/CoordMark.d.ts",
       "default": "./dist/mark.mjs"
     },
     "./viewer.css": "./src/viewer/viewer.css",

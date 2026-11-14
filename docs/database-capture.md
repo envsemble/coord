@@ -1,6 +1,6 @@
 # Database capture
 
-A database capture is an entity diagram of a database's declared schema. Capture is explicit and read only: Atlas reads catalogs, never application rows, and writes the diagram; a later capture is another file and never updates an earlier one. Keep a source's identity the same so its tables keep their names from one capture to the next. [Diagrams](diagrams.md#captures) describes the `atlas capture` command and what a capture holds.
+A database capture is an entity diagram of a database's declared schema. Capture is explicit and read only: Coord reads catalogs, never application rows, and writes the diagram; a later capture is another file and never updates an earlier one. Keep a source's identity the same so its tables keep their names from one capture to the next. [Diagrams](diagrams.md#captures) describes the `coord capture` command and what a capture holds.
 
 | Adapter    | Checked versions and prerequisites                                                                                                                  | Consistency and scope                                                                                                                                                                                               |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -16,7 +16,7 @@ A database capture is an entity diagram of a database's declared schema. Capture
 - A foreign key to a table outside the capture is not drawn; a diagnostic names it, and the table's SQL shows it.
 - Defaults, unique keys, indexes, checks, generated columns and triggers are not drawn; each table's snippet holds its SQL definition (SQLite) or its constraints, indexes and triggers (PostgreSQL), up to twelve lines. Its evidence is its catalog entry, or the reference the configuration names for it.
 
-Views, virtual and shadow tables, PostgreSQL partitions, inheritance and foreign tables, domains, unsupported index semantics, external references and trigger invariants give partial coverage, and excluded tables are named in the diagnostics. SQL definitions describe declarations; Atlas does not infer application invariants or whether a deferred constraint currently holds. SQLite's foreign key enforcement is recorded as connection metadata, not as a guarantee.
+Views, virtual and shadow tables, PostgreSQL partitions, inheritance and foreign tables, domains, unsupported index semantics, external references and trigger invariants give partial coverage, and excluded tables are named in the diagnostics. SQL definitions describe declarations; Coord does not infer application invariants or whether a deferred constraint currently holds. SQLite's foreign key enforcement is recorded as connection metadata, not as a guarantee.
 
 Limits: 200 tables or views, 4,000 columns and 8 MiB of metadata; further index and constraint limits fail explicitly. The 200-table SQLite fixture captures within five seconds, not counting engine start-up. A failed capture writes nothing. No connection string is stored.
 
@@ -30,7 +30,7 @@ Keep the configuration with the database or the code it belongs to. Paths are re
   "adapter": "postgresql",
   "identity": "orders-db",
   "schemas": ["public"],
-  "connectionEnv": "ATLAS_DATABASE_URL"
+  "connectionEnv": "COORD_DATABASE_URL"
 }
 ```
 
@@ -57,4 +57,4 @@ Keep the configuration with the database or the code it belongs to. Paths are re
 
 See [the configuration schema](../packages/diagrams/schemas/database-source-schema.json). The library's `captureSQLite`, `capturePostgres`, `captureD1` (with any `queryBatch` executor, such as one for a remote D1) and `captureFromConfig` return the diagram's text.
 
-For local verification, set `ATLAS_TEST_POSTGRES` to a disposable PostgreSQL 17 connection and run `node --test packages/diagrams/tests/database.slow.test.cjs` (or `npm test` in the package); the test creates and removes only uniquely named fixture schemas. The SQLite fixtures run in the quick tier, and the local Wrangler D1 fixture with the full tests. [Cloudflare documents local execution, JSON results and multiple SQL statements](https://developers.cloudflare.com/d1/wrangler-commands/#d1-execute).
+For local verification, set `COORD_TEST_POSTGRES` to a disposable PostgreSQL 17 connection and run `node --test packages/diagrams/tests/database.slow.test.cjs` (or `npm test` in the package); the test creates and removes only uniquely named fixture schemas. The SQLite fixtures run in the quick tier, and the local Wrangler D1 fixture with the full tests. [Cloudflare documents local execution, JSON results and multiple SQL statements](https://developers.cloudflare.com/d1/wrangler-commands/#d1-execute).

@@ -155,14 +155,14 @@ test('a long plan scrolls below the title bar, going back finds it where it was 
 test('a link into a sibling project in the home opens there; one to a folder no project has is unavailable', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
-  const coord = addProject(home.dataDirectory, 'coord', 'Coord');
-  const plan = path.join(coord, 'active/0001-saved-payment-methods/plan.md');
+  const harbor = addProject(home.dataDirectory, 'harbor', 'Harbor');
+  const plan = path.join(harbor, 'active/0001-saved-payment-methods/plan.md');
   writeFileSync(plan, readFileSync(plan, 'utf8') + '\n## Elsewhere\n\nSee [the fulfilment model](../../../northwind/active/0002-order-fulfilment-model/plan.md) and [nothing](../../../nowhere/README.md).\n');
   launched = await launchProject(home);
   const { window } = launched;
-  await filterHub(window, 'Coord');
+  await filterHub(window, 'Harbor');
   await openPlan(window, 'Saved payment methods');
-  await expect(window.locator('.work-page .breadcrumb')).toContainText('Coord');
+  await expect(window.locator('.work-page .breadcrumb')).toContainText('Harbor');
   await expect(window.locator('.prose .outside-reference', { hasText: 'nothing' })).toBeVisible();
   await window.locator('.prose').getByRole('link', { name: 'the fulfilment model' }).click();
   await expect(window.locator('.work-page h1')).toHaveText('Order fulfilment model');

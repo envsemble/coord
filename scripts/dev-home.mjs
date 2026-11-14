@@ -1,7 +1,7 @@
-// `npm run dev:home`: the desktop app in development on a home of its own, beside an installed Atlas.
+// `npm run dev:home`: the desktop app in development on a home of its own, beside an installed Coord.
 // The home is artifacts/dev-home (ignored by Git). The first run seeds it with a demo project, a
 // copy of the end-to-end fixture with its diagrams as a Git repository, and the fixture's agent
-// reports in the home database. This checkout's `atlas` command goes first on the PATH, so
+// reports in the home database. This checkout's `coord` command goes first on the PATH, so
 // the plugin's hooks and MCP server run this version too: `artifacts/dev-bin` holds the shims.
 // Arguments after `--` reach the app.
 import { spawn, execFileSync } from "node:child_process";
@@ -17,12 +17,12 @@ import {
   canonicalProjectFolderSync,
   HomeDatabase,
   insertReport,
-} from "../packages/atlas/src/planning/index.ts";
+} from "../packages/coord/src/planning/index.ts";
 
 const repository = path.resolve(import.meta.dirname, "..");
 const home = path.join(repository, "artifacts", "dev-home");
 const bin = path.join(repository, "artifacts", "dev-bin");
-const command = path.join(repository, "packages", "atlas", "bin", "atlas.js");
+const command = path.join(repository, "packages", "coord", "bin", "coord.js");
 
 const demo = path.join(home, "planning", "demo");
 if (!existsSync(demo)) {
@@ -36,9 +36,9 @@ if (!existsSync(demo)) {
         "-C",
         folder,
         "-c",
-        "user.name=Atlas",
+        "user.name=Coord",
         "-c",
-        "user.email=atlas@example.invalid",
+        "user.email=coord@example.invalid",
         ...args,
       ],
       { stdio: "ignore", windowsHide: true },
@@ -69,21 +69,21 @@ if (!existsSync(demo)) {
 }
 
 mkdirSync(bin, { recursive: true });
-writeFileSync(path.join(bin, "atlas.cmd"), `@node "${command}" %*\r\n`);
+writeFileSync(path.join(bin, "coord.cmd"), `@node "${command}" %*\r\n`);
 writeFileSync(
-  path.join(bin, "atlas"),
+  path.join(bin, "coord"),
   `#!/bin/sh\nexec node "${command}" "$@"\n`,
   { mode: 0o755 },
 );
 
-console.log("Atlas home: " + home);
+console.log("Coord home: " + home);
 const child = spawn("npm", ["run", "dev", "--", ...process.argv.slice(2)], {
   cwd: repository,
   stdio: "inherit",
   shell: true,
   env: {
     ...process.env,
-    ATLAS_HOME: home,
+    COORD_HOME: home,
     PATH: bin + path.delimiter + process.env.PATH,
   },
 });

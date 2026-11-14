@@ -19,17 +19,17 @@ const groupRows = (window: Page, group: string) => window.getByRole('region', { 
 test('a window opens on the hub: every plan of every active project, grouped by its status, each one click from its plan', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
-  addProject(home.dataDirectory, 'coord', 'Coord');
+  addProject(home.dataDirectory, 'harbor', 'Harbor');
   launched = await launch({ dataDirectory: home.dataDirectory });
   const { window } = launched;
   await expectHub(window);
-  await expect.poll(() => titles(launched!)).toEqual(['Atlas']);
+  await expect.poll(() => titles(launched!)).toEqual(['Coord']);
   // By whose turn their agents say they are: the user's (with what for), then waiting or blocked, then later (the drafts); each row says its project.
   await expect(window.locator('.hub-group-heading')).toHaveText([/^Your turn\s*2$/, /^Waiting\s*2$/, /^Later\s*2$/]);
   await expect(groupRows(window, 'Your turn').first().locator('.hub-row-note')).toHaveText('Choose how a customer picks a saved card, on the card picker page');
   await expect(groupRows(window, 'Waiting').locator('.status-icon').first()).toHaveAttribute('aria-label', 'Blocked');
-  await expect(groupRows(window, 'Later')).toHaveText([/Order fulfilment model\s*#0002\s*(Northwind|Coord)/, /Order fulfilment model\s*#0002\s*(Northwind|Coord)/]);
-  await expect(hubRows(window, 'Saved payment methods').locator('.hub-row-project')).toHaveText(['Northwind', 'Coord']);
+  await expect(groupRows(window, 'Later')).toHaveText([/Order fulfilment model\s*#0002\s*(Northwind|Harbor)/, /Order fulfilment model\s*#0002\s*(Northwind|Harbor)/]);
+  await expect(hubRows(window, 'Saved payment methods').locator('.hub-row-project')).toHaveText(['Northwind', 'Harbor']);
   // One click on the row, away from its title, opens the plan; Back returns to the hub.
   const plan = hubRows(window, 'Customer order notifications').first();
   await expect(plan.getByRole('link')).toHaveAttribute('draggable', 'false');
@@ -47,7 +47,7 @@ test('a window opens on the hub: every plan of every active project, grouped by 
 test("the hub's search button opens the search and it never filters the hub; the project and state filters narrow its plans; on a plan the search finds its project's documents", async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
-  addProject(home.dataDirectory, 'coord', 'Coord');
+  addProject(home.dataDirectory, 'harbor', 'Harbor');
   launched = await launch({ dataDirectory: home.dataDirectory });
   const { window } = launched;
   await expect(hubRows(window)).toHaveCount(6);
@@ -69,11 +69,11 @@ test("the hub's search button opens the search and it never filters the hub; the
   // Enter on it opens it again, empty.
   await window.keyboard.press('Enter');
   await expect(input).toHaveValue('');
-  await window.keyboard.type('fulfil coord');
+  await window.keyboard.type('fulfil harbor');
   await expect(hubRows(window)).toHaveCount(6);
-  await popup.getByRole('option', { name: /Order fulfilment model.*Coord/ }).click();
+  await popup.getByRole('option', { name: /Order fulfilment model.*Harbor/ }).click();
   await expect(window.locator('.work-page h1')).toHaveText('Order fulfilment model');
-  await expect(window.locator('.work-page .breadcrumb')).toContainText('Coord');
+  await expect(window.locator('.work-page .breadcrumb')).toContainText('Harbor');
   await goHome(window);
   await window.keyboard.press('Control+P');
   await expect(popup).toBeVisible();
@@ -84,15 +84,15 @@ test("the hub's search button opens the search and it never filters the hub; the
   await expect(hubRows(window)).toHaveCount(6);
   // The project menu: All projects by default.
   await expect(projectButton(window, 'All projects')).toBeVisible();
-  await filterHub(window, 'Coord');
+  await filterHub(window, 'Harbor');
   await expect(hubRows(window)).toHaveCount(3);
-  await expect(hubRows(window).locator('.hub-row-project')).toHaveText(['Coord', 'Coord', 'Coord']);
+  await expect(hubRows(window).locator('.hub-row-project')).toHaveText(['Harbor', 'Harbor', 'Harbor']);
   // Back and forward set it.
   await window.getByRole('button', { name: 'Back', exact: true }).click();
   await expectHub(window);
   await expect(hubRows(window)).toHaveCount(6);
   await window.getByRole('button', { name: 'Forward', exact: true }).click();
-  await expectHub(window, 'Coord');
+  await expectHub(window, 'Harbor');
   // Closed work only on request: open by default, closed, or all.
   const state = window.getByRole('radiogroup', { name: 'Plan state' });
   await state.getByRole('radio', { name: /^Closed/ }).click();
@@ -161,7 +161,7 @@ test("a plan opens from the hub with its summary and its side column, and with i
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
   // A diagram opens from its link in the plan; Back returns to the plan.
   await window.locator('.prose .diagram-link').first().click();
-  await expect(window.locator('.diagrams .atlas-panel').first()).toBeVisible();
+  await expect(window.locator('.diagrams .coord-panel').first()).toBeVisible();
   await expect(window.locator('.diagrams .diagram-title')).toHaveCount(1);
   await window.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
@@ -201,19 +201,19 @@ test("a plan opens from the hub with its summary and its side column, and with i
 test('a window shows one place at a time, and shows it again at the next start', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
-  addProject(home.dataDirectory, 'coord', 'Coord');
+  addProject(home.dataDirectory, 'harbor', 'Harbor');
   launched = await launch({ dataDirectory: home.dataDirectory });
   let { window } = launched;
-  await filterHub(window, 'Coord');
+  await filterHub(window, 'Harbor');
   await openPlan(window, 'Saved payment methods');
-  await expect(window.locator('.work-page .breadcrumb')).toContainText('Coord');
+  await expect(window.locator('.work-page .breadcrumb')).toContainText('Harbor');
   await window.waitForTimeout(600);
   await close(launched);
 
   launched = await launch({ dataDirectory: home.dataDirectory });
   window = launched.window;
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
-  await expect(window.locator('.work-page .breadcrumb')).toContainText('Coord');
+  await expect(window.locator('.work-page .breadcrumb')).toContainText('Harbor');
   await expect(trailEnd(window)).toHaveText('#0001');
   await showFiles(window);
 });
@@ -227,9 +227,9 @@ test("the plan's files are beside its pages with the plan's own folder, open a f
   await openPlan(window, 'Saved payment methods');
   const files = await showFiles(window);
   await expect(sidebar.getByRole('heading', { name: 'Files' })).toBeVisible();
-  // Only the plan's folder: its plan (marked, it is shown), ledger, context, diagrams and evidence, never its .atlas folder or another plan.
+  // Only the plan's folder: its plan (marked, it is shown), ledger, context, diagrams and evidence, never its .coord folder or another plan.
   await expect(files.locator(row('f:active/0001-saved-payment-methods/plan.md'))).toHaveAttribute('aria-selected', 'true');
-  await expect(files.locator('[role="treeitem"]', { hasText: '.atlas' })).toHaveCount(0);
+  await expect(files.locator('[role="treeitem"]', { hasText: '.coord' })).toHaveCount(0);
   await expect(files.locator('[role="treeitem"][data-id^="d:active/0002-"]')).toHaveCount(0);
   // Its end edge resizes it, and the width stays as the window shows another plan.
   const narrow = (await sidebar.boundingBox())!.width;
@@ -280,7 +280,7 @@ test("the plan's files are beside its pages with the plan's own folder, open a f
 test("the hub's project menu makes a project from a name and a folder, gives a project folders and takes them away, and renames, archives and restores projects", async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
-  const workspace = temporaryDirectory('atlas-e2e-workspace-');
+  const workspace = temporaryDirectory('coord-e2e-workspace-');
   homes.push(workspace);
   launched = await launch({ dataDirectory: home.dataDirectory });
   const { window } = launched;
@@ -295,7 +295,7 @@ test("the hub's project menu makes a project from a name and a folder, gives a p
   await expect(details).toContainText('None: agents find the project only in its planning folder');
   // Folders, added (chosen in the system's folder dialog, never typed) and removed there: each change goes into its planning.json.
   const workspaces = () => JSON.parse(readFileSync(path.join(home.folder, 'planning.json'), 'utf8')).folders;
-  const [first, second] = [temporaryDirectory('atlas-e2e-workspace-'), temporaryDirectory('atlas-e2e-workspace-')];
+  const [first, second] = [temporaryDirectory('coord-e2e-workspace-'), temporaryDirectory('coord-e2e-workspace-')];
   homes.push(first, second);
   const choose = (chosen: string | null) => launched!.app.evaluate(({ dialog }, target) => {
     dialog.showOpenDialog = (async () => ({ canceled: !target, filePaths: target ? [target] : [] })) as unknown as typeof dialog.showOpenDialog;
@@ -333,26 +333,26 @@ test("the hub's project menu makes a project from a name and a folder, gives a p
   await dialog.getByRole('button', { name: 'Add folder', exact: true }).click();
   await expect(dialog.getByLabel('Project name')).toHaveValue(path.basename(workspace));
   await expect(dialog.locator('.folder-list-path')).toHaveText(workspace);
-  await dialog.getByLabel('Project name').fill('Coord');
+  await dialog.getByLabel('Project name').fill('Harbor');
   await dialog.getByRole('button', { name: 'Remove ' + path.basename(workspace) }).click();
   // A named project may cover no folders.
   await expect(dialog.getByRole('button', { name: 'Create project' })).toBeEnabled();
   await dialog.getByRole('button', { name: 'Add folder', exact: true }).click();
-  await expect(dialog.getByLabel('Project name')).toHaveValue('Coord');
+  await expect(dialog.getByLabel('Project name')).toHaveValue('Harbor');
   await dialog.getByRole('button', { name: 'Create project' }).click();
   await expect(dialog).toHaveCount(0);
-  const folder = path.join(home.dataDirectory, 'planning', 'coord');
+  const folder = path.join(home.dataDirectory, 'planning', 'harbor');
   const registry = JSON.parse(readFileSync(path.join(folder, 'planning.json'), 'utf8'));
-  expect([registry.schema_version, registry.name, registry.folders, 'repositories' in registry]).toEqual([2, 'Coord', [workspace], false]);
+  expect([registry.schema_version, registry.name, registry.folders, 'repositories' in registry]).toEqual([2, 'Harbor', [workspace], false]);
   expect(existsSync(path.join(folder, '.git')) && existsSync(path.join(folder, 'AGENTS.md'))).toBe(true);
-  await expectProjects(window, ['Northwind', 'Coord']);
+  await expectProjects(window, ['Northwind', 'Harbor']);
   // Rename: the name goes into its planning.json.
-  await projectAction(window, 'Coord', 'Rename…');
-  await window.getByRole('dialog', { name: 'Rename project' }).getByLabel('Name').fill('Coord platform');
+  await projectAction(window, 'Harbor', 'Rename…');
+  await window.getByRole('dialog', { name: 'Rename project' }).getByLabel('Name').fill('Harbor platform');
   await window.getByRole('dialog', { name: 'Rename project' }).getByRole('button', { name: 'Rename' }).click();
-  await expectHub(window, 'Coord platform');
-  await expectProjects(window, ['Northwind', 'Coord platform']);
-  expect(JSON.parse(readFileSync(path.join(folder, 'planning.json'), 'utf8')).name).toBe('Coord platform');
+  await expectHub(window, 'Harbor platform');
+  await expectProjects(window, ['Northwind', 'Harbor platform']);
+  expect(JSON.parse(readFileSync(path.join(folder, 'planning.json'), 'utf8')).name).toBe('Harbor platform');
   // There is no delete, and no hiding.
   await openProjectMenu(window);
   await expect(window.getByRole('menuitem', { name: /^(Hide|Show)$|Delete/ })).toHaveCount(0);
@@ -362,15 +362,15 @@ test("the hub's project menu makes a project from a name and a folder, gives a p
   await expectArchived(window, []);
   await projectAction(window, 'Northwind', 'Archive');
   await expectHub(window);
-  await expectProjects(window, ['Coord platform']);
+  await expectProjects(window, ['Harbor platform']);
   await expectArchived(window, ['Northwind']);
   await expect(hubRows(window, 'Saved payment methods')).toHaveCount(0);
   await restoreProject(window, 'Northwind');
-  await expectProjects(window, ['Northwind', 'Coord platform']);
+  await expectProjects(window, ['Northwind', 'Harbor platform']);
   await expect(hubRows(window, 'Saved payment methods')).toHaveCount(1);
   // A project chosen in the menu shows its plans; the window opens there next time, and on the hub
   // once it has gone back to the hub, a project made since the window opened included.
-  await filterHub(window, 'Coord platform');
+  await filterHub(window, 'Harbor platform');
   await goHome(window);
   await window.waitForTimeout(600);
   await close(launched);
@@ -381,7 +381,7 @@ test("the hub's project menu makes a project from a name and a folder, gives a p
 test('one row at the top: the logo, back and forward, the Plans, File, View and Help menus, the computer, search, record health and the theme', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
-  addProject(home.dataDirectory, 'coord', 'Coord');
+  addProject(home.dataDirectory, 'harbor', 'Harbor');
   launched = await launch({ dataDirectory: home.dataDirectory });
   const { window, app } = launched;
   await expect(hubRows(window)).toHaveCount(6);
@@ -407,21 +407,21 @@ test('one row at the top: the logo, back and forward, the Plans, File, View and 
   // Plans: every plan, each active project's (the one shown marked) and all plans' statistics.
   const plans = window.getByRole('menu', { name: 'Plans' });
   await fileMenu(window, 'Plans').click();
-  await expect(plans.getByRole('menuitem')).toHaveText(['All Plans', 'Northwind', 'Coord', 'Statistics']);
-  await plans.getByRole('menuitem', { name: 'Coord', exact: true }).click();
-  await expectHub(window, 'Coord');
+  await expect(plans.getByRole('menuitem')).toHaveText(['All Plans', 'Northwind', 'Harbor', 'Statistics']);
+  await plans.getByRole('menuitem', { name: 'Harbor', exact: true }).click();
+  await expectHub(window, 'Harbor');
   await fileMenu(window, 'Plans').click();
-  await expect(plans.locator('[aria-current="page"]')).toHaveText('Coord');
+  await expect(plans.locator('[aria-current="page"]')).toHaveText('Harbor');
   await plans.getByRole('menuitem', { name: 'Statistics', exact: true }).click();
   await expect(window.locator('.statistics-page .breadcrumb')).toHaveText(/^Plans.*Statistics$/);
   // An archived project leaves it until it is restored.
   await goHome(window);
-  await projectAction(window, 'Coord', 'Archive');
+  await projectAction(window, 'Harbor', 'Archive');
   await expectHub(window);
   await fileMenu(window, 'Plans').click();
   await expect(plans.getByRole('menuitem')).toHaveText(['All Plans', 'Northwind', 'Statistics']);
   await closeMenus(window);
-  await restoreProject(window, 'Coord');
+  await restoreProject(window, 'Harbor');
   await expect(hubRows(window)).toHaveCount(6);
 
   // File holds the window's commands and Settings; the computer menu only switches computers.
@@ -460,13 +460,13 @@ test('one row at the top: the logo, back and forward, the Plans, File, View and 
   const items = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.map(entry => [entry.label, entry.submenu!.items.filter(item => item.type !== 'separator').map(item => item.accelerator ? item.label + ' ' + item.accelerator : item.label || item.role)]));
   // Electron gives the roles the system's own shortcuts: Exit and Redo differ on Windows.
   const windows = process.platform === 'win32';
-  // A development build (ATLAS_E2E_UNPACKAGED) adds the developer's tools to View.
-  const devTools = process.env.ATLAS_E2E_UNPACKAGED === '1' ? ['Reload CmdOrCtrl+R', 'Toggle Developer Tools Ctrl+Shift+I'] : [];
+  // A development build (COORD_E2E_UNPACKAGED) adds the developer's tools to View.
+  const devTools = process.env.COORD_E2E_UNPACKAGED === '1' ? ['Reload CmdOrCtrl+R', 'Toggle Developer Tools Ctrl+Shift+I'] : [];
   expect(items).toEqual([
     ['&File', ['New &Window CmdOrCtrl+Shift+N', 'New &Project…', '&Settings… CmdOrCtrl+,', 'Close Win&dow CmdOrCtrl+Shift+W', windows ? 'E&xit' : 'E&xit CommandOrControl+Q']],
     ['&Edit', ['Undo CommandOrControl+Z', windows ? 'Redo Control+Y' : 'Redo Shift+CommandOrControl+Z', 'Cut CommandOrControl+X', 'Copy CommandOrControl+C', 'Paste CommandOrControl+V', 'Select All CommandOrControl+A']],
     ['&View', ['&Back Alt+Left', '&Forward Alt+Right', '&Plans', 'S&tatistics', '&Search… CmdOrCtrl+P', 'F&iles CmdOrCtrl+Shift+E', 'Zoom &In CmdOrCtrl+Plus', 'Zoom &Out CmdOrCtrl+-', '&Actual Size CmdOrCtrl+0', 'Toggle Full Screen F11', ...devTools]],
-    ['&Help', ['Open &Logs', '&About Atlas']],
+    ['&Help', ['Open &Logs', '&About Coord']],
   ]);
   await applicationMenu(app, '&File', 'New &Project…');
   await expect(window.getByRole('dialog', { name: 'Create project' })).toBeVisible();
@@ -504,20 +504,20 @@ test('one row at the top: the logo, back and forward, the Plans, File, View and 
 test("the search shows the host's results grouped by kind with their project, work item and snippet, opens them, and shows nothing stale", async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
-  addProject(home.dataDirectory, 'coord', 'Coord');
+  addProject(home.dataDirectory, 'harbor', 'Harbor');
   launched = await launch({ dataDirectory: home.dataDirectory });
   const { window, app } = launched;
   await expect(hubRows(window).first()).toBeVisible();
   const listed = await listedProjects(window);
   const projectIdOf = (name: string) => listed.find(project => project.name === name)!.id;
-  const northwind = projectIdOf('Northwind'), coord = projectIdOf('Coord');
+  const northwind = projectIdOf('Northwind'), harbor = projectIdOf('Harbor');
   const result = (change: Record<string, unknown>) => ({ kind: 'plan', title: '', snippet: null, projectId: northwind, projectName: 'Northwind', work: null, path: null, anchor: null, element: null, ...change });
   const results = [
     result({ kind: 'element', title: 'Shipment', work: 'work-0002', path: 'active/0002-order-fulfilment-model/diagrams/fulfilment.puml', element: 'Shipment' }),
     result({ kind: 'heading', title: 'Current checkout', snippet: 'card details are typed in again on every order', work: 'work-0001', path: 'active/0001-saved-payment-methods/plan.md', anchor: 'current-checkout' }),
     result({ kind: 'document', title: 'Payments constraints', snippet: 'tokens only, never card numbers', path: 'notes/shop/payments-constraints.md' }),
     result({ kind: 'step', title: 'Wire placeOrderWithSavedMethod into checkout', work: 'work-0001', path: 'active/0001-saved-payment-methods/plan.md' }),
-    result({ kind: 'project', title: 'Coord', projectId: coord, projectName: 'Coord' }),
+    result({ kind: 'project', title: 'Harbor', projectId: harbor, projectName: 'Harbor' }),
   ];
   // The host's search, stubbed: these results for any query, the queries asked and answered noted. A
   // query with "slow" in it answers late with a plan; one starting with "saved" a little late.
@@ -569,8 +569,8 @@ test("the search shows the host's results grouped by kind with their project, wo
   await expect(step).toHaveText('Wire placeOrderWithSavedMethod into checkout');
   await expect(step).toBeInViewport();
   await expect(step).toHaveCount(0, { timeout: 5000 });
-  await choose('Coord');
-  await expectHub(window, 'Coord');
+  await choose('Harbor');
+  await expectHub(window, 'Harbor');
 
   // The host's results come below those shown: the result highlighted meanwhile is the one Enter opens.
   await window.keyboard.press('Control+P');
@@ -582,7 +582,7 @@ test("the search shows the host's results grouped by kind with their project, wo
   await expect(palette.getByRole('option').nth(1)).toHaveAttribute('data-highlighted', '');
   await input.press('Enter');
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
-  await expect(window.locator('.work-page .breadcrumb')).toContainText('Coord');
+  await expect(window.locator('.work-page .breadcrumb')).toContainText('Harbor');
 
   // An answer to an earlier query that comes after a later one's is not shown.
   await window.keyboard.press('Control+P');

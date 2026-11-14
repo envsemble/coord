@@ -22,16 +22,16 @@ async function openStatistics(window: Page, project = 'Northwind') {
 test('each project has its statistics, from the hub filtered to it, under a breadcrumb back to its plans; a wheel over a table scrolls the page', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
-  addProject(home.dataDirectory, 'coord', 'Coord');
+  addProject(home.dataDirectory, 'harbor', 'Harbor');
   launched = await launch({ dataDirectory: home.dataDirectory });
   const { window, app } = launched;
   await openStatistics(window, 'Northwind');
   // Another project's: its breadcrumb leads back to its plans, and Back returns to its statistics.
-  await openStatistics(window, 'Coord');
-  await window.locator('.statistics-page .breadcrumb').getByRole('button', { name: 'Coord', exact: true }).click();
-  await expectHub(window, 'Coord');
+  await openStatistics(window, 'Harbor');
+  await window.locator('.statistics-page .breadcrumb').getByRole('button', { name: 'Harbor', exact: true }).click();
+  await expectHub(window, 'Harbor');
   await window.getByRole('button', { name: 'Back', exact: true }).click();
-  await expect(window.locator('.statistics-page .breadcrumb')).toContainText('Coord');
+  await expect(window.locator('.statistics-page .breadcrumb')).toContainText('Harbor');
   // The hub of every project leads to all plans'.
   await goHome(window);
   await window.locator('.hub').getByRole('button', { name: 'Statistics', exact: true }).click();
@@ -41,7 +41,7 @@ test('each project has its statistics, from the hub filtered to it, under a brea
 
   // A wheel over a table scrolls the page.
   await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setContentSize(1200, 520); });
-  await openStatistics(window, 'Coord');
+  await openStatistics(window, 'Harbor');
   const table = window.getByRole('table', { name: 'Agent time and tokens by model and effort' });
   await expect(table.getByRole('row').nth(1)).toBeVisible();
   await table.evaluate(element => element.scrollIntoView({ block: 'center' }));

@@ -1,4 +1,4 @@
-// Puts the agent folder's bin/ on the PATH, so that `atlas` runs in new terminals, and repairs the
+// Puts the agent folder's bin/ on the PATH, so that `coord` runs in new terminals, and repairs the
 // app's own PATH at start, so that it finds the agents as a terminal would. On Windows it goes into the user's Path (HKCU\Environment), read and written
 // whole with its own value type through PowerShell (setx cuts a value at 1024 characters, and
 // .NET's SetEnvironmentVariable would store a REG_EXPAND_SZ Path as REG_SZ, leaving %USERPROFILE%
@@ -7,7 +7,7 @@
 import { lstat, mkdir, readlink, symlink } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { runProgram } from '@envsemble/atlas/platform/run';
+import { runProgram } from '@envsemble/coord/platform/run';
 
 /** A PATH entry as Windows compares it: variables expanded, any case, either slash, no trailing one. */
 function entryKey(entry: string, environment: NodeJS.ProcessEnv) {
@@ -49,13 +49,13 @@ ConvertTo-Json -Compress @{ value = $value; kind = $kind }`;
 // programs, Explorer above all, that the environment changed, so new terminals see it.
 const writeScript = `$ErrorActionPreference = 'Stop'
 $key = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Environment')
-if ("$($key.GetValue('Path', $null, 'DoNotExpandEnvironmentNames'))" -cne "$env:ATLAS_PATH_BEFORE") { exit 3 }
-$key.SetValue('Path', $env:ATLAS_PATH_VALUE, [Microsoft.Win32.RegistryValueKind]$env:ATLAS_PATH_KIND)
+if ("$($key.GetValue('Path', $null, 'DoNotExpandEnvironmentNames'))" -cne "$env:COORD_PATH_BEFORE") { exit 3 }
+$key.SetValue('Path', $env:COORD_PATH_VALUE, [Microsoft.Win32.RegistryValueKind]$env:COORD_PATH_KIND)
 $key.Close()
 try {
-  Add-Type -Namespace Atlas -Name Native -MemberDefinition '[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessageTimeout(IntPtr window, uint message, UIntPtr wParam, string lParam, uint flags, uint timeout, out UIntPtr result);'
+  Add-Type -Namespace Coord -Name Native -MemberDefinition '[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessageTimeout(IntPtr window, uint message, UIntPtr wParam, string lParam, uint flags, uint timeout, out UIntPtr result);'
   $result = [UIntPtr]::Zero
-  [void][Atlas.Native]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$result)
+  [void][Coord.Native]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$result)
 } catch { }`;
 
 /** Windows: add `folder` to the user's Path, unless it is there; whether it was added. */
@@ -65,7 +65,7 @@ export async function addToUserPath(folder: string): Promise<boolean> {
   if (next === null) return false;
   // A Path of another type (REG_SZ) keeps it, unless the new entry needs expanding.
   const kind = read.kind === 'String' && !next.includes('%') ? 'String' : 'ExpandString';
-  await runPowerShell(writeScript, { ATLAS_PATH_BEFORE: read.value ?? '', ATLAS_PATH_VALUE: next, ATLAS_PATH_KIND: kind });
+  await runPowerShell(writeScript, { COORD_PATH_BEFORE: read.value ?? '', COORD_PATH_VALUE: next, COORD_PATH_KIND: kind });
   return true;
 }
 
@@ -104,8 +104,8 @@ export function mergedPath(current: string, more: string[], platform: NodeJS.Pla
  */
 async function loginShellPath(environment: NodeJS.ProcessEnv): Promise<string[]> {
   const shell = environment.SHELL && path.isAbsolute(environment.SHELL) ? environment.SHELL : '/bin/sh';
-  const { stdout } = await runProgram(shell, ['-ilc', 'printf "\\n__ATLAS_PATH__%s__ATLAS_PATH__\\n" "$PATH"'], { env: environment, timeout: 5000 });
-  return (/__ATLAS_PATH__(.*?)__ATLAS_PATH__/.exec(stdout)?.[1] ?? '').split(':').filter(Boolean);
+  const { stdout } = await runProgram(shell, ['-ilc', 'printf "\\n__COORD_PATH__%s__COORD_PATH__\\n" "$PATH"'], { env: environment, timeout: 5000 });
+  return (/__COORD_PATH__(.*?)__COORD_PATH__/.exec(stdout)?.[1] ?? '').split(':').filter(Boolean);
 }
 
 /**
@@ -125,11 +125,11 @@ export async function repairPath(environment: NodeJS.ProcessEnv = process.env): 
 }
 
 /**
- * Linux: link ~/.local/bin/atlas to the launcher, creating the folder. A file of that name that is
+ * Linux: link ~/.local/bin/coord to the launcher, creating the folder. A file of that name that is
  * not this link is left alone. Says whether the link is there now ('linked' or 'present') or not ('taken').
  */
 export async function linkCommand(launcher: string, user = homedir()): Promise<'linked' | 'present' | 'taken'> {
-  const folder = path.join(user, '.local', 'bin'), link = path.join(folder, 'atlas');
+  const folder = path.join(user, '.local', 'bin'), link = path.join(folder, 'coord');
   const existing = await lstat(link).catch(() => null);
   if (existing) return existing.isSymbolicLink() && path.resolve(folder, await readlink(link)) === launcher ? 'present' : 'taken';
   await mkdir(folder, { recursive: true });

@@ -4,7 +4,7 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { createElement } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
-const atlas = require("../lib/index.cjs");
+const coord = require("../lib/index.cjs");
 const { renderSVG } = require("../lib/render/renderSVG.cjs");
 const { validateDiagram } = require("../lib/layout/validateDiagram.cjs");
 const { relationLabel } = require("../lib/layout/layoutDiagram.cjs");
@@ -14,11 +14,11 @@ const CHECKOUT = "Checkout",
   LEGACY = "Legacy",
   VAULT = "Vault";
 const at = (line, endLine) =>
-  `' atlas evidence ${JSON.stringify({ file: "src/checkout/Checkout.ts", line, ...(endLine ? { endLine } : {}) })}`;
+  `' coord evidence ${JSON.stringify({ file: "src/checkout/Checkout.ts", line, ...(endLine ? { endLine } : {}) })}`;
 // A capture of checkout code, and a proposal of it: the vault replaces the
 // legacy payments, the total becomes money and checkout learns to pay.
 function captured() {
-  const { diagram } = atlas.parseDiagram(`@startuml
+  const { diagram } = coord.parseDiagram(`@startuml
 title Checkout
 ${at(2, 20)}
 class Checkout {
@@ -35,11 +35,11 @@ Checkout ..> Gateway
 Checkout ..> Legacy
 @enduml
 `);
-  return atlas.formatDiagram({
+  return coord.formatDiagram({
     ...diagram,
     capture: {
       capturedAt: "2026-10-08T10:00:00.000Z",
-      adapter: { id: "atlas-typescript", version: "1.0.0" },
+      adapter: { id: "coord-typescript", version: "1.0.0" },
       source: { kind: "typescript", identity: "shop", scope: ["src"] },
       coverage: { status: "complete", diagnostics: [] },
     },
@@ -47,7 +47,7 @@ Checkout ..> Legacy
 }
 const PROPOSED = `@startuml
 title Checkout
-' atlas proposal capture.puml
+' coord proposal capture.puml
 ${at(2, 20)}
 class Checkout {
   ${at(3)}
@@ -58,7 +58,7 @@ class Checkout {
   pay(methodId: string) : Promise<void>
 }
 interface Gateway
-' atlas evidence {"file":"src/payments/Vault.ts"}
+' coord evidence {"file":"src/payments/Vault.ts"}
 interface Vault {
   save() : void
 }
@@ -67,7 +67,7 @@ Checkout ..> Vault
 @enduml
 `;
 async function prepared(includeArtifacts = false) {
-  const { prepared } = await atlas.prepareDiagrams({
+  const { prepared } = await coord.prepareDiagrams({
     files: [
       { path: "capture.puml", text: captured() },
       { path: "proposal.puml", text: PROPOSED },
@@ -268,7 +268,7 @@ test("unnamed dependencies and missing counts add no labels to the canvas", asyn
   );
   assert.equal(relationLabel({ name: "", stereotype: "" }), null);
   // A count that is written keeps its label; one that is not adds none.
-  const { prepared: lean } = await atlas.prepareDiagrams({
+  const { prepared: lean } = await coord.prepareDiagrams({
     files: [
       {
         path: "ab.puml",
@@ -317,12 +317,12 @@ test("the layout and the viewer agree on known counts and uninformative names", 
 // A class diagram and a proposal copied from it, prepared as a work folder
 // shows them: the proposal's payload, its change view and rolled-up changes.
 async function diagramProposal(base, proposal) {
-  const { prepared } = await atlas.prepareDiagrams({
+  const { prepared } = await coord.prepareDiagrams({
     files: [
       { path: "base.puml", text: `@startuml\n${base}\n@enduml\n` },
       {
         path: "proposal.puml",
-        text: `@startuml\n' atlas proposal base.puml\n${proposal}\n@enduml\n`,
+        text: `@startuml\n' coord proposal base.puml\n${proposal}\n@enduml\n`,
       },
     ],
   });

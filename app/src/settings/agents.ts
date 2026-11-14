@@ -1,5 +1,5 @@
-// The agents Atlas connects on this computer, as Settings and the onboarding list them: where each
-// is installed from, what its row says (with whether a connected one runs Atlas), the commands that
+// The agents Coord connects on this computer, as Settings and the onboarding list them: where each
+// is installed from, what its row says (with whether a connected one runs Coord), the commands that
 // connect it by hand, and how a connect or disconnect on its way changes it.
 import type { AgentChange, AgentCheck, AgentFolder, AgentId, AgentState } from '../types';
 import { relativeDate } from '../ui/format';
@@ -33,7 +33,7 @@ export function agentCheckLine(check: AgentCheck, id: AgentId): { text: string; 
   if (check.status === 'ready') return { text: 'Ready · last session ' + relativeDate(check.at), warning: false };
   if (check.status === 'waiting') return { text: 'Waiting for a first session', warning: false };
   if (check.status === 'untrusted') return { text: 'Hooks not trusted: type /hooks in Codex', warning: true };
-  return { text: id === 'codex' ? 'Atlas’s hooks aren’t running: type /hooks in Codex' : 'Atlas’s hooks aren’t running', warning: true };
+  return { text: id === 'codex' ? 'Coord’s hooks aren’t running: type /hooks in Codex' : 'Coord’s hooks aren’t running', warning: true };
 }
 
 /** The connected agents whose check warns. */
@@ -42,11 +42,11 @@ export const agentWarnings = (agents: readonly AgentState[] | null) => (agents ?
 /**
  * The commands that install the plugin by hand from the marketplace folder the app uses (a
  * terminal's, and those typed in a session), for when Connect cannot; Connect also grants the agent
- * Atlas's home. Claude Code's /plugin takes the rest of its line as the path (it joins the words
+ * Coord's home. Claude Code's /plugin takes the rest of its line as the path (it joins the words
  * with spaces and keeps quotes), so the path goes in unquoted there.
  */
 export function byHandCommands(id: AgentId, { directory, marketplace }: AgentFolder): { terminal: string[]; session: string[] } {
-  const plugin = 'atlas@' + marketplace;
+  const plugin = 'coord@' + marketplace;
   if (id === 'claude') return {
     terminal: [`claude plugin marketplace add "${directory}"`, `claude plugin install ${plugin}`],
     session: [`/plugin marketplace add ${directory}`, `/plugin install ${plugin}`],

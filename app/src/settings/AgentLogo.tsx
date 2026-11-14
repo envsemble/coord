@@ -1,4 +1,4 @@
-// The marks of the agents Atlas connects: Claude's (Anthropic's spark, in Claude's own orange) for
+// The marks of the agents Coord connects: Claude's (Anthropic's spark, in Claude's own orange) for
 // Claude Code, and OpenAI's (the blossom, in the text's colour) for Codex. The paths are the brands'
 // official marks as Simple Icons publishes them (simple-icons 16.35.0, icons/claude.svg and
 // icons/openai.svg, https://simpleicons.org); the marks are their owners' trademarks, shown only to

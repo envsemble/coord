@@ -21,7 +21,7 @@ export const DiagramViewer: ComponentType<ViewerPayload>;
  * The embeddable viewer. Its root is an envUI `Theme` driven by `theme`
  * (default "dark"); the envUI components it uses bring their own
  * styles through the host's bundler, and hosts load
- * `@envsemble/atlas-diagrams/embedded.css`. Giving it another payload of the
+ * `@envsemble/coord-diagrams/embedded.css`. Giving it another payload of the
  * same `family` (members laid out together by `prepareDiagrams`) switches
  * in place: the camera, the view and the selection stay.
  */
@@ -55,8 +55,8 @@ export const DiagramPanel: ComponentType<{
 export function changeCount(
   payload: ViewerPayload | null | undefined,
 ): number | null;
-/** The Atlas mark: the connected A on its dark tile, in fixed colours. Pass `label=""` when adjacent text already names Atlas. */
-export const AtlasMark: ComponentType<{ size?: number; label?: string }>;
+/** The Coord mark: the connected A on its dark tile, in fixed colours. Pass `label=""` when adjacent text already names Coord. */
+export const CoordMark: ComponentType<{ size?: number; label?: string }>;
 /** The fields of a viewer model's `document` that tell where it came from. */
 export type ProvenanceSource = Partial<
   Pick<

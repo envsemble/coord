@@ -2,7 +2,7 @@
 // the right with the group and its parts in their order, numbered, each with its status and how far
 // its steps are. The one shown is marked; each opens with one click.
 import { Text } from '@envsemble/envui';
-import { stepCounts } from '@envsemble/atlas/planning/ledger';
+import { stepCounts } from '@envsemble/coord/planning/ledger';
 import type { Snapshot, Work } from '../types';
 import { statusOf } from './status';
 import { StatusIcon } from '../ui/badges';

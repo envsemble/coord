@@ -5,7 +5,7 @@
 import { Fragment } from 'react';
 import { IconSchedule as Schedule } from '@envsemble/envui/icons/Schedule';
 import { IconToken as Token } from '@envsemble/envui/icons/Token';
-import type { ModelShare } from '@envsemble/atlas/planning/types';
+import type { ModelShare } from '@envsemble/coord/planning/types';
 import type { WorkStatistics } from '../types';
 import { aiModel, providerNames } from '../ui/aiModels';
 import { ModelName } from '../ui/ModelName';

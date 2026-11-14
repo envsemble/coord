@@ -130,7 +130,7 @@ function StatisticsView({ read, revision, trail, scope, all }: {
     actions={<SegmentedControl aria-label="Period" size="sm" value={periodId} onValueChange={value => setPeriodId(value as PeriodId)} items={periods.map(item => ({ value: item.id, label: item.label }))} />}
     meta={<Popover aria-label="About statistics" title="About these numbers" width="lg" trigger={<IconButton variant="text" icon={<InfoIcon />} aria-label="About these numbers" />}>
       <div className="info-body">
-        <p>The figures come from the reports agents record when a session stops, read from their session logs where Atlas can (Claude Code and Codex). Agent time adds up every agent's working time, each session and each subagent in full, also while they work at once; the line shows the time at least one of them was working.</p>
+        <p>The figures come from the reports agents record when a session stops, read from their session logs where Coord can (Claude Code and Codex). Agent time adds up every agent's working time, each session and each subagent in full, also while they work at once; the line shows the time at least one of them was working.</p>
         <p>Time counts where it was worked, by the reports' working intervals; a report without them counts at its time. A plan counts as completed on its completion date, and the time it took runs from its acceptance to its completion. Waiting on you counts the time {all ? 'the sessions' : 'the project’s sessions'} waited for you, waits at once counted once.{all ? ' All plans are every active project’s together.' : ''}</p>
       </div>
     </Popover>}>

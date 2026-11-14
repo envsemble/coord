@@ -1,6 +1,6 @@
-// A work item's page, in place: the page's build running in a frame of its own (atlas://page), which
+// A work item's page, in place: the page's build running in a frame of its own (coord://page), which
 // fills the window beside Files as a diagram does. The window builds the page through the page's
-// host, hands the build to the frame, and answers the frame's requests (its files, the Atlas tools,
+// host, hands the build to the frame, and answers the frame's requests (its files, the Coord tools,
 // the work item's diagrams). As the agent changes the page, it is built again and shown again, like
 // a dev server's page; a change to a file the page only reads tells the page, which reads it again.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -8,15 +8,15 @@ import { Alert, Spinner, Text, useThemePreference } from '@envsemble/envui';
 import type { PageBuild, PageProblem, Work } from '../types';
 import { api } from '../api';
 import { diagramTarget, documentTarget, pageAt, pageTarget, workTarget } from '../navigation/targets';
-import { workRelative } from '@envsemble/atlas/platform/paths';
+import { workRelative } from '@envsemble/coord/platform/paths';
 import { Trail } from '../ui/Trail';
 import { workNumber } from '../ui/format';
 import { useWindow } from '../window/windowContext';
 import type { FrameInit, FromFrame, PageInfo, Request, ToFrame } from './pageMessages';
 
-/** Where the frame's document is: atlas://page in the app, the dev server's in development. */
+/** Where the frame's document is: coord://page in the app, the dev server's in development. */
 function frameUrl() {
-  return location.protocol === 'atlas:' ? 'atlas://page/page-frame.html' : location.origin + '/page-frame.html';
+  return location.protocol === 'coord:' ? 'coord://page/page-frame.html' : location.origin + '/page-frame.html';
 }
 /** Each file of the planning folder as last read: its time and size, to tell which changed. */
 function fileStamps(documents: { path: string; modified: string | null; size: number }[]) {
@@ -49,7 +49,7 @@ export function PageView({ work, folder, name }: { work: Work; folder: string; n
       (error: unknown) => { if (request === asked.current) setFailure(error instanceof Error ? error.message : String(error)); });
   }, [projectId, folder, showBuild]);
 
-  // What the frame asks of Atlas.
+  // What the frame asks of Coord.
   const answer = useCallback(async (request: Request): Promise<unknown> => {
     switch (request.method) {
       case 'read': return api.readText(projectId, request.params.path);
@@ -95,7 +95,7 @@ export function PageView({ work, folder, name }: { work: Work; folder: string; n
       answering.current(message).then(value => send({ type: 'answer', id: message.id, ok: true, value }),
         (error: unknown) => send({ type: 'answer', id: message.id, ok: false, error: error instanceof Error ? error.message : String(error) }));
     };
-    const init: FrameInit = { type: 'atlas-page:init', page: info, theme };
+    const init: FrameInit = { type: 'coord-page:init', page: info, theme };
     target.postMessage(init, '*', [channel.port2]);
     if (latest.current.build?.ok) showBuild(latest.current.build); else rebuild();
   }, [info, theme, send, showBuild, rebuild]);
@@ -132,7 +132,7 @@ export function PageView({ work, folder, name }: { work: Work; folder: string; n
   </section>;
 }
 
-/** Why a page does not build, file by file, as `atlas check` says it. */
+/** Why a page does not build, file by file, as `coord check` says it. */
 function Problems({ problems }: { problems: PageProblem[] }) {
   return <Alert tone="danger" title="This page doesn’t build">
     <ul className="page-problems">{problems.map((problem, index) => <li key={index}>

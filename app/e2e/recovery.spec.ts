@@ -8,7 +8,7 @@ let home: { dataDirectory: string; folder: string };
 test.beforeEach(() => { home = projectHome(); });
 test.afterEach(async () => { await close(launched); launched = undefined; removeDirectory(home.dataDirectory); });
 
-/** Rename a folder as a user would, trying again while Atlas reads it for a moment (Windows refuses to rename a folder in use). */
+/** Rename a folder as a user would, trying again while Coord reads it for a moment (Windows refuses to rename a folder in use). */
 async function move(from: string, to: string) {
   for (let attempt = 0; ; attempt++) {
     try { renameSync(from, to); return; } catch (error) {
@@ -35,7 +35,7 @@ test('a crashed window reloads showing what it showed', async () => {
     restored = await shown();
   }
   expect(restored).toBe('inventory-schema.md');
-  const log = readFileSync(path.join(launched.dataDirectory, 'logs', 'atlas.log'), 'utf8');
+  const log = readFileSync(path.join(launched.dataDirectory, 'logs', 'coord.log'), 'utf8');
   expect(log).toContain('Window renderer gone');
 });
 

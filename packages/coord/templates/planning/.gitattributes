@@ -1,0 +1,2 @@
+# Keep files exactly as Coord and agents write them, whatever core.autocrlf says.
+* -text

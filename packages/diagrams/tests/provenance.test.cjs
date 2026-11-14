@@ -2,14 +2,14 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { createElement } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
-const atlas = require("../lib/index.cjs");
+const coord = require("../lib/index.cjs");
 const { loadComponents: components } = require("./loadComponents.cjs");
 const react = components();
 const capture = (kind, identity, capturedAt, status = "complete") => ({
   id: `capture-${identity}`,
   capture: {
     capturedAt,
-    adapter: { id: `atlas-${kind}`, version: "1.0.0" },
+    adapter: { id: `coord-${kind}`, version: "1.0.0" },
     source: { kind, identity, scope: [] },
     coverage: { status, diagnostics: [] },
   },
@@ -20,7 +20,7 @@ const ENROLLMENT = `class Student {
 class Course`;
 // The prepared payloads of a work folder's diagrams, by path.
 async function payloads(files) {
-  const { prepared } = await atlas.prepareDiagrams({
+  const { prepared } = await coord.prepareDiagrams({
     files: Object.entries(files).map(([path, body]) => ({
       path,
       text: `@startuml
@@ -129,7 +129,7 @@ test("embedded panel floats its controls, below the host's sections, and leaves 
   assert(html.includes('id="host-layers"'));
   // The host names the model's origin; the panel draws no chip.
   assert(!html.includes("Agent-authored"));
-  assert(!html.includes("atlas-provenance"));
+  assert(!html.includes("coord-provenance"));
   // The model report is gone; a diagram without scenarios has no guide.
   assert(!html.includes("report"));
   assert(!html.includes("Understand the model"));
@@ -148,34 +148,34 @@ test("embedded panel floats its controls, below the host's sections, and leaves 
       leading: createElement("span", { id: "host-picker" }, "Model picker"),
     }),
   );
-  assert(stacked.includes('class="atlas-overlay-top stacked"'));
+  assert(stacked.includes('class="coord-overlay-top stacked"'));
   assert(
     stacked.indexOf('id="host-sections"') < stacked.indexOf('id="host-picker"'),
   );
-  assert(stacked.includes('class="atlas-overlay-sections"'));
+  assert(stacked.includes('class="coord-overlay-sections"'));
 });
 
 test("proposals open in their change view with a readable list of changes", async () => {
   const { DiagramPanel } = react;
-  const { diagram } = atlas.parseDiagram(
+  const { diagram } = coord.parseDiagram(
     `@startuml
 title Enrollment
 ${ENROLLMENT}
 @enduml
 `,
   );
-  const captured = atlas.formatDiagram({
+  const captured = coord.formatDiagram({
     ...diagram,
     capture: capture("typescript", "enrollment", "2026-10-08T01:34:34.898Z")
       .capture,
   });
-  const { prepared } = await atlas.prepareDiagrams({
+  const { prepared } = await coord.prepareDiagrams({
     files: [
       { path: "capture.puml", text: captured },
       {
         path: "proposal.puml",
         text: `@startuml
-' atlas proposal capture.puml
+' coord proposal capture.puml
 ${ENROLLMENT.replace("name : string", "name : text")}
 class Term
 Course "1" -- "0..*" Term : runs in

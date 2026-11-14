@@ -1,4 +1,4 @@
-// How Atlas shows models at a reasoning effort in its charts, legends, tables and swatches, the same
+// How Coord shows models at a reasoning effort in its charts, legends, tables and swatches, the same
 // everywhere: each model its own hue (by its provider's family of hues first: Anthropic's warm,
 // OpenAI's greens, Google's blues…), its efforts steps of lightness within that hue from low to high,
 // and "Model not recorded" a neutral grey. Colours are OKLCH with a light and a dark value, each at
@@ -13,7 +13,7 @@ export function effortStep(effort: string | null): number {
   return at < 0 ? 2.5 : at;
 }
 
-/** Each provider's family of hues (OKLCH degrees), its first the most its own; models Atlas does not know share the last. */
+/** Each provider's family of hues (OKLCH degrees), its first the most its own; models Coord does not know share the last. */
 const families: Record<Provider | 'other', number[]> = {
   anthropic: [42, 18, 68],
   openai: [158, 132, 184],

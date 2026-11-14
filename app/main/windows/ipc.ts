@@ -1,27 +1,27 @@
 // The fixed list of messages a window may send. Each channel declares a validator per argument;
 // calls with the wrong number or shape of arguments, from a subframe, or from a page that is not
-// the Atlas renderer are rejected. Results and errors cross back as structured values. Requests
+// the Coord renderer are rejected. Results and errors cross back as structured values. Requests
 // about a project go to the host of the window's computer, this one or a paired one.
 import { lstat, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import QRCode from 'qrcode';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell, type IpcMainInvokeEvent } from 'electron';
-import { HostRequestError, parsePairing, type HostClient } from '@envsemble/atlas/host';
-import { resolveDocument } from '@envsemble/atlas/planning';
-import { accessSettings, deviceText } from '@envsemble/atlas/host/validate';
+import { HostRequestError, parsePairing, type HostClient } from '@envsemble/coord/host';
+import { resolveDocument } from '@envsemble/coord/planning';
+import { accessSettings, deviceText } from '@envsemble/coord/host/validate';
 import { agentNames, defaultUiState, fullPath, invokeChannels, limits, type AboutInfo, type AgentId, type AccessSettings, type InvokeChannel, type LoadedUi, type PairingGrant, type Project, type PairingLinkView, type ProjectChangeRequest, type ReferenceInput, type Result, type ThemePreference, type UiState } from '../../shared/contract.ts';
 import { agentId, argumentsOf, array, boolean, command, diagramPath, diagramPositions, fileContent, folderPath, pagePath, toolInput, toolName, integer, ipAddress, nullable, object, oneOf, optional, pairingCode, projectId, projectName, referenceInput, referenceInputs, relativePath, string, statisticsUnit, isoTime, themePreference, uiState, url, workId, type Validator } from '../../shared/validate.ts';
-import { AtlasError, toErrorValue } from '../errors.ts';
+import { CoordError, toErrorValue } from '../errors.ts';
 import type { ProjectView } from '../computers/projectView.ts';
 import type { Agents } from '../agent/agents.ts';
 import { programFilters } from '../agent/programs.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
 import { placeRow, savedPlace } from '../appState.ts';
-import { externalUrl, type AtlasWindow } from './window.ts';
+import { externalUrl, type CoordWindow } from './window.ts';
 import type { WindowManager } from './windowManager.ts';
 import { appLink, editorLink } from './launch.ts';
 
-type Handler = (window: AtlasWindow, ...args: never[]) => unknown;
+type Handler = (window: CoordWindow, ...args: never[]) => unknown;
 interface Channel { args: Validator<unknown>[]; handle: Handler }
 
 const hostId = string({ min: 8, max: 64, pattern: /^[a-zA-Z0-9-]+$/ });
@@ -35,28 +35,28 @@ const searchQuery = string({ min: 1, max: 200 });
 const projectChange = object<ProjectChangeRequest>({ name: optional(projectName), state: optional(oneOf(['active', 'archived'] as const)), position: optional(integer(0, 100000)), folders: optional(folders) });
 
 /** Reveal a file or folder inside a project's folder on this computer (never outside it, never hidden parts). */
-async function revealInside(window: AtlasWindow, projectId: string, relative: string) {
-  if (window.computer !== null) throw new AtlasError('forbidden', 'Files of a project on another computer cannot be shown in a folder here.');
+async function revealInside(window: CoordWindow, projectId: string, relative: string) {
+  if (window.computer !== null) throw new CoordError('forbidden', 'Files of a project on another computer cannot be shown in a folder here.');
   await window.readable(projectId);
   const root = (await window.projects()).find(entry => entry.id === projectId)?.path;
-  if (!root) throw new AtlasError('not-found', 'This project is not on this computer.');
+  if (!root) throw new CoordError('not-found', 'This project is not on this computer.');
   try { shell.showItemInFolder(await resolveDocument(root, relative)); return; } catch { /* Perhaps a folder. */ }
   const base = await realpath(root);
   const candidate = await realpath(path.resolve(base, relative)).catch(() => null);
   const inside = candidate ? path.relative(base, candidate) : '..';
   if (!candidate || inside.startsWith('..') || path.isAbsolute(inside) || inside.split(path.sep).some(part => part.startsWith('.')) || !(await lstat(candidate)).isDirectory()) {
-    throw new AtlasError('forbidden', 'Only files and folders inside the project\'s folder can be shown.');
+    throw new CoordError('forbidden', 'Only files and folders inside the project\'s folder can be shown.');
   }
   shell.showItemInFolder(candidate);
 }
 
 /** What only this computer's projects allow: their files are on this computer. */
-function thisComputer(window: AtlasWindow, what: string) {
-  if (window.computer !== null) throw new AtlasError('forbidden', what + ' of a project on another computer cannot be opened here.');
+function thisComputer(window: CoordWindow, what: string) {
+  if (window.computer !== null) throw new CoordError('forbidden', what + ' of a project on another computer cannot be opened here.');
 }
 
 /** Open a file on this computer in VS Code, at its line, after asking (`what`: "this file"). */
-async function openInEditor(window: AtlasWindow, what: string, file: string, line: number | null) {
+async function openInEditor(window: CoordWindow, what: string, file: string, line: number | null) {
   await confirmed(window, 'Open ' + what + ' in VS Code?', 'Open', file + (line ? ':' + line : ''));
   await shell.openExternal(editorLink(file, line));
 }
@@ -68,13 +68,13 @@ const within = (folder: string, candidate: string) => {
 };
 
 /** Open the file a path reference names, as the host resolves it in the project's folders: never a path the page names itself. */
-async function openReference(window: AtlasWindow, projectId: string, reference: ReferenceInput) {
+async function openReference(window: CoordWindow, projectId: string, reference: ReferenceInput) {
   thisComputer(window, 'Files');
-  if (reference.kind !== 'path') throw new AtlasError('invalid-argument', 'Only a file reference opens in the editor.');
+  if (reference.kind !== 'path') throw new CoordError('invalid-argument', 'Only a file reference opens in the editor.');
   const view = await window.readable(projectId);
   const [resolved] = await view.request('references.resolve', { projectId, items: [reference] });
   const file = resolved?.file;
-  const missing = () => new AtlasError('not-found', 'This file is not in the project\'s folders on this computer.');
+  const missing = () => new CoordError('not-found', 'This file is not in the project\'s folders on this computer.');
   if (!file || !fullPath.test(file.path)) throw missing();
   // The file itself, not a link a checkout commits to somewhere else: inside one of the project's
   // folders or its planning folder.
@@ -87,8 +87,8 @@ async function openReference(window: AtlasWindow, projectId: string, reference: 
 
 
 /** A command a page could misuse runs after a person's press, or once they confirm it. */
-async function confirmed(window: AtlasWindow, message: string, action: string, detail?: string) {
-  if (!(await window.confirm(message, action, detail))) throw new AtlasError('cancelled', 'Cancelled.');
+async function confirmed(window: CoordWindow, message: string, action: string, detail?: string) {
+  if (!(await window.confirm(message, action, detail))) throw new CoordError('cancelled', 'Cancelled.');
 }
 /** The computer pairing would reach, read from the link as pairing reads it. A link that cannot pair fails here, before the question. */
 function pairingHost(link: string, code: string | null) {
@@ -102,7 +102,7 @@ function pairingHost(link: string, code: string | null) {
  * project not listed yet waits in the database (`pending`), and the window asks again once the
  * computer answers.
  */
-async function loadUi(manager: WindowManager, window: AtlasWindow): Promise<LoadedUi> {
+async function loadUi(manager: WindowManager, window: CoordWindow): Promise<LoadedUi> {
   const { state, computers } = manager.context;
   const computerId = window.computer === null ? null : computers.idOf(window.computer);
   // Earlier saves land first, so what loads is what the window last showed.
@@ -121,14 +121,14 @@ async function loadUi(manager: WindowManager, window: AtlasWindow): Promise<Load
   return { place: place ?? defaultUiState.place, ...saved && !shownProject && { pending: true }, ...projects && { projects } };
 }
 /** Each window's saves, applied one after another in the order they came. */
-const saving = new WeakMap<AtlasWindow, Promise<void>>();
-function queueSave(manager: WindowManager, window: AtlasWindow, ui: UiState) {
+const saving = new WeakMap<CoordWindow, Promise<void>>();
+function queueSave(manager: WindowManager, window: CoordWindow, ui: UiState) {
   const next = (saving.get(window) ?? Promise.resolve()).then(() => saveUi(manager, window, ui));
   saving.set(window, next.catch(() => undefined));
   return next;
 }
 /** Save a window's layout: its place replaces the saved places of the projects it loaded them for; the others' stay. */
-async function saveUi(manager: WindowManager, window: AtlasWindow, ui: UiState) {
+async function saveUi(manager: WindowManager, window: CoordWindow, ui: UiState) {
   const { state, computers } = manager.context;
   const computer = window.computer;
   const row = placeRow(ui.place);
@@ -165,7 +165,7 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
     'projects:chooseFolder': {
       args: [],
       handle: async window => {
-        if (window.computer !== null) throw new AtlasError('unavailable', 'A folder on another computer cannot be chosen here: type its path.');
+        if (window.computer !== null) throw new CoordError('unavailable', 'A folder on another computer cannot be chosen here: type its path.');
         const choice = await window.oneDialog(() => dialog.showOpenDialog(window.win, { title: 'Choose a folder', buttonLabel: 'Choose', properties: ['openDirectory', 'createDirectory'] }));
         return choice.canceled ? null : choice.filePaths[0] ?? null;
       },
@@ -182,7 +182,7 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
     'project:arrange': { args: [projectId, workId, diagramPath, nullable(diagramPositions)], handle: async (window, projectId: string, work: string, file: string, positions: Record<string, [number, number]> | null) => remoteErrors((await window.readable(projectId)).request('project.arrange', { projectId, work, path: file, positions })) },
     'project:references': { args: [projectId, nullable(workId), relativePath], handle: async (window, projectId: string, work: string | null, file: string) => (await window.readable(projectId)).request('project.references', { projectId, work, path: file }) },
     'project:diagramIndex': { args: [projectId], handle: async (window, projectId: string) => (await window.readable(projectId)).request('project.diagramIndex', { projectId }) },
-    // A page: its build, the files it writes and the Atlas tools it calls, on the project's computer.
+    // A page: its build, the files it writes and the Coord tools it calls, on the project's computer.
     'project:page': { args: [projectId, pagePath], handle: async (window, projectId: string, folder: string) => remoteErrors((await window.readable(projectId)).request('project.page', { projectId, path: folder }, { timeout: 60000 })) },
     'project:readText': { args: [projectId, relativePath], handle: async (window, projectId: string, file: string) => remoteErrors((await window.readable(projectId)).request('project.readText', { projectId, path: file })) },
     'project:write': { args: [projectId, relativePath, fileContent], handle: async (window, projectId: string, file: string, content: string) => remoteErrors((await window.readable(projectId)).request('project.write', { projectId, path: file, content })) },
@@ -204,7 +204,7 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
         const external = externalUrl(value);
         // An application's link opens an application of this computer: only with a scheme on the allowlist, only for this computer's projects.
         const application = external ? null : appLink(value);
-        if (!external && !application) throw new AtlasError('forbidden', 'Only web and mail links, and links of applications Atlas knows, open outside Atlas.');
+        if (!external && !application) throw new CoordError('forbidden', 'Only web and mail links, and links of applications Coord knows, open outside Coord.');
         if (application) thisComputer(window, 'Links of applications');
         await confirmed(window, application ? 'Open this link in its application?' : 'Open this address in your browser?', 'Open', external ?? application!);
         await shell.openExternal(external ?? application!);
@@ -215,7 +215,7 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
     'app:theme': { args: [], handle: () => manager.context.state.theme },
     // Every window follows the native theme through prefers-color-scheme, so one change reaches them all.
     'app:setTheme': { args: [themePreference], handle: (_window, preference: ThemePreference) => { manager.context.state.setTheme(preference); nativeTheme.themeSource = preference; } },
-    // About Atlas, which the window shows: versions and the data folder, nothing a page could misuse.
+    // About Coord, which the window shows: versions and the data folder, nothing a page could misuse.
     'app:about': { args: [], handle: () => actions.about() },
     'app:command': {
       args: [command],
@@ -224,10 +224,10 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
         const devTools = manager.context.devTools;
         switch (name) {
           // A page cannot open windows without end, quit or pile up
-          // dialogs: these follow a person's press or their answer to Atlas's question.
-          case 'newWindow': await confirmed(window, 'Open a new Atlas window?', 'Open'); manager.create(window.computer); return;
-          case 'quit': await confirmed(window, 'Exit Atlas?', 'Exit'); app.quit(); return;
-          case 'openLogs': await confirmed(window, 'Open the folder with Atlas’s logs?', 'Open'); actions.openLogs(); return;
+          // dialogs: these follow a person's press or their answer to Coord's question.
+          case 'newWindow': await confirmed(window, 'Open a new Coord window?', 'Open'); manager.create(window.computer); return;
+          case 'quit': await confirmed(window, 'Exit Coord?', 'Exit'); app.quit(); return;
+          case 'openLogs': await confirmed(window, 'Open the folder with Coord’s logs?', 'Open'); actions.openLogs(); return;
           case 'zoomIn': window.zoom('in'); return;
           case 'zoomOut': window.zoom('out'); return;
           case 'resetZoom': window.zoom('reset'); return;
@@ -241,7 +241,7 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
     'computers:switch': {
       args: [computer, boolean],
       handle: async (window, id: string | null, newWindow: boolean) => {
-        if (id !== null && !computers.has(id)) throw new AtlasError('not-found', 'This computer is not paired. Connect to it again.');
+        if (id !== null && !computers.has(id)) throw new CoordError('not-found', 'This computer is not paired. Connect to it again.');
         if (newWindow) await confirmed(window, 'Open that computer in a new window?', 'Open');
         manager.switchComputer(window, id, newWindow);
       },
@@ -249,7 +249,7 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
     'computers:pair': {
       args: [pairingLink, nullable(pairingCode)],
       handle: async (window, link: string, code: string | null) => {
-        await confirmed(window, `Pair with the Atlas at ${pairingHost(link, code)}?`, 'Pair', 'This app can then work on that computer\'s projects.');
+        await confirmed(window, `Pair with the Coord at ${pairingHost(link, code)}?`, 'Pair', 'This app can then work on that computer\'s projects.');
         const paired = await remoteErrors(computers.pair(link, code ?? undefined));
         // Windows already showing this computer read through the new pairing.
         manager.rebindComputer(paired.hostId!);
@@ -269,7 +269,7 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
         const current = (await owner().request('access.state', {})).settings.network;
         const next = settings.network;
         if (next.enabled && (!current.enabled || next.address !== current.address) && !pressed
-          && !(await window.ask(`Let paired devices reach this computer${next.address ? ' at ' + next.address : ''}?`, 'Allow'))) throw new AtlasError('cancelled', 'Cancelled.');
+          && !(await window.ask(`Let paired devices reach this computer${next.address ? ' at ' + next.address : ''}?`, 'Allow'))) throw new CoordError('cancelled', 'Cancelled.');
         return owner().request('access.update', { settings: settings as never });
       },
     },
@@ -277,9 +277,9 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
       args: [computer, nullable(ipAddress), grant],
       handle: async (window, id: string | null, address: string | null, granted: PairingGrant): Promise<PairingLinkView> => {
         // A computer no longer paired fails here, before the question.
-        if (id !== null && !computers.has(id)) throw new AtlasError('not-found', 'This computer is not paired. Connect to it again.');
+        if (id !== null && !computers.has(id)) throw new CoordError('not-found', 'This computer is not paired. Connect to it again.');
         const detail = granted.manageAccess ? 'A device that uses it can work on the projects and manage who else has access.' : 'A device that uses it can work on the projects.';
-        if (!(await window.ask(`Create a pairing link for ${id === null ? 'this computer' : computers.name(id)}?`, 'Create', detail))) throw new AtlasError('cancelled', 'Cancelled.');
+        if (!(await window.ask(`Create a pairing link for ${id === null ? 'this computer' : computers.name(id)}?`, 'Create', detail))) throw new CoordError('cancelled', 'Cancelled.');
         const link = await remoteErrors(computers.use(id, client => client.request('access.pairingCreate', { address, ...granted })));
         const qrSvg = link.url ? await QRCode.toString(link.url, { type: 'svg', errorCorrectionLevel: 'M', margin: 1, color: { dark: '#000000', light: '#ffffff' } }) : null;
         return { ...link, qrSvg };
@@ -288,7 +288,7 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
     'access:pairingRevoke': { args: [computer, pairingCode], handle: (_window, id: string | null, code: string) => remoteErrors(computers.use(id, client => client.request('access.pairingRevoke', { code }))) },
     'access:devices': { args: [computer], handle: (_window, id: string | null) => remoteErrors(computers.use(id, client => client.request('access.devices', {}))) },
     'access:deviceRevoke': { args: [computer, deviceId], handle: (_window, id: string | null, device: string) => remoteErrors(computers.use(id, client => client.request('access.deviceRevoke', { deviceId: device }))) },
-    // The agents of this computer, whatever computer the window shows. Connecting installs Atlas's
+    // The agents of this computer, whatever computer the window shows. Connecting installs Coord's
     // own plugin, which the app carries, and reaches no one else, so it needs no question.
     'agents:list': { args: [], handle: () => actions.agents.list() },
     'agents:checks': { args: [], handle: () => actions.agents.checks() },
@@ -316,11 +316,11 @@ async function remoteErrors<T>(pending: Promise<T>): Promise<T> {
   try { return await pending; } catch (error) { throw hostError(error); }
 }
 function hostError(error: unknown) {
-  return error instanceof HostRequestError ? new AtlasError(error.code === 'unauthorized' ? 'forbidden' : error.code, error.message) : error;
+  return error instanceof HostRequestError ? new CoordError(error.code === 'unauthorized' ? 'forbidden' : error.code, error.message) : error;
 }
 
-/** Accept only the Atlas renderer's own top-level frame. */
-function trustedSender(event: IpcMainInvokeEvent, manager: WindowManager): AtlasWindow | null {
+/** Accept only the Coord renderer's own top-level frame. */
+function trustedSender(event: IpcMainInvokeEvent, manager: WindowManager): CoordWindow | null {
   const frame = event.senderFrame;
   if (!frame || frame.parent !== null) return null;
   const owner = BrowserWindow.fromWebContents(event.sender);
@@ -342,7 +342,7 @@ export function registerIpc(manager: WindowManager, actions: IpcActions) {
       }
       try {
         const args = argumentsOf(channel.args, values);
-        return { ok: true, value: await (channel.handle as (window: AtlasWindow, ...args: unknown[]) => unknown)(window, ...args) ?? null };
+        return { ok: true, value: await (channel.handle as (window: CoordWindow, ...args: unknown[]) => unknown)(window, ...args) ?? null };
       } catch (error) {
         const { value, expected } = toErrorValue(error);
         // A window saves its layout on its own and does not show a failure, so the log does.

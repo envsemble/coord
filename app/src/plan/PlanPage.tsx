@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Alert, Text } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
-import { stepCounts } from '@envsemble/atlas/planning/ledger';
+import { stepCounts } from '@envsemble/coord/planning/ledger';
 import { AttentionDot } from '../ui/AttentionDot';
 import type { Document, LedgerStep, ProjectWork, Snapshot, Target, Work, WorkSession } from '../types';
 import { defaultDocument, planDocument, stepPhase } from './work';

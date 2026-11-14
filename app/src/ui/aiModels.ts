@@ -1,7 +1,7 @@
 // AI model identifiers as people say them: `claude-opus-5-5` is "Claude Opus 5.5" by Anthropic,
 // `gpt-6.1-sol` is "GPT-6.1 Sol" by OpenAI. Agents and session logs name models by their API
 // identifiers, sometimes with a routing prefix (`anthropic/…`, `us.anthropic.…`), a snapshot date
-// or a variant in brackets (`[1m]`). An identifier Atlas does not recognise stays as it is.
+// or a variant in brackets (`[1m]`). An identifier Coord does not recognise stays as it is.
 
 export type Provider = 'anthropic' | 'openai' | 'google' | 'mistral' | 'deepseek';
 export const providerNames: Record<Provider, string> = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google', mistral: 'Mistral AI', deepseek: 'DeepSeek' };

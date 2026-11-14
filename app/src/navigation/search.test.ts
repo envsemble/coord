@@ -4,9 +4,9 @@ import { hostEntries, listEntries, ownPerKind, pathKey, resultDestination, workK
 import type { Project, SearchResult } from '../types.ts';
 
 const folder = 'f-' + '1'.repeat(32);
-const result = (change: Partial<SearchResult>): SearchResult => ({ kind: 'plan', title: 'Plans hub', snippet: null, projectId: folder, projectName: 'Atlas', work: null, path: null, anchor: null, element: null, ...change });
-const atlas: Project = {
-  id: folder, name: 'Atlas', path: '/home/me/.atlas/planning/atlas', position: 1, state: 'active', folders: [],
+const result = (change: Partial<SearchResult>): SearchResult => ({ kind: 'plan', title: 'Plans hub', snippet: null, projectId: folder, projectName: 'Coord', work: null, path: null, anchor: null, element: null, ...change });
+const coord: Project = {
+  id: folder, name: 'Coord', path: '/home/me/.coord/planning/coord', position: 1, state: 'active', folders: [],
   summary: { active: [{ id: 'work-0023', title: 'Plans hub', state: 'implementing', blocked: null, summary: null, tags: [], steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null }], closed: [], updated: null, activity: [], now: '2026-10-15T10:00:00Z' },
 };
 
@@ -28,19 +28,19 @@ test("the host's results say their project and work item, and the snippet", () =
   const [plan, heading, project] = hostEntries([
     result({ work: 'work-0023' }),
     result({ kind: 'heading', title: 'Why', snippet: '… the hub …', work: 'work-0023', path: 'active/0023-plans-hub/plan.md', anchor: 'why' }),
-    result({ kind: 'project', title: 'Atlas' }),
-  ], [atlas]);
-  assert.deepEqual([plan.label, plan.detail, plan.key], ['Plans hub', 'Atlas · #0023', workKey(folder, 'work-0023')]);
-  assert.deepEqual([heading.kind, heading.detail, heading.snippet, heading.key], ['heading', 'Atlas · #0023 Plans hub', '… the hub …', null]);
+    result({ kind: 'project', title: 'Coord' }),
+  ], [coord]);
+  assert.deepEqual([plan.label, plan.detail, plan.key], ['Plans hub', 'Coord · #0023', workKey(folder, 'work-0023')]);
+  assert.deepEqual([heading.kind, heading.detail, heading.snippet, heading.key], ['heading', 'Coord · #0023 Plans hub', '… the hub …', null]);
   assert.deepEqual([project.detail, project.key], ['', null]);
   assert.equal(new Set([plan.id, heading.id, project.id]).size, 3);
 });
 
 test("an archived project's results are left out", () => {
   const other = 'f-' + '2'.repeat(32);
-  const shelved: Project = { ...atlas, id: other, name: 'Old', state: 'archived' };
-  const listed = hostEntries([result({ work: 'work-0023' }), result({ projectId: other, projectName: 'Old', work: 'work-0001' })], [atlas, shelved]);
-  assert.deepEqual(listed.map(item => item.detail), ['Atlas · #0023']);
+  const shelved: Project = { ...coord, id: other, name: 'Old', state: 'archived' };
+  const listed = hostEntries([result({ work: 'work-0023' }), result({ projectId: other, projectName: 'Old', work: 'work-0001' })], [coord, shelved]);
+  assert.deepEqual(listed.map(item => item.detail), ['Coord · #0023']);
 });
 
 const entry = (id: string, kind: SearchEntry['kind'], key: string | null = null): SearchEntry => ({ id, kind, label: id, detail: '', snippet: null, destination: { place: { page: 'hub', projectId: null } }, key });

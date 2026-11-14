@@ -1,4 +1,4 @@
-// Atlas's PlantUML subset: the grammar, the `' atlas` comments, the model
+// Coord's PlantUML subset: the grammar, the `' coord` comments, the model
 // rules, the viewer's model, writing diagrams back, and a work folder's
 // families and comparisons.
 const { test } = require("node:test");
@@ -7,7 +7,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
-const atlas = require("../lib/index.cjs");
+const coord = require("../lib/index.cjs");
 const { parserIsCurrent } = require("../scripts/build-parser.cjs");
 
 const CLASSES = `@startuml
@@ -63,7 +63,7 @@ l1 : quantity = 2
 o1 -- l1 : lines
 @enduml
 `;
-const parse = (text) => atlas.parseDiagram(text);
+const parse = (text) => coord.parseDiagram(text);
 // A class diagram with one line added to its body.
 const withLine = (line) => `@startuml\nclass A\nclass B\n${line}\n@enduml\n`;
 const codes = (problems) => problems.map((p) => p.code);
@@ -125,7 +125,7 @@ test("the subset reads class diagrams: elements, packages, members and every rel
       ["aggregation", "Repository", "Order", "0..1", "0..*", "holds", false],
     ],
   );
-  assert.deepEqual(atlas.checkDiagram(CLASSES), []);
+  assert.deepEqual(coord.checkDiagram(CLASSES), []);
 });
 
 test("the subset reads entity and object diagrams", () => {
@@ -218,7 +218,7 @@ test("everything outside the subset is an error at its line and column that says
     ["!define X 1", /does not run the PlantUML preprocessor/],
     ["!theme plain", /remove the theme `!theme plain`/],
     ["/' a block comment '/", /Write comments as lines starting with `'`/],
-    ["namespace shop {\n}", /`namespace` is not part of Atlas's subset/],
+    ["namespace shop {\n}", /`namespace` is not part of Coord's subset/],
     ["participant Alice", /`participant` is not part of its subset/],
     ["actor Bob", /`actor` is not part of its subset/],
     ["component Web", /`component` is not part of its subset/],
@@ -226,7 +226,7 @@ test("everything outside the subset is an error at its line and column that says
     ["scale 2", /lays out and styles diagrams itself; remove `scale 2`/],
     [
       "class **Bold**",
-      /not part of Atlas's PlantUML subset|could not read this declaration/,
+      /not part of Coord's PlantUML subset|could not read this declaration/,
     ],
     ["title <b>Shop</b>", /The title uses formatting \(`<b>`\)/],
     ["A --> B : owns >", /remove the reading direction/],
@@ -289,21 +289,21 @@ test("everything outside the subset is an error at its line and column that says
     // Misleading messages, named for what is wrong.
     [
       "enum E {\n  A = 1\n}",
-      /Enum literals have no values in Atlas; write the literal's name alone, `A`/,
+      /Enum literals have no values in Coord; write the literal's name alone, `A`/,
     ],
     ["title: Orders", /Write the title without a colon: `title Orders`/],
     ["x : int", /`x : int` stands outside any body/],
     [
-      '\' atlas evidence {"file":"a.ts","url":"javascript:alert(1)"}\nclass C',
+      '\' coord evidence {"file":"a.ts","url":"javascript:alert(1)"}\nclass C',
       /Evidence links a `url` starting with http:\/\/ or https:\/\//,
     ],
     [
-      `' atlas snippet ${JSON.stringify({ language: "ts", code: "x\n".repeat(12) + "y" })}\nclass C`,
+      `' coord snippet ${JSON.stringify({ language: "ts", code: "x\n".repeat(12) + "y" })}\nclass C`,
       /A snippet is at most twelve lines/,
     ],
   ];
   for (const [line, message] of cases) {
-    const problems = atlas.checkDiagram(withLine(line));
+    const problems = coord.checkDiagram(withLine(line));
     assert(problems.length, `${line} is rejected`);
     assert(
       problems.some((p) => message.test(p.message)),
@@ -315,14 +315,14 @@ test("everything outside the subset is an error at its line and column that says
     );
   }
   // The column points at what is wrong.
-  const [arrow] = atlas.checkDiagram(withLine("A   -up-> B"));
+  const [arrow] = coord.checkDiagram(withLine("A   -up-> B"));
   assert.deepEqual([arrow.line, arrow.column], [4, 5]);
-  const [member] = atlas.checkDiagram(
+  const [member] = coord.checkDiagram(
     "@startuml\nclass C {\n    {static} x : int\n}\n@enduml\n",
   );
   assert.deepEqual([member.line, member.column], [3, 5]);
   // Several problems are reported at once, in order, with the path.
-  const many = atlas.checkDiagram(withLine("skinparam x y\nhide A\nA ---> B"), {
+  const many = coord.checkDiagram(withLine("skinparam x y\nhide A\nA ---> B"), {
     path: "model.puml",
   });
   assert.deepEqual(
@@ -336,7 +336,7 @@ test("everything outside the subset is an error at its line and column that says
   // PlantUML formats a member only between a pair of markers, and never with
   // `__`, so code such as a type parameter or one URL reads as written.
   assert.deepEqual(
-    atlas.checkDiagram(
+    coord.checkDiagram(
       withLine(
         'class C {\n  __proto__ : List<U>\n  home : "http://example.com"\n  map(f : Fn<B, I>) : Map<S, U>\n}',
       ),
@@ -344,13 +344,13 @@ test("everything outside the subset is an error at its line and column that says
     [],
   );
   assert.match(
-    atlas.checkDiagram(withLine("title List<U>"))[0].message,
+    coord.checkDiagram(withLine("title List<U>"))[0].message,
     /title uses formatting/,
   );
   // A label reads as a member does, so it names columns as they are; an enum
   // literal is a separator only between two `__`.
   assert.deepEqual(
-    atlas.checkDiagram(
+    coord.checkDiagram(
       withLine(
         "A -- B : customer__id, x__y__z\nA --> B : see //docs\nenum E {\n  a__b\n  __c\n}",
       ),
@@ -359,18 +359,18 @@ test("everything outside the subset is an error at its line and column that says
   );
   // A body opened on its own line is reported once, at its `{`.
   assert.deepEqual(
-    atlas
+    coord
       .checkDiagram(withLine('class "C c" as C\n{\n  x : int\n  f()\n}'))
       .map((p) => [p.line, p.message]),
     [
       [
         5,
-        'Open C\'s body at the end of its declaration, `class "C c" as C {`; Atlas reads no body from a `{` on a line of its own.',
+        'Open C\'s body at the end of its declaration, `class "C c" as C {`; Coord reads no body from a `{` on a line of its own.',
       ],
     ],
   );
   // An object's slot values are read as a member is.
-  const slots = atlas.checkDiagram(
+  const slots = coord.checkDiagram(
     '@startuml\nobject "a : P" as a {\n  name = "**Ada**"\n  url = "http://x"\n}\na : nick = __A__\na : bold = **Ada**\n@enduml\n',
   );
   assert.deepEqual(
@@ -384,7 +384,7 @@ test("everything outside the subset is an error at its line and column that says
 
 test("an entity's primary key columns stand above its separator, and its other columns below", () => {
   const entity = (body) =>
-    atlas
+    coord
       .checkDiagram(`@startuml\nentity t {\n${body}\n}\n@enduml\n`)
       .map((p) => [p.line, p.message]);
   assert.deepEqual(entity("  *id : int <<PK>>\n  --\n  name : text"), []);
@@ -420,11 +420,11 @@ test("a deeply nested unclosed package is read in linear time", () => {
   const started = performance.now();
   for (const closing of [0, 29])
     assert.deepEqual(
-      atlas.checkDiagram(nested(30, closing)).map((p) => p.code),
+      coord.checkDiagram(nested(30, closing)).map((p) => p.code),
       ["UNCLOSED"],
     );
   assert.deepEqual(
-    atlas
+    coord
       .checkDiagram(nested(30, 0).replace("@enduml\n", ""))
       .map((p) => p.code),
     ["SYNTAX"],
@@ -435,7 +435,7 @@ test("a deeply nested unclosed package is read in linear time", () => {
 
 test("a file must be one @startuml … @enduml diagram of one kind", () => {
   const only = (text) =>
-    atlas.checkDiagram(text).map((p) => [p.line, p.code, p.message]);
+    coord.checkDiagram(text).map((p) => [p.line, p.code, p.message]);
   assert.match(only("class A\n")[0][2], /starts with a line `@startuml`/);
   assert.match(
     only("@startuml\nclass A\n")[0][2],
@@ -476,14 +476,14 @@ test("a file must be one @startuml … @enduml diagram of one kind", () => {
     ],
   );
   // Windows line endings, a byte order mark and a missing final newline read alike.
-  assert.deepEqual(atlas.checkDiagram("﻿@startuml\r\nclass A\r\n@enduml"), []);
+  assert.deepEqual(coord.checkDiagram("﻿@startuml\r\nclass A\r\n@enduml"), []);
   // An empty diagram is a class diagram with nothing in it.
   assert.equal(parse("@startuml\n@enduml\n").diagram.kind, "class");
 });
 
 test("model rules: unique names and members, valid multiplicities, declared ends, sound inheritance and foreign keys", () => {
   const rules = (body) =>
-    atlas.checkDiagram(`@startuml\n${body}\n@enduml\n`).map((p) => p.code);
+    coord.checkDiagram(`@startuml\n${body}\n@enduml\n`).map((p) => p.code);
   assert.deepEqual(rules("class A\npackage p {\n  class A\n}"), ["DUPLICATE"]);
   assert.deepEqual(rules("class A {\n  x : int\n  x : string\n}"), [
     "DUPLICATE",
@@ -529,7 +529,7 @@ test("model rules: unique names and members, valid multiplicities, declared ends
 
 const CAPTURE = {
   capturedAt: "2026-10-01T10:00:00.000Z",
-  adapter: { id: "atlas-typescript", version: "1.0.0" },
+  adapter: { id: "coord-typescript", version: "1.0.0" },
   source: { kind: "typescript", identity: "shop", scope: ["src"] },
   coverage: {
     status: "partial",
@@ -558,24 +558,24 @@ function captureText(
     file: "src/order.ts",
     line: 4,
   };
-  return atlas.formatDiagram(diagram);
+  return coord.formatDiagram(diagram);
 }
 
-test("' atlas comments carry captures, proposals, comparisons, scenarios and evidence", () => {
+test("' coord comments carry captures, proposals, comparisons, scenarios and evidence", () => {
   const text = captureText();
   assert.match(
     text,
-    /^' atlas capture \{"capturedAt":"2026-10-01T10:00:00.000Z",/m,
+    /^' coord capture \{"capturedAt":"2026-10-01T10:00:00.000Z",/m,
   );
-  assert.match(text, /^' atlas fingerprint [0-9a-f]{64}$/m);
+  assert.match(text, /^' coord fingerprint [0-9a-f]{64}$/m);
   assert.match(
     text,
-    /^' atlas evidence \{"file":"src\/order.ts","line":3,"endLine":9,"repo":"shop","commit":"abc"\}\n' atlas snippet .*\nclass Order \{\n  ' atlas evidence \{"file":"src\/order.ts","line":4\}\n  id : string/m,
+    /^' coord evidence \{"file":"src\/order.ts","line":3,"endLine":9,"repo":"shop","commit":"abc"\}\n' coord snippet .*\nclass Order \{\n  ' coord evidence \{"file":"src\/order.ts","line":4\}\n  id : string/m,
   );
-  assert.deepEqual(atlas.checkDiagram(text), []);
+  assert.deepEqual(coord.checkDiagram(text), []);
   const { diagram } = parse(text);
   assert.deepEqual(diagram.capture, CAPTURE);
-  assert.equal(diagram.fingerprint, atlas.diagramFingerprint(text));
+  assert.equal(diagram.fingerprint, coord.diagramFingerprint(text));
   assert.deepEqual(diagram.elements[0].snippet, {
     language: "ts",
     startLine: 3,
@@ -584,66 +584,66 @@ test("' atlas comments carry captures, proposals, comparisons, scenarios and evi
   assert.equal(diagram.elements[0].attributes[0].evidence.line, 4);
   const header = (lines) => parse(`@startuml\n${lines}\nclass A\n@enduml\n`);
   assert.equal(
-    header("' atlas proposal ../captures/shop.puml").diagram.proposal,
+    header("' coord proposal ../captures/shop.puml").diagram.proposal,
     "../captures/shop.puml",
   );
   assert.deepEqual(
     parse(
-      "@startuml\n' atlas scenario model one.puml expected invalid\nobject o\n@enduml\n",
+      "@startuml\n' coord scenario model one.puml expected invalid\nobject o\n@enduml\n",
     ).diagram.scenario,
     { of: "model one.puml", expected: "invalid" },
   );
   const wrong = (lines) => header(lines).problems.map((p) => [p.line, p.code]);
-  assert.deepEqual(wrong("' atlas wat"), [[2, "ATLAS_UNKNOWN"]]);
-  assert.deepEqual(wrong("' atlas proposal"), [[2, "ATLAS_REFERENCE"]]);
-  assert.deepEqual(wrong("' atlas proposal a.puml\n' atlas proposal b.puml"), [
-    [3, "ATLAS_REPEATED"],
+  assert.deepEqual(wrong("' coord wat"), [[2, "COORD_UNKNOWN"]]);
+  assert.deepEqual(wrong("' coord proposal"), [[2, "COORD_REFERENCE"]]);
+  assert.deepEqual(wrong("' coord proposal a.puml\n' coord proposal b.puml"), [
+    [3, "COORD_REPEATED"],
   ]);
-  assert.deepEqual(wrong("' atlas capture {not json}\n' atlas fingerprint x"), [
-    [2, "ATLAS_JSON"],
-    [3, "ATLAS_FINGERPRINT"],
+  assert.deepEqual(wrong("' coord capture {not json}\n' coord fingerprint x"), [
+    [2, "COORD_JSON"],
+    [3, "COORD_FINGERPRINT"],
   ]);
-  assert.deepEqual(wrong("' atlas capture {}"), [
-    [2, "ATLAS_CAPTURE"],
-    [2, "ATLAS_HEADER"],
+  assert.deepEqual(wrong("' coord capture {}"), [
+    [2, "COORD_CAPTURE"],
+    [2, "COORD_HEADER"],
   ]);
-  assert.deepEqual(wrong('\' atlas evidence {"file":"a.ts"}\n'), [
-    [2, "ATLAS_PLACEMENT"],
+  assert.deepEqual(wrong('\' coord evidence {"file":"a.ts"}\n'), [
+    [2, "COORD_PLACEMENT"],
   ]);
-  assert.deepEqual(wrong('\' atlas evidence {"line":3}'), [[2, "ATLAS_JSON"]]);
+  assert.deepEqual(wrong('\' coord evidence {"line":3}'), [[2, "COORD_JSON"]]);
   assert.deepEqual(
-    wrong("' atlas scenario a.puml"),
+    wrong("' coord scenario a.puml"),
     [
-      [2, "ATLAS_SCENARIO"],
-      [2, "ATLAS_HEADER"],
+      [2, "COORD_SCENARIO"],
+      [2, "COORD_HEADER"],
     ].slice(0, 1),
   );
   assert.deepEqual(
     parse(
-      "@startuml\npackage p {\n' atlas proposal a.puml\n}\n@enduml\n",
+      "@startuml\npackage p {\n' coord proposal a.puml\n}\n@enduml\n",
     ).problems.map((p) => p.code),
-    ["ATLAS_PLACEMENT"],
+    ["COORD_PLACEMENT"],
   );
   assert.deepEqual(
     parse(
-      `@startuml\n' atlas compares a.puml\nclass A\n@enduml\n`,
+      `@startuml\n' coord compares a.puml\nclass A\n@enduml\n`,
     ).problems.map((p) => p.code),
-    ["ATLAS_HEADER"],
+    ["COORD_HEADER"],
   );
   assert.deepEqual(
     parse(
-      `@startuml\n' atlas scenario a.puml expected valid\nclass A\n@enduml\n`,
+      `@startuml\n' coord scenario a.puml expected valid\nclass A\n@enduml\n`,
     ).problems.map((p) => p.code),
-    ["ATLAS_HEADER"],
+    ["COORD_HEADER"],
   );
   // A capture copied into a proposal must give up its capture header.
   const copied = text.replace(
     "title Shop",
-    "title Shop\n' atlas proposal shop.puml",
+    "title Shop\n' coord proposal shop.puml",
   );
   assert(
     parse(copied).problems.some((p) =>
-      /replace the `' atlas capture`/.test(p.message),
+      /replace the `' coord capture`/.test(p.message),
     ),
   );
 });
@@ -652,21 +652,21 @@ test("' atlas comments carry captures, proposals, comparisons, scenarios and evi
 // tables, one description each.
 const DESCRIBED = `@startuml
 title Described
-' atlas description Someone who buys.
+' coord description Someone who buys.
 abstract class Party {
-  ' atlas description What others call them.
+  ' coord description What others call them.
   +name : String [0..1]
-  ' atlas description Greets them, by name.
+  ' coord description Greets them, by name.
   greet(other : Party) : String
 }
-' atlas description Can be paid for: see https://example.com/pay.
+' coord description Can be paid for: see https://example.com/pay.
 interface Payable
-' atlas description How far an order is.
+' coord description How far an order is.
 enum State {
-  ' atlas description Not paid yet.
+  ' coord description Not paid yet.
   OPEN
 }
-' atlas description A request to buy.
+' coord description A request to buy.
 class Order
 Order --> Party
 @enduml
@@ -676,10 +676,10 @@ const HOME = fs.readFileSync(
   "utf8",
 );
 
-test("' atlas description describes the element or member below it in one line of plain text", () => {
+test("' coord description describes the element or member below it in one line of plain text", () => {
   const { diagram, problems } = parse(DESCRIBED);
   assert.deepEqual(problems, []);
-  assert.deepEqual(atlas.checkDiagram(DESCRIBED), []);
+  assert.deepEqual(coord.checkDiagram(DESCRIBED), []);
   const [party, payable, state] = diagram.elements;
   assert.equal(party.description, "Someone who buys.");
   assert.equal(party.attributes[0].description, "What others call them.");
@@ -692,7 +692,7 @@ test("' atlas description describes the element or member below it in one line o
   assert.equal(diagram.relations[0].description, undefined);
   // Entity columns and objects take them too.
   const entity = parse(
-    "@startuml\nentity t {\n  ' atlas description Its key.\n  *id : integer <<PK>>\n  --\n  ' atlas description Its name.\n  name : text\n}\n@enduml\n",
+    "@startuml\nentity t {\n  ' coord description Its key.\n  *id : integer <<PK>>\n  --\n  ' coord description Its name.\n  name : text\n}\n@enduml\n",
   );
   assert.deepEqual(entity.problems, []);
   assert.deepEqual(
@@ -701,12 +701,12 @@ test("' atlas description describes the element or member below it in one line o
   );
   assert.equal(
     parse(
-      "@startuml\n' atlas description Ada, a learner.\nobject ada\n@enduml\n",
+      "@startuml\n' coord description Ada, a learner.\nobject ada\n@enduml\n",
     ).diagram.elements[0].description,
     "Ada, a learner.",
   );
   // The home database describes every table.
-  assert.deepEqual(atlas.checkDiagram(HOME), []);
+  assert.deepEqual(coord.checkDiagram(HOME), []);
   const home = parse(HOME).diagram;
   assert.equal(home.elements.length, 13);
   assert(home.elements.every((e) => e.description));
@@ -716,46 +716,46 @@ test("' atlas description describes the element or member below it in one line o
       p.code,
     ]);
   const limit = "x".repeat(279);
-  assert.deepEqual(wrong(`' atlas description ${limit}.\nclass A`), []);
-  assert.deepEqual(wrong(`' atlas description ${limit}..\nclass A`), [
-    [2, "ATLAS_DESCRIPTION"],
+  assert.deepEqual(wrong(`' coord description ${limit}.\nclass A`), []);
+  assert.deepEqual(wrong(`' coord description ${limit}..\nclass A`), [
+    [2, "COORD_DESCRIPTION"],
   ]);
-  assert.deepEqual(wrong("' atlas description\nclass A"), [
-    [2, "ATLAS_DESCRIPTION"],
+  assert.deepEqual(wrong("' coord description\nclass A"), [
+    [2, "COORD_DESCRIPTION"],
   ]);
-  assert.deepEqual(wrong("' atlas description A **bold** class.\nclass A"), [
-    [2, "ATLAS_DESCRIPTION"],
+  assert.deepEqual(wrong("' coord description A **bold** class.\nclass A"), [
+    [2, "COORD_DESCRIPTION"],
   ]);
   assert.deepEqual(
-    wrong("' atlas description One.\n' atlas description Two.\nclass A"),
-    [[3, "ATLAS_REPEATED"]],
+    wrong("' coord description One.\n' coord description Two.\nclass A"),
+    [[3, "COORD_REPEATED"]],
   );
   // Directly above an element or member, and nothing else.
   for (const [body, line] of [
-    ["class A\nclass B\n' atlas description Joins them.\nA -- B", 4],
-    ["' atlas description Shop.\ntitle Shop\nclass A", 2],
-    ["' atlas description A.\n\nclass A", 2],
-    ["class A {\n  x : int\n  ' atlas description Nothing.\n}", 4],
-    ["object a {\n  ' atlas description A slot.\n  x = 1\n}", 3],
+    ["class A\nclass B\n' coord description Joins them.\nA -- B", 4],
+    ["' coord description Shop.\ntitle Shop\nclass A", 2],
+    ["' coord description A.\n\nclass A", 2],
+    ["class A {\n  x : int\n  ' coord description Nothing.\n}", 4],
+    ["object a {\n  ' coord description A slot.\n  x = 1\n}", 3],
     [
-      "entity t {\n  *id : int <<PK>>\n  ' atlas description Keys.\n  --\n  x : int\n}",
+      "entity t {\n  *id : int <<PK>>\n  ' coord description Keys.\n  --\n  x : int\n}",
       4,
     ],
-    ["class A\n' atlas description At the end.", 3],
+    ["class A\n' coord description At the end.", 3],
   ])
-    assert.deepEqual(wrong(body), [[line, "ATLAS_PLACEMENT"]], body);
+    assert.deepEqual(wrong(body), [[line, "COORD_PLACEMENT"]], body);
   assert.match(
     parse(
-      "@startuml\nclass A\nclass B\n' atlas description Joins.\nA -- B\n@enduml\n",
+      "@startuml\nclass A\nclass B\n' coord description Joins.\nA -- B\n@enduml\n",
     ).problems[0].message,
     /relations and slots take none/,
   );
   // Evidence is one per element too.
   assert.deepEqual(
     wrong(
-      `' atlas evidence {"file":"a.ts"}\n' atlas evidence {"file":"b.ts"}\nclass A`,
+      `' coord evidence {"file":"a.ts"}\n' coord evidence {"file":"b.ts"}\nclass A`,
     ),
-    [[3, "ATLAS_REPEATED"]],
+    [[3, "COORD_REPEATED"]],
   );
 });
 
@@ -805,7 +805,7 @@ function awkwardCapture() {
 
 test("a capture writes what PlantUML would misread so that it reads as written", () => {
   const text = awkwardCapture();
-  assert.deepEqual(atlas.checkDiagram(text), []);
+  assert.deepEqual(coord.checkDiagram(text), []);
   assert.match(text, /^title Awkward$/m);
   assert.match(text, /^enum Mode \{\n {2}_Weird__\n {2}a__b\n\}$/m);
   assert.match(
@@ -823,21 +823,21 @@ test("a capture writes what PlantUML would misread so that it reads as written",
 
 test("a capture is frozen: an edit no longer matches its fingerprint", () => {
   const text = captureText();
-  assert.deepEqual(atlas.checkDiagram(text.replace(/\n/g, "\r\n")), []);
-  const edited = atlas.checkDiagram(text.replace("id : string", "id : number"));
+  assert.deepEqual(coord.checkDiagram(text.replace(/\n/g, "\r\n")), []);
+  const edited = coord.checkDiagram(text.replace("id : string", "id : number"));
   assert.deepEqual(
     edited.map((p) => p.code),
     ["CAPTURE_EDITED"],
   );
   assert.match(
     edited[0].message,
-    /copy it to a new file and replace its `' atlas capture` and `' atlas fingerprint` lines with `' atlas proposal/,
+    /copy it to a new file and replace its `' coord capture` and `' coord fingerprint` lines with `' coord proposal/,
   );
   assert.deepEqual(
-    parse(text.replace(/^' atlas fingerprint .*\n/m, "")).problems.map(
+    parse(text.replace(/^' coord fingerprint .*\n/m, "")).problems.map(
       (p) => p.code,
     ),
-    ["ATLAS_HEADER"],
+    ["COORD_HEADER"],
   );
 });
 
@@ -848,11 +848,11 @@ test("a proposal's and a comparison's baselines must exist, read and be of their
     "schema.puml": ENTITIES,
   };
   const check = (text) =>
-    atlas
+    coord
       .checkDiagram(text, { path: "p.puml", read: (r) => files[r] ?? null })
       .map((p) => p.message);
   const proposal = (of) =>
-    `@startuml\n' atlas proposal ${of}\nclass Order\n@enduml\n`;
+    `@startuml\n' coord proposal ${of}\nclass Order\n@enduml\n`;
   assert.deepEqual(check(proposal("shop.puml")), []);
   assert.match(
     check(proposal("missing.puml"))[0],
@@ -869,7 +869,7 @@ test("a proposal's and a comparison's baselines must exist, read and be of their
   const after = (of) => {
     const { diagram } = parse(captureText());
     diagram.compares = of;
-    return atlas.formatDiagram(diagram);
+    return coord.formatDiagram(diagram);
   };
   assert.deepEqual(check(after("shop.puml")), []);
   assert.match(check(after("schema.puml"))[0], /schema.puml is not a capture/);
@@ -897,7 +897,7 @@ test("a proposal's and a comparison's baselines must exist, read and be of their
 
 test("a diagram becomes the viewer's model, identified by names", () => {
   const { diagram } = parse(CLASSES);
-  const model = atlas.diagramViewerModel(diagram);
+  const model = coord.diagramViewerModel(diagram);
   assert.deepEqual(
     model.classes.map((c) => [
       c.id,
@@ -957,7 +957,7 @@ test("a diagram becomes the viewer's model, identified by names", () => {
     ],
   );
   // Entities draw as tables, with their keys in the inspector.
-  const tables = atlas.diagramViewerModel(parse(ENTITIES).diagram);
+  const tables = coord.diagramViewerModel(parse(ENTITIES).diagram);
   const orders = tables.classes.find((c) => c.id === "orders");
   assert.equal(orders.stereotype, "table");
   assert.deepEqual(
@@ -1039,7 +1039,7 @@ test("a diagram becomes the viewer's model, identified by names", () => {
   assert.equal(captured.date, "2026-10-01");
 });
 
-test("writing a diagram gives Atlas's canonical text, which reads back the same", () => {
+test("writing a diagram gives Coord's canonical text, which reads back the same", () => {
   const strip = (value) =>
     JSON.parse(
       JSON.stringify(value, (key, v) => (key === "line" ? undefined : v)),
@@ -1053,18 +1053,18 @@ test("writing a diagram gives Atlas's canonical text, which reads back the same"
     captureText(),
   ]) {
     const { diagram } = parse(text);
-    const written = atlas.formatDiagram(diagram);
+    const written = coord.formatDiagram(diagram);
     const reread = parse(written);
     assert.deepEqual(reread.problems, [], written);
     assert.deepEqual(
       strip(reread.diagram),
       strip({ ...diagram, fingerprint: reread.diagram.fingerprint }),
     );
-    assert.equal(atlas.formatDiagram(reread.diagram), written);
-    assert.deepEqual(atlas.checkDiagram(written), []);
+    assert.equal(coord.formatDiagram(reread.diagram), written);
+    assert.deepEqual(coord.checkDiagram(written), []);
   }
   assert.equal(
-    atlas
+    coord
       .formatDiagram(parse(CLASSES).diagram)
       .split("\n")
       .slice(0, 4)
@@ -1073,7 +1073,7 @@ test("writing a diagram gives Atlas's canonical text, which reads back the same"
   );
   const { diagram } = parse(CLASSES);
   diagram.elements[0].name = 'Say "hi"';
-  assert.throws(() => atlas.formatDiagram(diagram), /FORMAT_NAME/);
+  assert.throws(() => coord.formatDiagram(diagram), /FORMAT_NAME/);
 });
 
 // A work folder: a capture before a plan, two alternative proposals of it, a
@@ -1084,8 +1084,8 @@ function workFolder() {
   const proposal = (title, extra) =>
     before
       .replace(
-        /^' atlas capture .*\n' atlas fingerprint .*\n/m,
-        "' atlas proposal ../captures/before.puml\n",
+        /^' coord capture .*\n' coord fingerprint .*\n/m,
+        "' coord proposal ../captures/before.puml\n",
       )
       .replace("title Shop", `title ${title}`)
       .replace("  id : string\n", `  id : string\n${extra}`);
@@ -1096,7 +1096,7 @@ function workFolder() {
   );
   later.compares = "before.puml";
   later.capture = { ...CAPTURE, capturedAt: "2026-10-20T10:00:00.000Z" };
-  const after = atlas.formatDiagram(later);
+  const after = coord.formatDiagram(later);
   return [
     { path: "captures/before.puml", text: before },
     {
@@ -1112,8 +1112,8 @@ function workFolder() {
       path: "captures/next.puml",
       text: after
         .replace(
-          /^' atlas capture .*\n' atlas fingerprint .*\n' atlas compares .*\n/m,
-          "' atlas proposal after.puml\n",
+          /^' coord capture .*\n' coord fingerprint .*\n' coord compares .*\n/m,
+          "' coord proposal after.puml\n",
         )
         .replace("title Shop", "title Next"),
     },
@@ -1123,7 +1123,7 @@ function workFolder() {
 }
 
 test("a work folder's diagrams are described with their roles, profiles, baselines and families", () => {
-  const described = atlas.describeDiagrams(workFolder());
+  const described = coord.describeDiagrams(workFolder());
   assert.deepEqual(
     described.map((d) => [
       d.path,
@@ -1184,13 +1184,13 @@ test("a work folder's diagrams are described with their roles, profiles, baselin
     [["broken.puml", 4, "RELATION"]],
   );
   assert.equal(
-    atlas.resolveReference("captures/next.puml", "../proposals/a.puml"),
+    coord.resolveReference("captures/next.puml", "../proposals/a.puml"),
     "proposals/a.puml",
   );
 });
 
 test("a family lays out once: proposals and a later capture compare with their baselines by name", async () => {
-  const { prepared } = await atlas.prepareDiagrams({ files: workFolder() });
+  const { prepared } = await coord.prepareDiagrams({ files: workFolder() });
   assert.deepEqual([...prepared.keys()].sort(), [
     "captures/after.puml",
     "captures/before.puml",
@@ -1276,7 +1276,7 @@ test("a family lays out once: proposals and a later capture compare with their b
   );
   assert.equal(payload("glossary.puml").model.document.path, "glossary.puml");
   // Asking for one diagram lays out its family only.
-  const one = await atlas.prepareDiagrams({
+  const one = await coord.prepareDiagrams({
     files: workFolder(),
     paths: ["glossary.puml"],
   });
@@ -1286,7 +1286,7 @@ test("a family lays out once: proposals and a later capture compare with their b
 test("a self association keeps both its counts", async () => {
   const text =
     '@startuml\nclass Node\nNode "0..*" -- "0..*" Node : connected to\n@enduml\n';
-  const { prepared } = await atlas.prepareDiagrams({
+  const { prepared } = await coord.prepareDiagrams({
     files: [{ path: "n.puml", text }],
   });
   const viewer = prepared.get("n.puml");
@@ -1294,17 +1294,17 @@ test("a self association keeps both its counts", async () => {
   assert.equal(viewer.report.diagrams[0].multiplicityLabels, 2);
 });
 
-// PlantUML itself accepts every diagram Atlas accepts. Opt in with the path of
-// a PlantUML jar: ATLAS_TEST_PLANTUML_JAR=/path/to/plantuml.jar.
+// PlantUML itself accepts every diagram Coord accepts. Opt in with the path of
+// a PlantUML jar: COORD_TEST_PLANTUML_JAR=/path/to/plantuml.jar.
 test(
-  "PlantUML renders every diagram Atlas accepts",
+  "PlantUML renders every diagram Coord accepts",
   {
     skip:
-      !process.env.ATLAS_TEST_PLANTUML_JAR &&
-      "set ATLAS_TEST_PLANTUML_JAR to a PlantUML jar",
+      !process.env.COORD_TEST_PLANTUML_JAR &&
+      "set COORD_TEST_PLANTUML_JAR to a PlantUML jar",
   },
   (t) => {
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "atlas-plantuml-"));
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "coord-plantuml-"));
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
     const files = [
       ...[CLASSES, ENTITIES, OBJECTS, DESCRIBED, HOME].map((text, i) => ({
@@ -1322,7 +1322,7 @@ test(
     for (const [i, file] of files.entries()) {
       for (const text of [
         file.text,
-        atlas.formatDiagram(parse(file.text).diagram),
+        coord.formatDiagram(parse(file.text).diagram),
       ]) {
         const name = path.join(directory, `${i}-${names.length}.puml`);
         fs.writeFileSync(name, text);
@@ -1334,14 +1334,14 @@ test(
       [
         "-Djava.awt.headless=true",
         "-jar",
-        process.env.ATLAS_TEST_PLANTUML_JAR,
+        process.env.COORD_TEST_PLANTUML_JAR,
         "-checkonly",
         ...names,
       ],
       { encoding: "utf8" },
     );
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    // And it rejects these, which Atlas reports too: an unclosed body, titles
+    // And it rejects these, which Coord reports too: an unclosed body, titles
     // of symbols only, relating a name beyond the Basic Multilingual Plane and
     // a line joined with the `}` after it.
     const smile = String.fromCodePoint(0x1f600);
@@ -1355,14 +1355,14 @@ test(
       "object a {\n  x = a\\\n}",
     ].entries()) {
       const text = `@startuml\n${body}\n@enduml\n`;
-      assert.notDeepEqual(atlas.checkDiagram(text), [], body);
+      assert.notDeepEqual(coord.checkDiagram(text), [], body);
       const broken = path.join(directory, `broken-${i}.puml`);
       fs.writeFileSync(broken, text);
       assert.notEqual(
         spawnSync("java", [
           "-Djava.awt.headless=true",
           "-jar",
-          process.env.ATLAS_TEST_PLANTUML_JAR,
+          process.env.COORD_TEST_PLANTUML_JAR,
           "-checkonly",
           broken,
         ]).status,

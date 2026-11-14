@@ -6,10 +6,10 @@
 import { IconButton, Menu, Menubar, Tooltip } from '@envsemble/envui';
 import { IconArrowBack as ArrowBack } from '@envsemble/envui/icons/ArrowBack';
 import { IconArrowForward as ArrowForward } from '@envsemble/envui/icons/ArrowForward';
-import { AtlasMark } from '@envsemble/atlas-diagrams/mark';
+import { CoordMark } from '@envsemble/coord-diagrams/mark';
 import type { AppCommand } from '../../shared/contract';
 import type { Project, SettingsSection, WindowInfo } from '../types';
-import { api, AtlasError } from '../api';
+import { api, CoordError } from '../api';
 import { ComputerMenu } from '../computers/ComputerMenu';
 import { useAppActions } from '../appActions';
 
@@ -48,7 +48,7 @@ const historyKeys = (platform: string) => platform === 'darwin'
 export function AppMenus({ info, menus, onError }: { info: WindowInfo; menus: WindowMenus; onError(message: string): void }) {
   const actions = useAppActions();
   const mod = modifierKey(info.platform);
-  const run = (command: AppCommand) => () => { api.command(command).catch(error => { if ((error as AtlasError).code !== 'cancelled') onError((error as Error).message); }); };
+  const run = (command: AppCommand) => () => { api.command(command).catch(error => { if ((error as CoordError).code !== 'cancelled') onError((error as Error).message); }); };
   const active = (menus.projects ?? []).filter(project => project.state === 'active');
   return <Menubar.Root aria-label="Application menu" accessKeys={info.platform !== 'darwin'}>
     <Menubar.Menu label="Plans" accessKey="P">
@@ -80,7 +80,7 @@ export function AppMenus({ info, menus, onError }: { info: WindowInfo; menus: Wi
     </Menubar.Menu>
     <Menubar.Menu label="Help" accessKey="H">
       <Menu.Item onClick={run('openLogs')}>Open Logs</Menu.Item>
-      <Menu.Item onClick={actions.about}>About Atlas</Menu.Item>
+      <Menu.Item onClick={actions.about}>About Coord</Menu.Item>
     </Menubar.Menu>
   </Menubar.Root>;
 }
@@ -88,16 +88,16 @@ export function AppMenus({ info, menus, onError }: { info: WindowInfo; menus: Wi
 /** The start of the title bar: the logo, back and forward, the menus, and the computer. */
 export function TitleBarStart({ info, menus, onError }: { info: WindowInfo; menus: WindowMenus; onError(message: string): void }) {
   return <div className="title-bar-start">
-    <AtlasLogo />
+    <CoordLogo />
     <HistoryButtons platform={info.platform} menus={menus} />
     <AppMenus info={info} menus={menus} onError={onError} />
     <ComputerMenu current={info.computer} onError={onError} onSettings={() => menus.settings('computers')} />
   </div>;
 }
 
-/** Atlas's mark at the start of the title bar: only a picture, as the Plans menu goes to every plan. */
-export function AtlasLogo() {
-  return <span className="title-bar-logo" aria-hidden="true"><AtlasMark size={20} label="" /></span>;
+/** Coord's mark at the start of the title bar: only a picture, as the Plans menu goes to every plan. */
+export function CoordLogo() {
+  return <span className="title-bar-logo" aria-hidden="true"><CoordMark size={20} label="" /></span>;
 }
 
 /** The title bar's quiet back and forward arrows. */

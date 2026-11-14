@@ -19,7 +19,7 @@ import { ChangesSwitch } from "../review/ChangesSwitch";
 // The overlay's first row starts with the host's own navigation (`sections`),
 // when there is any; the diagram's navigation island then takes a row below.
 function overlayClass(sections, density = 0) {
-  return `atlas-overlay-top${sections ? " stacked" : ""}${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`;
+  return `coord-overlay-top${sections ? " stacked" : ""}${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`;
 }
 
 // A proposal shows its change view, its review data travelling as an extra
@@ -37,14 +37,14 @@ export const DiagramPanel = memo(function DiagramPanel(props) {
     return (
       <Theme
         theme={theme}
-        className="atlas-panel atlas-empty"
+        className="coord-panel coord-empty"
         data-theme={theme}
       >
         <div className="viewer">
           {(props.leading || props.sections) && (
             <div className={overlayClass(props.sections)}>
               {props.sections && (
-                <div className="atlas-overlay-sections">{props.sections}</div>
+                <div className="coord-overlay-sections">{props.sections}</div>
               )}
               {props.leading && (
                 <Island label="Diagram navigation" className="island-start">
@@ -54,7 +54,7 @@ export const DiagramPanel = memo(function DiagramPanel(props) {
             </div>
           )}
           <EmptyState
-            className="atlas-empty-message"
+            className="coord-empty-message"
             title={payload.model.title}
             description="No entities in this model."
           />
@@ -115,13 +115,13 @@ function DiagramPanelContent({
   const showViews = views.length > 1;
   const hasStart = !!leading || showViews || !!plain;
   return (
-    <Theme theme={theme} className="atlas-panel" data-theme={theme}>
+    <Theme theme={theme} className="coord-panel" data-theme={theme}>
       <div
         ref={viewerRef}
         className={`viewer${panel ? " with-panel" : ""}${changes?.fade ? " fade-unchanged" : ""}`}
       >
         <div className={overlayClass(sections, density)} ref={topRef}>
-          {sections && <div className="atlas-overlay-sections">{sections}</div>}
+          {sections && <div className="coord-overlay-sections">{sections}</div>}
           {hasStart && (
             <Island label="Diagram navigation" className="island-start">
               {leading && <div className="island-leading">{leading}</div>}
@@ -157,7 +157,7 @@ function DiagramPanelContent({
             {onArrange && arranged.arranged && (
               <ToolButton
                 label="Reset layout"
-                tooltip="Lay the diagram out again, as Atlas arranges it"
+                tooltip="Lay the diagram out again, as Coord arranges it"
                 icon={<ResetLayoutIcon />}
                 onClick={arranged.reset}
               />

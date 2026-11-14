@@ -4,7 +4,7 @@ const path = require("node:path");
 const assert = require("node:assert/strict");
 const { execFileSync } = require("node:child_process");
 const root = path.resolve(__dirname, "..");
-const stage = fs.mkdtempSync(path.join(os.tmpdir(), "atlas-diagrams-package-"));
+const stage = fs.mkdtempSync(path.join(os.tmpdir(), "coord-diagrams-package-"));
 const npm = process.env.npm_execpath;
 try {
   if (!npm) throw new Error("Run this check through npm run check:package");
@@ -52,7 +52,7 @@ try {
   // project (for example a stray ~/node_modules) instead of the clean stage.
   fs.writeFileSync(
     path.join(stage, "package.json"),
-    JSON.stringify({ name: "atlas-package-check", private: true }),
+    JSON.stringify({ name: "coord-package-check", private: true }),
   );
   execFileSync(
     process.execPath,
@@ -70,8 +70,8 @@ try {
   const smoke = `
     const assert = require('node:assert/strict');
     const path = require('node:path');
-    assert(require.resolve('@envsemble/atlas-diagrams').startsWith(path.join(process.cwd(), 'node_modules') + path.sep), 'Resolved an installation outside the clean stage');
-    const {checkDiagram,prepareDiagrams,buildViewer,writeViewer,captureTypeScript,captureJava}=require('@envsemble/atlas-diagrams');
+    assert(require.resolve('@envsemble/coord-diagrams').startsWith(path.join(process.cwd(), 'node_modules') + path.sep), 'Resolved an installation outside the clean stage');
+    const {checkDiagram,prepareDiagrams,buildViewer,writeViewer,captureTypeScript,captureJava}=require('@envsemble/coord-diagrams');
     const file={path:'orders.puml',text:['@startuml','title Installed package test','class Order','@enduml',''].join(String.fromCharCode(10))};
     assert.deepEqual(checkDiagram(file.text),[]);
     (async()=>{
@@ -85,10 +85,10 @@ try {
       const java=await captureJava({identity:'consumer',projects:[{identity:'java',path:process.cwd(),files:['Consumer.java']}]});
       assert.match(java,/^class Consumer \{$/m);
       assert.deepEqual(checkDiagram(java),[]);
-      const react=await import('@envsemble/atlas-diagrams/react');
+      const react=await import('@envsemble/coord-diagrams/react');
       assert.equal(typeof react.DiagramViewer,'function');
       assert.ok(react.DiagramPanel && ['function','object'].includes(typeof react.DiagramPanel));
-      assert(require('node:fs').existsSync(require.resolve('@envsemble/atlas-diagrams/embedded.css')));
+      assert(require('node:fs').existsSync(require.resolve('@envsemble/coord-diagrams/embedded.css')));
       const {prepared}=await prepareDiagrams({files:[file],includeArtifacts:true});
       const built=await buildViewer({prepared:prepared.get(file.path),file});
       assert(built.html.includes('Installed package test'));

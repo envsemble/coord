@@ -7,23 +7,23 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { createElement } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
-const atlas = require("../lib/index.cjs");
+const coord = require("../lib/index.cjs");
 const { loadComponents } = require("./loadComponents.cjs");
 
-const BASE = `' atlas description Someone who learns.
+const BASE = `' coord description Someone who learns.
 class Person {
   name : String
-  ' atlas description Greets them.
+  ' coord description Greets them.
   greet() : String
 }
-' atlas description A place of learning.
+' coord description A place of learning.
 class Institution
 class Enrollment
 Enrollment "0..*" -- "1" Person : learner
 Enrollment "0..*" -- "1" Institution : school`;
 
 async function prepared(files) {
-  const { prepared } = await atlas.prepareDiagrams({ files });
+  const { prepared } = await coord.prepareDiagrams({ files });
   return prepared;
 }
 const render = (component, props) =>
@@ -69,7 +69,7 @@ test("a table's columns keep their descriptions", async () => {
     .readFileSync(path.join(__dirname, "fixtures/home-database.puml"), "utf8")
     .replace(
       "    *name : text\n",
-      "    ' atlas description What the sidebar shows.\n    *name : text\n",
+      "    ' coord description What the sidebar shows.\n    *name : text\n",
     );
   const payload = (await prepared([{ path: "home.puml", text }])).get(
     "home.puml",
@@ -87,15 +87,15 @@ test("a changed, added or removed description is a change of its element", async
   const proposal = BASE.replace("Someone who learns.", "Someone enrolled.")
     .replace(
       "  name : String",
-      "  ' atlas description Their name.\n  name : String",
+      "  ' coord description Their name.\n  name : String",
     )
-    .replace("' atlas description A place of learning.\n", "");
+    .replace("' coord description A place of learning.\n", "");
   const payload = (
     await prepared([
       { path: "base.puml", text: `@startuml\n${BASE}\n@enduml\n` },
       {
         path: "proposal.puml",
-        text: `@startuml\n' atlas proposal base.puml\n${proposal}\n@enduml\n`,
+        text: `@startuml\n' coord proposal base.puml\n${proposal}\n@enduml\n`,
       },
     ])
   ).get("proposal.puml").payload;

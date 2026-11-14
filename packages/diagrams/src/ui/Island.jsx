@@ -12,7 +12,7 @@ export function Island({ label, className = "", children, ...props }) {
       padding={1}
       role="group"
       aria-label={label}
-      className={`atlas-island${className ? ` ${className}` : ""}`}
+      className={`coord-island${className ? ` ${className}` : ""}`}
       {...props}
     >
       {children}

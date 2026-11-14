@@ -4,7 +4,7 @@ import { createContext, useContext } from 'react';
 
 /** Window-wide actions the menus start: About. */
 export interface AppActions {
-  /** The menu's About Atlas. */
+  /** The menu's About Coord. */
   about(): void;
 }
 const nothing = () => undefined;

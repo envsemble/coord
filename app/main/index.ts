@@ -1,12 +1,12 @@
-// The Atlas desktop app's main process: single instance, windows that each show one computer's
+// The Coord desktop app's main process: single instance, windows that each show one computer's
 // projects, the application menu, and the typed message channel the windows use. Projects are read
-// by the Atlas host of the computer they are on: this computer's, which this process starts in a
+// by the Coord host of the computer they are on: this computer's, which this process starts in a
 // utility process (main/host/localHost.ts), or a paired computer's. The app keeps its own state in the
 // home database (main/appState.ts).
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { app, dialog, Menu, nativeTheme, powerMonitor, protocol, shell } from 'electron';
-import { atlasHome, electronDataDirectory, HomeDatabase, prepareHome } from '@envsemble/atlas/planning';
+import { coordHome, electronDataDirectory, HomeDatabase, prepareHome } from '@envsemble/coord/planning';
 import icon from '../build/icon.png?asset';
 import { Computers } from './computers/computers.ts';
 import { registerIpc } from './windows/ipc.ts';
@@ -21,16 +21,16 @@ import { WindowManager } from './windows/windowManager.ts';
 import type { AboutInfo } from '../shared/contract.ts';
 import { isProjectListing } from '../shared/validate.ts';
 
-// Atlas keeps its state in the Atlas home (~/.atlas, shared with the `atlas` command). Electron's
+// Coord keeps its state in the Coord home (~/.coord, shared with the `coord` command). Electron's
 // own files and Chromium's caches stay in Electron's per-user folder, except for a home chosen with
-// ATLAS_HOME (tests, a separate instance), which keeps them too. Setting this before the lock scopes
+// COORD_HOME (tests, a separate instance), which keeps them too. Setting this before the lock scopes
 // the single instance to it.
-const dataDirectory = atlasHome();
-const electronData = process.env.ATLAS_HOME ? path.join(dataDirectory, 'electron') : electronDataDirectory();
+const dataDirectory = coordHome();
+const electronData = process.env.COORD_HOME ? path.join(dataDirectory, 'electron') : electronDataDirectory();
 app.setPath('userData', electronData);
 app.setPath('sessionData', path.join(electronData, 'chromium'));
-app.setAppUserModelId('dev.envsemble.atlas');
-// Atlas never runs without Chromium's sandbox (some AppImage launchers add --no-sandbox when the
+app.setAppUserModelId('dev.envsemble.coord');
+// Coord never runs without Chromium's sandbox (some AppImage launchers add --no-sandbox when the
 // system lacks unprivileged user namespaces), and a released build never runs with a debugger.
 const refusal = startupRefusal({
   hasSwitch: name => app.commandLine.hasSwitch(name),
@@ -54,7 +54,7 @@ if (refusal) {
   await prepareHome();
   let database: HomeDatabase | null = null;
   try { database = HomeDatabase.open(dataDirectory); } catch (error) {
-    refuseHome(`Atlas cannot open its home database: ${(error as Error).message}`);
+    refuseHome(`Coord cannot open its home database: ${(error as Error).message}`);
   }
   if (database) start(database);
 }
@@ -64,14 +64,14 @@ function refuseHome(reason: string) {
   log.warn('Not started: the home is not ready', { reason });
   process.stderr.write(reason + '\n');
   void app.whenReady().then(async () => {
-    await dialog.showMessageBox({ type: 'warning', title: 'Atlas', message: 'Atlas cannot start yet', detail: reason, buttons: ['Close'] });
+    await dialog.showMessageBox({ type: 'warning', title: 'Coord', message: 'Coord cannot start yet', detail: reason, buttons: ['Close'] });
     app.exit(1);
   });
 }
 
-/** The end-to-end test build is packaged with "atlasEndToEndBuild": true in its package.json. */
+/** The end-to-end test build is packaged with "coordEndToEndBuild": true in its package.json. */
 function endToEndBuild() {
-  try { return JSON.parse(readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')).atlasEndToEndBuild === true; } catch { return false; }
+  try { return JSON.parse(readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')).coordEndToEndBuild === true; } catch { return false; }
 }
 
 function refuse(found: Refusal) {
@@ -84,7 +84,7 @@ function refuse(found: Refusal) {
     return;
   }
   void app.whenReady().then(async () => {
-    await dialog.showMessageBox({ type: 'error', title: 'Atlas', ...refusalMessage(found), buttons: ['Close'] });
+    await dialog.showMessageBox({ type: 'error', title: 'Coord', ...refusalMessage(found), buttons: ['Close'] });
     app.exit(1);
   });
 }
@@ -92,13 +92,13 @@ function refuse(found: Refusal) {
 function start(database: HomeDatabase) {
   const devUrl = !app.isPackaged && process.env.ELECTRON_RENDERER_URL ? process.env.ELECTRON_RENDERER_URL : null;
   const state = new AppState(database);
-  // The chosen theme reaches every window as prefers-color-scheme, and themes Atlas's own menus and dialogs.
+  // The chosen theme reaches every window as prefers-color-scheme, and themes Coord's own menus and dialogs.
   nativeTheme.themeSource = state.theme;
   const devTools = !app.isPackaged;
   let manager: WindowManager;
 
   const openLogs = () => { void shell.openPath(log.directory); };
-  // About Atlas, in the menu, is a dialog in the window; these are its facts.
+  // About Coord, in the menu, is a dialog in the window; these are its facts.
   const systems: Record<string, string> = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
   const about = (): AboutInfo => ({
     version: app.getVersion(), electron: process.versions.electron, chromium: process.versions.chrome, node: process.versions.node,
@@ -123,15 +123,15 @@ function start(database: HomeDatabase) {
     onStatus: (client, status, detail) => manager.connectionChanged(client, status, detail),
   });
 
-  // The atlas command and the plugin, which the packaged app carries in resources/agent. Only the
+  // The coord command and the plugin, which the packaged app carries in resources/agent. Only the
   // installed app on the user's own home puts the command on the PATH and refreshes the connected
-  // agents after an update: a home chosen with ATLAS_HOME (tests, a separate instance) leaves the
-  // user's `atlas` and agents alone.
+  // agents after an update: a home chosen with COORD_HOME (tests, a separate instance) leaves the
+  // user's `coord` and agents alone.
   const agents = new Agents({
     home: dataDirectory, log,
     bundle: app.isPackaged ? path.join(process.resourcesPath, 'agent') : null,
     checkout: path.resolve(app.getAppPath(), '..'),
-    ownHome: app.isPackaged && !process.env.ATLAS_HOME,
+    ownHome: app.isPackaged && !process.env.COORD_HOME,
     lastSession: harness => (database.db.prepare('SELECT max(updated_at) AS at FROM session WHERE harness = ?').get(harness) as { at: string | null }).at,
   });
 
@@ -146,7 +146,7 @@ function start(database: HomeDatabase) {
     contents.setWindowOpenHandler(() => ({ action: 'deny' }));
   });
 
-  // Starting Atlas again brings it forward.
+  // Starting Coord again brings it forward.
   app.on('second-instance', () => {
     log.info('Second instance');
     manager.focused()?.focus();
@@ -166,14 +166,14 @@ function start(database: HomeDatabase) {
   app.on('will-quit', () => database.close());
 
   void app.whenReady().then(async () => {
-    log.info('Atlas started', { version: app.getVersion(), packaged: app.isPackaged, platform: process.platform, uptimeMs: Math.round(process.uptime() * 1000) });
+    log.info('Coord started', { version: app.getVersion(), packaged: app.isPackaged, platform: process.platform, uptimeMs: Math.round(process.uptime() * 1000) });
     Menu.setApplicationMenu(null);
     registerIpc(manager, { openLogs, about, agents });
     buildMenu(manager, { openLogs, devTools });
     // The host starts while the windows open: the connection waits for its owner token.
     const hostStarted = localHost.start().catch(async error => {
       log.error('Host could not start', error);
-      await dialog.showMessageBox({ type: 'error', title: 'Atlas', message: 'Atlas could not start reading projects.', detail: (error as Error).message + '\n\nDetails are in the log (Open Logs, in the menu).', buttons: ['OK'] });
+      await dialog.showMessageBox({ type: 'error', title: 'Coord', message: 'Coord could not start reading projects.', detail: (error as Error).message + '\n\nDetails are in the log (Open Logs, in the menu).', buttons: ['OK'] });
     });
     computers.local.start();
     // The window buttons in each title bar follow the theme.
