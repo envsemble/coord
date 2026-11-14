@@ -9,8 +9,8 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
-  acceptWork, addSteps, archiveWork, proposeSteps, projectTags, searchWork, tagWork, closeWork, createWork, findPlanning, DatabaseVersionError, PlanningNotFoundError, removeStep, renameStep, reopenWork, setContinues, setParts,
-  resolvePlanningFolder, setBlocked, setStepStatus, startWork, WorkError, workStatus, type LedgerStepStatus,
+  acceptWork, addSteps, proposeSteps, projectTags, searchWork, createWork, findPlanning, DatabaseVersionError, PlanningNotFoundError, removeStep, renameStep, reopenWork, finishWork,
+  resolvePlanningFolder, setState, setStepStatus, startWork, updateWork, WorkError, workStatus, type LedgerStepStatus,
 } from '../../planning/index.ts';
 import type { Whereabouts } from '../../planning/projects/findProject.ts';
 import type { WorkResult } from '../../planning/work/work.ts';
@@ -25,13 +25,14 @@ const { version } = require('../../../package.json') as { version: string };
 const instructions = "Atlas keeps plans in projects: planning folders in the Atlas home (~/.atlas/planning). A session in one of a project's folders (the deepest wins when they nest), or in its planning folder, belongs to that project; where lists the projects and their active work. "
   + 'When several projects match, ask the user which one to plan in and pass its planningFolder; when none does, ask which project the work belongs to. '
   + 'Ask the user before project_create or work_create (a follow-up of work they handed you to finish without them you create yourself), and open work items only for work big enough to plan; small tasks stay plain coding. '
-  + 'Change planning state (work items, steps, blocked, closing, archiving) only through these tools; edit plan prose, glossaries and diagrams directly as files in the planning folder. '
+  + 'Change planning state (work items, steps, state, closing) only through these tools; edit plan prose, glossaries and diagrams directly as files in the planning folder. '
+  + "Say whose turn a work item is with state, whenever it changes: working while you work on it, your_turn when you stop for the user (with what they are to do), waiting while it waits on a PR's checks or something else, blocked with why; Atlas shows it to the user and never guesses it. "
   + 'When work continues other work (follow-ups moved off work that is closing, a next phase), record the handoff with continues. '
-  + 'When one task is better planned as several ordered pieces, each with its own plan and steps, make them its parts (work_create with partOf; work_parts). '
-  + "Tag work with what it will be searched for later: the release it ships in and the areas it touches, reusing the project's tags (where and work_tag count them). "
+  + 'When one task is better planned as several ordered pieces, each with its own plan and steps, make them its parts (work_create with partOf; work_update). '
+  + "Tag work with what it will be searched for later: the release it ships in and the areas it touches, reusing the project's tags (where and work_update count them). "
   + 'Answer questions about past work with work_search. '
   + 'In planning files, write PRs and issues as owner/repo#N and commits as owner/repo@hash (or their URLs), naming the repository yourself, so Atlas links them. '
-  + 'When you stop for the user to act (a question, a decision, finished work to review), call needs_you and begin your message with what you need; a turn that ends without it, as one waiting on CI or a background task, shows as still working. The tools never commit; commit planning changes yourself.';
+  + 'The tools never commit; commit planning changes yourself.';
 
 const planningFolder = { type: 'string', description: "The project's planning folder, an absolute path; needed only when several projects or none cover your folder." };
 const cwd = { type: 'string', description: "Your folder, when it isn't the session's." };
@@ -76,11 +77,6 @@ const tools: Tool[] = [
     run: async (_, input) => leanWhere(await findPlanning(input.cwd!)),
   },
   {
-    name: 'needs_you', description: 'Call when you stop for the user to act; Atlas shows Needs you, with the reason, until they answer.',
-    inputSchema: { type: 'object', properties: { reason: { type: 'string', description: 'What you need, in a few words: "review PR #24".' } }, additionalProperties: false },
-    run: async () => ({ noted: true }),
-  },
-  {
     name: 'project_create',
     description: 'Ask the user first. Create a project in the Atlas home: a planning folder, its own Git repository, covering the folders given. Check with where that none covers them yet.',
     inputSchema: {
@@ -105,10 +101,18 @@ const tools: Tool[] = [
     run: (root, input) => createWork(root, { title: input.title as string, slug: (input.slug as string | undefined) ?? null, summary: (input.summary as string | undefined) ?? null, continues: (input.continues as string[] | undefined) ?? null, tags: (input.tags as string[] | undefined) ?? null, partOf: (input.partOf as string | undefined) ?? null }),
   },
   {
-    name: 'work_tag', description: "Add and remove a work item's tags (lowercase letters, digits, dots and hyphens). Returns its tags and the project's, with counts.",
-    inputSchema: object({ work, add: titles(), remove: titles() }, ['work']), run: (root, input) => tagWork(root, input.work!, { add: input.add as string[] | undefined, remove: input.remove as string[] | undefined }),
+    name: 'state',
+    description: "Say whose turn the work is, whenever it changes: planning or working while you are on it; waiting while it waits on a PR's checks or reviews or something else (note: what); your_turn when you stop for the user (note: what they are to do, such as \"Merge owner/repo#12\" or \"Try the new hub\"); blocked (note: why). Atlas shows it to the user as is and never changes it itself, so keep it true.",
+    inputSchema: object({ work, kind: { type: 'string', enum: ['planning', 'working', 'waiting', 'your_turn', 'blocked'] }, note: { type: 'string', description: 'One line: what for. Needed for waiting, your_turn and blocked.' } }, ['work', 'kind']),
+    run: (root, input) => setState(root, input.work!, { kind: input.kind as string, note: (input.note as string | undefined) ?? null }),
   },
   {
+    name: 'work_update',
+    description: "Change a work item's tags (add, remove: lowercase letters, digits, dots and hyphens), the work it continues (replacing it; an empty list records none) or its parts (other work of this project, in order, replacing them; groups are one level deep). Returns its tags and the project's, with counts, when tags change.",
+    inputSchema: object({ work, addTags: titles(), removeTags: titles(), continues, parts: titles('Its parts in order, such as ["work-0034", "work-0035"].') }, ['work']),
+    run: (root, input) => updateWork(root, input.work!, { addTags: input.addTags as string[] | undefined, removeTags: input.removeTags as string[] | undefined, continues: input.continues as string[] | undefined, parts: input.parts as string[] | undefined }),
+  },
+    {
     name: 'work_search', description: "Find the project's work items, archived included, by tags (all of them) and words in their titles, summaries and tags.",
     inputSchema: object({ query: { type: 'string' }, tags: titles(), status: { type: 'string', enum: ['open', 'closed', 'all'] } }),
     run: async (root, input) => ({ planningFolder: root, work: await searchWork(root, { query: input.query as string | undefined, tags: input.tags as string[] | undefined, status: input.status as 'open' | 'closed' | 'all' | undefined }) }),
@@ -136,33 +140,12 @@ const tools: Tool[] = [
     },
   },
   {
-    name: 'work_block', description: 'Set blocked to the reason the work cannot go on; without a reason, clear it.',
-    inputSchema: object({ work, reason: { type: 'string' } }, ['work']),
-    run: (root, input) => setBlocked(root, input.work!, (input.reason as string | undefined) || null),
+    name: 'work_close',
+    description: "Close the work and move it to archive/, with its outcome: complete (refused with the open items unless every step is done and nothing is blocked), abandoned (with the reason, which goes into the plan's Outcome) or superseded (supersededBy names the replacement). Close once the outcome is reached; ask the user first unless they handed you the work to finish without them.",
+    inputSchema: object({ work, outcome: { type: 'string', enum: ['complete', 'abandoned', 'superseded'] }, supersededBy: { ...work, description: 'The work item that replaces it.' }, reason: { type: 'string' } }, ['work']),
+    run: (root, input) => finishWork(root, input.work!, { outcome: (input.outcome as 'complete' | 'abandoned' | 'superseded' | undefined) ?? null, supersededBy: (input.supersededBy as string | undefined) ?? null, reason: (input.reason as string | undefined) ?? null }),
   },
-  {
-    name: 'work_continue',
-    description: 'Record the work a work item continues (the handoff), replacing what was recorded; an empty list records none. Both plans and ledgers then link it.',
-    inputSchema: object({ work, continues }, ['work', 'continues']),
-    run: (root, input) => setContinues(root, input.work!, input.continues as string[]),
-  },
-  {
-    name: 'work_parts',
-    description: 'Set the work items a work item is made of (its parts, other work of this project), in order, replacing them: to reorder, add existing work or take a part out; an empty list removes them. Groups are one level deep, and a part belongs to one group.',
-    inputSchema: object({ work, parts: titles('Its parts in order, such as ["work-0034", "work-0035"].') }, ['work', 'parts']),
-    run: (root, input) => setParts(root, input.work!, input.parts as string[]),
-  },
-  {
-    name: 'work_close', description: 'Close finished work, once its outcome is reached and the user confirms it, or handed you the work to finish without them: refused with the open items unless every step is done and nothing is blocked; then complete today and moved to archive/.',
-    inputSchema: object({ work }, ['work']), run: (root, input) => closeWork(root, input.work!),
-  },
-  {
-    name: 'work_archive',
-    description: 'Move work to archive/ without closing it. Unfinished work needs a disposition: superseded (supersededBy names the replacement) or abandoned (the reason goes into the plan\'s Outcome). Close finished work with work_close.',
-    inputSchema: object({ work, disposition: { type: 'string', enum: ['superseded', 'abandoned'] }, supersededBy: { ...work, description: 'The work item that replaces it; naming it implies superseded.' }, reason: { type: 'string' } }, ['work']),
-    run: (root, input) => archiveWork(root, input.work!, { disposition: (input.disposition as 'superseded' | 'abandoned' | undefined) ?? null, supersededBy: (input.supersededBy as string | undefined) ?? null, reason: (input.reason as string | undefined) ?? null }),
-  },
-  {
+    {
     name: 'work_reopen', description: 'Reopen archived work: back to active/, in progress, with the new steps as todo.',
     inputSchema: object({ work, steps: titles() }, ['work', 'steps']), run: (root, input) => reopenWork(root, input.work!, { steps: input.steps as string[] }),
   },
@@ -183,7 +166,7 @@ async function leanWhere(where: Whereabouts) {
 }
 
 /** Tools that change only a work item's steps or blocked: their result is the ledger's state. */
-const ledgerTools = new Set(['step', 'work_block']);
+const ledgerTools = new Set(['step']);
 
 /** What the agent needs after a call: the ledger's state after a step change, the status without statistics after a lifecycle change. */
 function shaped(name: string, value: unknown) {
@@ -191,12 +174,12 @@ function shaped(name: string, value: unknown) {
   const { statistics: _, changed, warnings, ...status } = value as WorkResult;
   const notes = warnings.length ? { warnings } : {};
   if (ledgerTools.has(name)) return { planningFolder: status.planningFolder, workId: status.workId, steps: status.steps, progress: status.progress, blocked: status.blocked, ...notes };
-  if (name === 'work_tag') return { planningFolder: status.planningFolder, workId: status.workId, tags: status.tags, projectTags: (value as unknown as { projectTags: unknown }).projectTags, ...notes };
+  if (name === 'work_update' && (value as { projectTags?: unknown }).projectTags && !('continues' in (value as object)) && !('parts' in (value as object))) return { planningFolder: status.planningFolder, workId: status.workId, tags: status.tags, projectTags: (value as unknown as { projectTags: unknown }).projectTags, ...notes };
   return { ...status, changed, ...notes };
 }
 
 /** Tools about the home rather than one planning folder. */
-const homeTools = new Set(['where', 'project_create', 'needs_you']);
+const homeTools = new Set(['where', 'project_create']);
 
 /** Run a tool call; a refusal is a tool error the agent can read and act on. */
 export async function callTool(name: string, input: Arguments) {

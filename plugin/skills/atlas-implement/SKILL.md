@@ -19,11 +19,11 @@ When resuming, read the plan as it is now: a later edit must not silently redefi
 ## While it is implemented
 
 - **Keep the steps true** with the `step` tool as they move. Add a step when agreed scope grows (record the amendment in the plan), also for work the user asks for after delivery while the work is still open; remove one only with the user told why. A step is a deliverable the size of the others: review findings and small fixes belong to the step they serve.
-- **Keep the summary and tags current** at milestones, and use `work_block` while genuinely blocked.
+- **Keep the summary and tags current** at milestones, and whose turn it is with `state` as it changes ([whose turn it is](../atlas/SKILL.md#whose-turn-it-is)): `working` while you work, `waiting` while the work waits on checks or someone else, `blocked` with why.
 - **Follow the agreed design.** Tell the user your concerns and keep going; a material departure needs their agreement first, with the evidence and a proposal.
 - **Findings you don't fix now but keep**, from any review (a minor, a follow-up), go on the ledger's `## Final review` list; work through it before the work ends, or move what is left to work that continues this one. A finding dismissed as not worth doing needs no entry.
 - **Commit planning changes** separately from product changes, with pathspecs, at coherent points.
-- **When you stop for the user**, whatever the reason, call `needs_you` with what you need.
+- **When you stop for the user**, whatever the reason, set `your_turn` with what they are to do, such as "Merge owner/repo#12".
 
 ## End
 

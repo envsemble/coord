@@ -29,7 +29,7 @@ export function ProjectAvatar({ project }: { project: Project }) {
 function facts(project: Project): string {
   const known = projectFacts(project);
   if (!known) return 'Its planning folder could not be read';
-  return [known.waiting > 0 && known.waiting + (known.waiting === 1 ? ' needs' : ' need') + ' you', known.working > 0 && known.working + ' working', plural(known.open, 'open plan'), known.updated && 'changed ' + relativeDate(known.updated)].filter(Boolean).join(' · ');
+  return [known.waiting > 0 && known.waiting + ' your turn', known.working > 0 && known.working + ' working', plural(known.open, 'open plan'), known.updated && 'changed ' + relativeDate(known.updated)].filter(Boolean).join(' · ');
 }
 
 export function ProjectMenu({ projects, chosen, computer, local, actions, newProject }: {

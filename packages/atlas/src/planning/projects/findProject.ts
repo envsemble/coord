@@ -12,7 +12,8 @@ import { readRegistry, type RegistryEntry } from '../registry/registry.ts';
 import { ledgerStatus, stepCounts, stepSummary } from '../work/ledger.ts';
 import { atlasHome, homePlanningFolders } from '../../home/home.ts';
 import { folderKey, inactiveProjectFolders, planningName } from '../../home/database.ts';
-import type { LedgerStep } from '../types.ts';
+import { stateOf } from '../work/state.ts';
+import type { LedgerStep, WorkState } from '../types.ts';
 
 export interface ActiveWork {
   workId: string; title: string; path: string; plan: string | null;
@@ -20,6 +21,8 @@ export interface ActiveWork {
   summary: string | null;
   designStatus: string | null; implementationStatus: string | null;
   steps: LedgerStep[]; progress: string | null; blocked: string | null;
+  /** The state its plan declares (whose turn it is), and the plan's and the ledger's last updates. */
+  state: WorkState | null; updated: string | null; ledgerUpdated: string | null;
   /** Why the plan or ledger could not be read, when it could not. */
   problem?: string;
 }
@@ -69,7 +72,7 @@ const inside = insideFolder;
 
 /** One work item's plan and ledger headers, read with the planning check's own rules. */
 async function activeWork(root: string, item: RegistryEntry): Promise<ActiveWork> {
-  const work: ActiveWork = { workId: String(item.id), title: path.posix.basename(String(item.path)), path: String(item.path), plan: typeof item.current_plan === 'string' ? item.current_plan : null, summary: null, designStatus: null, implementationStatus: null, steps: [], progress: null, blocked: null };
+  const work: ActiveWork = { workId: String(item.id), title: path.posix.basename(String(item.path)), path: String(item.path), plan: typeof item.current_plan === 'string' ? item.current_plan : null, summary: null, designStatus: null, implementationStatus: null, steps: [], progress: null, blocked: null, state: null, updated: null, ledgerUpdated: null };
   try {
     if (work.plan) {
       const plan = parseFrontmatter(await readFile(path.join(root, work.plan), 'utf8'));
@@ -78,6 +81,8 @@ async function activeWork(root: string, item: RegistryEntry): Promise<ActiveWork
         if (typeof plan.summary === 'string' && plan.summary.trim()) work.summary = plan.summary.trim();
         work.designStatus = typeof plan.design_status === 'string' ? plan.design_status : null;
         work.implementationStatus = typeof plan.implementation_status === 'string' ? plan.implementation_status : null;
+        work.state = stateOf(plan);
+        work.updated = typeof plan.updated === 'string' ? plan.updated : null;
       }
     }
     const ledgerText = await readFile(path.join(root, work.path, 'ledger.md'), 'utf8').catch(() => null);
@@ -86,6 +91,7 @@ async function activeWork(root: string, item: RegistryEntry): Promise<ActiveWork
       const status = ledgerStatus(metadata, work.workId);
       work.steps = status.steps;
       work.blocked = status.blocked;
+      work.ledgerUpdated = typeof metadata.updated === 'string' ? metadata.updated : null;
       work.progress = stepSummary(stepCounts(status.steps));
     }
   } catch (error) { work.problem = (error as Error).message; }

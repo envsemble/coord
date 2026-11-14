@@ -19,7 +19,7 @@ Coding agents are good at doing work and bad at remembering it. A plan agreed in
 Atlas fixes that without changing how you work with your agent:
 
 - **Plans that survive the session.** A work item is a plan, its steps and its glossary, in a Git repository of its own. The next session, the next agent or the next model starts from what was agreed, not from scratch.
-- **One place to see everything.** The hub lists every plan of every project: what is in progress, what is blocked, what is still a draft. A plan shows **Working** while an agent is on it and **Needs you** once it waits for your answer.
+- **One place to see everything.** The hub lists every plan of every project by whose turn it is: **Your turn** first, each saying what you are to do (merge this PR, try that), then what agents work on, what waits on something else, and what comes later. Agents keep it true: they say whose turn it is as they start and stop, and point out work you forgot.
 - **An agent that plans before it codes.** For work big enough to plan, the agent asks before opening a work item, questions you one decision at a time until the design is settled, and only then implements it, step by step, through pull requests and review.
 - **Diagrams that match the code.** Atlas captures TypeScript and Java code and SQLite, PostgreSQL and D1 databases as class and entity diagrams, draws agents' proposals against them, and compares the system before and after a plan.
 - **Numbers on how agents work.** For every work item, Atlas measures agent time, tokens, models and subagents, for planning and for implementation, so you can see what a feature cost and how a new model does on your work.
@@ -28,7 +28,7 @@ Atlas fixes that without changing how you work with your agent:
 ## How it works
 
 1. **Plan.** Tell your agent what you want. When it is big enough to plan, it asks to open a work item, interviews you ("grill me" for a thorough round), and writes the plan as the answers settle. You accept it.
-2. **Implement.** Say "atlas implement". The agent starts the accepted plan with its steps, marks each one as it goes, reviews its work, and delivers it the way the plan says: commits, a branch, or a pull request that passes CI. When the work looks finished, it asks you before closing it.
+2. **Implement.** Say "atlas implement". The agent starts the accepted plan with its steps, marks each one as it goes, reviews its work, and delivers it the way the plan says: commits, a branch, or a pull request that passes CI. When the work is done, it closes it, asking you first unless you handed it over to finish without you.
 3. **Follow along.** Atlas shows the plan with its summary, its steps and what is left, the diagrams under the headings they explain, the sessions that worked on it, and what it cost.
 
 ![A plan in Atlas: Saved payment methods, #0001 of Northwind, under the breadcrumb Plans › Northwind › #0001, Paused with 2 of 7 steps; its Outcome and Scope, and a diagram card, Checkout · captured TypeScript, Generated from code, with its elements, under the heading Current checkout. At the left the plan's files with the work folder, plan.md marked; at the right the side column: Progress (2 of 7 steps done, 5 left, the step in progress), Continues #0004 Inventory reservations at checkout, the steps, and Statistics (Claude Opus 5.5 with Claude Sonnet 4.5 and Claude Haiku 5.5, 4 h 8 min of agent time, 13.8M tokens); Search in the title bar](assets/plan.png)

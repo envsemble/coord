@@ -15,7 +15,8 @@ import { normalTag, tagCounts, tagsOf } from './tags.ts';
 import { isWorkId, partsOf } from './parts.ts';
 import { appendRegistryEntries, RegistryFormatError, updateRegistryEntry } from '../registry/registryText.ts';
 import { stepLimit, workStatistics } from '../reports/reports.ts';
-import type { LedgerStep, LedgerStepStatus } from '../types.ts';
+import { isStateKind, stateKinds, stateNeedsNote, stateNoteLimit, stateOf } from './state.ts';
+import type { LedgerStep, LedgerStepStatus, StateKind, WorkState } from '../types.ts';
 
 export class WorkError extends Error {
   /** What stands in the way, one item each (the open items of a work item that cannot close). */
@@ -36,6 +37,8 @@ export interface WorkStatus {
   /** The ledger's path, or null before implementation starts. */
   ledger: string | null;
   steps: LedgerStep[]; progress: string | null; blocked: string | null;
+  /** The state its plan declares: whose turn it is and what for; null when it declares none. */
+  state: WorkState | null;
   /** What the hooks measured for the work so far. */
   statistics: { reports: number; agentMinutes: number; tokens: number | null; primaryModel: string | null };
 }
@@ -44,8 +47,13 @@ export interface WorkResult extends WorkStatus {
   changed: string[];
   warnings: string[];
 }
-/** `today` replaces the local date (tests). */
-export interface OperationOptions { today?: string }
+/** `today` replaces the local date, `now` the time a state is set (tests). */
+export interface OperationOptions { today?: string; now?: string }
+
+/** The plan header's state fields for a state set now; a null kind declares none. */
+function stateHeader(kind: StateKind | null, note: string | null, options: OperationOptions): Record<string, string | null> {
+  return kind === null ? { state: null, state_note: null, state_since: null } : { state: kind, state_note: note, state_since: options.now ?? new Date().toISOString() };
+}
 
 const BOM = String.fromCharCode(0xfeff);
 const workIdentity = /^work-([0-9]{4,})$/;
@@ -172,7 +180,7 @@ async function describe(loaded: Loaded): Promise<WorkStatus> {
     designStatus: text(plan.design_status), implementationStatus: text(plan.implementation_status),
     created: text(plan.created), updated: text(plan.updated), acceptedAt: text(plan.accepted_at), completedAt: text(plan.completed_at),
     ledger: entry.path + '/ledger.md',
-    steps: loaded.ledgerSteps, progress: stepSummary(stepCounts(loaded.ledgerSteps)), blocked: loaded.blocked,
+    steps: loaded.ledgerSteps, progress: stepSummary(stepCounts(loaded.ledgerSteps)), blocked: loaded.blocked, state: stateOf(plan),
     statistics: { reports: statistics?.reports ?? 0, agentMinutes: Math.round((statistics?.agentMs ?? 0) / 60000), tokens: statistics?.tokens ?? null, primaryModel: statistics?.primaryModel ?? null },
   };
 }
@@ -328,7 +336,7 @@ async function checkedParts(root: string, values: unknown, groupId: string): Pro
     if (id === groupId) throw new WorkError('A work item cannot be its own part.');
     if (written.includes(id)) throw new WorkError(`${id} is listed twice: each part once, in its place.`);
     const other = [...partsOfPlan].find(([group, parts]) => group !== groupId && parts.includes(id))?.[0];
-    if (other) throw new WorkError(`${id} is already a part of ${other}; take it out there first (work_parts on ${other}).`);
+    if (other) throw new WorkError(`${id} is already a part of ${other}; take it out there first (work_update with its parts, on ${other}).`);
     if (partsOfPlan.get(id)?.length) throw new WorkError(`${id} has parts of its own; groups are one level deep.`);
     written.push(id);
   }
@@ -392,7 +400,8 @@ export async function createWork(input: string, request: { title: string; slug?:
   try { registryText = appendRegistryEntries(registry.text, 'work_items', [{ id: workId, path: location, current_plan: plan }]); }
   catch (error) { if (error instanceof RegistryFormatError) throw new WorkError(error.message); throw error; }
   const planText = ['---', 'schema_version: 2', 'kind: plan', 'id: ' + workId, 'title: ' + JSON.stringify(title), ...summary ? ['summary: ' + JSON.stringify(summary)] : [],
-    `created: "${today}"`, `updated: "${today}"`, 'design_status: draft', 'implementation_status: not_started', 'accepted_at: null', 'completed_at: null', 'supersedes: []', 'superseded_by: null', ...continues.length ? ['continues: ' + yamlValue('continues', continues)] : [], ...tags.length ? ['tags: ' + yamlValue('tags', tags)] : [], '---', '', '# ' + title, ''].join('\n');
+    `created: "${today}"`, `updated: "${today}"`, 'design_status: draft', 'implementation_status: not_started', 'accepted_at: null', 'completed_at: null', 'supersedes: []', 'superseded_by: null', ...continues.length ? ['continues: ' + yamlValue('continues', continues)] : [], ...tags.length ? ['tags: ' + yamlValue('tags', tags)] : [],
+    ...Object.entries(stateHeader('planning', null, options)).map(([field, value]) => field + ': ' + yamlValue(field, value)), '---', '', '# ' + title, ''].join('\n');
   await mkdir(file(root, location), { recursive: true });
   try {
     await writeFile(file(root, plan), planText, { flag: 'wx' });
@@ -416,7 +425,8 @@ export async function acceptWork(root: string, workId: string, options: Operatio
   const design = loaded.planMetadata.design_status;
   if (design === 'accepted') return result(loaded.root, workId, [], [`The design was already accepted${loaded.planMetadata.accepted_at ? ' on ' + String(loaded.planMetadata.accepted_at) : ''}.`]);
   if (design !== 'draft') throw new WorkError(`The design is ${String(design)}; only a draft can be accepted.`);
-  const changed = [await writePlan(loaded, { design_status: 'accepted', accepted_at: today }, today)];
+  // Accepted, not started: no one is on it until someone starts it or says whose turn it is.
+  const changed = [await writePlan(loaded, { design_status: 'accepted', accepted_at: today, ...declaredState(loaded) }, today)];
   if (loaded.ledgerSteps.some(step => step.phase === 'planning' && step.status !== 'done')) {
     const steps = loaded.ledgerSteps.map(step => step.phase === 'planning' ? { ...step, status: 'done' as const } : step);
     changed.push(await writeLedger(loaded, setFields(setSteps(loaded.ledgerText, steps), { updated: today })));
@@ -448,8 +458,9 @@ export async function startWork(root: string, workId: string, request: { steps?:
   const taken = titles.filter(title => kept.ledgerSteps.some(step => step.title === title));
   if (taken.length) throw new WorkError('The ledger already has these steps: ' + taken.join(', ') + '. Give new titles.');
   if (locationOf(loaded.entry.path) === 'archive') throw new WorkError('The work is archived; reopen it instead.');
-  const ledger = await writeLedger(loaded, withSteps(kept, titles, today));
-  const plan = await writePlan(loaded, { implementation_status: 'in_progress' }, today);
+  // Working, it is not blocked: the ledger's blocker goes, as with any state but blocked.
+  const ledger = await writeLedger(loaded, setFields(withSteps(kept, titles, today), { blocked: null }));
+  const plan = await writePlan(loaded, { implementation_status: 'in_progress', ...stateHeader('working', null, options) }, today);
   return result(loaded.root, workId, [ledger, plan]);
 }
 
@@ -557,9 +568,36 @@ export async function setParts(input: string, workId: string, parts: string[], o
   return { ...await result(loaded.root, workId, changed), parts: written };
 }
 
-export async function setBlocked(root: string, workId: string, reason: string | null, options: OperationOptions = {}) {
-  const value = reason === null ? null : oneLine(reason, 'The reason', 1000);
-  return changeLedger(root, workId, options, () => ({ fields: { blocked: value } }));
+/**
+ * Declare whose turn the work is (the plan's `state`, `state_note` and `state_since`), or none with
+ * a null kind. Blocked keeps the ledger's `blocked` as its reason, which every other state clears.
+ */
+export async function setState(root: string, workId: string, request: { kind: string | null; note?: string | null }, options: OperationOptions = {}): Promise<WorkResult> {
+  const today = dateOf(options);
+  const kind = request.kind;
+  if (kind !== null && !isStateKind(kind)) throw new WorkError('The state is one of ' + stateKinds.join(', ') + '.');
+  const note = request.note == null || String(request.note).trim() === '' ? null : oneLine(request.note, 'The note', stateNoteLimit);
+  if (kind !== null && stateNeedsNote.has(kind) && !note) throw new WorkError(`Say what for: ${kind === 'your_turn' ? 'what the user is to do, such as "Merge owner/repo#12"' : kind === 'waiting' ? 'what the work waits on, such as "CI on owner/repo#12"' : 'why it is blocked'}.`);
+  const loaded = await load(root, workId);
+  if (locationOf(loaded.entry.path) !== 'active') throw new WorkError(`${workId} is not in active/ (${loaded.entry.path}): closed work keeps how it ended.`);
+  const changed: string[] = [];
+  const blocked = kind === 'blocked' ? note : null;
+  if (blocked !== loaded.blocked) changed.push(await writeLedger(loaded, setFields(loaded.ledgerText, { blocked, updated: today })));
+  changed.push(await writePlan(loaded, stateHeader(kind as StateKind | null, note, options), today));
+  return result(loaded.root, workId, changed);
+}
+
+/** Change a work item's tags, the work it continues and its parts, each only when given. */
+export async function updateWork(root: string, workId: string, request: { addTags?: string[]; removeTags?: string[]; continues?: string[]; parts?: string[] }, options: OperationOptions = {}): Promise<WorkResult & { projectTags?: Record<string, number> }> {
+  const { addTags, removeTags, continues, parts } = request;
+  if (addTags === undefined && removeTags === undefined && continues === undefined && parts === undefined) throw new WorkError('Give what changes: tags to add or remove, the work it continues, or its parts.');
+  const changed = new Set<string>();
+  let last: (WorkResult & { projectTags?: Record<string, number> }) | null = null;
+  if (addTags !== undefined || removeTags !== undefined) last = await tagWork(root, workId, { add: addTags, remove: removeTags }, options);
+  for (const item of last?.changed ?? []) changed.add(item);
+  if (continues !== undefined) { const done = await setContinues(root, workId, continues, options); for (const item of done.changed) changed.add(item); last = { ...done, projectTags: last?.projectTags }; }
+  if (parts !== undefined) { const done = await setParts(root, workId, parts, options); for (const item of done.changed) changed.add(item); last = { ...done, projectTags: last?.projectTags }; }
+  return { ...last!, changed: [...changed] };
 }
 
 /** What keeps a work item open: agreed steps not done, and `blocked`; proposed steps only preview. */
@@ -683,7 +721,7 @@ export async function archiveWork(root: string, workId: string, request: Archive
     const note = `archived as ${disposition}${supersededBy ? ' by ' + supersededBy : ''}${reason ? ': ' + reason.replace(/\.$/, '') : ''}.`;
     loaded.planText = appendToSection(loaded.planText, `- ${today}: ${note[0].toUpperCase() + note.slice(1)}`, '## Outcome');
   }
-  changed.push(await writePlan(loaded, disposition ? { design_status: disposition, ...supersededBy && { superseded_by: supersededBy } } : {}, today));
+  changed.push(await writePlan(loaded, { ...disposition ? { design_status: disposition, ...supersededBy && { superseded_by: supersededBy } } : {}, ...declaredState(loaded) }, today));
   return result(loaded.root, workId, [...new Set(changed)]);
 }
 
@@ -695,13 +733,32 @@ export async function archiveWork(root: string, workId: string, request: Archive
 export async function closeWork(root: string, workId: string, options: OperationOptions = {}): Promise<WorkResult> {
   const today = dateOf(options);
   const loaded = await load(root, workId);
-  if (loaded.planMetadata.design_status !== 'accepted') throw new WorkError(`The design is ${String(loaded.planMetadata.design_status)}; only accepted work is closed as complete. Archive it instead.`);
+  if (loaded.planMetadata.design_status !== 'accepted') throw new WorkError(`The design is ${String(loaded.planMetadata.design_status)}; only accepted work is closed as complete. Close it as abandoned or superseded instead.`);
   if (locationOf(loaded.entry.path) !== 'active') throw new WorkError(`${workId} is not in active/ (${loaded.entry.path}).`);
   if (!loaded.ledgerSteps.some(implementationStep)) throw new WorkError(`${workId}'s ledger has no implementation steps: start it with the agreed steps and finish them before closing.`);
   const open = openItems(loaded);
   if (open.length) throw new WorkError(`${workId} cannot close while items are open. Finish them, or remove a dropped one with step remove.`, open);
   const moved = await move(loaded, 'archive');
-  return result(loaded.root, workId, [...moved, await writePlan(loaded, { implementation_status: 'complete', completed_at: today }, today)]);
+  return result(loaded.root, workId, [...moved, await writePlan(loaded, { implementation_status: 'complete', completed_at: today, ...declaredState(loaded) }, today)]);
+}
+
+/** Closed work keeps how it ended: the state it declared, if any, goes. */
+function declaredState(loaded: Loaded): Record<string, null> {
+  return stateOf(loaded.planMetadata) || 'state' in loaded.planMetadata ? { state: null, state_note: null, state_since: null } : {};
+}
+
+/**
+ * Close the work with its outcome: complete (every step done, nothing blocked), abandoned with the
+ * reason, or superseded by the work that replaces it.
+ */
+export async function finishWork(root: string, workId: string, request: { outcome?: 'complete' | 'abandoned' | 'superseded' | null; supersededBy?: string | null; reason?: string | null } = {}, options: OperationOptions = {}): Promise<WorkResult> {
+  const outcome = request.outcome ?? (request.supersededBy ? 'superseded' : 'complete');
+  if (outcome === 'complete') {
+    if (request.supersededBy || request.reason) throw new WorkError('Work closed as complete has no reason or replacement; close it as abandoned or superseded instead.');
+    return closeWork(root, workId, options);
+  }
+  if (outcome !== 'abandoned' && outcome !== 'superseded') throw new WorkError('The outcome is complete, abandoned or superseded.');
+  return archiveWork(root, workId, { disposition: outcome, supersededBy: request.supersededBy ?? null, reason: request.reason ?? null }, options);
 }
 
 /** Reopen archived work: move it back to active/, set it in progress and add the given todo steps. */
@@ -717,7 +774,7 @@ export async function reopenWork(root: string, workId: string, request: { steps:
   const taken = titles.filter(title => loaded.ledgerSteps.some(step => step.title === title));
   if (taken.length) throw new WorkError('The ledger already has these steps: ' + taken.join(', ') + '. Give new titles.');
   const changed = await move(loaded, 'active');
-  changed.push(await writeLedger(loaded, withSteps(loaded, titles, today)));
-  changed.push(await writePlan(loaded, { implementation_status: 'in_progress', completed_at: null, ...disposed && { design_status: 'accepted', superseded_by: null } }, today));
+  changed.push(await writeLedger(loaded, setFields(withSteps(loaded, titles, today), { blocked: null })));
+  changed.push(await writePlan(loaded, { implementation_status: 'in_progress', completed_at: null, ...disposed && { design_status: 'accepted', superseded_by: null }, ...stateHeader('working', null, options) }, today));
   return result(loaded.root, workId, changed);
 }

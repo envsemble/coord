@@ -47,19 +47,15 @@ const HOOK_EVENTS = {
   SessionStart: ["SessionStart"],
   UserPromptSubmit: ["UserPromptSubmit", "PageChoices"],
   PostToolUse: ["PostToolUse", "ToolUse"],
-  PostToolUseFailure: ["ToolUse"],
-  Notification: ["Notification"],
-  PermissionRequest: ["PermissionRequest"],
   Stop: ["Stop"],
   StopFailure: ["StopFailure"],
   Interrupt: ["Interrupt"],
-  SubagentStart: ["SubagentStart"],
   SubagentStop: ["SubagentStop"],
   SessionEnd: ["SessionEnd"],
 };
 const HOOK_FILES = {
   "hooks.json": ["Interrupt"],
-  "codex.json": ["Notification", "PostToolUseFailure", "StopFailure"],
+  "codex.json": ["StopFailure"],
 };
 
 const PROVIDER_NAME =

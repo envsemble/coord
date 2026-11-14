@@ -66,16 +66,16 @@ Alt opens the menus from the keyboard (Alt+P, Alt+F, Alt+V, Alt+H). Empty space 
 
 ## The hub
 
-The hub lists every plan of the computer's active projects, grouped by status, in this order: **Needs you** (an agent asked for you: a question, a decision or work to review), **Working** (an agent is on it: in a turn, or waiting on something else, such as CI), **Blocked**, **Paused** (implementation started, nobody on it), **Drafts**, **Ready** (accepted, not started) and, when asked for, **Closed**. Each group lists the latest change first; only groups with plans show.
+The hub lists every plan of the computer's active projects, grouped by whose turn its agents say it is, in this order: **Your turn** (what you are to do: merge a PR, try something, answer questions; the longest waiting first), **Working** (agents planning or implementing it), **Waiting** (on a PR's checks or reviews or something else, or blocked), **Later** (ready to start, drafts nobody is on, and work under way that says nothing, marked **No state**) and, when asked for, **Closed**. The other groups list the latest change first; only groups with plans show. Atlas never guesses a status from what sessions do: agents declare it, and the session start points them at what no longer adds up.
 
 Its heading line holds the title (**Plans**, or the project's name when filtered), **Statistics** (all plans', or the project's), **Search every project**, the title bar's search in the same style, which opens the search and never filters the list, the project menu (**All projects**, or one active project; see [Projects](#projects)) and the state filter (**Open**, **Closed** or **All**, each with its count). The project chosen is part of the place, so back and forward and a plan's breadcrumb set it.
 
 Every plan is a row; a click anywhere on it opens the plan. A row shows:
 
-- **Plan:** its status icon, title and number; its summary on hover. A part says **Part 2 of #0005**; a work item made of parts says how many it has and how many are closed. Work under way (Needs you, Working, Blocked, Paused) has a taller row with the step being worked on (**Now:**) or next (**Next:**), in its phase's colour, how long an agent has waited for you, or, for blocked work, why it is blocked.
+- **Plan:** its status icon, title and number; its summary on hover. A part says **Part 2 of #0005**; a work item made of parts says how many it has and how many are closed. Work under way (Your turn, Working, Planning, Waiting, Blocked) has a taller row with what its state is for (what you are to do, in amber; what it waits on), else the step being worked on (**Now:**) or next (**Next:**) in its phase's colour, or, for blocked work, why it is blocked.
 - **Project:** the project's name.
-- **Steps:** a bar with the steps done, the planning steps in their own colour and the step in progress pulsing while agents work, and "N of M"; a draft shows its planning steps. Closed work shows how it ended (**Complete**, **Partially done**, **Superseded** or **Abandoned**), when, and where it was continued.
-- **Agents:** the main model and its reasoning effort (and how many others), agent time (counting up while agents work, by stage on hover), tokens and, on taller rows, subagents.
+- **Steps:** a bar with the steps done, the planning steps in their own colour, and "N of M"; a draft shows its planning steps. Closed work shows how it ended (**Complete**, **Partially done**, **Superseded** or **Abandoned**), when, and where it was continued.
+- **Agents:** the main model and its reasoning effort (and how many others), agent time as reported (by stage on hover), tokens and, on taller rows, subagents.
 - **Changed:** when it last changed, the date on hover.
 
 ## A plan
@@ -85,8 +85,7 @@ Every plan is a row; a click anywhere on it opens the plan. A row shows:
 A plan's page shows:
 
 - **The breadcrumb**: Plans, the project (leading to its plans in the hub), the group it is a part of, and the plan's number.
-- **The title and one status line**, with the plan's tags under it: its status (Working, Needs you, Blocked, Paused, Draft, Ready, Complete, Partially done, Superseded or Abandoned) and one fact, such as the steps done, why it is blocked, the planning step of a draft, or when closed work ended; "archived" when it is.
-- **Why it needs you**, when an agent waits: the waiting session's last message, with its harness, model and how long it has waited.
+- **The title and one status line**, with the plan's tags under it: its status (Your turn, Working, Planning, Waiting, Blocked, Draft, Ready, No state, Complete, Partially done, Superseded or Abandoned) with what its state is for (what you are to do, in amber, its references linked: a PR shows its live state) and since when, or else one fact, such as the steps done, the planning step of a draft, or when closed work ended; "archived" when it is.
 - **The summary**, a few sentences on what the work is and where it stands.
 - **Pages that need you**: each of the work item's pages whose agent asked for you (a decision, a review), by its name with what it waits on; a click opens it.
 - **The plan** itself. A section headed **Request** (or **Request (…)**), where the plan keeps the user's words, shows folded; its heading opens it. A link to a diagram shows as the diagram's, with a purple diagram icon (see [Diagrams](#diagrams)); tables keep columns wide enough to read, and scroll sideways when they have more than fit. What the plan references opens from it: other plans and documents in the window, PRs with their state (open, draft, merged or closed, and failing or running checks), commits and files.

@@ -1,11 +1,10 @@
 // The hub: where a window starts, and the plan list and nothing else. Every plan of every active
-// project, grouped by its status, a table each with the same columns: work under way (agents on it,
-// blocked or paused) in taller rows with the step being worked on or why it is blocked, drafts and
-// ready plans in compact ones, closed work with how it ended. While agents work on a plan its status
-// and its step pulse and its agent time counts up; while one waits for the person they are amber and
-// the row says for how long. A part says its place in its group, a group how many of its parts are
-// closed. The project menu (its choice part of the place, so back and forward and a plan's breadcrumb
-// set it), where projects are also made and managed, and a state filter narrow it, on its heading's
+// project, grouped by whose turn its agents say it is, a table each with the same columns: the
+// user's turn first, then work agents are on, then work waiting on something or blocked, in taller
+// rows with what their state is for (or the step worked on), then later work in compact ones, and
+// closed work with how it ended. A part says its place in its group, a group how many of its parts
+// are closed. The project menu (its choice part of the place, so back and forward and a plan's
+// breadcrumb set it), where projects are also made and managed, and a state filter narrow it, on its heading's
 // line with the search field, which opens the search. One click opens a plan. A connected agent that does not run Atlas (Codex not trusting its hooks, say)
 // has a notice above the plans, linking to Settings › Agents, until it does.
 import { memo, useMemo, type MouseEvent } from 'react';
@@ -26,37 +25,33 @@ import { continuation } from '../plan/handoffs';
 import { ContinuedIn } from '../plan/HandoffLinks';
 import { Page } from '../ui/Page';
 import { SearchButton } from '../navigation/SearchButton';
-import { AgentTime, Waited } from '../plan/LiveAgentTime';
-import { unreported, type LiveActivity } from '../plan/agentTime';
 
 /** The hub's state filter, kept while the window is open. */
 export interface HubFilters { state: HubState }
 
 /** Steps done of all, the planning steps among them in their own colour, the one in progress showing what agents do. */
-function Progress({ progress, wide, activity }: { progress: NonNullable<HubRowFacts['progress']>; wide?: boolean; activity: LiveActivity | null }) {
+function Progress({ progress, wide }: { progress: NonNullable<HubRowFacts['progress']>; wide?: boolean }) {
   const left = progress.total - progress.done - progress.doing;
   return <span className="hub-row-steps" title={progress.text + ' steps done'}>
-    <StepBar counts={{ total: progress.total, done: progress.done, doing: progress.doing, todo: left, remaining: left + progress.doing }} planning={progress.planning} compact live={activity?.state} />
+    <StepBar counts={{ total: progress.total, done: progress.done, doing: progress.doing, todo: left, remaining: left + progress.doing }} planning={progress.planning} compact />
     <span className="hub-row-steps-text">{wide ? progress.text : progress.text.replace(' planning', '')}</span>
   </span>;
 }
 
 /**
- * What agents spent on it: the main model and how many others, then agent time (counting up while
- * agents work, its report by stage on hover), tokens and subagents.
+ * What agents spent on it: the main model and how many others, then agent time (its split by stage on
+ * hover), tokens and subagents, as reported.
  */
-function Spent({ item, facts }: { item: HubItem; facts: HubRowFacts }) {
+function Spent({ facts }: { facts: HubRowFacts }) {
   const { model, time, tokens, subagents } = facts;
-  const { activity } = item;
-  const timed = Boolean(time) || unreported(activity);
   const rest = [tokens, subagents].filter(Boolean).join(' · ');
-  if (!model && !timed && !rest) return <span className="muted">—</span>;
-  const stages = ([['Planning', time?.planning], ['Implementation', time?.implementation]] as const).flatMap(([label, value]) => value ? [{ label, value }] : []);
+  if (!model && !time && !rest) return <span className="muted">—</span>;
+  const stages = ([['Planning', time?.planning], ['Implementation', time?.implementation]] as const).flatMap(([label, value]) => value ? [label + ': ' + value] : []);
   return <span className="hub-row-stats">
     {model && <span className="hub-row-model"><ModelName model={model.id} effort={model.effort} />{model.others > 0 && <span className="muted" title={plural(model.others, 'other model')}>+{model.others}</span>}</span>}
-    {(timed || rest) && <small className="cell-note">
-      {timed && <AgentTime totals={item.work.statistics ?? { agentMs: 0, activeMs: 0, unmergedMs: 0, lastReport: null }} activity={activity} sections={[{ heading: 'By stage', rows: stages }]} description="Every agent's working time, added up" />}
-      {timed && rest ? ' · ' + rest : rest}
+    {(time || rest) && <small className="cell-note">
+      {time && <span title={["Every agent's working time, added up", ...stages].join('\n')}>{time.total}</span>}
+      {time && rest ? ' · ' + rest : rest}
     </small>}
   </span>;
 }
@@ -68,15 +63,14 @@ const Changed = ({ value }: { value: string | null }) => value ? <span className
 const columnWidths = [44, 13, 15, 18, 10];
 
 /**
- * A plan: the whole row opens it. A plan under way says where it stands under its title: why it is
- * blocked, else the step being worked on or next, and how long an agent has waited for the person.
- * Its summary shows on the title's hover. The status icon carries the colour and pulses while agents
- * work; the text stays neutral but for that line, amber while one waits.
+ * A plan: the whole row opens it. A plan under way says under its title what its state is for (what
+ * the user is to do, what it waits on, why it is blocked), else the step being worked on or next.
+ * Its summary shows on the title's hover. The status icon carries the colour; the text stays neutral
+ * but for that line, amber on the user's turn.
  */
 const HubRow = memo(function HubRow({ item, go }: { item: HubItem; go(place: Place): void }) {
-  const { work, project, status, activity } = item;
+  const { work, project, status } = item;
   const facts = hubRowFacts(work, status);
-  const waiting = activity?.state === 'waiting' ? activity : null;
   const open = (event: MouseEvent) => { event.preventDefault(); go({ projectId: project.id, target: workTarget(work.id) }); };
   const large = facts.size === 'large';
   // Closed work says where it continues, small, under how it ended.
@@ -92,16 +86,17 @@ const HubRow = memo(function HubRow({ item, go }: { item: HubItem; go(place: Pla
         {parts && <span className="hub-row-parts" data-kind={parts.kind}>{parts.kind === 'part' ? 'Part ' + parts.index + ' of ' + workNumber(parts.group) : plural(parts.count, 'part') + (parts.closed ? ' · ' + parts.closed + ' closed' : '')}</span>}
       </span>
       {large && (facts.blocked ? <small className="cell-note hub-row-blocked">Blocked: {facts.blocked}</small>
-        : (facts.step || waiting) && <small className="cell-note hub-row-step" data-phase={facts.step?.phase} data-status={facts.step?.label === 'Now' ? 'doing' : 'todo'} data-live={waiting ? 'waiting' : undefined}
-          title={facts.step ? (facts.step.phase === 'planning' ? 'Planning' : 'Implementation') + ' step' : undefined}>
-          {facts.step && facts.step.label + ': ' + facts.step.title}{facts.step && waiting && ' · '}{waiting && <>waiting <Waited activity={waiting} /></>}
+        : facts.note ? <small className="cell-note hub-row-note" data-status={status.key} title={facts.note}>{facts.note}</small>
+        : facts.step && <small className="cell-note hub-row-step" data-phase={facts.step.phase} data-status={facts.step.label === 'Now' ? 'doing' : 'todo'}
+          title={(facts.step.phase === 'planning' ? 'Planning' : 'Implementation') + ' step'}>
+          {facts.step.label + ': ' + facts.step.title}
         </small>)}
     </Table.Cell>
     <Table.Cell><span className="hub-row-project" title={project.name}>{project.name}</span></Table.Cell>
     <Table.Cell>{facts.ended ? <span className="hub-row-ended">{facts.ended.label}{facts.ended.date && <span className="muted" title={absoluteDate(facts.ended.date)}> {relativeDate(facts.ended.date)}</span>}
       {continued.length > 0 && <small className="cell-note"><ContinuedIn items={continued} open={to => go({ projectId: to.projectId, target: workTarget(to.work) })} /></small>}</span>
-      : facts.progress ? <Progress progress={facts.progress} wide={large} activity={activity} /> : <span className="muted">—</span>}</Table.Cell>
-    <Table.Cell><Spent item={item} facts={facts} /></Table.Cell>
+      : facts.progress ? <Progress progress={facts.progress} wide={large} /> : <span className="muted">—</span>}</Table.Cell>
+    <Table.Cell><Spent facts={facts} /></Table.Cell>
     <Table.Cell numeric nowrap>{facts.changed ? <Changed value={facts.changed} /> : <span className="muted">—</span>}</Table.Cell>
   </Table.Row>;
 }, (before, after) => before.go === after.go && rowKey(before.item) === rowKey(after.item));
@@ -110,7 +105,7 @@ const HubRow = memo(function HubRow({ item, go }: { item: HubItem; go(place: Pla
 const rowKeys = new WeakMap<HubItem, string>();
 function rowKey(item: HubItem) {
   let key = rowKeys.get(item);
-  if (key === undefined) rowKeys.set(item, key = JSON.stringify([item.project.id, item.project.name, item.work, item.activity, item.status.key, partsFacts(item.work, item.project)]));
+  if (key === undefined) rowKeys.set(item, key = JSON.stringify([item.project.id, item.project.name, item.work, item.status.key, partsFacts(item.work, item.project)]));
   return key;
 }
 
