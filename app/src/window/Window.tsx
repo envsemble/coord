@@ -1,5 +1,5 @@
 // A window: envUI's Scaffold with one row at the top, the title bar (the logo, back and forward,
-// Plans, File, View and Help, the computer, search, record health, the theme and the window
+// Plans, Settings and Help, the computer, Coord's update, search, record health and the window
 // buttons), above one place at a time: the hub, where it starts and returns when nothing else is
 // open and where projects are made and managed, a plan, a diagram or a file of a project, a
 // project's statistics or Settings. A plan and its pages have the plan's own files at their left,
@@ -7,7 +7,6 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Alert, Breadcrumbs, Button, Panes, Popover, Scaffold, Spinner, TopBar, useToast } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
-import { ThemeMenu } from '../titleBar/ThemeMenu';
 import { ErrorIcon, WarningIcon } from '../ui/icons';
 import type { MenuCommand } from '../../shared/contract';
 import type { Issue, LoadedUi, OpenProjectChange, Project, ProjectChangeRequest, SettingsSection, Snapshot, SnapshotWork, Target, Work, WindowInfo } from '../types';
@@ -27,7 +26,6 @@ import { Hub, type HubFilters } from '../hub/Hub';
 import { NewProjectDialog, type ProjectActions } from '../projects/ProjectDialogs';
 import { Gone, Page } from '../ui/Page';
 import { TitleBarStart, type WindowMenus } from '../titleBar/TitleBar';
-import { UpdateButton } from '../settings/Updates';
 import { revealIds } from '../files/explorerModel';
 import { ReadingContext, WindowContext, type Notify, type OpenOptions, type WindowActions, type WindowReading } from './windowContext';
 import { arrived, liveActivity } from '../plan/agentTime';
@@ -257,7 +255,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
 
   /** Statistics, from the menu: all plans'. */
   const showStatistics = useCallback(() => go(statisticsPlace(null)), [go]);
-  /** Settings, at a section; without one, at the section shown, or Agents. */
+  /** Settings, at a section; without one, at the section shown, or General. */
   const showSettings = useCallback((section?: SettingsSection) => setWindowState(current => {
     const shown = current.ui.place;
     const next = section ? settingsPlace(section) : isPage(shown) && shown.page === 'settings' ? shown : settingsPlace();
@@ -439,19 +437,18 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   }, [readSnapshot, readFolder?.change?.revision, readFolder?.files, summary]);
 
   const back = canGoBack(history), forward = canGoForward(history);
-  const shownProject = isPage(place) ? (place.page === 'hub' ? place.projectId : null) : place.projectId;
+  const showsPlans = isPage(place) && place.page === 'hub' && !place.projectId;
+  const showsSettings = isPage(place) && place.page === 'settings';
   const menus = useMemo<WindowMenus>(() => ({
     goBack: () => navigate(-1),
     goForward: () => navigate(1),
     canGoBack: back,
     canGoForward: forward,
-    projects,
-    shownProject,
+    showsPlans,
+    showsSettings,
     plans: projectId => go(hubPlace(projectId)),
-    statistics: showStatistics,
-    newProject: () => runCommand('newProject'),
     settings: showSettings,
-  }), [navigate, back, forward, projects, shownProject, go, showStatistics, runCommand, showSettings]);
+  }), [navigate, back, forward, showsPlans, showsSettings, go, showSettings]);
   // All plans' statistics are read again when the listing's statistics or projects change, not with every listing.
   const statisticsMark = useMemo(() => JSON.stringify(projects?.map(project => [project.id, project.state, project.summary && [...project.summary.active, ...project.summary.closed].map(work => work.statistics)])), [projects]);
   /** Open what the search found: a place, or a file of a project at a heading or a diagram's element. */
@@ -486,8 +483,6 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
         {/* On the hub, its own search button is the search. */}
         {!hubShown && <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />}
         {scope && read && <Health issues={read.snapshot.issues} open={work => go({ projectId: scope.projectId, target: workTarget(work) })} />}
-        <UpdateButton />
-        <ThemeMenu />
       </>} />}>
     <div className={'window-body' + (fills ? ' is-filled' : '')}>
       <div ref={page} className="window-page">{content}</div>

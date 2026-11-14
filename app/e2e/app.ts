@@ -208,16 +208,16 @@ export async function openPlan(window: Page, title: string) {
 }
 /** The window's title bar: envUI's TopBar, one row above the page. */
 export const titleBar = (window: Page) => window.locator('.window-title-bar');
-/** One of the title bar's menus (File by default), by its trigger. */
-export const fileMenu = (window: Page, menu = 'File') => titleBar(window).getByRole('menubar', { name: 'Application menu' }).getByRole('menuitem', { name: menu, exact: true });
-/** Choose an item of one of the title bar's menus (File by default). */
-export async function chooseMenu(window: Page, item: string, menu = 'File') {
-  await fileMenu(window, menu).click();
-  await window.getByRole('menu', { name: menu }).getByRole('menuitem', { name: item, exact: true }).click();
+/** One of the title bar's buttons: Plans, Settings or Help, which opens its menu. */
+export const titleButton = (window: Page, name: 'Plans' | 'Settings' | 'Help') => titleBar(window).getByRole('button', { name, exact: true });
+/** Choose an item of the title bar's Help menu. */
+export async function chooseMenu(window: Page, item: string) {
+  await titleButton(window, 'Help').click();
+  await window.getByRole('menu', { name: 'Help' }).getByRole('menuitem', { name: item, exact: true }).click();
 }
-/** Go to the hub of every project: Plans › All Plans. */
+/** Go to the hub of every project: the title bar's Plans. */
 export async function goHome(window: Page) {
-  await chooseMenu(window, 'All Plans', 'Plans');
+  await titleButton(window, 'Plans').click();
   await expectHub(window);
 }
 /** The projects as the window's computer lists them, asked through the window's bridge. */

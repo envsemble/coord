@@ -1,6 +1,6 @@
 # Coord desktop app
 
-![The Coord hub on the computer Workstation: three open plans of the project Northwind, grouped as Your turn (Saved payment methods, with what the agent waits on you for: choose how a customer picks a saved card, on the card picker page; Claude Opus 5.5 and two other models, its agent time and tokens), Waiting (Customer order notifications, with why it is blocked) and Later (Order fulfilment model), each with its project, steps done and when it changed; the title bar holds the Coord mark, Plans, File, View and Help and the computer menu, and the heading line the search, the project menu and the Open, Closed and All filter](../assets/hub.png)
+![The Coord hub on the computer Workstation: three open plans of the project Northwind, grouped as Your turn (Saved payment methods, with what the agent waits on you for: choose how a customer picks a saved card, on the card picker page; Claude Opus 5.5 and two other models, its agent time and tokens), Waiting (Customer order notifications, with why it is blocked) and Later (Order fulfilment model), each with its project, steps done and when it changed; the title bar holds the Coord mark, Plans, Settings and Help and the computer menu, and the heading line the search, the project menu and the Open, Closed and All filter](../assets/hub.png)
 
 Coord is a desktop app for your Coord projects and their plans. Every window opens on the hub, one list of every plan of the computer's projects, and shows one place at a time: the hub, a plan, its statistics, a diagram, a file, statistics or Settings. Discuss changes with your agent in chat; the agent edits the records, and Coord shows them as they change.
 
@@ -42,14 +42,14 @@ Coord also refuses `--no-sandbox` and `ELECTRON_DISABLE_SANDBOX` given any other
 A window has one row at the top, its title bar, from the left:
 
 - the Coord mark, then the **back** and **forward** arrows;
-- **Plans**: **All Plans** (the hub), each active project (its plans in the hub) and **Statistics** (all plans');
-- **File**: **New Window** (Ctrl+Shift+N), **New Project…**, **Settings…** (Ctrl+,; see [Settings](#settings)) and **Exit**;
-- **View**: **Zoom In** (Ctrl++), **Zoom Out** (Ctrl+-), **Actual Size** (Ctrl+0) and **Full Screen** (F11), with **Reload** and **Developer Tools** in development builds;
+- **Plans**, a button that opens the hub with every plan (the hub leads on to each project's plans and the statistics);
+- **Settings**, a button that opens [Settings](#settings) (Ctrl+,);
 - **Help**: **Open Logs** and **About Coord**;
 - the **computer menu**, the name of the computer the window works on: this computer and the paired ones (choosing one shows its plans in this window), and **Computer settings…**, which opens **Settings › Computers** (see [Remote computers](#remote-computers));
-- at the right: **Search** (Ctrl+P; on the hub its own **Search every project** takes its place), record-health notes when the shown project has any, the theme menu (**Match the system**, **Light** or **Dark**, for every window) and the system's window buttons.
+- **Update**, beside the computer, while a newer Coord is on offer, downloading or ready (see [Updates](#updates));
+- at the right: **Search** (Ctrl+P; on the hub its own **Search every project** takes its place), record-health notes when the shown project has any, and the system's window buttons.
 
-Alt opens the menus from the keyboard (Alt+P, Alt+F, Alt+V, Alt+H). Empty space in the title bar moves the window, and a double click maximizes it.
+The window's other commands (New Window, zoom, full screen) keep their shortcuts, Ctrl+Shift+N, Ctrl++, Ctrl+-, Ctrl+0 and F11. Empty space in the title bar moves the window, and a double click maximizes it.
 
 **The breadcrumbs** of each page lead back the way you came: **Plans** (every plan), the project (its plans), then the plan, as in Plans › Northwind › #0001; a part has its group before it (Plans › Northwind › #0005 › #0006).
 
@@ -116,7 +116,7 @@ Projects are made and managed in the hub's **project menu**, beside the search. 
 
 **Archived projects** lists the archived ones; choosing one restores it. Coord never deletes a project; to drop one, remove its folder from the home.
 
-**New Project…** (in the project menu, or **File › New Project…**) asks for a name and the project's folders, each chosen in the file manager (the first one names the project until you type a name); a project may have none yet. Coord creates the planning folder in the home from the bundled templates, as a Git repository with a first commit. Agents can create projects too.
+**New Project…** (in the hub's project menu) asks for a name and the project's folders, each chosen in the file manager (the first one names the project until you type a name); a project may have none yet. Coord creates the planning folder in the home from the bundled templates, as a Git repository with a first commit. Agents can create projects too.
 
 ## Statistics
 
@@ -142,8 +142,9 @@ A plan's agent can make pages: views in its work folder's `pages/`, such as a ch
 
 ## Settings
 
-**File › Settings…** (Ctrl+,) opens Settings in the window, a page with two sections; back and forward step through them like other places.
+**Settings** in the title bar (Ctrl+,) opens Settings in the window at **General**; back and forward step through its sections like other places.
 
+- **General**: the theme, **Match the system**, **Light** or **Dark**, for every window.
 - **Agents**, this computer's: **Claude Code** and **Codex**, each with its status (**Connected** with the version of the Coord plugin it has, **Not connected**, or **Not found on this computer** with a link to install it) and **Connect** or **Disconnect**. Coord finds an agent as a program, on the PATH as your terminals have it (read again at start); for one it does not find, **Choose program…** picks its program (`claude`, `codex`; `.exe` or Codex's `.cmd` on Windows), which Coord uses until you **Clear** it. Connecting installs the Coord plugin into the agent with the agent's own commands, which can take a minute; the row shows it, and says why if it fails, with **Try again**. A connected agent's row then says whether it runs Coord: **Ready** with its last session, **Waiting for a first session**, or a warning: **Hooks not trusted** (type `/hooks` in Codex and trust them) or **Coord's hooks aren't running** (a session used Coord's tools, but no hook ran; in Codex, `/hooks` trusts them again). A session that ran the hooks makes it Ready, whatever Codex's configuration says. The hub shows this computer's warnings too, until they are resolved. **Connect by hand**, under each agent, lists the commands that install the plugin, to copy (Connect also grants the agent Coord's home). In a window on another computer, Agents is still this computer's: connecting installs the plugin here.
 - **Computers**, both ways of pairing: **Other computers**, the computers this one is paired with, and **Devices that can reach** the window's computer (see [Remote computers](#remote-computers)).
 
