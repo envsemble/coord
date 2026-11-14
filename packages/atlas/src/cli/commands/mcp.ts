@@ -24,7 +24,7 @@ const { version } = require('../../../package.json') as { version: string };
 
 const instructions = "Atlas keeps plans in projects: planning folders in the Atlas home (~/.atlas/planning). A session in one of a project's folders (the deepest wins when they nest), or in its planning folder, belongs to that project; where lists the projects and their active work. "
   + 'When several projects match, ask the user which one to plan in and pass its planningFolder; when none does, ask which project the work belongs to. '
-  + 'Ask the user before project_create or work_create, and open work items only for work big enough to plan; small tasks stay plain coding. '
+  + 'Ask the user before project_create or work_create (a follow-up of work they handed you to finish without them you create yourself), and open work items only for work big enough to plan; small tasks stay plain coding. '
   + 'Change planning state (work items, steps, blocked, closing, archiving) only through these tools; edit plan prose, glossaries and diagrams directly as files in the planning folder. '
   + 'When work continues other work (follow-ups moved off work that is closing, a next phase), record the handoff with continues. '
   + 'When one task is better planned as several ordered pieces, each with its own plan and steps, make them its parts (work_create with partOf; work_parts). '
@@ -153,7 +153,7 @@ const tools: Tool[] = [
     run: (root, input) => setParts(root, input.work!, input.parts as string[]),
   },
   {
-    name: 'work_close', description: 'Close finished work, once the user confirms it is finished: refused with the open items unless every step is done and nothing is blocked; then complete today and moved to archive/.',
+    name: 'work_close', description: 'Close finished work, once its outcome is reached and the user confirms it, or handed you the work to finish without them: refused with the open items unless every step is done and nothing is blocked; then complete today and moved to archive/.',
     inputSchema: object({ work }, ['work']), run: (root, input) => closeWork(root, input.work!),
   },
   {
