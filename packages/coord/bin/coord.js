@@ -7,7 +7,7 @@
 // and otherwise only that file loads. So is a PostToolUse with nothing to do: no Coord tool that
 // changes a work item, and no file edited in the home's planning folder. Every other hook loads
 // src/cli/commands/hook.ts, not the whole command.
-import { mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -120,7 +120,16 @@ if (command === "hook") {
   let text = "";
   if (!process.stdin.isTTY) for await (const chunk of process.stdin) text += chunk;
   if (event === "SessionStart" || event === "UserPromptSubmit") noteHooks(text);
-  if (stateEvents.has(event)) {
+  // Coord Dev's command (its variant.json beside bin/) runs its hooks in a dev session only (devSession.ts).
+  let run = true;
+  if (existsSync(new URL("../variant.json", import.meta.url))) {
+    const gate = (await import("../src/cli/commands/devSession.ts")).devGate(event, text, coordHome());
+    if (gate.output) process.stdout.write(gate.output + "\n");
+    run = gate.run;
+  }
+  if (!run) {
+    // A dev variant's hook outside a dev session does nothing.
+  } else if (stateEvents.has(event)) {
     if (!settled(text)) await (await import("../src/cli/commands/sessionState.ts")).stateHook(event, text, started);
   } else if (!(event === "PostToolUse" && idle(text))) {
     const output = { stdout: (/** @type {string} */ line) => process.stdout.write(line + "\n"), stderr: (/** @type {string} */ line) => process.stderr.write(line + "\n") };
