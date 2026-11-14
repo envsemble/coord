@@ -1,7 +1,7 @@
 // Coord's website: one dark page. The name, one line on what Coord is, a download button for
 // Windows and one for Linux (the newest stable build, read from GitHub Releases in the visitor's
 // browser by releases.ts), and a screenshot of a plan. Hovering a feature shows its screenshot by the cursor.
-import { useEffect, useState, type MouseEvent } from 'react';
+import { useEffect, useState, type MouseEvent, type ReactNode } from 'react';
 import logo from '../../assets/coord-logo-dark.svg';
 import plan from '../../assets/plan-dark.png';
 import attention from './shots/attention.png';
@@ -9,6 +9,7 @@ import dashboard from './shots/dashboard.png';
 import diagrams from './shots/diagrams.png';
 import grill from './shots/grill.png';
 import { linuxPath } from './linuxPath.ts';
+import { acceptedPath, claudePath, codexPath, diagramPath, draftPath, pagePath, yourTurnPath } from './marks.ts';
 import { fetchBuilds, releasesPage, sourcePage, visitorPlatform, type Build, type Channel, type Platform } from './releases.ts';
 
 type Builds = Record<Channel, Build | null> | 'loading' | 'failed';
@@ -27,10 +28,10 @@ export function App() {
       <a href={sourcePage} className="quiet">GitHub</a>
     </header>
     <main>
-      <h1>A desktop app for planning bigger changes with your coding agent.</h1>
-      <p className="lead">Agents are fast. They’re also very happy to build the wrong thing. Coord gets yours to agree on a plan with you first, then lets you watch it build that plan.</p>
+      <h1>A desktop app for planning bigger changes with <Agent name="Claude Code" path={claudePath} kind="claude" /> or <Agent name="Codex" path={codexPath} kind="codex" /></h1>
+      <p className="lead">Agents are fast, and very happy to build the wrong thing. Coord makes yours agree on a plan with you first.</p>
       <Features />
-      <p className="facts">Works with Claude Code and Codex wherever you run them: a terminal, your editor, T3 Code. Windows and Linux. Free and open source, MIT.</p>
+      <p className="facts">Wherever you run your agent: a terminal, your editor, T3 Code. Windows and Linux. Free and open source, MIT.</p>
       <div className="downloads">
         {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={stable} loading={builds === 'loading'} />)}
       </div>
@@ -55,11 +56,29 @@ export function App() {
   </>;
 }
 
-const features: { text: string; shot: string; alt: string }[] = [
-  { text: 'Your agent grills you, one question at a time, until you both know what you’re building.', shot: grill, alt: 'A draft plan being settled: its items marked Settled or Proposed, and its planning steps.' },
-  { text: 'It can draw your code and database as diagrams, so you see what’s about to change.', shot: diagrams, alt: "An agent's proposal drawn over the captured code, with what it adds and changes marked." },
-  { text: 'It builds little live dashboards inside the plan while it works.', shot: dashboard, alt: "A page inside a plan: two layouts to choose between, above the proposal's diagram." },
-  { text: 'Coord tells you which plans are waiting on you, and for what.', shot: attention, alt: 'The hub: Your turn first, saying what to do, then Waiting and Later.' },
+/** A Material Symbol from envUI, on its 960-unit grid. */
+function Symbol({ path }: { path: string }) {
+  return <svg className="symbol" viewBox="0 -960 960 960" aria-hidden="true"><path fill="currentColor" d={path} /></svg>;
+}
+/** An agent by its name, with its maker's mark, as the app shows a model. */
+function Agent({ name, path, kind }: { name: string; path: string; kind: 'claude' | 'codex' }) {
+  return <span className={'agent agent-' + kind}><svg className="agent-mark" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d={path} /></svg>{name}</span>;
+}
+/** A plan's state as the app's badge shows it: Draft, Accepted or Your turn. */
+function State({ kind, children }: { kind: 'draft' | 'accepted' | 'turn'; children: ReactNode }) {
+  const path = kind === 'draft' ? draftPath : kind === 'accepted' ? acceptedPath : yourTurnPath;
+  return <span className={'state state-' + kind}><Symbol path={path} />{children}</span>;
+}
+/** A plan's link to one of its diagrams or pages, in the app's colours: purple, and teal. */
+function Ref({ kind, children }: { kind: 'diagram' | 'page'; children: ReactNode }) {
+  return <span className={'ref ref-' + kind}><Symbol path={kind === 'diagram' ? diagramPath : pagePath} />{children}</span>;
+}
+
+const features: { key: string; text: ReactNode; shot: string; alt: string }[] = [
+  { key: 'grill', text: <>Your agent grills you until the plan goes from <State kind="draft">Draft</State> to <span className="nowrap"><State kind="accepted">Accepted</State>.</span></>, shot: grill, alt: 'A draft plan being settled: its items marked Settled or Proposed, and its planning steps.' },
+  { key: 'diagrams', text: <>It can draw your code and database as a <Ref kind="diagram">class diagram</Ref> and show what the plan changes.</>, shot: diagrams, alt: "An agent's proposal drawn over the captured code, with what it adds and changes marked." },
+  { key: 'dashboards', text: <>It builds live <Ref kind="page">dashboards</Ref> inside the plan while it works.</>, shot: dashboard, alt: "A page inside a plan: two layouts to choose between, above the proposal's diagram." },
+  { key: 'attention', text: <>Coord shows every plan that’s <span className="nowrap"><State kind="turn">Your turn</State>,</span> and what it needs from you.</>, shot: attention, alt: 'The hub: Your turn first, saying what to do, then Waiting and Later.' },
 ];
 
 /** The features; with a mouse, each one's screenshot follows the cursor while it is hovered. */
@@ -76,7 +95,7 @@ function Features() {
   };
   return <>
     <ul className="features">
-      {features.map((feature, index) => <li key={feature.text} onMouseMove={follow(index)} onMouseLeave={() => setPeek(null)}>{feature.text}</li>)}
+      {features.map((feature, index) => <li key={feature.key} onMouseMove={follow(index)} onMouseLeave={() => setPeek(null)}>{feature.text}</li>)}
     </ul>
     {peek && <img className="peek" src={features[peek.index]!.shot} alt={features[peek.index]!.alt} width={2184} height={1364}
       style={{ transform: `translate(${peek.x}px, ${peek.y}px)` }} />}
