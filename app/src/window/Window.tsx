@@ -255,7 +255,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
 
   /** Statistics, from the menu: all plans'. */
   const showStatistics = useCallback(() => go(statisticsPlace(null)), [go]);
-  /** Settings, at a section; without one, at the section shown, or Agents. */
+  /** Settings, at a section; without one, at the section shown, or General. */
   const showSettings = useCallback((section?: SettingsSection) => setWindowState(current => {
     const shown = current.ui.place;
     const next = section ? settingsPlace(section) : isPage(shown) && shown.page === 'settings' ? shown : settingsPlace();

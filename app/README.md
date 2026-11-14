@@ -42,14 +42,14 @@ Coord also refuses `--no-sandbox` and `ELECTRON_DISABLE_SANDBOX` given any other
 A window has one row at the top, its title bar, from the left:
 
 - the Coord mark, then the **back** and **forward** arrows;
-- **Plans**: **All Plans** (the hub), each active project (its plans in the hub) and **Statistics** (all plans');
-- **File**: **New Window** (Ctrl+Shift+N), **New Project…**, **Settings…** (Ctrl+,; see [Settings](#settings)) and **Exit**;
-- **View**: **Zoom In** (Ctrl++), **Zoom Out** (Ctrl+-), **Actual Size** (Ctrl+0) and **Full Screen** (F11), with **Reload** and **Developer Tools** in development builds;
+- **Plans**, a button that opens the hub with every plan (the hub leads on to each project's plans and the statistics);
+- **Settings**, a button that opens [Settings](#settings) (Ctrl+,);
 - **Help**: **Open Logs** and **About Coord**;
 - the **computer menu**, the name of the computer the window works on: this computer and the paired ones (choosing one shows its plans in this window), and **Computer settings…**, which opens **Settings › Computers** (see [Remote computers](#remote-computers));
-- at the right: **Search** (Ctrl+P; on the hub its own **Search every project** takes its place), record-health notes when the shown project has any, the theme menu (**Match the system**, **Light** or **Dark**, for every window) and the system's window buttons.
+- **Update**, beside the computer, while a newer Coord is on offer, downloading or ready (see [Updates](#updates));
+- at the right: **Search** (Ctrl+P; on the hub its own **Search every project** takes its place), record-health notes when the shown project has any, and the system's window buttons.
 
-Alt opens the menus from the keyboard (Alt+P, Alt+F, Alt+V, Alt+H). Empty space in the title bar moves the window, and a double click maximizes it.
+The window's other commands (New Window, zoom, full screen) keep their shortcuts, Ctrl+Shift+N, Ctrl++, Ctrl+-, Ctrl+0 and F11. Empty space in the title bar moves the window, and a double click maximizes it.
 
 **The breadcrumbs** of each page lead back the way you came: **Plans** (every plan), the project (its plans), then the plan, as in Plans › Northwind › #0001; a part has its group before it (Plans › Northwind › #0005 › #0006).
 
@@ -142,7 +142,9 @@ A plan's agent can make pages: views in its work folder's `pages/`, such as a ch
 
 ## Settings
 
-**File › Settings…** (Ctrl+,) opens Settings in the window, a page with two sections; back and forward step through them like other places.
+**Settings** in the title bar (Ctrl+,) opens Settings in the window at **General**; back and forward step through its sections like other places.
+
+- **General**: the theme, **Match the system**, **Light** or **Dark**, for every window.
 
 - **Agents**, this computer's: **Claude Code** and **Codex**, each with its status (**Connected** with the version of the Coord plugin it has, **Not connected**, or **Not found on this computer** with a link to install it) and **Connect** or **Disconnect**. Coord finds an agent as a program, on the PATH as your terminals have it (read again at start); for one it does not find, **Choose program…** picks its program (`claude`, `codex`; `.exe` or Codex's `.cmd` on Windows), which Coord uses until you **Clear** it. Connecting installs the Coord plugin into the agent with the agent's own commands, which can take a minute; the row shows it, and says why if it fails, with **Try again**. A connected agent's row then says whether it runs Coord: **Ready** with its last session, **Waiting for a first session**, or a warning: **Hooks not trusted** (type `/hooks` in Codex and trust them) or **Coord's hooks aren't running** (a session used Coord's tools, but no hook ran; in Codex, `/hooks` trusts them again). A session that ran the hooks makes it Ready, whatever Codex's configuration says. The hub shows this computer's warnings too, until they are resolved. **Connect by hand**, under each agent, lists the commands that install the plugin, to copy (Connect also grants the agent Coord's home). In a window on another computer, Agents is still this computer's: connecting installs the plugin here.
 - **Computers**, both ways of pairing: **Other computers**, the computers this one is paired with, and **Devices that can reach** the window's computer (see [Remote computers](#remote-computers)).

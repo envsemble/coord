@@ -10,7 +10,7 @@ export type { PagePlace, Place, ProjectPlace };
 /** The hub: every plan, or one project's. */
 export const hubPlace = (projectId: string | null = null): PagePlace => ({ page: 'hub', projectId });
 export const statisticsPlace = (projectId: string | null): PagePlace => ({ page: 'statistics', projectId });
-/** Settings, at one of its sections: the agents on this computer, or the computers. */
+/** Settings, at one of its sections (General by default). */
 export const settingsPlace = (section: SettingsSection = 'general'): PagePlace => ({ page: 'settings', section });
 export const isPage = (place: Place): place is PagePlace => 'page' in place;
 /** The project a place is of: its own, the hub's filter or the statistics' project; null for none. */
