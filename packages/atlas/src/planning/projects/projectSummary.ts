@@ -8,7 +8,8 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseFrontmatter } from '../check/check.ts';
 import type { HomeDatabase } from '../../home/database.ts';
-import type { HandoffLink } from '../types.ts';
+import type { HandoffLink, WorkState } from '../types.ts';
+import { stateOf } from '../work/state.ts';
 import { handoffsOf } from '../handoffs/handoffs.ts';
 import { tagsOf } from '../work/tags.ts';
 import { groupsOfParts, partsOf } from '../work/parts.ts';
@@ -51,6 +52,8 @@ export interface ProjectWork {
    * order, each once), and the group that lists it among its parts (the first in the registry, should several), or null.
    */
   parts?: string[]; partOf?: string | null;
+  /** Whose turn it is, as its plan declares (its `state`); null when it declares none, and on closed work. */
+  turn?: WorkState | null;
 }
 /**
  * A work item's statistics in brief, counted as the plan page counts them (see summarizeReports):
@@ -137,6 +140,7 @@ async function workOf(root: string, entry: { id: string; path: string; current_p
     continuedIn: [],
     // Its parts as the plan lists them; projectSummary finds each part's group.
     parts: partsOf(planHeader?.parts, entry.id), partOf: null,
+    turn: closed || !planHeader ? null : stateOf(planHeader),
   };
 }
 

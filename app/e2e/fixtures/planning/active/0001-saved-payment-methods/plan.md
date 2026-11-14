@@ -12,6 +12,9 @@ completed_at: null
 supersedes: []
 superseded_by: null
 continues: [work-0004]
+state: your_turn
+state_note: "Choose how a customer picks a saved card, on the card picker page"
+state_since: "2026-09-30T16:00:00Z"
 ---
 
 # Saved payment methods

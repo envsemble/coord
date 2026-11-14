@@ -1,4 +1,4 @@
-export type { AgentShare, Document, DocumentContent, HistoryEntry, Issue, LedgerStep, ModelShare, Work, WorkProgress, WorkStatistics } from '@envsemble/atlas/planning/types';
+export type { AgentShare, Document, DocumentContent, HistoryEntry, Issue, LedgerStep, ModelShare, StateKind, Work, WorkProgress, WorkState, WorkStatistics } from '@envsemble/atlas/planning/types';
 export type {
   AccessSettings, AccessState, AgentChange, AgentCheck, AgentFolder, AgentId, AgentState, Computer, ComputerRef, DiagramEntry, DiagramIndexEntry, DiagramReference, OpenProjectChange, PagePlace, PairedDevice, PairingGrant,
   PairingLinkView, Place, Project, ProjectChangeRequest, ProjectPlace, ProjectState, ProjectStatistics, ProjectSummary, ProjectWork, ProjectWorkState, ReferenceInput, ResolvedReference,

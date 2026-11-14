@@ -89,6 +89,9 @@ body { margin: 0; }
 .hub-row-number { flex: none; font: var(--env-type-body-sm); }
 .hub-row :is(.cell-note, .hub-row-project) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hub-row-title + .cell-note { margin-inline-start: calc(1.125rem + var(--env-space-2)); }
+/* A row's state line: what the user is to do in amber, what it waits on muted. */
+.hub-row-note { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-row-note[data-status='your_turn'] { color: var(--env-color-fg-warning); }
 .hub-row-steps { display: inline-flex; align-items: center; gap: var(--env-space-2); color: var(--env-color-fg-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .hub-row-steps .step-bar-compact { inline-size: 4rem; }
 .hub-row-stats { display: block; min-inline-size: 0; font-variant-numeric: tabular-nums; }
@@ -236,16 +239,6 @@ body { margin: 0; }
 .step-icon[data-phase='planning']:is([data-status='done'], [data-status='doing']) { color: var(--env-color-fg-primary); }
 .step-bar-planning-done { background: var(--env-color-fg-primary); }
 .step-bar-planning-doing { background: color-mix(in srgb, var(--env-color-fg-primary) 55%, var(--env-color-bg-default)); }
-/* While agents work on a plan, its indicators pulse: its status icon and its step in progress (the
-   step's icon in the list and its share of the bar), never their text. While one waits for the
-   person, the step is amber. Still when motion is reduced. */
-@keyframes atlas-working { 50% { opacity: 0.4; } }
-:is(.status-icon[data-status='working'], .ledger-step[data-live='working'] .step-icon, .step-bar[data-live='working'] :is(.step-bar-doing, .step-bar-planning-doing)) { animation: atlas-working 1.6s var(--env-motion-ease) infinite; }
-:is(.ledger-step[data-live='waiting'] .step-icon, .hub-row-step[data-live='waiting']) { color: var(--env-color-fg-warning); }
-.step-bar[data-live='waiting'] :is(.step-bar-doing, .step-bar-planning-doing) { background: var(--env-color-fg-warning); }
-@media (prefers-reduced-motion: reduce) {
-  :is(.status-icon[data-status='working'], .ledger-step[data-live='working'] .step-icon, .step-bar[data-live='working'] > span) { animation: none; }
-}
 
 /* Work page: the plan, with the work's facts beside it. The diagrams' islands keep a gutter from the edge. */
 /* The plan's page is wider than envUI's large page, for its text and its side column together. */
@@ -266,6 +259,10 @@ body { margin: 0; }
 .page-attention-text { overflow: hidden; color: var(--env-color-fg-muted); text-overflow: ellipsis; white-space: nowrap; }
 /* Under the title, the status and one fact about it, muted; a blocker's reason is cut short. */
 .work-status { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); font-variant-numeric: tabular-nums; }
+/* What the state is for, after its badge: amber on the user's turn; one line, cut short. */
+.work-status-note { min-inline-size: 0; overflow: hidden; color: var(--env-color-fg-default); text-overflow: ellipsis; white-space: nowrap; }
+.work-status[data-status='your_turn'] .work-status-note { color: var(--env-color-fg-warning); font-weight: var(--env-font-weight-medium); }
+.state-note :is(div, p) { display: inline; margin: 0; color: inherit; font: inherit; }
 .work-status-fact { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .work-status-fact + .work-status-fact { flex: none; }
 .work-status-fact + .work-status-fact::before { content: '·'; margin-inline-end: var(--env-space-2); }
@@ -423,14 +420,7 @@ body { margin: 0; }
 .pull-mark-state[data-state='draft'], .pull-mark-checks[data-checks='pending'] { color: var(--env-color-fg-muted); }
 .pull-mark-state[data-state='merged'] { color: var(--env-color-fg-accent); }
 .pull-mark-state[data-state='closed'], .pull-mark-checks[data-checks='failing'] { color: var(--env-color-fg-danger); }
-/* Why a plan needs you: the waiting session's message under its status, with a way to open the session. */
-.needs-you { display: grid; gap: var(--env-space-2); max-inline-size: 48rem; padding: var(--env-space-3) var(--env-space-4); border-inline-start: 0.1875rem solid var(--env-color-fg-warning); border-radius: var(--env-radius-sm); background: color-mix(in srgb, var(--env-color-fg-warning) 8%, transparent); }
-.needs-you-message { overflow-wrap: anywhere; }
-.needs-you-message :is(p, ul, ol, pre):first-child { margin-block-start: 0; }
-.needs-you-message :is(p, ul, ol, pre):last-child { margin-block-end: 0; }
 /* The first paragraph of a long message, cut to four lines until shown whole. */
-.needs-you-message[data-clamped] > * > :first-child, .needs-you-message[data-clamped] > :first-child { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
-.needs-you-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-2); font-size: var(--env-font-size-body-sm); }
 /* A plan's statistics page: its figures, its timeline and its tables. */
 .plan-statistics-page { display: grid; gap: var(--env-space-6); }
 .plan-statistics-header { display: grid; gap: var(--env-space-1); }

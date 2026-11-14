@@ -25,10 +25,10 @@ function stepsText(work: Work): string {
 }
 
 export function PartsRail({ group, shown }: { group: Work; shown: string }) {
-  const { snapshot, activity } = useWindow();
+  const { snapshot } = useWindow();
   const known = new Map(snapshot.work.map(item => [item.id, item]));
   const row = (work: Work, index: number | null) => {
-    const status = statusOf(work, activity(work.id)?.state ?? null);
+    const status = statusOf(work);
     const steps = stepsText(work);
     return <div className="parts-rail-item" aria-current={work.id === shown ? 'page' : undefined}>
       <span className="parts-rail-index" aria-hidden="true">{index ?? ''}</span>

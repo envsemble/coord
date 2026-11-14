@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { excerpt, panView, timelineLine, timelineSpan, waitingSession, zoomView } from './sessions.ts';
-import type { WorkSession } from '../types.ts';
+import { panView, timelineLine, timelineSpan, zoomView } from './sessions.ts';
 
 const hour = 3600000, day = 24 * hour;
 
@@ -12,13 +11,7 @@ test('the timeline line says how long the work was planned, implemented and wait
   assert.equal(timelineLine(null, { created: null, accepted: null, completed: null }), null);
 });
 
-test('a plan\'s sessions: the one waiting with its message, and its message\'s beginning', () => {
-  const session = (id: string, state: WorkSession['state'], lastSeen: string, message: string | null): WorkSession => ({ session: id, harness: 'claude-code', title: null, model: null, effort: null, state, startedAt: lastSeen, lastSeen, agentMs: 0, folder: null, resume: null, message, now: null });
-  assert.equal(waitingSession([session('a', 'waiting', '2026-10-19T10:00:00Z', 'Older'), session('b', 'waiting', '2026-10-19T11:00:00Z', '**Needs your decision:** which?'), session('c', 'ended', '2026-10-19T12:00:00Z', 'Done')])!.session, 'b');
-  assert.deepEqual(excerpt('First paragraph.\n\nSecond.'), { text: 'First paragraph.', more: true });
-  assert.deepEqual(excerpt('**Needs your decision:** merge it?'), { text: '**Needs your decision:** merge it?', more: false }, 'Markdown stays whole');
-  assert.equal(excerpt('word '.repeat(100), 50).more, true, 'a long first paragraph is clamped on the page');
-  // The timeline shows its stretches, up to now while agents are on the plan.
+test('the timeline shows its stretches, up to now while agents are on the plan', () => {
   const timeline = { plannedMs: null, implementingMs: null, waitedMs: 0, lanes: [{ session: 'a', subagent: null, model: null, effort: null, working: [['2026-10-01T00:00:00Z', '2026-10-02T00:00:00Z']] as [string, string][], waiting: [] }] };
   assert.deepEqual(timelineSpan(timeline, Date.parse('2026-10-19T00:00:00Z'), 'all'), { start: Date.parse('2026-10-01T00:00:00Z'), end: Date.parse('2026-10-02T00:00:00Z') });
   assert.deepEqual(timelineSpan(timeline, Date.parse('2026-10-19T00:00:00Z'), 'all', true), { start: Date.parse('2026-10-01T00:00:00Z'), end: Date.parse('2026-10-19T00:00:00Z') });

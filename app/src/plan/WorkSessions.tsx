@@ -6,15 +6,14 @@ import { Button, Link } from '@envsemble/envui';
 import { Markdown } from '@envsemble/envui/markdown';
 import type { WorkCommit, WorkSession, WorkTimeline } from '../types';
 import { api } from '../api';
-import { ModelName } from '../ui/ModelName';
-import { absoluteDate, relativeDate } from '../ui/format';
+import { absoluteDate } from '../ui/format';
 import { statuses } from './status';
 import { StatusIcon } from '../ui/badges';
 import { useWindow } from '../window/windowContext';
 import { ReferenceLink, ReferencesContext, useCollectedReferences, useResolvedReferences } from '../reader/ReferenceLink';
 import { rehypeReferences, wholeReference, type Found } from '../reader/references';
 import type { Plugins } from '../reader/Reader';
-import { excerpt, harnessNames } from './sessions';
+import { harnessNames } from './sessions';
 import type { LiveActivity } from './agentTime';
 
 /** What changes when the plan's activity does: the sessions' states and since when. */
@@ -46,10 +45,6 @@ export function useWorkTimeline(work: string, key: string) {
   return value?.work === work ? value.timeline : null;
 }
 
-/** A session's harness, then its model with its provider's mark and effort: "Claude Code · Claude Opus 5.5 · high". */
-function SessionLabel({ session }: { session: Pick<WorkSession, 'harness' | 'model' | 'effort'> }) {
-  return <>{harnessNames[session.harness]}{session.model && <> · <ModelName model={session.model} effort={session.effort} /></>}</>;
-}
 /** A session's name: its own title, else its harness and when it started. */
 export const sessionTitle = (session: Pick<WorkSession, 'title' | 'harness' | 'startedAt'>) => session.title?.trim() || harnessNames[session.harness] + ' session, ' + absoluteDate(session.startedAt);
 
@@ -91,23 +86,16 @@ function MessageWebLink({ href, children }: { href: string; children?: ReactNode
 }
 
 /**
- * Why the plan needs the person: the waiting session's last message, rendered as the Markdown it is,
- * its beginning first. What it references links as in the reader.
+ * What a work item's state says it is for, as one line of Markdown under its title: what the user is
+ * to do, what it waits on, why it is blocked. What it references links as in the reader, a PR with
+ * its live state.
  */
-export function NeedsYou({ work, session }: { work: string; session: WorkSession }) {
-  const [whole, setWhole] = useState(false);
-  const message = session.message ?? '';
-  const start = excerpt(message);
-  // What the message references, as it renders: also a link's address naming a reference.
+export function StateNote({ note }: { note: string }) {
   const { collected, inputs } = useCollectedReferences();
   const plugins = useMemo((): Plugins => [[rehypeReferences, { collected, addresses: 'all' }]], [collected]);
   const resolved = useResolvedReferences(inputs);
   const scope = useMemo(() => ({ resolved }), [resolved]);
-  return <section className="needs-you" aria-label="Why it needs you">
-    <div className="needs-you-message" data-clamped={!whole && start.more ? '' : undefined}><ReferencesContext.Provider value={scope}><Markdown rehypePlugins={plugins} components={messageComponents}>{whole ? message.trim() : start.text}</Markdown></ReferencesContext.Provider></div>
-    <div className="needs-you-actions">
-      {start.more && <Button variant="text" onClick={() => setWhole(!whole)} aria-expanded={whole}>{whole ? 'Show less' : 'Show all'}</Button>}
-      <span className="muted"><SessionLabel session={session} /> · waiting since <span title={absoluteDate(session.lastSeen)}>{relativeDate(session.lastSeen)}</span></span>
-    </div>
-  </section>;
+  return <span className="state-note"><ReferencesContext.Provider value={scope}><Markdown rehypePlugins={plugins} components={noteComponents}>{note}</Markdown></ReferencesContext.Provider></span>;
 }
+/** The note is one line: its paragraph stays inline. */
+const noteComponents = { ...messageComponents, p: ({ children }: { children?: ReactNode }) => <>{children}</> };
