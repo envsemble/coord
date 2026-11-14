@@ -2244,15 +2244,17 @@ function useSVGExport(svgSource, theme, scope, fade = false) {
     const colours = resolvedColours(scope?.current || document.documentElement);
     for (const [name, colour] of colours) svg.style.setProperty(name, colour);
     svg.querySelectorAll(".selected,.dimmed").forEach((n) => n.classList.remove("selected", "dimmed"));
-    const faded = fade ? [...svg.querySelectorAll('[data-change="unchanged"]')] : [];
-    for (const element of faded) {
-      for (const shape of element.querySelectorAll(
-        "rect,path,line,polyline,polygon"
-      ))
-        shape.setAttribute("opacity", "0.4");
-      for (const text of element.querySelectorAll("text"))
-        text.setAttribute("opacity", "0.72");
-    }
+    const unchanged = '[data-change="unchanged"]';
+    const faded = fade ? [
+      ...svg.querySelectorAll(
+        `${unchanged} :is(rect,path,line,polyline,polygon)`
+      )
+    ].map((element) => [element, "0.4"]) : [];
+    if (fade)
+      for (const text of svg.querySelectorAll(`${unchanged} text`))
+        faded.push([text, "0.72"]);
+    for (const [element, opacity] of faded)
+      element.setAttribute("opacity", opacity);
     const backgroundURL = URL.createObjectURL(
       new Blob([new XMLSerializer().serializeToString(svg)], {
         type: "image/svg+xml"
@@ -2266,7 +2268,7 @@ function useSVGExport(svgSource, theme, scope, fade = false) {
     background.setAttribute("height", svg.viewBox.baseVal.height);
     background.setAttribute("fill", colours.get("--canvas") ?? "#ffffff");
     svg.insertBefore(background, svg.firstChild);
-    for (const element of faded) element.removeAttribute("opacity");
+    for (const [element] of faded) element.removeAttribute("opacity");
     const diagramURL = URL.createObjectURL(
       new Blob([new XMLSerializer().serializeToString(svg)], {
         type: "image/svg+xml"

@@ -97,7 +97,7 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   }));
 
   return <CommandPalette open onOpenChange={value => { if (!value) onClose(); }} className="search-popup" aria-label="Search"
-    inputValue={query} onInputValueChange={setQuery} items={items} placeholder="Search plans, documents, diagrams and projects" emptyLabel={text ? 'No matches' : 'No plans yet'}
+    inputValue={query} onInputValueChange={setQuery} items={items} placeholder="Search plans, documents, diagrams and projects" hints={[{ keys: ['Enter'], label: 'Open' }, { keys: ['Esc'], label: 'Close' }]} emptyLabel={text ? 'No matches' : 'No plans yet'}
     onAction={item => {
       const entry = byId.get(item.id);
       if (!entry) return;

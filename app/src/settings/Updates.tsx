@@ -59,18 +59,20 @@ export function UpdatesSection() {
   if (!state) return null;
   const channel = channels.find(item => item.value === state.channel) ?? channels[0];
   const leavingNightly = state.channel === 'stable' && /-nightly\./.test(state.version);
+  // A build that cannot update itself (in development, say) shows only why; the checks and the
+  // channel apply where Coord updates itself.
+  const off = state.status.kind === 'off';
   return <>
-    <Text variant="body-sm" emphasis="muted" className="settings-description">
+    {!off && <Text variant="body-sm" emphasis="muted" className="settings-description">
       Coord checks for a newer build of its channel when it starts and every few hours. It never downloads or installs one until you ask.
-    </Text>
+    </Text>}
     <List.Root className="settings-rows" aria-label="Updates">
       <UpdateStatusRow state={state} />
-      <List.Item className="settings-row" label={<span id={id + '-title'}>Channel</span>}
-        description={<span id={id + '-detail'}>{state.status.kind === 'off' ? 'Applies where Coord updates itself, which this build does not.'
-          : leavingNightly ? 'This is a nightly build: Coord moves to stable with the next stable release newer than it, never back to an older one.' : channel.description}</span>}
-        end={<Select className="settings-row-select" aria-labelledby={id + '-title'} aria-describedby={id + '-detail'} value={state.channel} disabled={state.status.kind === 'off'}
+      {!off && <List.Item className="settings-row" label={<span id={id + '-title'}>Channel</span>}
+        description={<span id={id + '-detail'}>{leavingNightly ? 'This is a nightly build: Coord moves to stable with the next stable release newer than it, never back to an older one.' : channel.description}</span>}
+        end={<Select className="settings-row-select" aria-labelledby={id + '-title'} aria-describedby={id + '-detail'} value={state.channel}
           onValueChange={value => { if (value) void api.setUpdateChannel(value as UpdateChannel).catch(() => {}); }}
-          items={channels} />} />
+          items={channels} />} />}
     </List.Root>
   </>;
 }

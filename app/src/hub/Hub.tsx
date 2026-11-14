@@ -97,12 +97,12 @@ const HubRow = memo(function HubRow({ item, go, showProject }: { item: HubItem; 
           {facts.step.label + ': ' + facts.step.title}
         </small>)}
     </Table.Cell>
-    {showProject && <Table.Cell><span className="hub-row-project" title={project.name}>{project.name}</span></Table.Cell>}
-    <Table.Cell>{facts.ended ? <span className="hub-row-ended">{facts.ended.label}{facts.ended.date && <span className="muted" title={absoluteDate(facts.ended.date)}> {relativeDate(facts.ended.date)}</span>}
+    {showProject && <Table.Cell label="Project"><span className="hub-row-project" title={project.name}>{project.name}</span></Table.Cell>}
+    <Table.Cell label={facts.ended ? 'Ended' : 'Steps'}>{facts.ended ? <span className="hub-row-ended">{facts.ended.label}{facts.ended.date && <span className="muted" title={absoluteDate(facts.ended.date)}> {relativeDate(facts.ended.date)}</span>}
       {continued.length > 0 && <small className="cell-note"><ContinuedIn items={continued} open={to => go({ projectId: to.projectId, target: workTarget(to.work) })} /></small>}</span>
       : facts.progress ? <Progress progress={facts.progress} wide={large} /> : <span className="muted">—</span>}</Table.Cell>
-    <Table.Cell><Spent facts={facts} /></Table.Cell>
-    <Table.Cell numeric nowrap>{facts.changed ? <Changed value={facts.changed} /> : <span className="muted">—</span>}</Table.Cell>
+    <Table.Cell label="Agents"><Spent facts={facts} /></Table.Cell>
+    <Table.Cell label="Changed" numeric nowrap>{facts.changed ? <Changed value={facts.changed} /> : <span className="muted">—</span>}</Table.Cell>
   </Table.Row>;
 }, (before, after) => before.go === after.go && before.showProject === after.showProject && rowKey(before.item) === rowKey(after.item));
 
