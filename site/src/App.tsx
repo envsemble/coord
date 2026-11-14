@@ -1,13 +1,13 @@
 // Coord's website: one dark page, with its privacy and terms pages (legal.tsx). The name, one line on what Coord is, a download button for
 // Windows and one for Linux under a Stable or Nightly switch (the newest build of each, read from GitHub Releases in the visitor's
-// browser by releases.ts), and a screenshot of a big run's statistics. Hovering a feature shows its screenshot by the cursor.
+// browser by releases.ts), and a screenshot of a page in a plan. Hovering a feature shows its screenshot by the cursor.
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import logo from '../../assets/coord-logo-dark.svg';
 import attention from './shots/attention.png';
 import dashboard from './shots/dashboard.png';
 import diagrams from './shots/diagrams.png';
 import grill from './shots/grill.png';
-import statistics from './shots/statistics.png';
+import page from './shots/page.png';
 import { Privacy, Terms } from './legal.tsx';
 import { Sky } from './Sky.tsx';
 import { linuxPath } from './linuxPath.ts';
@@ -69,8 +69,8 @@ function Home() {
         {build ? <a href={build.page}>Version {build.version}</a> : channel === 'nightly' && builds !== 'loading' ? 'No nightly build yet' : null}
         {(build || channel === 'nightly' && builds !== 'loading') && ' · '}<a href={releasesPage}>All releases</a>
       </p>
-      <img className="screenshot" src={statistics} width={2184} height={1364}
-        alt="A plan's statistics in Coord: 4 hours of agent time in 2 hours, and its timeline, where one Claude Opus session hands work to eleven Claude Haiku subagents at once, then to Opus and Fable." />
+      <img className="screenshot" src={page} width={2184} height={1180}
+        alt="A page in a plan in Coord: two layouts for checkout to choose between, above the proposal's class diagram with its new and changed classes marked." />
     </main>;
 }
 
