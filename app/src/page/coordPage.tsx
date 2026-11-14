@@ -47,7 +47,7 @@ export async function write(path: string, content: string): Promise<void> { awai
 /** Write a value as a JSON file. */
 export async function writeJSON(path: string, value: unknown): Promise<void> { await write(path, JSON.stringify(value, null, 2) + '\n'); }
 
-/** An Coord tool's result, as agents call it: `tool('work_status', { work: 'work-0012' })`. A refusal throws. */
+/** A Coord tool's result, as agents call it: `tool('work_status', { work: 'work-0012' })`. A refusal throws. */
 export async function tool<T = unknown>(name: string, input: Record<string, unknown> = {}): Promise<T> { return await connected().request('tool', { name, input }) as T; }
 
 /** Open a file or page of the planning folder in Coord, in place of this page. */

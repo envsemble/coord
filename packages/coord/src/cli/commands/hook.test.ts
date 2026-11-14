@@ -101,7 +101,7 @@ test('hooks give the session its planning context, check and link planning edits
   const patch = '*** Begin Patch\n*** Update File: active/0002-payments/plan.md\n@@\n-# Payments\n+# Payments today\n*** End Patch\n';
   assert.equal(await hookIn(env, 'PostToolUse', { session_id: session, transcript_path: null, cwd: root, hook_event_name: 'PostToolUse', model: 'gpt-5.5', permission_mode: 'default', tool_name: 'apply_patch', tool_input: { command: patch }, tool_response: 'Done', tool_use_id: 'call_1', turn_id: 't1' }), '');
   assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002']);
-  // An Coord MCP tool call that changes a work item links it, from its input or its result; reading one does not.
+  // A Coord MCP tool call that changes a work item links it, from its input or its result; reading one does not.
   await run(['work', 'create', '--title', 'Refunds', '--planning-dir', root], { env });
   const about = { tool_input: { work: 'work-0003' }, tool_response: [{ type: 'text', text: JSON.stringify({ workId: 'work-0003', planningFolder: root }) }] };
   for (const tool of ['work_status', 'work_search']) await hook('PostToolUse', { tool_name: 'mcp__plugin_coord_coord__' + tool, ...about });

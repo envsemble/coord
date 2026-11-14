@@ -1,7 +1,7 @@
 // The content security policy of a page's frame (coord://page/page-frame.html). A page is code an
 // agent wrote for its user, with no guards on what it reaches: it may load images and fonts and
 // query any address (a dev server, a database's API, the internet). It runs no other code than its
-// build, which the frame evaluates, and only an Coord window may frame it (said in the header:
+// build, which the frame evaluates, and only a Coord window may frame it (said in the header:
 // `inMeta`, the copy in the document, leaves it out, as a <meta> policy can't say it).
 export function pagePolicy(development = false, inMeta = false) {
   return [

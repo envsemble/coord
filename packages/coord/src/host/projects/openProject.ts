@@ -212,7 +212,7 @@ export class OpenProject {
   readText(relative: string) { return readText(this.root, relative); }
   /** Write a file a page asked for (its choices, its data). The watcher then reports the change. */
   write(relative: string, content: string) { return writeDocument(this.root, relative, content); }
-  /** Run an Coord tool for a page, in this planning folder. */
+  /** Run a Coord tool for a page, in this planning folder. */
   async tool(name: string, input: Record<string, unknown>): Promise<ToolOutcome> {
     const result = await callTool(name, { ...input, planningFolder: this.root, cwd: this.root });
     const text = result.content.map(item => item.text).join('\n');

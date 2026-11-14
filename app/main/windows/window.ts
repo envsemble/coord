@@ -1,4 +1,4 @@
-// An Coord window: it shows the projects of one computer, this one or another computer this app
+// A Coord window: it shows the projects of one computer, this one or another computer this app
 // paired with, one place at a time (the hub, or something of one project), and follows each project
 // on that computer's Coord host as its pages need it. Each window has its own in-memory session, so
 // its `coord:` file protocol can only ever see the projects it follows.

@@ -1,6 +1,6 @@
 # Planning repository governance
 
-This repository is an Coord project's planning folder: its work items, each a plan with its steps. `planning.json` lists the project's folders and work. `PLANS.md` defines the plan, registry and ledger formats; the Coord tools write headers and ledgers and Coord checks every edit, so consult it only when you edit a header or ledger by hand.
+This repository is a Coord project's planning folder: its work items, each a plan with its steps. `planning.json` lists the project's folders and work. `PLANS.md` defines the plan, registry and ledger formats; the Coord tools write headers and ledgers and Coord checks every edit, so consult it only when you edit a header or ledger by hand.
 
 ## Scope
 

@@ -7,7 +7,7 @@ import type { DiagramEntry, DiagramIndexEntry, DiagramReference } from '../plann
 import type { PageBuild, PageProblem } from '../planning/pages/pages.ts';
 
 export type { DiagramEntry, DiagramIndexEntry, DiagramReference, HandoffLink, PageBuild, PageProblem, ProjectState, ProjectWork, ProjectWorkState, ProjectWorkStatistics };
-/** An Coord tool's result for a page: its value, or the refusal an agent would read. */
+/** A Coord tool's result for a page: its value, or the refusal an agent would read. */
 export type ToolOutcome = { ok: true; value: unknown } | { ok: false; error: string };
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */

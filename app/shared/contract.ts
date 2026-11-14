@@ -217,7 +217,7 @@ export interface CoordBridge {
   readText(projectId: string, path: string): Promise<Result<string>>;
   /** Write a text file in the planning folder, for a page. */
   writeFile(projectId: string, path: string, content: string): Promise<Result<null>>;
-  /** Run an Coord tool (work_status, step and the rest) in the project's planning folder, for a page. */
+  /** Run a Coord tool (work_status, step and the rest) in the project's planning folder, for a page. */
   tool(projectId: string, name: string, input: Record<string, unknown>): Promise<Result<ToolOutcome>>;
   /** A project's statistics for a period (ISO times; `from` null: since its first report, `to` null: until now), by day or week. */
   projectStatistics(projectId: string, from: string | null, to: string | null, unit: 'day' | 'week'): Promise<Result<ProjectStatistics>>;

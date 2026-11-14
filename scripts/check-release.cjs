@@ -95,7 +95,7 @@ async function check() {
     assert(files[".claude-plugin/marketplace.json"]);
     assert(files[".agents/plugins/marketplace.json"]);
     assert(files["plugin/skills/babysit-pr/SKILL.md"]);
-    assert(files["assets/coord-banner-dark.svg"]);
+    assert(files["assets/coord-logo-dark.svg"]);
     assert(files["docs/history/skills-commit-map.txt"]);
     assert(files["docs/history/coord-import-commit-map.txt"]);
     assert(files["CHANGELOG.md"]);

@@ -36,7 +36,7 @@ When a file the page is built from changes, the window builds it again and the f
 
 A page is code the user's agents wrote for them, so Coord does not limit what it reaches:
 
-- its frame may query any address (a dev server, an API, the internet) and load images and fonts from anywhere; it runs no other code than its build, and only an Coord window may frame it;
+- its frame may query any address (a dev server, an API, the internet) and load images and fonts from anywhere; it runs no other code than its build, and only a Coord window may frame it;
 - it reads and writes any file of the planning folder, as Coord's readers reach them (no hidden or build folders), and runs the Coord tools.
 
 On a paired computer the same holds: the page is built by the host of the computer the project is on, its files and tools are that computer's, and the addresses it queries are reached from the computer that shows it. A planning folder that came from someone else can hold pages that run with this reach when opened.

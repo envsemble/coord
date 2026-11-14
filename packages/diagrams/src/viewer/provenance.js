@@ -69,7 +69,7 @@ function captureDetail(snapshot) {
 
 /**
  * Describes whether a model was generated from a source, proposed by an agent
- * or authored by an agent. Accepts an Coord document or a viewer model's
+ * or authored by an agent. Accepts a Coord document or a viewer model's
  * `document` metadata.
  */
 export function describeProvenance(document) {

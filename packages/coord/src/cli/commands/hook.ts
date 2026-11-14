@@ -4,12 +4,12 @@
 //
 // SessionStart tells the agent the projects its folder belongs to and their active
 // work. PostToolUse checks the files the agent edited in the home's planning folders (blocking with
-// the problems so it fixes them), links the session to the work item it edits or calls an Coord tool
+// the problems so it fixes them), links the session to the work item it edits or calls a Coord tool
 // on (in the home database). Stop (with
 // StopFailure and Codex's Interrupt, which also end a turn) and SubagentStop record the work
 // statistics of the work item the session is on from its log.
 //
-// A session is on one work item at a time, the one it last edited or called an Coord tool on: its
+// A session is on one work item at a time, the one it last edited or called a Coord tool on: its
 // state, live time and reports count there. When it moves to another, the one it leaves gets a
 // report up to then, measured at the session's next turn end (or its end, or its next prompt), so the
 // edit that moved it is not held up; one that cannot be measured then is tried again later, for a
@@ -254,7 +254,7 @@ export function shellWork(input: HookInput): { workId: string; planningFolder: s
   return found;
 }
 
-/** The work item an Coord tool call was about: from its input, else from its result. */
+/** The work item a Coord tool call was about: from its input, else from its result. */
 function toolWork(input: HookInput): { workId: string; planningFolder: string | null } | null {
   const toolInput = (input.tool_input ?? {}) as Record<string, unknown>;
   let workId = typeof toolInput.work === 'string' ? toolInput.work : null;

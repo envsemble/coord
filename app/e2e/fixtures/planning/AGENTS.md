@@ -1,6 +1,6 @@
 # Planning repository governance
 
-This repository is an Coord project's planning folder: its work items, each a plan with its steps. `README.md` orients, `planning.json` lists the project's folders and work, and `PLANS.md` defines the plan, registry and ledger formats.
+This repository is a Coord project's planning folder: its work items, each a plan with its steps. `README.md` orients, `planning.json` lists the project's folders and work, and `PLANS.md` defines the plan, registry and ledger formats.
 
 ## Scope
 

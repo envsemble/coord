@@ -82,7 +82,7 @@ export const isoTime = string({ min: 20, max: 40, pattern: /^\d{4}-\d{2}-\d{2}T\
 export const pagePath = string({ min: 8, max: pathLimit, pattern: /^(?![\\/])(?![a-zA-Z]:)(?!.*(?:^|\/)\.\.(?:\/|$)).+\/pages\/[^/]+$/ });
 /** The text a page writes into a file, at most a million characters. */
 export const fileContent = string({ min: 0, max: 1_000_000 });
-/** An Coord tool's name, as agents call it. */
+/** A Coord tool's name, as agents call it. */
 export const toolName = string({ min: 1, max: 64, pattern: /^[a-z_]+$/ });
 /** A tool's arguments: a JSON object, as a page passes it (the message size bounds it). */
 export const toolInput: Validator<Record<string, unknown>> = (value, at = '') => {

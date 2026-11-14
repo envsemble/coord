@@ -88,7 +88,7 @@ function makeTemplate() {
 }
 
 /**
- * An Coord home with one planning folder (a Git repository) whose project covers the checkout
+ * A Coord home with one planning folder (a Git repository) whose project covers the checkout
  * `shop` (a Git checkout with a GitHub remote), with work-0001 (a draft). The folder it covers is
  * written after the copy, so the registry differs from its commit there.
  */

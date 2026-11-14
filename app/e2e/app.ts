@@ -65,7 +65,7 @@ export function planningFixture(name?: string, root = path.join(temporaryDirecto
 }
 
 /**
- * An Coord home with the fixture as a project in its planning folder (`<home>/planning/<slug>`), with
+ * A Coord home with the fixture as a project in its planning folder (`<home>/planning/<slug>`), with
  * the agents' reports on its work in the home's database, as the hooks record them. `name` renames
  * the project in its planning.json. More projects join with addProject. The home is removed with the
  * launched app, or with removeDirectory.

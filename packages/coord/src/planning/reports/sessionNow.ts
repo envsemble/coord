@@ -6,7 +6,7 @@
 import { open } from 'node:fs/promises';
 
 /**
- * One thing the agent did: edited a file, ran a command (`failed` when it did), used an Coord tool,
+ * One thing the agent did: edited a file, ran a command (`failed` when it did), used a Coord tool,
  * started a helper, or another tool. A command's text is the agent's description of it, else the
  * command itself (`raw`), with anything that looks like a secret left out.
  */

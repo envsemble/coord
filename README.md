@@ -1,7 +1,7 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/coord-banner-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="assets/coord-banner-light.svg">
-  <img alt="Coord" src="assets/coord-banner-light.svg" width="560">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/coord-logo-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="assets/coord-logo-light.svg">
+  <img alt="Coord" src="assets/coord-logo-light.svg" width="560">
 </picture>
 
 [![CI](https://github.com/envsemble/coord/actions/workflows/ci.yml/badge.svg)](https://github.com/envsemble/coord/actions/workflows/ci.yml)

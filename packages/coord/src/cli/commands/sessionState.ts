@@ -190,7 +190,7 @@ export function recordSession(database: HomeDatabase, session: string, harness: 
 /**
  * Run a state hook on its input: a prompt or a session's end records its turn (a stamp that says
  * the session links no work settles it); a tool use records the commits and PRs it may have made,
- * and links the session to the work item an coord command run in a shell changed. `at` is when the
+ * and links the session to the work item a coord command run in a shell changed. `at` is when the
  * hook started. Never throws: a failure is logged.
  */
 export async function stateHook(event: string, text: string | null, at: number, environment: NodeJS.ProcessEnv = process.env) {

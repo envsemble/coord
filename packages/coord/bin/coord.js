@@ -56,7 +56,7 @@ function strings(value, depth = 0) {
 
 /**
  * Whether a PostToolUse has nothing to do, as hook.ts's runHook and postToolUse would find: its
- * session is not named, or it neither called an Coord tool that changes a work item nor edited a
+ * session is not named, or it neither called a Coord tool that changes a work item nor edited a
  * file (hook.ts's editedFiles) in the home's planning folder. Such a hook records nothing: the
  * ToolUse hook that runs for the same tool call records the session's state.
  * @param {string} text

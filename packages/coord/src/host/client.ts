@@ -1,4 +1,4 @@
-// A client of an Coord host: the desktop app's connection to its own host, or to another computer's.
+// A client of a Coord host: the desktop app's connection to its own host, or to another computer's.
 // Before it sends a credential it checks that the address still answers with the host ID it paired
 // with; that keeps the credential from a different Coord at the same address (the ID is public, so it
 // is no defence against a deliberate impostor: use Tailscale for that). It pings to notice a dead
@@ -41,9 +41,9 @@ export async function describeHost(origin: string, timeout = descriptorTimeout):
   let response: Response;
   try { response = await fetch(origin + routes.host, { signal: AbortSignal.timeout(timeout), redirect: 'error' }); }
   catch (error) { throw new HostRequestError('unavailable', 'Coord could not reach ' + origin + ' (' + ((error as Error).cause as Error | undefined ?? error as Error).message + ').'); }
-  if (!response.ok) throw new HostRequestError('unavailable', origin + ' did not answer as an Coord host (HTTP ' + response.status + ').');
+  if (!response.ok) throw new HostRequestError('unavailable', origin + ' did not answer as a Coord host (HTTP ' + response.status + ').');
   const value = await response.json().catch(() => null) as HostDescriptor | null;
-  if (!value || typeof value.hostId !== 'string' || typeof value.name !== 'string' || typeof value.protocol !== 'number') throw new HostRequestError('unavailable', origin + ' did not answer as an Coord host.');
+  if (!value || typeof value.hostId !== 'string' || typeof value.name !== 'string' || typeof value.protocol !== 'number') throw new HostRequestError('unavailable', origin + ' did not answer as a Coord host.');
   if (value.protocol !== protocolVersion) throw new HostRequestError('unavailable', `${value.name} runs Coord ${value.version}, which this version of Coord cannot connect to. Update Coord on both computers.`);
   return value;
 }

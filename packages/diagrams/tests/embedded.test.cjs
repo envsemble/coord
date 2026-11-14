@@ -45,7 +45,7 @@ test("native panel consumes lean payloads and CSS cannot restyle its host", asyn
     rules++;
     selectors((tree) =>
       tree.each((selector) => {
-        // Every rule starts inside an Coord-owned root (the panel, or Coord
+        // Every rule starts inside a Coord-owned root (the panel, or Coord
         // content portalled by envUI), so it cannot restyle the host page.
         assert.equal(selector.first.type, "class", rule.selector);
         assert(SCOPES.includes(selector.first.value), rule.selector);

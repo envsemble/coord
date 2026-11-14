@@ -1,6 +1,6 @@
 # Planning
 
-This Git repository, in the Coord home, is an Coord project: its work items, each a plan with its steps. Its name is the `name` in `planning.json`.
+This Git repository, in the Coord home, is a Coord project: its work items, each a plan with its steps. Its name is the `name` in `planning.json`.
 
 [AGENTS.md](AGENTS.md) says how agents work here, [PLANS.md](PLANS.md) defines the plan, registry and ledger formats, and [planning.json](planning.json) lists the project's folders and work. [plan-frontmatter.md](plan-frontmatter.md) is an example plan header.
 
