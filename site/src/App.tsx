@@ -30,7 +30,7 @@ export function App() {
         <li>It builds live dashboards inside the plan as it works.</li>
         <li>Coord shows which plans need your attention, and why.</li>
       </ul>
-      <p className="facts">Works with Claude Code and Codex wherever you run them, such as a terminal or T3 Code. Used internally at envsemble. Windows and Linux, free and open source (MIT).</p>
+      <p className="facts">Works with Claude Code and Codex wherever you run them, such as a terminal or T3 Code. Windows and Linux, free and open source (MIT).</p>
       <div className="downloads">
         {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={stable} loading={builds === 'loading'} />)}
       </div>
