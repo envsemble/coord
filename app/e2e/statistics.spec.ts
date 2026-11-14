@@ -70,7 +70,7 @@ test("a project's statistics look back on its work: its figures against the peri
   await window.getByRole('radiogroup', { name: 'Period' }).getByRole('radio', { name: 'All time' }).click();
   // The figures, all time: nothing before to compare with.
   const agentTime = window.locator('.stats-grid .stat', { hasText: 'Agent time' });
-  await expect(agentTime.locator('.stat-note')).toHaveText('since the first report');
+  await expect(agentTime.locator('.stat-note')).toHaveCount(0);
   await expect(window.locator('.stats-grid .stat', { hasText: 'Plans completed' }).locator('.stat-value')).toHaveText('1');
   // The work over time, by week, a column saying on hover what it holds.
   const chart = window.getByRole('img', { name: /^Agent time by week/ });

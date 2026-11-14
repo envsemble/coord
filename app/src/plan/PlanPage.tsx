@@ -148,7 +148,7 @@ export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Sna
             {/* The way to what is asked: a button that opens the page. The status line above says what
                 for; what the page asks is the button's description, beside it only when the status line says nothing. */}
             {asking.map(([page, text]) => <li key={page}>
-              <Button size="sm" variant="secondary" startIcon={<PageIcon />} title={text} onClick={() => open(pageTarget(page))}>Open {page.slice(page.lastIndexOf('/') + 1)}</Button>
+              <Button size="sm" variant="primary" startIcon={<PageIcon />} title={text} onClick={() => open(pageTarget(page))}>Open {page.slice(page.lastIndexOf('/') + 1)}</Button>
               {!work.state?.note && <span className="page-attention-text">{text}</span>}
             </li>)}
           </ul>}

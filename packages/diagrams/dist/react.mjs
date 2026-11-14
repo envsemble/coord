@@ -2489,7 +2489,7 @@ function ExportMenu({ items }) {
 }
 
 // src/ui/Island.jsx
-import { Surface } from "@envsemble/envui";
+import { Surface, Toolbar } from "@envsemble/envui";
 import { jsx as jsx10 } from "react/jsx-runtime";
 function Island({ label, className = "", children, ...props }) {
   return /* @__PURE__ */ jsx10(
@@ -2498,8 +2498,7 @@ function Island({ label, className = "", children, ...props }) {
       background: "default",
       radius: "full",
       padding: 1,
-      role: "group",
-      "aria-label": label,
+      render: /* @__PURE__ */ jsx10(Toolbar.Root, { "aria-label": label, size: "sm", tooltipDelay: 0 }),
       className: `coord-island${className ? ` ${className}` : ""}`,
       ...props,
       children
@@ -2507,7 +2506,7 @@ function Island({ label, className = "", children, ...props }) {
   );
 }
 function IslandDivider() {
-  return /* @__PURE__ */ jsx10("span", { className: "island-divider", "aria-hidden": "true" });
+  return /* @__PURE__ */ jsx10(Toolbar.Separator, {});
 }
 
 // src/ui/ViewSwitcher.jsx

@@ -7,13 +7,13 @@
 // installed (or trusted) meanwhile shows as it is. A connected agent's row says whether it runs Coord,
 // and in Settings each row's More menu shows the commands that connect it by hand.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Button, Checkbox, Dialog, IconButton, List, Menu, Spinner } from '@envsemble/envui';
+import { Alert, Badge, Button, Checkbox, Dialog, IconButton, List, Menu, Spinner } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/code';
 import { agentIds, agentNames } from '../../shared/contract';
 import type { AgentFolder, AgentId, AgentState } from '../types';
 import { api, CoordError } from '../api';
 import { AgentLogo } from './AgentLogo';
-import { agentCheckLine, agentInstallPages, agentStatus, agentWarnings, byHandCommands, finished, idle, started, withAgent, type AgentActivity } from './agents';
+import { agentCheckLine, agentInstallPages, agentWarnings, byHandCommands, finished, idle, started, withAgent, type AgentActivity } from './agents';
 import { CheckIcon, MoreIcon, NewWindowIcon } from '../ui/icons';
 import { CopyButton } from '../ui/CopyButton';
 import { absoluteDate, relativeDate } from '../ui/format';
@@ -160,7 +160,11 @@ function MoreMenu({ agent, activity, mode, state, onByHand }: { agent: AgentStat
 
 /** An agent's status (with, connected, whether it runs Coord), what is happening to it, or why the last change failed. */
 function AgentDetail({ agent, activity, state }: { agent: AgentState; activity: AgentActivity; state: Agents }) {
-  let line: ReactNode = agentStatus(agent);
+  // Its state as a badge, as the row's status; the plugin's version beside it.
+  let line: ReactNode = <>
+    <Badge tone={agent.connected ? 'success' : 'neutral'}>{agent.connected ? 'Connected' : agent.found ? 'Not connected' : 'Not found on this computer'}</Badge>
+    {agent.connected && agent.version && <span className="muted">plugin {agent.version}</span>}
+  </>;
   if (activity.running) line = <span className="agent-progress"><Spinner size="sm" label="" />{activity.running === 'connect' ? 'Connecting… this can take a minute.' : 'Disconnecting…'}</span>;
   const check = agent.connected && agent.check && !activity.running ? agentCheckLine(agent.check, agent.id) : null;
   const refused = state.refused(agent.id);

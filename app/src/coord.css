@@ -570,7 +570,7 @@ body { margin: 0; }
 .agent-logo { flex: none; inline-size: 1.5rem; block-size: 1.5rem; }
 .agent-row[data-found='false'] :is(.agent-name, .agent-status) { opacity: 0.55; }
 .agent-detail { display: flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-1) var(--env-space-3); padding-inline-start: calc(1.5rem + var(--env-space-3)); }
-.agent-status[data-connected='true'] { color: var(--env-color-fg-success); }
+.agent-status { display: inline-flex; align-items: center; gap: var(--env-space-2); }
 .agent-progress { display: inline-flex; align-items: center; gap: var(--env-space-2); color: var(--env-color-fg-muted); }
 .agent-error { flex-basis: 100%; color: var(--env-color-fg-danger); overflow-wrap: anywhere; }
 .agent-check { color: var(--env-color-fg-muted); }

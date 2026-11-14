@@ -23,7 +23,8 @@ function Headline({ statistics, period }: { statistics: ProjectStatistics; perio
   const { current, previous } = statistics;
   const card = (label: string, value: (figures: Figures) => number | null, format: (value: number) => string) => {
     const now = value(current), moved = change(now, previous ? value(previous) : null);
-    const note = !previous ? (statistics.from ? null : 'since the first report')
+    // All time needs no note: the period chosen above says it.
+    const note = !previous ? null
       : !moved ? 'none in ' + period.before
       : moved.direction === 'same' ? 'as in ' + period.before
       : (moved.by > 0 ? '+' : '−') + format(Math.abs(moved.by)) + (moved.percent !== null ? ' (' + (moved.percent > 0 ? '+' : '−') + Math.abs(moved.percent) + '%)' : '') + ' against ' + period.before;

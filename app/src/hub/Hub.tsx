@@ -57,7 +57,8 @@ function Spent({ facts }: { facts: HubRowFacts }) {
 }
 
 /** When it last changed, relative, with the date on hover. */
-const Changed = ({ value }: { value: string | null }) => value ? <span className="hub-row-updated" title={'Changed ' + absoluteDate(value)}>{relativeDate(value)}</span> : null;
+// The column is headed Changed, so a date stands alone ("Oct 8", not "on Oct 8").
+const Changed = ({ value }: { value: string | null }) => value ? <span className="hub-row-updated" title={'Changed ' + absoluteDate(value)}>{relativeDate(value).replace(/^on /, '')}</span> : null;
 
 /**
  * Plan, project, progress, agents, changed: the same widths in every group, so the columns line up.

@@ -111,13 +111,6 @@ body {
 .island-end {
   margin-left: auto;
 }
-.island-divider {
-  flex: none;
-  width: 0.0625rem;
-  height: 1.25rem;
-  margin: 0 var(--env-space-1);
-  background: var(--env-color-border-muted);
-}
 .island-leading {
   display: flex;
   align-items: center;
