@@ -24,7 +24,7 @@ test('the MCP server serves the planning-state tools, resolving the planning fol
     try {
       assert.match(client.getInstructions() ?? '', /only through these tools/);
       const { tools } = await client.listTools();
-      assert.deepEqual(tools.map(tool => tool.name), ['where', 'needs_you', 'project_create', 'work_status', 'work_create', 'work_tag', 'work_search', 'work_accept', 'work_start', 'step', 'work_block', 'work_continue', 'work_parts', 'work_close', 'work_archive', 'work_reopen']);
+      assert.deepEqual(tools.map(tool => tool.name), ['where', 'project_create', 'work_status', 'work_create', 'state', 'work_update', 'work_search', 'work_accept', 'work_start', 'step', 'work_close', 'work_reopen']);
       assert.ok(tools.every(tool => (tool.description ?? '').length > 40), 'every tool says what it is for');
 
       const call = (name: string, args: object) => client.callTool({ name, arguments: args as Record<string, unknown> }) as Promise<Result>;
@@ -58,23 +58,28 @@ test('the MCP server serves the planning-state tools, resolving the planning fol
       assert.match((await inRoot('step', { work: 'work-0001', action: 'add', steps: [] })).content![0].text, /needs steps, a non-empty list of titles/);
       assert.match((await inRoot('step', { work: 'work-0001', action: 'move' })).content![0].text, /action: add, propose, set, rename or remove/);
       await inRoot('step', { work: 'work-0001', action: 'set', step: 'Write docs', status: 'done' });
-      await inRoot('work_block', { work: 'work-0001', reason: 'Waiting' });
+      // Started, it is the agents' to work on; blocked says why, and keeps it from closing.
+      assert.equal((started.structuredContent!.state as { kind: string }).kind, 'working');
+      assert.match((await inRoot('state', { work: 'work-0001', kind: 'blocked' })).content![0].text, /Say what for: why it is blocked/);
+      await inRoot('state', { work: 'work-0001', kind: 'blocked', note: 'Waiting' });
       const closing = await inRoot('work_close', { work: 'work-0001' });
       assert.equal(closing.isError, true);
       assert.match(closing.content![0].text, /- Step "Review" is todo\.\n- Blocked: Waiting$/);
-      assert.equal((await inRoot('work_block', { work: 'work-0001' })).structuredContent!.blocked, null);
+      const turn = await inRoot('state', { work: 'work-0001', kind: 'your_turn', note: 'Review the cart' });
+      assert.deepEqual([turn.structuredContent!.blocked, (turn.structuredContent!.state as { note: string }).note], [null, 'Review the cart']);
       const created = await call('work_create', { title: 'Payments' });
       assert.equal(created.structuredContent!.workId, 'work-0002');
-      assert.deepEqual((await inRoot('work_continue', { work: 'work-0002', continues: ['work-0001'] })).structuredContent!.continues, ['work-0001']);
+      assert.deepEqual((await inRoot('work_update', { work: 'work-0002', continues: ['work-0001'] })).structuredContent!.continues, ['work-0001']);
+      assert.deepEqual((await inRoot('work_update', { work: 'work-0002', addTags: ['cart'] })).structuredContent!.tags, ['cart']);
       // A part made in its group, and the group's parts set in order.
       const part = await inRoot('work_create', { title: 'Card form', partOf: 'work-0002' });
       assert.deepEqual([part.structuredContent!.workId, part.structuredContent!.partOf], ['work-0003', 'work-0002']);
-      assert.deepEqual((await inRoot('work_parts', { work: 'work-0002', parts: ['work-0003', 'work-0001'] })).structuredContent!.parts, ['work-0003', 'work-0001']);
-      assert.match((await inRoot('work_parts', { work: 'work-0001', parts: ['work-0003'] })).content![0].text, /already a part of work-0002/);
+      assert.deepEqual((await inRoot('work_update', { work: 'work-0002', parts: ['work-0003', 'work-0001'] })).structuredContent!.parts, ['work-0003', 'work-0001']);
+      assert.match((await inRoot('work_update', { work: 'work-0001', parts: ['work-0003'] })).content![0].text, /already a part of work-0002/);
       assert.match(readFileSync(path.join(root, 'active/0001-cart/ledger.md'), 'utf8'), /status: done/);
       // A reason alone is refused, not dropped; naming the work that supersedes it implies superseded.
-      assert.match((await inRoot('work_archive', { work: 'work-0001', reason: 'Replaced' })).content![0].text, /only with a disposition/);
-      const archived = await inRoot('work_archive', { work: 'work-0001', supersededBy: 'work-0002', reason: 'Payments covers it' });
+      assert.match((await inRoot('work_close', { work: 'work-0001', reason: 'Replaced' })).content![0].text, /no reason or replacement/);
+      const archived = await inRoot('work_close', { work: 'work-0001', supersededBy: 'work-0002', reason: 'Payments covers it' });
       assert.deepEqual([archived.structuredContent!.location, archived.structuredContent!.designStatus], ['archive', 'superseded']);
       assert.equal((await run(['check', root], { env })).status, 0);
 

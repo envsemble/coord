@@ -3,6 +3,14 @@ export interface Document {
   path: string; name: string; title: string; size: number; modified: string;
   key: string; workId: string | null; category: string; format: string;
 }
+/**
+ * Whose turn a work item is, as its agents declare it in the plan's header: the agents' while it is
+ * planned or worked on, the work's while it waits on a PR or something else, the user's (with what
+ * they are to do), or blocked. Atlas never guesses it.
+ */
+export type StateKind = 'planning' | 'working' | 'waiting' | 'your_turn' | 'blocked';
+/** A declared state: its kind, the line saying what for, and when it was set. */
+export interface WorkState { kind: StateKind; note: string | null; since: string | null }
 export interface Work {
   id: string; path: string; currentPlan: string | null;
   title: string; location: string; design: string; implementation: string;
@@ -23,6 +31,8 @@ export interface Work {
    * order, each once), and the group that lists it among its parts (the first, should several), or null.
    */
   parts?: string[]; partOf?: string | null;
+  /** The state its plan's header declares, or null when it declares none. */
+  state?: WorkState | null;
 }
 /**
  * A work item at the other end of a handoff: its project (`projectId`, the project's ID, its own

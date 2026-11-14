@@ -8,7 +8,7 @@ import path from 'node:path';
 import { validatePlanning } from '../check/check.ts';
 import { checkPaths, fileCheckers } from '../check/checkPaths.ts';
 import { remoteRepository } from '../references/remotes.ts';
-import { acceptWork, addSteps, archiveWork, proposeSteps, projectTags, searchWork, tagWork, closeWork, createWork, setContinues, setParts, planningLedger, removeStep, renameStep, reopenWork, setBlocked, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
+import { acceptWork, addSteps, archiveWork, proposeSteps, projectTags, searchWork, tagWork, closeWork, createWork, setContinues, setParts, planningLedger, removeStep, renameStep, reopenWork, setState, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
 import { git, plan, planningFolder, read, temporary, today, write } from '../testing.ts';
 
 const errorsOf = (root: string) => validatePlanning(root).errors;
@@ -26,6 +26,9 @@ test('a work item is created under the next unused number, registered, and valid
   assert.ok(read(root, 'planning.json').startsWith(before.slice(0, before.lastIndexOf('}\n  ]'))), 'the registry is extended, not rewritten');
   assert.deepEqual(JSON.parse(read(root, 'planning.json')).work_items.at(-1), { id: 'work-0004', path: 'active/0004-save-the-cart', current_plan: 'active/0004-save-the-cart/plan.md' });
   assert.match(read(root, created.plan), /^schema_version: 2$/m);
+  // New work is being planned, from the moment it was made.
+  assert.equal(created.state?.kind, 'planning');
+  assert.match(read(root, created.plan), /^state: planning\nstate_note: null\nstate_since: "\d{4}-\d{2}-\d{2}T[^"]+"$/m);
   assert.match(read(root, created.plan), /^title: "Säve the \\"cart\\""$/m);
   assert.deepEqual(errorsOf(root), []);
   const slugged = await createWork(root, { title: 'Other', slug: 'custom-name' }, today);
@@ -37,7 +40,7 @@ test('a work item is created under the next unused number, registered, and valid
   // A block list is replaced whole, across its comments and blank lines.
   write(path.join(root, continuing.plan), read(root, continuing.plan).replace('continues: ["work-0004"]', 'continues:\n  # moved here\n  - work-0004\n\n  - work-0002'));
   assert.deepEqual((await setContinues(root, continuing.workId, ['work-0005'], today)).continues, ['work-0005']);
-  assert.ok(read(root, continuing.plan).includes('\ncontinues: ["work-0005"]\n---'));
+  assert.ok(read(root, continuing.plan).includes('\ncontinues: ["work-0005"]\nstate: planning\n'));
   for (const continues of [['work-9999'], ['nope'], [continuing.workId]]) await assert.rejects(setContinues(root, continuing.workId, continues, today), WorkError);
   // A handoff back to work that continues it would be a loop.
   await assert.rejects(setContinues(root, 'work-0005', [continuing.workId], today), /a loop/);
@@ -206,7 +209,7 @@ test('the design is accepted, then implementation starts with a ledger of its st
   await assert.rejects(startWork(root, 'nonsense', { steps: ['A'] }, today), /such as work-0001/);
 });
 
-test('steps are added, set, renamed and removed, and blocked is set and cleared', async t => {
+test('steps are added, set, renamed and removed, and the state is declared, blocked keeping its reason in the ledger', async t => {
   const root = planningFolder(temporary(t));
   await acceptWork(root, 'work-0001', today);
   await startWork(root, 'work-0001', { steps: ['Build'] }, today);
@@ -221,10 +224,16 @@ test('steps are added, set, renamed and removed, and blocked is set and cleared'
   await assert.rejects(renameStep(root, 'work-0001', 'Test it', 'Ship', today), /already has a step "Ship"/);
   const removed = await removeStep(root, 'work-0001', 'Ship', today);
   assert.deepEqual(removed.steps.map(step => step.title), ['Build', 'Test it']);
-  const blocked = await setBlocked(root, 'work-0001', 'Waiting for the API key', today);
-  assert.equal(blocked.blocked, 'Waiting for the API key');
+  const blocked = await setState(root, 'work-0001', { kind: 'blocked', note: 'Waiting for the API key' }, { ...today, now: '2026-10-15T09:00:00.000Z' });
+  assert.deepEqual([blocked.blocked, blocked.state], ['Waiting for the API key', { kind: 'blocked', note: 'Waiting for the API key', since: '2026-10-15T09:00:00.000Z' }]);
   assert.match(read(root, 'active/0001-existing/ledger.md'), /^blocked: "Waiting for the API key"\n[^]*---\n$/m, 'only the header changes');
-  assert.equal((await setBlocked(root, 'work-0001', null, today)).blocked, null);
+  assert.match(read(root, 'active/0001-existing/plan.md'), /^state: blocked\nstate_note: "Waiting for the API key"\nstate_since: "2026-10-15T09:00:00.000Z"$/m);
+  // Whose turn it is says what for; another state clears the blocker, and none clears the state.
+  await assert.rejects(setState(root, 'work-0001', { kind: 'your_turn' }, today), /Say what for: what the user is to do/);
+  await assert.rejects(setState(root, 'work-0001', { kind: 'done' }, today), /one of planning, working, waiting, your_turn, blocked/);
+  const turn = await setState(root, 'work-0001', { kind: 'your_turn', note: 'Merge owner/repo#12' }, today);
+  assert.deepEqual([turn.blocked, turn.state?.kind, turn.state?.note], [null, 'your_turn', 'Merge owner/repo#12']);
+  assert.equal((await setState(root, 'work-0001', { kind: null }, today)).state, null);
   assert.deepEqual(errorsOf(root), []);
 });
 
@@ -233,7 +242,7 @@ test('closing refuses while items are open, then completes and archives, repairi
   await acceptWork(root, 'work-0001', today);
   await startWork(root, 'work-0001', { steps: ['Build', 'Review'] }, today);
   await setStepStatus(root, 'work-0001', 'Build', 'done', today);
-  await setBlocked(root, 'work-0001', 'Review pending', today);
+  await setState(root, 'work-0001', { kind: 'blocked', note: 'Review pending' }, today);
   await assert.rejects(closeWork(root, 'work-0001', today), (error: WorkError) => {
     assert.deepEqual(error.problems, ['Step "Review" is todo.', 'Blocked: Review pending']);
     return /cannot close while items are open/.test(error.message);
@@ -243,9 +252,11 @@ test('closing refuses while items are open, then completes and archives, repairi
   await acceptWork(root, 'work-0002', today);
   await assert.rejects(closeWork(root, 'work-0002', today), /ledger has no implementation steps/);
   await setStepStatus(root, 'work-0001', 'Review', 'done', today);
-  await setBlocked(root, 'work-0001', null, today);
+  await setState(root, 'work-0001', { kind: 'working' }, today);
   const closed = await closeWork(root, 'work-0001', { today: '2026-10-16' });
   assert.deepEqual([closed.path, closed.location, closed.implementationStatus, closed.completedAt, closed.plan], ['archive/0001-existing', 'archive', 'complete', '2026-10-16', 'archive/0001-existing/plan.md']);
+  // Closed work keeps how it ended: no one's turn any more.
+  assert.equal(closed.state, null);
   assert.ok(!existsSync(path.join(root, 'active/0001-existing')));
   assert.deepEqual(JSON.parse(read(root, 'planning.json')).work_items[0], { id: 'work-0001', path: 'archive/0001-existing', current_plan: 'archive/0001-existing/plan.md' });
   // Links into the moved folder and out of it follow; links within it, and code, stay.

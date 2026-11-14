@@ -10,6 +10,7 @@ import path from 'node:path';
 import { agreed, ledgerStatus } from '../work/ledger.ts';
 import { isTag, tagLimit } from '../work/tags.ts';
 import { isWorkId } from '../work/parts.ts';
+import { stateProblems } from '../work/state.ts';
 import { tableProblems } from './tables.ts';
 import { HandoffGraph, handoffsOf, handoffText } from '../handoffs/handoffs.ts';
 
@@ -37,7 +38,7 @@ const ledgerEntryLists = ['steps'];
 /** Fields that may start a block list of scalars on the following lines. */
 const scalarListFields = new Set(['supersedes', 'continues', 'tags', 'parts']);
 /** The plan header's optional fields. */
-const optionalPlanFields = ['summary', 'continues', 'tags', 'parts'];
+const optionalPlanFields = ['summary', 'continues', 'tags', 'parts', 'state', 'state_note', 'state_since'];
 
 /** A metadata header the checker cannot certify; the message names the offending construct. */
 export class FrontmatterError extends Error {
@@ -394,6 +395,8 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     if (chronology.some(([earlier, later]) => dates[earlier] && dates[later] && dates[earlier] > dates[later])) errors.push(prefix + 'Recorded lifecycle dates are out of order');
     if (metadata.completed_at !== null && metadata.completed_at !== undefined && metadata.implementation_status !== 'complete') errors.push(prefix + 'completed_at requires complete implementation_status');
     if (metadata.accepted_at !== null && metadata.accepted_at !== undefined && metadata.design_status === 'draft') errors.push(prefix + 'draft cannot claim accepted_at');
+    // The state its agents declare: one of the kinds, with a line for those that say what for.
+    for (const problem of stateProblems(metadata)) errors.push(prefix + problem);
     // Tags: what the work can be found by, each once; a plan without them has none.
     const tags = metadata.tags;
     if (tags !== undefined && tags !== null) {

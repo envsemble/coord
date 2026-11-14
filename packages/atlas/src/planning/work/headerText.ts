@@ -5,7 +5,7 @@ import type { LedgerStep } from '../types.ts';
 
 const BOM = String.fromCharCode(0xfeff);
 /** Fields written as plain words; every other string is quoted, so YAML cannot read it as something else. */
-const plainFields = new Set(['kind', 'design_status', 'implementation_status']);
+const plainFields = new Set(['kind', 'design_status', 'implementation_status', 'state']);
 
 export class HeaderError extends Error {
   constructor(message: string) { super(message); this.name = 'HeaderError'; }
