@@ -1,13 +1,13 @@
 // Coord's website: one dark page. The name, one line on what Coord is, a download button for
 // Windows and one for Linux (the newest stable build, read from GitHub Releases in the visitor's
-// browser by releases.ts), and a screenshot of a plan. Hovering a feature shows its screenshot by the cursor.
+// browser by releases.ts), and a screenshot of a big run's statistics. Hovering a feature shows its screenshot by the cursor.
 import { useEffect, useState, type MouseEvent, type ReactNode } from 'react';
 import logo from '../../assets/coord-logo-dark.svg';
-import plan from '../../assets/plan-dark.png';
 import attention from './shots/attention.png';
 import dashboard from './shots/dashboard.png';
 import diagrams from './shots/diagrams.png';
 import grill from './shots/grill.png';
+import statistics from './shots/statistics.png';
 import { linuxPath } from './linuxPath.ts';
 import { acceptedPath, claudePath, codexPath, diagramPath, draftPath, pagePath, yourTurnPath } from './marks.ts';
 import { fetchBuilds, releasesPage, sourcePage, visitorPlatform, type Build, type Channel, type Platform } from './releases.ts';
@@ -42,8 +42,8 @@ export function App() {
         {stable ? <><a href={stable.page}>Version {stable.version}</a> · </> : null}
         <a href={releasesPage}>All releases</a>
       </p>
-      <img className="screenshot" src={plan} width={2163} height={1352}
-        alt="A plan in Coord: its title, whose turn it is and what to do, its outcome and scope, and beside it the plan's progress, steps and statistics." />
+      <img className="screenshot" src={statistics} width={2184} height={1364}
+        alt="A plan's statistics in Coord: 4 hours of agent time in 2 hours, and its timeline, where one Claude Opus session hands work to eleven Claude Haiku subagents at once, then to Opus and Fable." />
       <section className="nightly" aria-labelledby="nightly-title">
         <h2 id="nightly-title">Nightly</h2>
         <p>Fresh off <code>dev</code> every night. Occasionally on fire.</p>
