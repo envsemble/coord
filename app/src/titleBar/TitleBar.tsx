@@ -12,6 +12,7 @@ import type { SettingsSection, WindowInfo } from '../types';
 import { api, CoordError } from '../api';
 import { ComputerMenu } from '../computers/ComputerMenu';
 import { useAppActions } from '../appActions';
+import { BuildBadge } from './BuildBadge';
 import { UpdateButton } from '../settings/Updates';
 
 /** What the window adds to the title bar: back and forward, Plans and Settings. */
@@ -29,6 +30,11 @@ export interface WindowMenus {
   /** Show Settings, at a section. */
   settings(section?: SettingsSection): void;
 }
+
+/** Ask main to run a command; a failure other than a cancelled question is shown. */
+const runCommand = (command: AppCommand, onError: (message: string) => void) => {
+  api.command(command).catch(error => { if ((error as CoordError).code !== 'cancelled') onError((error as Error).message); });
+};
 
 /** The modifier shortcuts use: ⌘ on macOS, Ctrl elsewhere. */
 export const modifierKey = (platform: string) => platform === 'darwin' ? '⌘' : 'Ctrl';
@@ -59,6 +65,7 @@ export function AppMenus({ menus, onError }: { menus: WindowMenus; onError(messa
 export function TitleBarStart({ info, menus, onError }: { info: WindowInfo; menus: WindowMenus; onError(message: string): void }) {
   return <div className="title-bar-start">
     <CoordLogo />
+    <BuildBadge info={info} run={command => runCommand(command, onError)} />
     <HistoryButtons platform={info.platform} menus={menus} />
     <AppMenus menus={menus} onError={onError} />
     <ComputerMenu current={info.computer} onError={onError} onSettings={() => menus.settings('computers')} />

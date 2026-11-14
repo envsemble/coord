@@ -20,7 +20,7 @@ test('an agent changed replaces only its own row', () => {
 });
 
 test('connecting by hand names the folder and marketplace the app uses; only a connected agent\'s untrusted or idle hooks warn', () => {
-  const folder = { directory: String.raw`C:\Users\Ján O\.coord\agent`, marketplace: 'coord' };
+  const folder = { directory: String.raw`C:\Users\Ján O\.coord\agent`, marketplace: 'coord', plugin: 'coord@coord' };
   assert.deepEqual(byHandCommands('claude', folder), {
     terminal: [String.raw`claude plugin marketplace add "C:\Users\Ján O\.coord\agent"`, 'claude plugin install coord@coord'],
     // Claude Code's /plugin takes the rest of the line as the path, quotes and all: a path with a space goes in as it is.

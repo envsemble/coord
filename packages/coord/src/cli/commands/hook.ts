@@ -28,6 +28,7 @@ import { contradictions } from '../../planning/work/contradictions.ts';
 import type { insertReport } from '../../planning/reports/reports.ts';
 import type { PreparedReport } from '../../planning/reports/recordReport.ts';
 import type { Output } from '../args.ts';
+import { changesWork, isDevVariant } from './devSession.ts';
 import { logFailure, pruneStamps, runsCoordWork, recordActivity, recordSession, sessionPattern, stateEvents, stateHook, type Activity, type ActivityDetails } from './sessionState.ts';
 
 export interface HookInput {
@@ -285,7 +286,7 @@ async function postToolUse(input: HookInput, home: string, links: SessionLinks):
   const requests: LinkRequest[] = [];
   // Tools that change a work item link it; reading (work_status, work_search) leaves the session where it is.
   // So does the coord command run in a shell (shellWork), the last work item it names last.
-  const tool = /^mcp__.*coord.*__(?:step$|state$|work_(?!(?:status|search)$))/.test(input.tool_name ?? '');
+  const tool = changesWork(input.tool_name ?? '', isDevVariant());
   const changed = tool ? [toolWork(input)].filter(about => about !== null) : shellWork(input);
   if (changed.length) {
     const { resolvePlanningFolder } = await import('../../planning/projects/findProject.ts');

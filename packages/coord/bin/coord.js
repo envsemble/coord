@@ -7,12 +7,22 @@
 // and otherwise only that file loads. So is a PostToolUse with nothing to do: no Coord tool that
 // changes a work item, and no file edited in the home's planning folder. Every other hook loads
 // src/cli/commands/hook.ts, not the whole command.
-import { mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const started = Date.now();
 const [command, event] = process.argv.slice(2);
+/** Whether this is Coord Dev's command (its variant.json beside bin/; src/cli/commands/devSession.ts). */
+const devVariant = existsSync(new URL("../variant.json", import.meta.url));
+
+// A command the app installed in a home's agent folder uses that home, unless COORD_HOME chose
+// another: the release's in ~/.coord, Coord Dev's in its copy (homePath.ts's installedHome).
+if (!process.env.COORD_HOME) {
+  const home = (await import("../src/home/homePath.ts")).installedHome(fileURLToPath(import.meta.url));
+  if (home) process.env.COORD_HOME = home;
+}
 const stateEvents = new Set(["UserPromptSubmit", "ToolUse", "SessionEnd"]);
 const name = /^[A-Za-z0-9._:-]{1,128}$/;
 
@@ -65,7 +75,8 @@ function idle(text) {
   try {
     const input = JSON.parse(text || "{}");
     if (typeof input.session_id !== "string" || !name.test(input.session_id)) return true;
-    if (/^mcp__.*coord.*__(?:step$|state$|work_(?!(?:status|search)$))/.test(input.tool_name ?? "")) return false;
+    // This command's own Coord tool that changes a work item (devSession.ts's changesWork): coord's, or Coord Dev's coord-dev.
+    if (/^mcp__.*coord.*__(?:step$|state$|work_(?!(?:status|search)$))/.test(input.tool_name ?? "") && /coord-dev/.test(input.tool_name) === devVariant) return false;
     let base;
     try { base = realpathSync.native(path.join(coordHome(), "planning")); } catch { return true; }
     const files = [], toolInput = input.tool_input;
@@ -112,7 +123,16 @@ if (command === "hook") {
   let text = "";
   if (!process.stdin.isTTY) for await (const chunk of process.stdin) text += chunk;
   if (event === "SessionStart" || event === "UserPromptSubmit") noteHooks(text);
-  if (stateEvents.has(event)) {
+  // Coord Dev's command (its variant.json beside bin/) runs its hooks in a dev session only (devSession.ts).
+  let run = true;
+  if (devVariant) {
+    const gate = (await import("../src/cli/commands/devSession.ts")).devGate(event, text, coordHome());
+    if (gate.output) process.stdout.write(gate.output + "\n");
+    run = gate.run;
+  }
+  if (!run) {
+    // A dev variant's hook outside a dev session does nothing.
+  } else if (stateEvents.has(event)) {
     if (!settled(text)) await (await import("../src/cli/commands/sessionState.ts")).stateHook(event, text, started);
   } else if (!(event === "PostToolUse" && idle(text))) {
     const output = { stdout: (/** @type {string} */ line) => process.stdout.write(line + "\n"), stderr: (/** @type {string} */ line) => process.stderr.write(line + "\n") };

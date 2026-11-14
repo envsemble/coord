@@ -15,6 +15,7 @@ import { CoordError, toErrorValue } from '../errors.ts';
 import type { ProjectView } from '../computers/projectView.ts';
 import type { Agents } from '../agent/agents.ts';
 import type { Updates } from '../updates.ts';
+import type { DevActions } from '../dev.ts';
 import { programFilters } from '../agent/programs.ts';
 import { originOf, rendererOrigin } from './protocol.ts';
 import { placeRow, savedPlace } from '../appState.ts';
@@ -142,7 +143,7 @@ async function saveUi(manager: WindowManager, window: CoordWindow, ui: UiState) 
 }
 
 /** What the message handlers need from the app beyond the windows. */
-export interface IpcActions { openLogs(): void; about(): AboutInfo; agents: Agents; updates: Updates }
+export interface IpcActions { openLogs(): void; about(): AboutInfo; agents: Agents; updates: Updates; dev: DevActions | null }
 
 function channels(manager: WindowManager, actions: IpcActions): Record<InvokeChannel, Channel> {
   const { computers } = manager.context;
@@ -235,6 +236,19 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
           case 'toggleFullScreen': window.win.setFullScreen(!window.win.isFullScreen()); return;
           case 'reload': if (devTools) contents.reload(); return;
           case 'toggleDevTools': if (devTools) contents.toggleDevTools(); return;
+          // The menu of Coord Dev's Dev tag: each asks first, in a dialog a page cannot answer.
+          case 'devCopyRealData':
+            if (!actions.dev) return;
+            await confirmed(window, 'Copy your real Coord data again? Coord Dev restarts on the new copy; what changed in this copy is lost.', 'Copy and Restart');
+            actions.dev.refresh();
+            return;
+          case 'devRemovePlugin': {
+            if (!actions.dev) return;
+            await confirmed(window, 'Remove the Coord Dev plugin from Claude Code and Codex? The real Coord plugin stays.', 'Remove');
+            const error = await actions.dev.removePlugin();
+            if (error) throw new CoordError('unavailable', error);
+            return;
+          }
         }
       },
     },

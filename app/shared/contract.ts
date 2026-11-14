@@ -47,6 +47,8 @@ export type ThemePreference = typeof themePreferences[number];
 export const appCommands = [
   'newWindow', 'quit', 'openLogs',
   'zoomIn', 'zoomOut', 'resetZoom', 'toggleFullScreen', 'reload', 'toggleDevTools',
+  // The menu of Coord Dev's Dev tag (main/dev.ts); nothing in any other build.
+  'devCopyRealData', 'devRemovePlugin',
 ] as const;
 export type AppCommand = typeof appCommands[number];
 
@@ -82,6 +84,8 @@ export interface WindowInfo {
   platform: string;
   /** Whether the menu offers Reload and the developer tools (unpackaged builds). */
   devTools: boolean;
+  /** Whether this is Coord Dev (`npm run dev`, on a copy of the data): the title bar says Dev, a tag that is also its menu. */
+  dev: boolean;
 }
 /**
  * A project as a window follows it. `notice`: its planning folder is readable but cannot be watched,
@@ -158,13 +162,15 @@ export interface AgentState { id: AgentId; found: boolean; program: string | nul
 /** What connecting or disconnecting an agent did: its state after, and the error when it failed (a message fit to show). */
 export interface AgentChange { agent: AgentState; error: string | null }
 /** What connecting an agent by hand takes: the marketplace folder the app connects agents to, and the marketplace's name. */
-export interface AgentFolder { directory: string; marketplace: string }
+export interface AgentFolder { directory: string; marketplace: string; plugin: string }
 /** Whether the onboarding has been finished on this computer; it shows on launch until then. */
 export interface OnboardingState { done: boolean }
 
 /** Where Coord's updates come from: its stable releases, or a build of its development branch each night. */
 export const updateChannels = ['stable', 'nightly'] as const;
 export type UpdateChannel = typeof updateChannels[number];
+/** Whether a version is a nightly build's (`0.9.1-nightly.20261114.42`): its updates follow the nightly channel, and its title bar says Nightly. */
+export const isNightlyVersion = (version: string) => /-nightly\./.test(version);
 /**
  * Where the installed app's update stands: off for this run (a development or test build, or a
  * Linux build not run as its AppImage, with why), nothing to do (`checkedAt`: the last check that

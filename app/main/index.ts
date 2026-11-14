@@ -20,6 +20,7 @@ import { Agents } from './agent/agents.ts';
 import { WindowManager } from './windows/windowManager.ts';
 import updater, { type BaseUpdater } from 'electron-updater';
 import { Updates, type UpdaterEngine } from './updates.ts';
+import { devActions, isCoordDev } from './dev.ts';
 import type { AboutInfo } from '../shared/contract.ts';
 import { isProjectListing } from '../shared/validate.ts';
 
@@ -126,6 +127,8 @@ function start(database: HomeDatabase) {
   // The chosen theme reaches every window as prefers-color-scheme, and themes Coord's own menus and dialogs.
   nativeTheme.themeSource = state.theme;
   const devTools = !app.isPackaged;
+  // Coord Dev: `npm run dev`'s app, on a copy of the data with its own plugin (main/dev.ts).
+  const coordDev = isCoordDev(app.isPackaged, process.env);
   let manager: WindowManager;
 
   const openLogs = () => { void shell.openPath(log.directory); };
@@ -154,19 +157,21 @@ function start(database: HomeDatabase) {
     onStatus: (client, status, detail) => manager.connectionChanged(client, status, detail),
   });
 
-  // The coord command and the plugin, which the packaged app carries in resources/agent. Only the
-  // installed app on the user's own home puts the command on the PATH and refreshes the connected
-  // agents after an update: a home chosen with COORD_HOME (tests, a separate instance) leaves the
-  // user's `coord` and agents alone.
+  // The coord command and the plugin, which the packaged app carries in resources/agent, and Coord
+  // Dev gets from its launcher (main/dev.ts). Only the installed app on the user's own home puts the
+  // command on the PATH and refreshes the connected agents after an update: a home chosen with
+  // COORD_HOME (tests, a separate instance, Coord Dev's copy) leaves the user's `coord` and agents alone.
   const agents = new Agents({
     home: dataDirectory, log,
-    bundle: app.isPackaged ? path.join(process.resourcesPath, 'agent') : null,
+    bundle: app.isPackaged ? path.join(process.resourcesPath, 'agent') : coordDev ? process.env.COORD_DEV_BUNDLE! : null,
     checkout: path.resolve(app.getAppPath(), '..'),
     ownHome: app.isPackaged && !process.env.COORD_HOME,
     lastSession: harness => (database.db.prepare('SELECT max(updated_at) AS at FROM session WHERE harness = ?').get(harness) as { at: string | null }).at,
   });
 
   // Coord's own updates, from its releases on GitHub, in the installed app only.
+  const dev = coordDev ? devActions(agents, log) : null;
+
   const updates = new Updates({
     version: app.getVersion(), log,
     engine: updaterEngine(),
@@ -175,7 +180,7 @@ function start(database: HomeDatabase) {
   });
 
   manager = new WindowManager({
-    state, database, log, computers, version: app.getVersion(), icon, devUrl, devTools,
+    state, database, log, computers, version: app.getVersion(), icon, devUrl, devTools, dev: coordDev,
     preload: path.join(import.meta.dirname, '../preload/index.cjs'),
     rendererDirectory: path.join(import.meta.dirname, '../renderer'),
   });
@@ -207,7 +212,7 @@ function start(database: HomeDatabase) {
   void app.whenReady().then(async () => {
     log.info('Coord started', { version: app.getVersion(), packaged: app.isPackaged, platform: process.platform, uptimeMs: Math.round(process.uptime() * 1000) });
     Menu.setApplicationMenu(null);
-    registerIpc(manager, { openLogs, about, agents, updates });
+    registerIpc(manager, { openLogs, about, agents, updates, dev });
     buildMenu(manager, { openLogs, devTools });
     // The host starts while the windows open: the connection waits for its owner token.
     const hostStarted = localHost.start().catch(async error => {
@@ -221,7 +226,7 @@ function start(database: HomeDatabase) {
     powerMonitor.on('resume', () => computers.wakeAll());
     manager.restore();
     // After the windows open: an update copies the command and the plugin into the home.
-    void agents.start();
+    void agents.start().then(() => dev?.start());
     updates.start();
     await hostStarted;
   });

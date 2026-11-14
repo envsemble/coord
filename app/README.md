@@ -185,4 +185,4 @@ Coord keeps its own data in the Coord home, `~/.coord` (or `COORD_HOME`), shared
 
 ## Develop
 
-From the repository root, `npm ci`, then `npm run dev` starts the app with hot reload (give it a home of its own: `COORD_HOME=~/.coord-dev npm run dev`, or `npm run dev:home`). `npm run package` builds the installer or AppImage, and `npm run test:e2e` drives it. [Contributing](../CONTRIBUTING.md) covers set-up, the repository layout, the tests and the checks.
+From the repository root, `npm ci`, then `npm run dev` starts Coord Dev: the app with hot reload, beside your installed Coord, on a copy of your Coord data, with a `dev-` plugin of its own in your agents ([Coord Dev](../CONTRIBUTING.md#coord-dev)); `npm run dev:home` starts it on a demo home instead. `npm run package` builds the installer or AppImage, and `npm run test:e2e` drives it. [Contributing](../CONTRIBUTING.md) covers set-up, the repository layout, the tests and the checks.
