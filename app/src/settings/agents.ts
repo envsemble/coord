@@ -45,8 +45,7 @@ export const agentWarnings = (agents: readonly AgentState[] | null) => (agents ?
  * Coord's home. Claude Code's /plugin takes the rest of its line as the path (it joins the words
  * with spaces and keeps quotes), so the path goes in unquoted there.
  */
-export function byHandCommands(id: AgentId, { directory, marketplace }: AgentFolder): { terminal: string[]; session: string[] } {
-  const plugin = 'coord@' + marketplace;
+export function byHandCommands(id: AgentId, { directory, plugin }: AgentFolder): { terminal: string[]; session: string[] } {
   if (id === 'claude') return {
     terminal: [`claude plugin marketplace add "${directory}"`, `claude plugin install ${plugin}`],
     session: [`/plugin marketplace add ${directory}`, `/plugin install ${plugin}`],

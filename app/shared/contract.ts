@@ -158,7 +158,7 @@ export interface AgentState { id: AgentId; found: boolean; program: string | nul
 /** What connecting or disconnecting an agent did: its state after, and the error when it failed (a message fit to show). */
 export interface AgentChange { agent: AgentState; error: string | null }
 /** What connecting an agent by hand takes: the marketplace folder the app connects agents to, and the marketplace's name. */
-export interface AgentFolder { directory: string; marketplace: string }
+export interface AgentFolder { directory: string; marketplace: string; plugin: string }
 /** Whether the onboarding has been finished on this computer; it shows on launch until then. */
 export interface OnboardingState { done: boolean }
 

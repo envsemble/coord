@@ -10,9 +10,17 @@
 import { mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const started = Date.now();
 const [command, event] = process.argv.slice(2);
+
+// A command the app installed in a home's agent folder uses that home, unless COORD_HOME chose
+// another: the release's in ~/.coord, Coord Dev's in its copy (homePath.ts's installedHome).
+if (!process.env.COORD_HOME) {
+  const home = (await import("../src/home/homePath.ts")).installedHome(fileURLToPath(import.meta.url));
+  if (home) process.env.COORD_HOME = home;
+}
 const stateEvents = new Set(["UserPromptSubmit", "ToolUse", "SessionEnd"]);
 const name = /^[A-Za-z0-9._:-]{1,128}$/;
 

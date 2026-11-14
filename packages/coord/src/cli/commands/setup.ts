@@ -9,7 +9,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { coordHome, HomeDatabase, prepareHome } from '../../planning/index.ts';
-import { grantHome, harnesses, installStep, marketplaceName, onPath, userHome } from '../../agents/agents.ts';
+import { grantHome, harnesses, installStep, marketplaceName, marketplaceOf, onPath, userHome } from '../../agents/agents.ts';
 import { parseOptions, positionals, wantsHelp, type Output } from '../args.ts';
 
 const line = 'Usage: coord setup [--dry-run]';
@@ -52,7 +52,7 @@ export async function setup(args: string[], out: Output, environment: NodeJS.Pro
       out.stderr(`${harness.name}: ${file} was left as it is: ${(error as Error).message}.`);
     }
     if (!program) { out.stdout(`${harness.name}: ${harness.program} is not on PATH, so the Coord plugin was not installed.`); continue; }
-    for (const command of harness.install(repository, marketplace)) {
+    for (const command of harness.install(repository, marketplace, marketplaceOf(repository).plugin)) {
       const shown = [harness.program, ...command].join(' ');
       if (dryRun) { out.stdout('Would run: ' + shown); continue; }
       const step = await installStep(harness, program, command, marketplace, environment);
