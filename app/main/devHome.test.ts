@@ -8,7 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 // @ts-expect-error -- a plain ES module of the launcher's, without types
 import { copyRealData } from '../scripts/dev-home.mjs';
 
-test("Coord Dev copies the real data: projects on the copy, remote access off, no paired device, its own files kept, the real home untouched", () => {
+test("Coord Dev copies the real data: projects on the copy, remote access off, no paired device or computer, its own files kept, the real home untouched", () => {
   const root = mkdtempSync(path.join(tmpdir(), 'coord-dev-home-'));
   try {
     const real = path.join(root, 'real'), copy = path.join(root, 'copy');
@@ -18,7 +18,9 @@ test("Coord Dev copies the real data: projects on the copy, remote access off, n
     const database = new DatabaseSync(path.join(real, 'coord.db'));
     database.exec(`CREATE TABLE project (id INTEGER PRIMARY KEY, computer_id TEXT, folder TEXT NOT NULL);
       CREATE TABLE setting (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-      CREATE TABLE device (id TEXT PRIMARY KEY);`);
+      CREATE TABLE device (id TEXT PRIMARY KEY);
+      CREATE TABLE paired_computer (id TEXT PRIMARY KEY);`);
+    database.prepare("INSERT INTO paired_computer (id) VALUES ('laptop')").run();
     database.prepare('INSERT INTO project (id, computer_id, folder) VALUES (?, ?, ?)').run(1, null, path.join(real, 'planning', 'shop'));
     database.prepare('INSERT INTO project (id, computer_id, folder) VALUES (?, ?, ?)').run(2, null, elsewhere);
     database.prepare('INSERT INTO project (id, computer_id, folder) VALUES (?, ?, ?)').run(3, 'laptop', '/remote/planning');
@@ -34,8 +36,9 @@ test("Coord Dev copies the real data: projects on the copy, remote access off, n
     const copied = new DatabaseSync(path.join(copy, 'coord.db'), { readOnly: true });
     try {
       assert.deepEqual(copied.prepare('SELECT id, folder FROM project ORDER BY id').all().map(row => ({ ...row })), [
-        { id: 1, folder: path.join(copy, 'planning', 'shop') }, { id: 2, folder: elsewhere }, { id: 3, folder: '/remote/planning' },
+        { id: 1, folder: path.join(copy, 'planning', 'shop') }, { id: 2, folder: elsewhere },
       ]);
+      assert.equal(copied.prepare('SELECT count(*) AS n FROM paired_computer').get()!.n, 0);
       assert.deepEqual(JSON.parse(String(copied.prepare("SELECT value FROM setting WHERE key = 'host.network'").get()!.value)), { enabled: false, address: '100.1.2.3', port: 7346 });
       assert.equal(copied.prepare('SELECT count(*) AS n FROM device').get()!.n, 0);
     } finally { copied.close(); }

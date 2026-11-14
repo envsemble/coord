@@ -55,9 +55,9 @@ function runApp() {
   const environment = { ...process.env, COORD_HOME: home, COORD_DEV_BUNDLE: bundle };
   // A shell that sets ELECTRON_RUN_AS_NODE (some editors and agents do) would start Electron as plain Node.
   delete environment.ELECTRON_RUN_AS_NODE;
-  // Arguments after `--` (npm run dev -- …) reach the app, quoted for the shell.
-  const passed = process.argv.slice(2).map(value => JSON.stringify(value)).join(' ');
-  const child = spawn('electron-vite dev --watch -- ' + passed, { cwd: appFolder, stdio: 'inherit', env: environment, shell: true });
+  // electron-vite's own script on this Node, without a shell; arguments after `--` (npm run dev -- …) reach the app as they are.
+  const electronVite = path.join(path.dirname(require.resolve('electron-vite/package.json')), 'bin', 'electron-vite.js');
+  const child = spawn(process.execPath, [electronVite, 'dev', '--watch', '--', ...process.argv.slice(2)], { cwd: appFolder, stdio: 'inherit', env: environment });
   return new Promise(resolve => child.on('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0))));
 }
 
@@ -83,7 +83,11 @@ if (!existsSync(path.join(home, 'coord.db'))) copy();
 await buildBundle();
 for (;;) {
   const code = await runApp();
-  if (code === refreshExitCode) { copy(); continue; }
+  if (code === refreshExitCode) {
+    // A copy that fails (a file in use in the copy, say) leaves the one there was: Coord Dev starts on it again.
+    try { copy(); } catch (error) { console.error(`Coord Dev: the data could not be copied again, so it starts on the copy it had: ${/** @type {Error} */ (error).message}`); }
+    continue;
+  }
   await pluginOff();
   process.exit(code);
 }

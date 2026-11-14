@@ -14,6 +14,8 @@ import { fileURLToPath } from "node:url";
 
 const started = Date.now();
 const [command, event] = process.argv.slice(2);
+/** Whether this is Coord Dev's command (its variant.json beside bin/; src/cli/commands/devSession.ts). */
+const devVariant = existsSync(new URL("../variant.json", import.meta.url));
 
 // A command the app installed in a home's agent folder uses that home, unless COORD_HOME chose
 // another: the release's in ~/.coord, Coord Dev's in its copy (homePath.ts's installedHome).
@@ -73,7 +75,8 @@ function idle(text) {
   try {
     const input = JSON.parse(text || "{}");
     if (typeof input.session_id !== "string" || !name.test(input.session_id)) return true;
-    if (/^mcp__.*coord.*__(?:step$|state$|work_(?!(?:status|search)$))/.test(input.tool_name ?? "")) return false;
+    // This command's own Coord tool that changes a work item (devSession.ts's changesWork): coord's, or Coord Dev's coord-dev.
+    if (/^mcp__.*coord.*__(?:step$|state$|work_(?!(?:status|search)$))/.test(input.tool_name ?? "") && /coord-dev/.test(input.tool_name) === devVariant) return false;
     let base;
     try { base = realpathSync.native(path.join(coordHome(), "planning")); } catch { return true; }
     const files = [], toolInput = input.tool_input;
@@ -122,7 +125,7 @@ if (command === "hook") {
   if (event === "SessionStart" || event === "UserPromptSubmit") noteHooks(text);
   // Coord Dev's command (its variant.json beside bin/) runs its hooks in a dev session only (devSession.ts).
   let run = true;
-  if (existsSync(new URL("../variant.json", import.meta.url))) {
+  if (devVariant) {
     const gate = (await import("../src/cli/commands/devSession.ts")).devGate(event, text, coordHome());
     if (gate.output) process.stdout.write(gate.output + "\n");
     run = gate.run;

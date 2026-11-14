@@ -12,6 +12,16 @@ import path from 'node:path';
 export const devSessionPrompt = /\bdev[ -]session\b/i;
 const sessionName = /^[A-Za-z0-9._:-]{1,128}$/;
 
+/** Whether this command is Coord Dev's: its variant.json beside bin/ (app/scripts/dev-plugin.cjs). */
+export const isDevVariant = () => existsSync(new URL('../../../variant.json', import.meta.url));
+/** A Coord tool that changes a work item, as its hooks link the session to it (see bin/coord.js's idle too). */
+const workTool = /^mcp__.*coord.*__(?:step$|state$|work_(?!(?:status|search)$))/;
+/**
+ * Whether a tool call changed a work item through this command's own tools: the release's command
+ * answers coord's, Coord Dev's answers coord-dev's, so neither records the other's planning folders.
+ */
+export const changesWork = (tool: string, dev: boolean) => workTool.test(tool) && /coord-dev/.test(tool) === dev;
+
 /** What the agent is told when a dev session starts: Coord Dev's skills and tools in place of Coord's. */
 export function devSessionNote(home: string) {
   return [
@@ -26,7 +36,8 @@ export function devSessionNote(home: string) {
  * Whether a dev variant's hook runs for this event, and what it prints first. A prompt that starts
  * a dev session marks it: the synchronous prompt hook (PageChoices) then tells the agent so, in place
  * of its own work for that one prompt, and the state hook (UserPromptSubmit) records it as usual.
- * A marked session's hooks run as the release's do; any other session's do nothing.
+ * The two run at once for the same prompt, so either may mark it first. A marked session's hooks
+ * run as the release's do; any other session's do nothing.
  */
 export function devGate(event: string | undefined, text: string, home: string): { run: boolean; output: string | null } {
   let input: { session_id?: unknown; prompt?: unknown };
@@ -34,9 +45,8 @@ export function devGate(event: string | undefined, text: string, home: string): 
   const session = input.session_id;
   if (typeof session !== 'string' || !sessionName.test(session)) return { run: false, output: null };
   const marker = path.join(home, 'agent', 'dev-sessions', session);
-  if (existsSync(marker)) return { run: true, output: null };
-  const prompt = event === 'PageChoices' || event === 'UserPromptSubmit';
-  if (!prompt || typeof input.prompt !== 'string' || !devSessionPrompt.test(input.prompt)) return { run: false, output: null };
+  const starts = (event === 'PageChoices' || event === 'UserPromptSubmit') && typeof input.prompt === 'string' && devSessionPrompt.test(input.prompt);
+  if (!starts) return { run: existsSync(marker), output: null };
   try {
     mkdirSync(path.dirname(marker), { recursive: true });
     writeFileSync(marker, new Date().toISOString());

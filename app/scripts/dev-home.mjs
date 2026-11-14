@@ -2,8 +2,9 @@
 // planning folders and the home database, so Coord Dev works on real plans without writing them.
 // The database is copied by SQLite itself (VACUUM INTO), whole and consistent while the real Coord
 // runs. In the copy, projects whose planning folder is in the real home point at the copied one
-// (any elsewhere are read where they are), remote access is off, no paired device can reach it,
-// and the onboarding counts as done (Coord Dev connects its agents itself).
+// (any elsewhere are read where they are), remote access is off, no paired device can reach it and
+// it reaches no paired computer, and the onboarding counts as done (Coord Dev connects its agents
+// itself).
 // Coord Dev's own files stay: its agent folder (the dev plugin, its dev sessions), its Electron
 // folder and its logs. Nothing here runs in a release.
 import { cpSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
@@ -55,7 +56,9 @@ export function copyRealData(real, copy) {
       value.enabled = false;
       database.prepare("UPDATE setting SET value = ? WHERE key = 'host.network'").run(JSON.stringify(value));
     }
-    database.exec('DELETE FROM device');
+    // Neither way between computers: no device of the user's reaches the copy, and the copy
+    // reaches none of their other computers as the real Coord (their projects and places go too).
+    database.exec('PRAGMA foreign_keys = ON; DELETE FROM device; DELETE FROM project WHERE computer_id IS NOT NULL; DELETE FROM paired_computer;');
   } finally { database.close(); }
   return { projects, empty: false };
 }
