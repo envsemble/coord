@@ -85,7 +85,7 @@ const features: { key: string; text: ReactNode; shot: string; alt: string }[] = 
 ];
 
 /**
- * The features, each with a faint eye after it; with a mouse, a feature's screenshot follows the
+ * The features, each with a faint image mark after it; with a mouse, a feature's screenshot follows the
  * cursor while it is hovered. The screenshots stay in the page, decoded once, and the cursor moves them
  * without React: hovering only swaps which one shows.
  */
