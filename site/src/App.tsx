@@ -31,7 +31,7 @@ export function App() {
       {/* One box as wide as its longest line, centred; its lines break where they read best. */}
       <div className="intro">
         <h1>A desktop app for planning <br />with <Agent name="Claude Code" path={claudePath} kind="claude" /> or <Agent name="Codex" path={codexPath} kind="codex" /></h1>
-        <p className="lead">Agents are fast, and happy to build the wrong thing. <br />Coord makes them agree on the plan first.</p>
+        <p className="lead">Agents are fast, and happy to build the wrong thing. <br />Coord makes sure you and your agent mean the same thing.</p>
         <Features />
         <p className="facts">In any terminal, editor or <span className="nowrap">T3 Code</span>. Windows and Linux. Free, MIT.</p>
       </div>
