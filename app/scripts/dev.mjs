@@ -1,7 +1,7 @@
 // `npm run dev`: Coord Dev, the development app, beside the installed Coord (main/dev.ts).
 //
-// 1. Its home is ~/.coord-dev (or COORD_HOME), never the real ~/.coord: the first time, the real
-//    data is copied there (scripts/dev-home.mjs).
+// 1. Its home is ~/.coord-dev (or COORD_HOME, as `npm run dev:home` sets its demo home), never the
+//    real ~/.coord: when it has no data yet, the real data is copied there (scripts/dev-home.mjs).
 // 2. Its plugin is the release's agent bundle (agent-payload.cjs's assemble, as `npm run package`
 //    builds it) renamed into coord-dev (dev-plugin.cjs), in artifacts/dev-agent. The app installs it
 //    into its home's agent folder and turns it on in Claude Code and Codex.
@@ -55,7 +55,9 @@ function runApp() {
   const environment = { ...process.env, COORD_HOME: home, COORD_DEV_BUNDLE: bundle };
   // A shell that sets ELECTRON_RUN_AS_NODE (some editors and agents do) would start Electron as plain Node.
   delete environment.ELECTRON_RUN_AS_NODE;
-  const child = spawn('electron-vite dev --watch --', { cwd: appFolder, stdio: 'inherit', env: environment, shell: true });
+  // Arguments after `--` (npm run dev -- …) reach the app, quoted for the shell.
+  const passed = process.argv.slice(2).map(value => JSON.stringify(value)).join(' ');
+  const child = spawn('electron-vite dev --watch -- ' + passed, { cwd: appFolder, stdio: 'inherit', env: environment, shell: true });
   return new Promise(resolve => child.on('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0))));
 }
 

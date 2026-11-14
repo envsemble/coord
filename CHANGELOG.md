@@ -9,6 +9,12 @@
 - **A website:** `site/` is Coord's download page, for coord.envsemble.com: what Coord is, download buttons for Windows and Linux, and a link to the newest nightly.
 - **Open source:** Coord is under the MIT license, and its CI and releases run on GitHub's own runners.
 
+**Coord Dev**
+
+- **`npm run dev` starts Coord Dev:** the app in development, beside the installed Coord, on a copy of your Coord data in `~/.coord-dev`, with a **Dev** badge and menu (copy the real data again, remove the dev plugin).
+- **A dev plugin of its own:** Coord Dev installs `coord-dev` in Claude Code and Codex beside the real plugin, every skill prefixed `dev-` (`dev-coord-implement`, `dev-full-stop`, …), on while it runs. It is the release's plugin with its names changed, so what it tests is what ships. Its skills and hooks act only when you ask for them with "dev" or in a session you start with "dev session".
+- **The agents' plugin is named by its marketplace,** so connecting, listing and removing serve both plugins; and a command installed in a Coord home's agent folder uses that home.
+
 **Atlas is now Coord**
 
 - **Atlas is now called Coord**, everywhere: the app and its installer, the `coord` command, the agent plugin `coord@coord` with its skills `coord`, `coord-grill` and `coord-implement` ("coord grill", "coord implement"), the MCP server `coord`, the packages `@envsemble/coord`, `@envsemble/coord-diagrams` and `@envsemble/coord-app`, the `coord://` scheme, and a new mark. The name was free once the first product called Coord became envsemble.

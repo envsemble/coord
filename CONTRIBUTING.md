@@ -12,8 +12,8 @@ This is where Coord's development lives: set-up, the repository's layout, conven
 
 Use Node 24, npm and Git, and Java 21 for the Java capture tests. The interface comes from envUI (`@envsemble/envui`, from npm), whose documentation ships in `node_modules/@envsemble/envui/docs/` ([AGENTS.md](AGENTS.md) says how to use it). Run `npm ci`, then:
 
-- `npm run dev` starts the desktop app with electron-vite: the window reloads React changes in place, and the app restarts when main-process or preload code changes. There is no browser mode. Give it a home of its own with `COORD_HOME` (`COORD_HOME=~/.coord-dev npm run dev`): it then keeps all its files there, Electron's included, and runs beside your installed Coord. Without it, a development run uses your Coord home and shares the installed app's single-instance lock.
-- `npm run dev:home` starts it on a home of its own in `artifacts/dev-home`, seeded with a demo project and agent reports, with this checkout's `coord` command first on the `PATH` (shims in `artifacts/dev-bin`), so the plugin's hooks and MCP server run this version too.
+- `npm run dev` starts **Coord Dev**, the desktop app in development, beside your installed Coord (see [Coord Dev](#coord-dev)): the window reloads React changes in place, and the app restarts when main-process or preload code changes. There is no browser mode.
+- `npm run dev:home` starts Coord Dev on a home of its own in `artifacts/dev-home`, seeded with a demo project and agent reports, in place of the copy of your data, with this checkout's `coord` command first on the `PATH` (shims in `artifacts/dev-bin`).
 - `npm run dev:envui` does the same against a local envUI checkout beside this one (`../envUI`, or `ENVUI_PATH`), with live reload for envUI's components too; it links that checkout into the app and the diagram viewer without changing `package.json` or the lockfile. `npm run envui:unlink` returns to the published version, and `node scripts/dev-envui.mjs --link` links again after an `npm install` replaced the link.
 - `npm run dev:diagrams` starts the diagram viewer alone at `http://127.0.0.1:5173/`, showing the shop example, with live updates.
 - `npm run build` builds every workspace: the app and the diagram package's `index.html`, `downloads/` and reusable React module. The HTML opens directly from disk (or with `npm run preview` at port 4173) and needs no network or model service.
@@ -21,6 +21,17 @@ Use Node 24, npm and Git, and Java 21 for the Java capture tests. The interface 
 - `npm run dev:site` serves the [website](site/README.md) at `http://127.0.0.1:5180/`.
 
 To use this checkout's `coord` command, run `npm link --workspace @envsemble/coord`, then `coord setup`.
+
+### Coord Dev
+
+Coord Dev lets you develop Coord on the computer where you use it, on your real plans, without touching them or your agents' Coord plugin. `npm run dev` ([app/scripts/dev.mjs](app/scripts/dev.mjs)):
+
+- **Runs on a copy of your data.** The first time, it copies your Coord home (`~/.coord`) into `~/.coord-dev`: the planning folders and the database, with the projects pointed at the copied folders, remote access off and no paired device. Your real home is never written. **Dev › Copy My Real Data Again…** replaces the copy with your current data and restarts Coord Dev. `COORD_HOME` chooses another home; it is never your real one.
+- **Runs beside the installed Coord**, with Electron's files in its home, so the two never share a window or a single-instance lock. Its title bar says **Dev**.
+- **Has a plugin of its own, `coord-dev`.** It is the release's agent bundle (as `npm run package` builds it) with only its names changed ([app/scripts/dev-plugin.cjs](app/scripts/dev-plugin.cjs)): every skill as `dev-<name>` (`dev-coord-implement`, `dev-full-stop`, …), its tools as `coord-dev`, its command calling `~/.coord-dev`. Coord Dev installs it in Claude Code and Codex beside the real plugin and turns it on while it runs; quitting `npm run dev` turns it off. **Dev › Remove the Dev Plugin…** takes it out of both agents.
+- **Stays out of your sessions unless you ask.** Its skills apply only when you say "dev" ("dev coord implement") or in a **dev session**: say "dev session" in a prompt, and for the rest of that session the agent uses the `dev-` skills and `coord-dev` tools in place of Coord's, the ones that apply on their own included, and the dev plugin's hooks record into the copy. In any other session its hooks do nothing. An agent loads its plugins when a session starts, so a session open before Coord Dev started or quit keeps what it had.
+
+A release has none of it: no dev plugin, no Dev menu, no copy. A test checks that the dev plugin differs from the release's only in its names.
 
 The examples in `packages/diagrams/examples` are work folders of diagram files: `shop`, a TypeScript capture with a proposal of saved payment methods, shown by [index.html](packages/diagrams/index.html), and `enrollment`, a class diagram with four scenarios. `npm run check` checks them and the committed showcase.
 
