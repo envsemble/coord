@@ -9,7 +9,7 @@ import diagrams from './shots/diagrams.png';
 import grill from './shots/grill.png';
 import statistics from './shots/statistics.png';
 import { linuxPath } from './linuxPath.ts';
-import { acceptedPath, claudePath, codexPath, diagramPath, draftPath, pagePath, yourTurnPath } from './marks.ts';
+import { acceptedPath, claudePath, codexPath, diagramPath, draftPath, pagePath, previewPath, yourTurnPath } from './marks.ts';
 import { fetchBuilds, releasesPage, sourcePage, visitorPlatform, type Build, type Channel, type Platform } from './releases.ts';
 
 type Builds = Record<Channel, Build | null> | 'loading' | 'failed';
@@ -60,8 +60,8 @@ export function App() {
 }
 
 /** A Material Symbol from envUI, on its 960-unit grid. */
-function Symbol({ path }: { path: string }) {
-  return <svg className="symbol" viewBox="0 -960 960 960" aria-hidden="true"><path fill="currentColor" d={path} /></svg>;
+function Symbol({ path, className = 'symbol' }: { path: string; className?: string }) {
+  return <svg className={className} viewBox="0 -960 960 960" aria-hidden="true"><path fill="currentColor" d={path} /></svg>;
 }
 /** An agent by its name, with its maker's mark, as the app shows a model. */
 function Agent({ name, path, kind }: { name: string; path: string; kind: 'claude' | 'codex' }) {
@@ -79,14 +79,14 @@ function Ref({ kind, children }: { kind: 'diagram' | 'page'; children: ReactNode
 
 const features: { key: string; text: ReactNode; shot: string; alt: string }[] = [
   { key: 'grill', text: <>Grills you until the plan goes <span className="nowrap"><State kind="draft">Draft</State> → <State kind="accepted">Accepted</State></span></>, shot: grill, alt: 'A draft plan being settled: its items marked Settled or Proposed, and its planning steps.' },
-  { key: 'diagrams', text: <>Captures your code and database as a <Ref kind="diagram">class diagram</Ref></>, shot: diagrams, alt: "An agent's proposal drawn over the captured code, with what it adds and changes marked." },
-  { key: 'dashboards', text: <>Builds live <Ref kind="page">dashboards</Ref> inside the plan</>, shot: dashboard, alt: "A page inside a plan: two layouts to choose between, above the proposal's diagram." },
-  { key: 'attention', text: <>Shows which plans are <State kind="turn">Your turn</State></>, shot: attention, alt: 'The hub: Your turn first, saying what to do, then Waiting and Later.' },
+  { key: 'diagrams', text: <>Captures your code and database as a <Ref kind="diagram">class diagram</Ref></>, shot: diagrams, alt: "Classes of the captured code, with the ones an agent's proposal adds marked New." },
+  { key: 'dashboards', text: <>Builds live <Ref kind="page">dashboards</Ref> inside the plan</>, shot: dashboard, alt: 'A dashboard inside a plan: a rollout with its key figures and its progress by market.' },
+  { key: 'attention', text: <>Shows which plans are <State kind="turn">Your turn</State></>, shot: attention, alt: 'The plans: Your turn first, saying what to do, then Waiting and Later.' },
 ];
 
 /**
- * The features, each underlined with dashes; with a mouse, a feature's screenshot follows the cursor
- * while it is hovered. The screenshots stay in the page, decoded once, and the cursor moves them
+ * The features, each with a faint eye after it; with a mouse, a feature's screenshot follows the
+ * cursor while it is hovered. The screenshots stay in the page, decoded once, and the cursor moves them
  * without React: hovering only swaps which one shows.
  */
 function Features() {
@@ -104,11 +104,11 @@ function Features() {
   return <>
     <ul className="features">
       {features.map((feature, index) => <li key={feature.key} onMouseEnter={event => { follow(event); setShown(index); }} onMouseMove={follow} onMouseLeave={() => setShown(null)}>
-        <span className="feature-text">{feature.text}</span>
+        {feature.text}<Symbol path={previewPath} className="peek-hint" />
       </li>)}
     </ul>
     <div ref={peek} className="peek" data-shown={shown === null ? undefined : ''} aria-hidden="true">
-      {features.map((feature, index) => <img key={feature.key} src={feature.shot} alt={feature.alt} width={1092} height={682} data-shown={index === shown ? '' : undefined} />)}
+      {features.map((feature, index) => <img key={feature.key} src={feature.shot} alt={feature.alt} width={960} height={600} data-shown={index === shown ? '' : undefined} />)}
     </div>
   </>;
 }
