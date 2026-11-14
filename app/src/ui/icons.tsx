@@ -1,6 +1,6 @@
 // envUI's Material Symbols (Apache-2.0), under the names the app uses. Each import is one icon module.
 export { IconAccountTree as DiagramIcon } from '@envsemble/envui/icons/AccountTree';
-export { IconSpaceDashboard as PageIcon } from '@envsemble/envui/icons/SpaceDashboard';
+export { IconWidgets as PageIcon } from '@envsemble/envui/icons/Widgets';
 export { IconAdd as AddIcon } from '@envsemble/envui/icons/Add';
 export { IconBarChart as StatisticsIcon } from '@envsemble/envui/icons/BarChart';
 export { IconBlock as BlockedIcon } from '@envsemble/envui/icons/Block';

@@ -5,7 +5,7 @@
 // time when it was told.
 import { mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { choicesFile, listPages } from '../../planning/pages/pages.ts';
+import { choicesFile, listPages, pageFile, readPageFile } from '../../planning/pages/pages.ts';
 
 export const pageChoicesFolder = (home: string) => path.join(home, 'cache', 'page-choices');
 const shownLimit = 200;
@@ -55,12 +55,14 @@ export async function pageChoicesNotice(input: { session_id?: unknown; cwd?: unk
         try { choices = JSON.parse(readFileSync(file, 'utf8')) as typeof choices; } catch { continue; }
         const open = Object.entries(choices ?? {}).filter(([, choice]) => choice && typeof choice === 'object' && !choice.closed);
         if (!open.length) continue;
-        lines.push(`- ${work.workId} ${work.title}, page ${name} (${path.join(match.planningFolder, ...location.split('/'), 'pages', name, choicesFile)}): ${open.map(([key, choice]) => `${key} = ${shown(choice.value)}`).join('; ')}`);
+        const asked = await readPageFile(path.dirname(file));
+        lines.push(`- ${work.workId} ${work.title}, page ${name} (${file}): ${open.map(([key, choice]) => `${key} = ${shown(choice.value)}`).join('; ')}`
+          + (asked.ok && asked.attention ? `. Its ${pageFile} still asks the user: ${asked.attention}` : ''));
       }
     }
   }
   writeHeard(store, { ...heard, ...next });
   if (!lines.length) return null;
   return ['The user made choices on pages Atlas shows:', ...lines,
-    'Act on them as the work needs. Once a choice is settled, close it: set "closed": true on it in the page\'s choices.json (and a short "note" if the page should say why), so the page reads as decided.'].join('\n');
+    'Act on them as the work needs. Once a choice is settled, close it: set "closed": true on it in the page\'s choices.json (and a short "note" if the page should say why), so the page reads as decided. When nothing on a page waits on the user any more, clear "attention" in its page.json, so Atlas stops marking it.'].join('\n');
 }

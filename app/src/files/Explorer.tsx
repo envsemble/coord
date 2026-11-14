@@ -7,6 +7,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Menu, NavigationDrawer, Text, Tree, type NavigationDrawerDestination, type TreeItem } from '@envsemble/envui';
 import { DiagramIcon, GlossaryIcon, LedgerIcon, PageIcon, PlanIcon } from '../ui/icons';
+import { AttentionDot } from '../ui/AttentionDot';
 import type { Document, Snapshot, Target, Work } from '../types';
 import { api } from '../api';
 import { buildIndex, fileNodeId, folderNodeId, revealIds, visibleRows, type ExplorerRow } from './explorerModel';
@@ -89,8 +90,9 @@ export function PlanFiles({ work }: { work: Work }) {
   const rows = useMemo(() => {
     const id = folderNodeId(work.path), open = !expandedSet.has(folded(id));
     const top: ExplorerRow = { id, kind: 'folder', name: work.path.slice(work.path.lastIndexOf('/') + 1), path: work.path, depth: 0, expandable: true, expanded: open };
-    return [top, ...open ? visibleRows(index, expandedSet, work.path, layers).map(row => ({ ...row, depth: row.depth + 1 })) : []].map(row => treeItem(row, work.path, tags.get(row.path ?? '')));
-  }, [index, expandedSet, work.path, layers, tags]);
+    const attention = snapshot.attention ?? {};
+    return [top, ...open ? visibleRows(index, expandedSet, work.path, layers).map(row => ({ ...row, depth: row.depth + 1 })) : []].map(row => treeItem(row, work.path, tags.get(row.path ?? ''), attention));
+  }, [index, expandedSet, work.path, layers, tags, snapshot.attention]);
   // A file opens as a file, a diagram file of the work item as its diagram.
   // A plan's plan.md opens as the plan, a diagram as a diagram, any other file on its page.
   const fileOpens = (file: Document) => documentTarget(file, work);
@@ -165,10 +167,15 @@ export function focusPlanFiles() {
  * A row of the tree. Only the files Atlas reads for what they are have an icon: the plan, its ledger,
  * its glossary and its diagrams; every other row keeps the icon's room empty, so the names line up.
  */
-function treeItem(row: ExplorerRow, workPath: string, tag?: string): Row {
+function treeItem(row: ExplorerRow, workPath: string, tag: string | undefined, attention: Record<string, string>): Row {
   const base = { value: row.id, depth: row.depth, expandable: row.expandable, expanded: row.expanded, row, textValue: row.name };
-  if (row.kind === 'page') return { ...base, label: row.name, icon: <PageIcon className="explorer-special" data-file="page" />, tooltip: 'Page · ' + row.path };
-  if (row.kind !== 'file') return { ...base, label: row.name, icon: <></>, tooltip: row.path };
+  if (row.kind === 'page') {
+    const asks = attention[row.path!];
+    return { ...base, label: row.name, icon: <PageIcon className="explorer-special" data-file="page" />, ...asks ? { end: <AttentionDot text={asks} /> } : {}, tooltip: 'Page · ' + row.path + (asks ? '\nNeeds you: ' + asks : '') };
+  }
+  // A folded folder with a page in it that needs its user shows that it has one.
+  const inside = row.kind !== 'file' && !row.expanded ? Object.keys(attention).filter(page => page.startsWith(row.path + '/')) : [];
+  if (row.kind !== 'file') return { ...base, label: row.name, icon: <></>, ...inside.length ? { end: <AttentionDot text={inside.length === 1 ? 'A page in it needs you' : inside.length + ' pages in it need you'} /> } : {}, tooltip: row.path };
   const own = (name: string) => row.path === workPath + '/' + name;
   const icon = own('plan.md') ? <PlanIcon className="explorer-special" data-file="plan" />
     : own('ledger.md') ? <LedgerIcon className="explorer-special" data-file="ledger" />

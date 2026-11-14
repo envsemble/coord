@@ -179,7 +179,11 @@ body { margin: 0; }
 .explorer-special[data-file='plan'] { color: var(--env-color-fg-primary); }
 .explorer-special[data-file='ledger'] { color: var(--env-color-fg-success); }
 .explorer-special[data-file='glossary'] { color: var(--env-color-fg-warning); }
-.explorer-special:is([data-file='diagram'], [data-file='page']) { color: var(--env-color-fg-accent); }
+.explorer-special[data-file='diagram'] { color: var(--env-color-fg-accent); }
+/* Pages in teal, apart from the plan's blue, the ledger's green, the glossary's amber and the diagrams' purple. */
+.explorer-special[data-file='page'] { color: var(--env-color-fg-avatar-seafoam); }
+/* A page that needs its user: a dot in the needs-you colour. */
+.attention-dot { display: inline-block; flex: none; inline-size: 0.5rem; block-size: 0.5rem; border-radius: 50%; background: var(--env-color-fg-warning); vertical-align: middle; }
 /* The file shown on a quiet neutral fill rather than the selection blue, clearly stronger than a row
    under the pointer (a fainter row hover than envUI's here), in the default text colour and a little heavier. */
 .plan-files .env-tree-item:not([aria-selected='true']):hover { background: color-mix(in srgb, var(--env-color-bg-row-hover) 45%, transparent); }
@@ -255,6 +259,11 @@ body { margin: 0; }
 }
 .work-header { display: grid; gap: var(--env-space-3); padding-block-end: var(--env-space-5); }
 .work-header-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-2); }
+/* The pages of the work item that need you, under its title: each by its name, with what it waits on. */
+.page-attention { display: grid; gap: var(--env-space-1); margin: 0; padding: 0; list-style: none; font-size: var(--env-font-size-body-sm); }
+.page-attention li { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; }
+.page-attention .page-link { flex: none; font-weight: var(--env-font-weight-medium); }
+.page-attention-text { overflow: hidden; color: var(--env-color-fg-muted); text-overflow: ellipsis; white-space: nowrap; }
 /* Under the title, the status and one fact about it, muted; a blocker's reason is cut short. */
 .work-status { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); font-variant-numeric: tabular-nums; }
 .work-status-fact { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -340,6 +349,8 @@ body { margin: 0; }
 .reader-name { display: inline-flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; }
 /* A link to a diagram, inline in the text: a purple diagram icon before its words, in the accent colour and medium weight. */
 .diagram-link { color: var(--env-color-fg-accent); font-weight: var(--env-font-weight-medium); }
+.page-link { color: var(--env-color-fg-avatar-seafoam); }
+.page-link .attention-dot { margin-inline-start: 0.3em; vertical-align: 0.1em; }
 .diagram-link:hover { text-decoration: underline; }
 .diagram-link-icon { inline-size: 1.1em; block-size: 1.1em; margin-inline-end: 0.2em; vertical-align: -0.2em; }
 
@@ -413,28 +424,6 @@ body { margin: 0; }
 .pull-mark-state[data-state='merged'] { color: var(--env-color-fg-accent); }
 .pull-mark-state[data-state='closed'], .pull-mark-checks[data-checks='failing'] { color: var(--env-color-fg-danger); }
 /* Why a plan needs you: the waiting session's message under its status, with a way to open the session. */
-/* Now: what the sessions on a plan in progress are doing, above the folded plan. */
-.now { display: grid; gap: var(--env-space-3); max-inline-size: 48rem; margin-block-end: var(--env-space-2); }
-.now-stopped { margin: 0; font-size: var(--env-font-size-body-sm); }
-.now-session { display: grid; gap: var(--env-space-1); }
-.now-head { display: flex; align-items: center; gap: var(--env-space-1); min-inline-size: 0; font-size: var(--env-font-size-body-sm); }
-.now-head .status-icon { inline-size: 1rem; block-size: 1rem; flex: none; }
-.now-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.now-message { overflow-wrap: anywhere; }
-.now-message :is(p, ul, ol, pre):first-child { margin-block-start: 0; }
-.now-message :is(p, ul, ol, pre):last-child { margin-block-end: 0; }
-.now-message[data-clamped] > * > :first-child, .now-message[data-clamped] > :first-child { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
-.now-more { justify-self: start; }
-.now-actions { display: grid; gap: 0.125rem; margin: 0; padding: 0; list-style: none; color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); }
-.now-actions li { display: flex; align-items: center; gap: var(--env-space-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.now-actions li::before { content: '·'; }
-.now-actions li[data-failed] { color: var(--env-color-fg-danger); }
-.now-actions li[data-failed]::before { content: none; }
-.now-failed { inline-size: 1rem; block-size: 1rem; flex: none; }
-.plan-fold-toggle { display: inline-flex; align-items: center; gap: var(--env-space-1); justify-self: start; padding: 0; border: 0; background: none; color: var(--env-color-fg-default); font: inherit; font-weight: 500; cursor: pointer; }
-.plan-fold-toggle:focus-visible { outline: 0.125rem solid var(--env-color-border-focus); outline-offset: 0.125rem; border-radius: 0.25rem; }
-.plan-fold-icon { inline-size: 1.25rem; block-size: 1.25rem; transition: transform var(--env-motion-duration-medium) var(--env-motion-ease); }
-.plan-fold-toggle[aria-expanded='true'] .plan-fold-icon { transform: rotate(90deg); }
 .needs-you { display: grid; gap: var(--env-space-2); max-inline-size: 48rem; padding: var(--env-space-3) var(--env-space-4); border-inline-start: 0.1875rem solid var(--env-color-fg-warning); border-radius: var(--env-radius-sm); background: color-mix(in srgb, var(--env-color-fg-warning) 8%, transparent); }
 .needs-you-message { overflow-wrap: anywhere; }
 .needs-you-message :is(p, ul, ol, pre):first-child { margin-block-start: 0; }

@@ -198,6 +198,8 @@ export interface ProjectStatistics {
 export interface Snapshot extends PlanningIndex {
   /** Every visible folder below the planning root (POSIX-relative), including empty ones. */
   folders: string[];
+  /** The work items' pages that need their user, by their folder: what each waits on (from its page.json). */
+  attention?: Record<string, string>;
 }
 /** A work item as project.snapshot and project.work send it: without its documents, which the snapshot lists once. */
 export type SnapshotWork = Omit<Work, 'documents'>;

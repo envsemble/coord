@@ -14,6 +14,11 @@ test('a page opens in place from its plan link, Files and search, saves a choice
   const { window } = launched;
   const page = path.join(folder, 'active/0001-saved-payment-methods/pages/card-picker');
   await openPlan(window, 'Saved payment methods');
+  // Its page.json says it needs the person: under the plan's title, on its link and in Files.
+  const row = window.locator('.plan-files [role="treeitem"][data-id="d:active/0001-saved-payment-methods/pages/card-picker"]');
+  await expect(window.getByRole('list', { name: 'Pages that need you' })).toContainText('Pick how a customer chooses a saved card');
+  await expect(window.locator('.prose .page-link .attention-dot')).toBeVisible();
+  await expect(window.locator('.plan-files [role="treeitem"][data-id="d:active/0001-saved-payment-methods/pages"] .attention-dot')).toBeVisible();
   // The plan's link reads as a page and opens it in place, under the plan's breadcrumb, marked in Files.
   await window.locator('.prose .page-link', { hasText: 'the card picker' }).click();
   await expect(window.locator('.page-view .breadcrumb')).toContainText('#0001');
@@ -35,6 +40,10 @@ test('a page opens in place from its plan link, Files and search, saves a choice
   writeFileSync(path.join(page, 'choices.json'), JSON.stringify({ layout: { value: 'tiles', chosenAt: '2026-11-13T10:00:00Z', closed: true, note: 'tiles, as agreed' } }));
   await expect(frame.getByText('Settled: tiles, as agreed.')).toBeVisible();
   await expect(frame.getByRole('button', { name: 'Choose List' })).toBeDisabled();
+  // Nothing on it waits for the person any more: the agent clears its attention, and Files stops marking it.
+  await expect(row.locator('.attention-dot')).toBeVisible();
+  writeFileSync(path.join(page, 'page.json'), '{}');
+  await expect(row.locator('.attention-dot')).toHaveCount(0);
 
   // Its code breaks: why shows in its place; Files and the breadcrumb still work.
   const source = readFileSync(path.join(page, 'page.tsx'), 'utf8');

@@ -4,7 +4,7 @@
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { readDocument, readText, workStatistics, writeDocument, type HomeDatabase } from '../../planning/index.ts';
-import { buildPage } from '../../planning/pages/pages.ts';
+import { buildPage, pagesNeedingAttention } from '../../planning/pages/pages.ts';
 import { callTool } from '../../cli/commands/mcp.ts';
 import { PlanningReader } from '../../planning/reading/reader.ts';
 import type { DiagramEntry, DiagramIndexEntry, DiagramReference, OpenProjectState, PageBuild, ProjectStatus, Snapshot, ToolOutcome } from '../contract.ts';
@@ -96,7 +96,8 @@ export class OpenProject {
       let counts: Record<string, number> = {};
       try { counts = planning.diagrams.counts(index); } catch { /* Counts are an indicator only. */ }
       const folders = await listing;
-      this.current = { ...index, work: index.work.map(item => ({ ...item, diagrams: counts[item.id] ?? 0 })), folders };
+      const attention = await pagesNeedingAttention(this.root, folders, index.work.map(item => item.path));
+      this.current = { ...index, work: index.work.map(item => ({ ...item, diagrams: counts[item.id] ?? 0 })), folders, attention };
       this.status = 'ready';
       this.error = null;
       this.options.log.info('Planning folder read', { root: this.root, work: index.work.length, documents: index.documents.length, milliseconds: Math.round(performance.now() - started) });

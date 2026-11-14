@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Button, Text } from '@envsemble/envui';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { Alert, Text } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
 import { stepCounts } from '@envsemble/atlas/planning/ledger';
-import { ChevronRightIcon } from '../ui/icons';
+import { AttentionDot } from '../ui/AttentionDot';
 import type { Document, LedgerStep, ProjectWork, Snapshot, Target, Work, WorkSession } from '../types';
 import { defaultDocument, planDocument, stepPhase } from './work';
-import { workStatisticsTarget, workTarget } from '../navigation/targets';
+import { pageTarget, workStatisticsTarget, workTarget } from '../navigation/targets';
 import { absoluteDate, relativeDate, shortDate, workNumber } from '../ui/format';
 import { statusOf, type StatusLook } from './status';
 import { StatusBadge } from '../ui/badges';
@@ -16,7 +16,7 @@ import { ContinuedIn, HandoffEntries, type OpenHandoff } from './HandoffLinks';
 import { WorkStatisticsSummary } from '../statistics/WorkStatisticsSummary';
 import { Waited } from './LiveAgentTime';
 import { unreported, type LiveActivity } from './agentTime';
-import { activityKey, NeedsYou, NowSection, nowSessions, SessionsList, useWorkSessions } from './WorkSessions';
+import { activityKey, NeedsYou, SessionsList, useWorkSessions } from './WorkSessions';
 import { waitingSession } from './sessions';
 import { TargetLink, useWindow } from '../window/windowContext';
 import { Trail } from '../ui/Trail';
@@ -122,22 +122,6 @@ function StatusLine({ work, status, live }: { work: Work; status: StatusLook; li
   </div>;
 }
 
-/** How often Now is read again while a session works on the plan. */
-const nowRefreshMs = 10_000;
-/** A count that goes up every `ms` (none while null) while the window shows, to read something again on a timer. */
-function useTick(ms: number | null) {
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    if (ms === null) return;
-    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') setTick(value => value + 1); }, ms);
-    // Shown again: read at once.
-    const shown = () => { if (document.visibilityState === 'visible') setTick(value => value + 1); };
-    document.addEventListener('visibilitychange', shown);
-    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', shown); };
-  }, [ms]);
-  return ms === null ? 0 : tick;
-}
-
 /**
  * A work item: its plan (or, without one, its README or first document). The breadcrumb names its
  * project and number; then the title, the status line, why it needs you
@@ -154,28 +138,27 @@ export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Sna
   const live = status.key === 'working' || status.key === 'waiting' ? agents : null;
   const listing = listed(work.id), summary = listing?.summary;
   const references = useReferences(reading, work.id, reading?.format === 'markdown');
-  // The plan's sessions, read again as its activity changes, and every few seconds while one works
-  // (Now follows what it does).
-  const tick = useTick(status.key === 'working' ? nowRefreshMs : null);
-  const sessions = useWorkSessions(work.id, activityKey(agents) + ':' + tick);
-  // While it is implemented and Now has something to show, Now leads and the plan folds below it
-  // (open when a heading was asked for); with nothing to show, the plan is as it always was.
-  const implementing = work.implementation === 'in_progress' && Boolean(sessions && nowSessions(sessions.sessions).length);
-  const [planOpen, setPlanOpen] = useState(Boolean(target.anchor));
-  // Each plan starts folded, unless a heading of it was asked for.
-  useEffect(() => { setPlanOpen(Boolean(target.anchor)); }, [work.id, target.anchor]);
+  // The plan's sessions, read again as its activity changes.
+  const sessions = useWorkSessions(work.id, activityKey(agents));
+  // Its pages that need the person, as their agents said in their page.json.
+  const asking = Object.entries(snapshot.attention ?? {}).filter(([page]) => page.startsWith(work.path + '/pages/'));
   const waiting = status.key === 'waiting' && sessions ? waitingSession(sessions.sessions) : null;
   return <Page className="work-page" breadcrumbs={<Trail work={work.id} items={[{ label: workNumber(work.id) }]} />}
     title={work.title} meta={<StatusLine work={work} status={status} live={live} />} description={summary}>
     <div className="work-layout">
       <div className="work-main">
-        {(listing?.tags?.length || waiting) && <div className="work-header">
+        {(listing?.tags?.length || waiting || asking.length > 0) && <div className="work-header">
           {listing && <TagList tags={listing.tags ?? []} className="work-tags" />}
           {waiting && <NeedsYou work={work.id} session={waiting} />}
+          {asking.length > 0 && <ul className="page-attention" aria-label="Pages that need you">
+            {asking.map(([page, text]) => <li key={page}>
+              <AttentionDot text={text} />
+              <TargetLink target={pageTarget(page)} className="page-link">{page.slice(page.lastIndexOf('/') + 1)}</TargetLink>
+              <span className="page-attention-text">{text}</span>
+            </li>)}
+          </ul>}
         </div>}
-        {implementing && <NowSection sessions={sessions!.sessions} />}
-        {implementing && reading && <Button variant="text" className="plan-fold-toggle" aria-expanded={planOpen} aria-controls="plan-reading" startIcon={<ChevronRightIcon className="plan-fold-icon" />} onClick={() => setPlanOpen(!planOpen)}>{reading === plan ? 'Plan' : reading.name}</Button>}
-        {reading ? (!implementing || planOpen) && <div id="plan-reading"><Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} plan={reading === plan} /></div>
+        {reading ? <div id="plan-reading"><Reader key={reading.path} file={reading} snapshot={snapshot} anchor={target.anchor ?? null} references={references} hideTitle={work.title} plan={reading === plan} /></div>
           : <EmptyState className="page-empty" title="Nothing to read here" description="This work item has no plan." />}
       </div>
       <PlanAside work={work} snapshot={snapshot} found={target.step ?? null} live={live} listed={listing} sessions={sessions?.sessions ?? []} />

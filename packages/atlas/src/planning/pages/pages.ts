@@ -3,13 +3,15 @@
 // data. Atlas builds the page here, where its files are, and the window that shows it runs the
 // build in a frame of its own, which supplies the stack (React, envUI, the diagram viewer and
 // `@envsemble/atlas-page`), so a page needs nothing installed.
-import { readdir, realpath, stat } from 'node:fs/promises';
+import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 /** The files a page's folder may start from, in the order tried. */
 export const pageEntries = ['page.tsx', 'page.jsx', 'page.ts', 'page.js'] as const;
 /** The file a page's choices are saved in, in its folder. */
 export const choicesFile = 'choices.json';
+/** The file an agent says what a page needs of its user in, in its folder: `{ "attention": "…" }`. */
+export const pageFile = 'page.json';
 
 /** What a page may import beyond its own files: Atlas's stack, which the window supplies. */
 export const stackModule = /^(?:react(?:\/jsx-runtime|\/jsx-dev-runtime)?|react-dom(?:\/client)?|@envsemble\/envui(?:\/(?:code|markdown|diff|messages|icons\/[A-Za-z0-9]+))?|@envsemble\/atlas-diagrams\/react|@envsemble\/atlas-page)$/;
@@ -48,6 +50,37 @@ export async function listPages(workFolder: string): Promise<string[]> {
   let entries;
   try { entries = await readdir(path.join(workFolder, 'pages'), { withFileTypes: true }); } catch { return []; }
   return entries.filter(entry => entry.isDirectory() && !entry.name.startsWith('.')).map(entry => entry.name).sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * What a page's `page.json` says, or why it cannot be read: `attention` is what the page waits on
+ * its user for (a decision, a review), until the agent clears it; null when nothing does. A page
+ * without the file needs nothing.
+ */
+export async function readPageFile(folder: string): Promise<{ ok: true; attention: string | null } | { ok: false; problem: string }> {
+  let text: string;
+  try { text = await readFile(path.join(folder, pageFile), 'utf8'); } catch { return { ok: true, attention: null }; }
+  let value: unknown;
+  try { value = JSON.parse(text.replace(/^\uFEFF/, '')); } catch (error) { return { ok: false, problem: `${pageFile} is not JSON: ${(error as Error).message}` }; }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return { ok: false, problem: `${pageFile} is an object, such as { "attention": "Pick a layout" }.` };
+  const attention = (value as { attention?: unknown }).attention;
+  if (attention !== undefined && attention !== null && typeof attention !== 'string') return { ok: false, problem: `${pageFile}: "attention" is the text of what the page needs of its user, or null.` };
+  return { ok: true, attention: typeof attention === 'string' && attention.trim() ? attention.trim().slice(0, 500) : null };
+}
+
+/**
+ * The pages that need their user's attention, by their folder (relative to the planning folder):
+ * what each waits on. `folders` are the planning folder's folders, `works` its work items' paths.
+ */
+export async function pagesNeedingAttention(root: string, folders: readonly string[], works: readonly string[]): Promise<Record<string, string>> {
+  const owners = new Set(works);
+  const pages = folders.filter(folder => { const match = /^(.+)\/pages\/[^/]+$/.exec(folder); return match !== null && owners.has(match[1]); });
+  const result: Record<string, string> = {};
+  await Promise.all(pages.map(async page => {
+    const read = await readPageFile(path.join(root, ...page.split('/')));
+    if (read.ok && read.attention) result[page] = read.attention;
+  }));
+  return result;
 }
 
 type Esbuild = typeof import('esbuild');

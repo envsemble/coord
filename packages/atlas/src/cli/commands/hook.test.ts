@@ -306,9 +306,11 @@ test('choices made on a page reach the session with its next message, once, whil
   write(path.join(path.dirname(choices), 'page.tsx'), 'export default function Page() { return null; }\n');
   const told = async () => { const output = await hookIn(env, 'PageChoices', { session_id: session, cwd: checkout }); return output ? JSON.parse(output).hookSpecificOutput.additionalContext as string : ''; };
   assert.equal(await told(), '');
+  // The page asks for the user's attention: the agent is reminded of it with the choice.
+  write(path.join(path.dirname(choices), 'page.json'), JSON.stringify({ attention: 'Pick a layout' }));
   write(choices, JSON.stringify({ layout: { value: 'tiles', chosenAt: '2026-11-13T10:00:00Z' } }));
   const notice = await told();
-  assert.match(notice, /work-0001 .*page layout .*: layout = "tiles"/);
+  assert.match(notice, /work-0001 .*page layout .*: layout = "tiles"\. Its page\.json still asks the user: Pick a layout/);
   assert.match(notice, /"closed": true/);
   // Heard once; a closed choice is not told again.
   assert.equal(await told(), '');

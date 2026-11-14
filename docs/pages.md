@@ -7,9 +7,12 @@ A page is a view an agent makes in a work item for its user: a choice between vi
 A page is a folder of the work item's `pages/` folder, `pages/<name>/`, which holds:
 
 - `page.tsx` (or `page.jsx`, `page.ts`, `page.js`), whose default export is the page's component, and what it imports: components, CSS, JSON, text and images;
-- the data it reads as it runs, and `choices.json`, the user's choices.
+- the data it reads as it runs, and `choices.json`, the user's choices;
+- `page.json`, where its agent says what it needs of the user: `{ "attention": "Pick a card layout" }`.
 
 In Files, a page's folder opens the page, with the page icon, and its chevron lists its files. A plan links a page as it links a diagram (`[the card layouts](pages/card-layout)`): the link shows with the page icon and opens the page. Search finds a page by its folder's name.
+
+While a page's `page.json` has an `attention`, the page needs its user: the host reads it with the folder (it is in the snapshot's `attention`, by the page's folder), and the window marks the page with an amber dot in Files, on its plan links and on its folded folders, and lists it under the plan's title with what it waits on. `atlas check` reports a `page.json` that is not an object with a text `attention`.
 
 ## Building and running
 
@@ -27,7 +30,7 @@ When a file the page is built from changes, the window builds it again and the f
 
 ## Choices
 
-`useChoice` and `useChoices` save the user's choices in the page's `choices.json`. As the user sends a message, the plugin's `PageChoices` hook tells the agent the choices still open on the pages of the session's projects that changed since the session last heard, and to close each once it is settled (`"closed": true`, with an optional `"note"`). What a session has heard is kept in the home's `cache/page-choices`.
+`useChoice` and `useChoices` save the user's choices in the page's `choices.json`. As the user sends a message, the plugin's `PageChoices` hook tells the agent the choices still open on the pages of the session's projects that changed since the session last heard, and to close each once it is settled (`"closed": true`, with an optional `"note"`), and reminds it of the page's `attention`, which it clears once nothing waits on the user. What a session has heard is kept in the home's `cache/page-choices`.
 
 ## No guards
 

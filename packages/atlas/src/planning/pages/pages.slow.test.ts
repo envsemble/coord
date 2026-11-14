@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { buildPage, pageOf } from './pages.ts';
+import { buildPage, pageOf, pagesNeedingAttention } from './pages.ts';
 import { checkPaths } from '../check/checkPaths.ts';
 import { temporary } from '../../cli/testing.ts';
 
@@ -46,9 +46,14 @@ test('a page builds on the stack alone, from its folder: the imports the frame s
     const outside = await buildPage(root, page);
     assert.ok(!outside.ok && /not one of the planning folder's files/.test(outside.problems[0].text), JSON.stringify(outside));
   }
+  // What a page waits on its user for, from its page.json; one that is not JSON is a problem.
+  writeFileSync(path.join(page, 'page.json'), '{ "attention": " Pick a layout " }');
+  assert.deepEqual(await pagesNeedingAttention(root, ['active/0001-cart/pages', 'active/0001-cart/pages/layout', 'other/pages/x'], ['active/0001-cart']), { 'active/0001-cart/pages/layout': 'Pick a layout' });
+  writeFileSync(path.join(page, 'page.json'), '{ attention: 1 }');
   writeFileSync(path.join(page, 'page.tsx'), 'export default function Page() { return <div>; }\n');
   const [checked] = await checkPaths([path.join(page, 'options.json')]);
   assert.match(checked.errors.join('\n'), /^active\/0001-cart\/pages\/layout\/page\.tsx:1:\d+: /m);
+  assert.match(checked.errors.join('\n'), /^active\/0001-cart\/pages\/layout\/page\.json: page\.json is not JSON/m);
   const empty = path.join(root, 'active', '0001-cart', 'pages', 'empty');
   mkdirSync(empty);
   writeFileSync(path.join(empty, 'data.json'), '{}');

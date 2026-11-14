@@ -18,7 +18,8 @@ A page is a folder in the work item's `pages/` folder, named for what it shows (
 
 - `page.tsx`, which exports the page's React component as its default (`page.jsx`, `page.ts` or `page.js` do too);
 - whatever else it imports: other components, styles (`.css`), data (`.json`, `.csv`, `.md`, images);
-- data it reads as it runs, and `choices.json`, where it saves the user's choices.
+- data it reads as it runs, and `choices.json`, where it saves the user's choices;
+- `page.json`, when the page needs the user: see [Asking for the user](#asking-for-the-user).
 
 Keep the data in files apart from the code, so you can update it without touching the page, and the page shows the same thing when opened again later. Link the page from the plan where it matters, as a diagram is linked: `[the card layouts](pages/card-layout)`. Atlas shows the link as a page and opens it in place.
 
@@ -59,6 +60,16 @@ A page may also query anything else, such as a dev server or an API, with `fetch
 ```
 
 Atlas tells you of new choices with the user's next message. Act on them as the work needs. Once a choice is settled, close it: add `"closed": true` to it, with a short `"note"` when the page should say why, so the page reads as decided and the choice can't change. Show a closed choice as settled on the page (`closed` from `useChoice`). Record what was decided in the plan as you would any decision; the page is not the record.
+
+## Asking for the user
+
+When a page waits on the user (a choice to make, something to review), say so in its `page.json`, in a short line of what you need:
+
+```json
+{ "attention": "Pick how a customer chooses a saved card" }
+```
+
+Atlas marks the page with a dot in Files and on its links, and lists it under the plan's title, so the user finds it. Clear it (remove `attention`, or set it to null) as soon as nothing on the page waits on them, usually once you closed its choices: a mark that stays after the user answered teaches them to ignore it. A page only to look at needs none.
 
 ## A page that fails
 

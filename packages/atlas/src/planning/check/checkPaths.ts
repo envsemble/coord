@@ -7,7 +7,7 @@ import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import atlas from '@envsemble/atlas-diagrams';
 import { validatePlanning } from './check.ts';
-import { buildPage, listPages, pageOf } from '../pages/pages.ts';
+import { buildPage, listPages, pageFile, pageOf, readPageFile } from '../pages/pages.ts';
 
 export interface CheckResult {
   /** The planning folder checked. */
@@ -140,6 +140,8 @@ async function pageProblems(root: string, pages: string[]): Promise<string[]> {
   const problems: string[] = [];
   for (const page of new Set(pages)) {
     if (!statSync(path.join(root, ...page.split('/')), { throwIfNoEntry: false })?.isDirectory()) continue;
+    const read = await readPageFile(path.join(root, ...page.split('/')));
+    if (!read.ok) problems.push(`${page}/${pageFile}: ${read.problem}`);
     const built = await buildPage(root, path.join(root, ...page.split('/')));
     if (built.ok) continue;
     for (const problem of built.problems) problems.push(`${problem.file ?? page}${problem.line ? `:${problem.line}:${problem.column ?? 1}` : ''}: ${problem.text}`);

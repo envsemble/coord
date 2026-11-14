@@ -76,7 +76,7 @@ When work in a work item changes a database's schema or a model's structure in a
 
 ## Pages
 
-When the user should see something rather than read it (a visual choice to make, data worth looking at, a before and after), make a page: a small React view in the work item's `pages/`, on Atlas's stack (envUI and the diagram viewer), which Atlas shows in place. Make one without asking when it clearly helps, link it from the plan as a diagram is linked, and say it is there; most work needs none. A page can save the user's choices for you: act on them, and close each once it is settled. [Pages](references/pages.md) says how to write one.
+When the user should see something rather than read it (a visual choice to make, data worth looking at, a before and after), make a page: a small React view in the work item's `pages/`, on Atlas's stack (envUI and the diagram viewer), which Atlas shows in place. Make one without asking when it clearly helps, link it from the plan as a diagram is linked, and say it is there; most work needs none. A page can save the user's choices for you: act on them, and close each once it is settled. While a page waits on the user, say so in its `page.json` (`attention`), and clear it once nothing does. [Pages](references/pages.md) says how to write one.
 
 ## Close
 

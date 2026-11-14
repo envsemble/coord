@@ -7,6 +7,7 @@ import type { DiagramReference, Document, DocumentContent, Snapshot, Target } fr
 import { api, fileUrl } from '../api';
 import { resolveLink, siblingReference } from './links';
 import { findHeadingId, rehypeFoldRequests, rehypeHeadingIds } from './headings';
+import { AttentionDot } from '../ui/AttentionDot';
 import { documentTarget, pageTarget, workTarget } from '../navigation/targets';
 import { bytes } from '../ui/format';
 import { useWindow, useWindowActions } from '../window/windowContext';
@@ -40,10 +41,10 @@ function diagramNames(references: DiagramReference[]) {
  * words, in the accent colour, so it reads as a diagram; its tooltip names the diagram and where it
  * came from.
  */
-function DiagramLink({ id, title, onOpen, children, page = false }: { id?: string; title: string; onOpen(): void; children?: ReactNode; page?: boolean }) {
+function DiagramLink({ id, title, onOpen, children, page = false, attention }: { id?: string; title: string; onOpen(): void; children?: ReactNode; page?: boolean; attention?: string }) {
   const Icon = page ? PageIcon : DiagramIcon;
-  return <Link id={id} href="#" underline={false} className={'diagram-link' + (page ? ' page-link' : '')} title={title} onClick={event => { event.preventDefault(); onOpen(); }}>
-    <Icon className="diagram-link-icon" />{children}
+  return <Link id={id} href="#" underline={false} className={'diagram-link' + (page ? ' page-link' : '')} title={title + (attention ? '\nNeeds you: ' + attention : '')} onClick={event => { event.preventDefault(); onOpen(); }}>
+    <Icon className="diagram-link-icon" />{children}{attention && <AttentionDot text={attention} />}
   </Link>;
 }
 
@@ -102,7 +103,7 @@ export function Reader({ file, snapshot, anchor, references = noReferences, hide
   // changes (the documents and work items by path, and the work's plans), not when the work's statistics do.
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
-  const linkKey = useMemo(() => JSON.stringify([snapshot.documents.map(document => [document.path, document.workId]), snapshot.work.map(work => [work.id, work.path, work.currentPlan])]), [snapshot.documents, snapshot.work]);
+  const linkKey = useMemo(() => JSON.stringify([snapshot.documents.map(document => [document.path, document.workId]), snapshot.work.map(work => [work.id, work.path, work.currentPlan]), snapshot.attention ?? {}]), [snapshot.documents, snapshot.work, snapshot.attention]);
   const article = useRef<HTMLElement>(null);
   const [content, setContent] = useState<DocumentContent | null>(null);
   const [openFolds, setOpenFolds] = useState<ReadonlySet<string>>(new Set());
@@ -168,7 +169,7 @@ export function Reader({ file, snapshot, anchor, references = noReferences, hide
           : target.work ? workTarget(target.work.id, target.anchor ?? null) : null;
         if (href.startsWith('#') && target.anchor !== undefined) return <Link id={id} href="#" onClick={event => { event.preventDefault(); scrollToHeading(target.anchor!); }}>{children}</Link>;
         // A work item's page reads as a diagram does: it opens in place.
-        if (target.page) return <DiagramLink id={id} page title={'Page · ' + target.page.slice(target.page.lastIndexOf('/') + 1)} onOpen={() => open(pageTarget(target.page!))}>{children}</DiagramLink>;
+        if (target.page) return <DiagramLink id={id} page title={'Page · ' + target.page.slice(target.page.lastIndexOf('/') + 1)} attention={snapshotRef.current.attention?.[target.page]} onOpen={() => open(pageTarget(target.page!))}>{children}</DiagramLink>;
         if (route?.kind === 'diagram') {
           const named = names.get(route.work + ':' + route.path);
           const title = (named ? named.title + (named.provenance ? ' · ' + named.provenance : '') : 'Diagram') + (route.element ? ' · ' + route.element : '');
