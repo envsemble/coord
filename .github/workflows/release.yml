@@ -1,127 +1,208 @@
 name: Release
-# Pushing a version tag (v0.7.2) on a commit of main makes the GitHub Release: the release ZIP and
-# the AppImage from the Linux runner (CI_LINUX_RUNNER), the Windows installer, tested by installing
-# it, from the Windows runner (CI_WINDOWS_RUNNER). The files go straight into a draft release, which
-# is published only when both builds pass. A failed or cancelled run leaves the unpublished draft:
-# re-running its failed jobs fills it, and the next run for the tag replaces it.
+# Coord's releases, on GitHub's own runners (free for a public repository), in two channels:
+#
+# - Stable: pushing a version tag (v0.9.0) on a commit of main makes the release from that commit.
+# - Nightly: every night at 03:00 UTC (04:00 in Central European winter time, 05:00 in summer),
+#   dev's newest commit becomes a prerelease vX.Y.(Z+1)-nightly.YYYYMMDD.RUN, on the patch after the
+#   version in package.json, unless the last nightly already built that commit. Run workflow (by
+#   hand) builds one at once. The repository variable PAUSE_NIGHTLY=true stops the scheduled ones.
+#
+# Each release gets the AppImage from the Linux job and the Windows installer, tested by installing
+# it, from the Windows job, with the update files the installed app reads (latest.yml and
+# latest-linux.yml, or nightly.yml and nightly-linux.yml) and the installer's blockmap; a stable
+# release also gets the release ZIP. The files go into a draft, published only when both builds
+# pass. A failed or cancelled run leaves the unpublished draft: re-running its failed jobs fills it.
+# The newest 14 nightlies are kept; older ones are deleted with their tags.
 on:
   push:
-    tags: ["v*"]
+    # Stable versions only; this workflow makes the nightlies' tags itself.
+    tags: ["v*.*.*", "!v*-*"]
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
 permissions:
-  # Creates, fills and publishes the release.
+  # Creates, fills and publishes the release, and deletes old nightlies.
   contents: write
-  # @envsemble/envui comes from GitHub Packages, which needs a token even to install.
-  packages: read
 defaults:
   run:
     shell: bash
+# One stable release per tag at a time; one nightly at a time. Running releases are never cancelled.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: release-${{ github.event_name == 'push' && github.ref || 'nightly' }}
   cancel-in-progress: false
-env:
-  TAG: ${{ github.ref_name }}
 jobs:
-  draft:
-    name: Draft the release
-    runs-on: ${{ vars.CI_LINUX_RUNNER }}
+  prepare:
+    name: Prepare the release
+    if: ${{ github.event_name != 'schedule' || vars.PAUSE_NIGHTLY != 'true' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      skip: ${{ steps.release.outputs.skip }}
+      channel: ${{ steps.release.outputs.channel }}
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+      sha: ${{ steps.release.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'push' && github.sha || 'dev' }}
           fetch-depth: 0
           persist-credentials: false
-      # Only a commit of main itself (not one merged into it), tagged with the version in
-      # package.json, with a section in CHANGELOG.md, which becomes the release notes.
-      - name: Check the tag
-        run: |
-          # grep -c reads all of rev-list's output, so it cannot end the pipeline early.
-          git rev-list --first-parent origin/main | grep -cx "$GITHUB_SHA" > /dev/null ||
-            { echo "::error::$TAG is not a commit of main."; exit 1; }
-          version=$(sed -n 's/^  "version": "\(.*\)",\{0,1\}$/\1/p' package.json | head -n 1)
-          [ "$TAG" = "v$version" ] ||
-            { echo "::error::$TAG does not match the version in package.json ($version)."; exit 1; }
-          awk -v heading="## $version" '$0 == heading || index($0, heading " ") == 1 { keep = 1; next } /^## / { keep = 0 } keep' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
-          grep -q '[^[:space:]]' "$RUNNER_TEMP/notes.md" ||
-            { echo "::error::CHANGELOG.md has no section for $version."; exit 1; }
-      - name: Create the draft
+      - name: Decide the release
+        id: release
         env:
           GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "$EVENT" = push ]; then
+            # Stable: only a commit of main itself (not one merged into it), tagged with the version
+            # in package.json, with a section in CHANGELOG.md, which becomes the release notes.
+            tag=$REF_NAME
+            sha=$GITHUB_SHA
+            git rev-list --first-parent origin/main | grep -cx "$sha" > /dev/null ||
+              { echo "::error::$tag is not a commit of main."; exit 1; }
+            [ "$tag" = "v$version" ] ||
+              { echo "::error::$tag does not match the version in package.json ($version)."; exit 1; }
+            awk -v heading="## $version" '$0 == heading || index($0, heading " ") == 1 { keep = 1; next } /^## / { keep = 0 } keep' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+            grep -q '[^[:space:]]' "$RUNNER_TEMP/notes.md" ||
+              { echo "::error::CHANGELOG.md has no section for $version."; exit 1; }
+            channel=stable
+          else
+            # Nightly: dev's newest commit, unless the newest published nightly built it already (a
+            # run by hand builds it anyway).
+            sha=$(git rev-parse HEAD)
+            last=$(gh release list --exclude-drafts --limit 100 --json tagName,isPrerelease \
+              --jq '[.[] | select(.isPrerelease and (.tagName | test("-nightly\\.")))][0].tagName // ""')
+            if [ -n "$last" ] && [ "$EVENT" = schedule ] &&
+              [ "$(gh api "repos/$GITHUB_REPOSITORY/commits/$last" --jq .sha)" = "$sha" ]; then
+              echo "::notice::dev has not changed since $last."
+              echo skip=true >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            next=$(node -p "const [a, b, c] = '$version'.split('-')[0].split('.').map(Number); [a, b, c + 1].join('.')")
+            version="$next-nightly.$(date -u +%Y%m%d).$GITHUB_RUN_NUMBER"
+            tag="v$version"
+            {
+              echo "A nightly build of \`dev\` at $sha. It has the newest changes and can break; install a [stable release](https://github.com/$GITHUB_REPOSITORY/releases/latest) for everyday use."
+              if [ -n "$last" ] && range=$(git log --no-merges --format='- %s (%h)' "$last..$sha" 2> /dev/null); then
+                printf '\n## Since %s\n\n%s\n' "$last" "$(head -n 60 <<< "$range")"
+              fi
+            } > "$RUNNER_TEMP/notes.md"
+            channel=nightly
+          fi
+          {
+            echo skip=false
+            echo "channel=$channel"
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "sha=$sha"
+          } >> "$GITHUB_OUTPUT"
+          echo "### $channel $tag from \`$sha\`" >> "$GITHUB_STEP_SUMMARY"
+          cp "$RUNNER_TEMP/notes.md" notes.md
+      - name: Create the draft
+        if: ${{ steps.release.outputs.skip != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.release.outputs.tag }}
+          SHA: ${{ steps.release.outputs.sha }}
+          CHANNEL: ${{ steps.release.outputs.channel }}
         run: |
           # A draft left by an earlier run for this tag is replaced; a published release is not.
           if draft=$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null); then
             [ "$draft" = true ] || { echo "::error::$TAG is already released."; exit 1; }
             gh release delete "$TAG" --yes
           fi
-          gh release create "$TAG" --draft --verify-tag --title "Coord $TAG" --notes-file "$RUNNER_TEMP/notes.md"
+          if [ "$CHANNEL" = stable ]; then
+            gh release create "$TAG" --draft --verify-tag --title "Coord $TAG" --notes-file notes.md
+          else
+            # The tag is made on dev's commit when the draft is published.
+            gh release create "$TAG" --draft --prerelease --target "$SHA" --title "Coord $TAG" --notes-file notes.md
+          fi
   linux:
-    name: Release ZIP and AppImage
-    needs: draft
-    runs-on: ${{ vars.CI_LINUX_RUNNER }}
-    timeout-minutes: 20
+    name: AppImage
+    needs: prepare
+    if: ${{ needs.prepare.outputs.skip == 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      CHANNEL: ${{ needs.prepare.outputs.channel }}
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ needs.prepare.outputs.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
           cache: npm
-          registry-url: https://npm.pkg.github.com
-          scope: "@envsemble"
       - run: npm ci
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - run: npm run check:release
-      - run: npm run release:assemble -- artifacts/release
-      - run: npm run package --workspace @envsemble/coord-app
-      # --clobber, so re-running the job replaces what an earlier attempt added.
-      - name: Add them to the draft
+      - name: The release ZIP
+        if: ${{ env.CHANNEL == 'stable' }}
+        run: npm run check:release && npm run release:assemble -- artifacts/release
+      # A nightly carries its own version, and its update file is nightly-linux.yml.
+      - name: Package the AppImage
+        run: |
+          npm pkg set version="$VERSION" --workspace @envsemble/coord-app
+          if [ "$CHANNEL" = nightly ]; then set -- -c.publish.channel=nightly -c.publish.releaseType=prerelease; fi
+          npm run package --workspace @envsemble/coord-app -- "$@"
+      - name: Add the files to the draft
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          # Only the latest run for the tag, and only into a draft: an older run must not
-          # replace the files of a newer or published release.
-          [ "$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha)" = "$GITHUB_SHA" ] ||
-            { echo "::error::$TAG has moved since this run started; use the latest run for it."; exit 1; }
           [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true ] ||
             { echo "::error::$TAG is already released."; exit 1; }
-          gh release upload "$TAG" artifacts/release/*.zip app/release/*.AppImage --clobber
+          files=(app/release/*.AppImage app/release/*-linux.yml)
+          [ "$CHANNEL" = stable ] && files+=(artifacts/release/*.zip)
+          # --clobber, so re-running the job replaces what an earlier attempt added.
+          gh release upload "$TAG" "${files[@]}" --clobber
   windows:
     name: Windows installer
-    needs: draft
-    runs-on: ${{ vars.CI_WINDOWS_RUNNER }}
-    timeout-minutes: 40
+    needs: prepare
+    if: ${{ needs.prepare.outputs.skip == 'false' }}
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      CHANNEL: ${{ needs.prepare.outputs.channel }}
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ needs.prepare.outputs.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
           cache: npm
-          registry-url: https://npm.pkg.github.com
-          scope: "@envsemble"
       - run: npm ci
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # The unsigned NSIS installer, in app/release.
-      - run: npm run package --workspace @envsemble/coord-app
+      # The unsigned NSIS installer, its blockmap and its update file (latest.yml or nightly.yml).
+      - name: Package the installer
+        run: |
+          npm pkg set version="$VERSION" --workspace @envsemble/coord-app
+          if [ "$CHANNEL" = nightly ]; then set -- -c.publish.channel=nightly -c.publish.releaseType=prerelease; fi
+          npm run package --workspace @envsemble/coord-app -- "$@"
       # Installs Coord for the runner's user, starts it and uninstalls it.
       - name: Test the installer
         env:
           COORD_E2E_INSTALLER: "1"
         run: npm run test:e2e --workspace @envsemble/coord-app -- --grep=Windows.installer
-      - name: Add it to the draft
+      - name: Add the files to the draft
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          # Only the latest run for the tag, and only into a draft: an older run must not
-          # replace the files of a newer or published release.
-          [ "$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha)" = "$GITHUB_SHA" ] ||
-            { echo "::error::$TAG has moved since this run started; use the latest run for it."; exit 1; }
           [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true ] ||
             { echo "::error::$TAG is already released."; exit 1; }
-          gh release upload "$TAG" app/release/Coord-Setup-*.exe --clobber
+          update=latest.yml
+          [ "$CHANNEL" = nightly ] && update=nightly.yml
+          # --clobber, so re-running the job replaces what an earlier attempt added.
+          gh release upload "$TAG" app/release/Coord-Setup-*.exe app/release/Coord-Setup-*.exe.blockmap "app/release/$update" --clobber
       # Only a failure keeps anything: its report, for the organization's artifact retention. A
       # refused upload never fails the job.
       - uses: actions/upload-artifact@v4
@@ -136,19 +217,30 @@ jobs:
   publish:
     name: Publish the release
     # Only after both builds pass; otherwise the draft stays unpublished.
-    needs: [linux, windows]
-    runs-on: ${{ vars.CI_LINUX_RUNNER }}
+    needs: [prepare, linux, windows]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+      CHANNEL: ${{ needs.prepare.outputs.channel }}
     steps:
       - name: Publish the draft
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
         run: |
-          # Only the latest run for the tag, and only into a draft: an older run must not
-          # replace the files of a newer or published release.
-          [ "$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha)" = "$GITHUB_SHA" ] ||
-            { echo "::error::$TAG has moved since this run started; use the latest run for it."; exit 1; }
           [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true ] ||
             { echo "::error::$TAG is already released."; exit 1; }
-          gh release edit "$TAG" --draft=false --latest
+          if [ "$CHANNEL" = stable ]; then
+            # Only the latest run for the tag: an older run must not publish a moved tag's files.
+            [ "$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha)" = "${{ needs.prepare.outputs.sha }}" ] ||
+              { echo "::error::$TAG has moved since this run started; use the latest run for it."; exit 1; }
+            gh release edit "$TAG" --draft=false --latest
+          else
+            gh release edit "$TAG" --draft=false --prerelease --latest=false
+          fi
+      - name: Delete old nightlies
+        if: ${{ needs.prepare.outputs.channel == 'nightly' }}
+        run: |
+          gh release list --exclude-drafts --limit 200 --json tagName,isPrerelease \
+            --jq '[.[] | select(.isPrerelease and (.tagName | test("-nightly\\.")))] | .[14:] | .[].tagName' |
+            while read -r old; do gh release delete "$old" --yes --cleanup-tag; done

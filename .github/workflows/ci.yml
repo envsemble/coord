@@ -86,7 +86,7 @@ jobs:
       # The plugin packaging test (plugin/tests/*.test.mjs): its skills, manifests and hooks.
       - run: npm run test:skills
         if: ${{ steps.changes.outputs.code != 'false' }}
-      - run: npm run build --workspace @envsemble/coord-app
+      - run: npm run build --workspace @envsemble/coord-app && npm run build --workspace @envsemble/coord-site
         if: ${{ steps.changes.outputs.code != 'false' }}
       - run: npm run check && npm run check:package && npm run check:performance
         if: ${{ steps.changes.outputs.code != 'false' }}

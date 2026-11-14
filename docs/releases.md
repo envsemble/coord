@@ -28,11 +28,18 @@ The desktop app's installers are not part of the release ZIP. The ZIP is the sam
 
 ## GitHub Releases
 
-Pushing a version tag on `main` (`git fetch origin && git tag v0.8.0 origin/main && git push origin v0.8.0`) runs the release workflow (`.github/workflows/release.yml`):
+The release workflow (`.github/workflows/release.yml`) makes Coord's releases on GitHub's own runners, free for a public repository, in two channels. The installed app updates from them ([updates](../app/README.md#updates)), and the [website](../site/README.md) offers their files.
 
-1. It checks that the tagged commit is a commit of `main` itself, not one merged into it, that the tag is the version in `package.json`, and that `CHANGELOG.md` has a section for it, which becomes the release notes. Then it creates a draft release.
-2. A Linux job assembles the release ZIP and builds the AppImage; a Windows job builds the installer and tests it by installing it for the runner's user, starting it and uninstalling it. Each adds its files to the draft.
-3. The draft is published only when both jobs pass; otherwise it stays an unpublished draft.
+- **Stable:** pushing a version tag on `main` (`git fetch origin && git tag v0.9.0 origin/main && git push origin v0.9.0`) releases that commit, marked as the latest release.
+- **Nightly:** every night at 03:00 UTC (04:00 in Central European winter time, 05:00 in summer), the newest commit of `dev` becomes a prerelease `vX.Y.Z-nightly.YYYYMMDD.RUN`, on the patch after the version in `package.json` (`0.8.0` gives `0.8.1-nightly.20261115.42`), unless the newest nightly already built that commit. **Run workflow** on the Release workflow builds one at once, changed or not. The repository variable `PAUSE_NIGHTLY=true` stops the scheduled ones (`gh variable set PAUSE_NIGHTLY --body true`; `gh variable delete PAUSE_NIGHTLY` resumes them). The 14 newest nightlies are kept; older ones are deleted with their tags. Nothing but these two kinds of version tag should be pushed: electron-updater finds the newest nightly in the release feed, which lists the 10 newest tags.
+
+A run:
+
+1. **Prepare.** For a stable tag, it checks that the tagged commit is a commit of `main` itself, not one merged into it, that the tag is the version in `package.json`, and that `CHANGELOG.md` has a section for it, which becomes the release notes. For a nightly, the notes list the commits since the last nightly. Then it creates a draft release (a nightly's tag is made on `dev`'s commit when it is published).
+2. **Build.** A Linux job builds the AppImage, and for a stable release assembles the release ZIP; a Windows job builds the installer and tests it by installing it for the runner's user, starting it and uninstalling it. Each packages the version it was given and adds its files to the draft, with the update files electron-updater reads: `latest.yml` and `latest-linux.yml` for stable, `nightly.yml` and `nightly-linux.yml` for nightly, and the installer's blockmap for smaller downloads.
+3. **Publish.** The draft is published only when both jobs pass; otherwise it stays an unpublished draft.
+
+To pull a bad nightly, delete its release and tag (`gh release delete <tag> --cleanup-tag`): installs on the nightly channel then find the one before it, and the next night's build replaces it.
 
 When a job fails by chance (a flaky test or runner), **Re-run failed jobs** on the latest run for the tag fills the draft and publishes it. When a failed release needs a fix, merge it into `main` and move the tag to the new commit; the next run replaces the draft:
 
@@ -42,4 +49,4 @@ git fetch origin && git tag -f v0.8.0 origin/main && git push --force origin v0.
 
 A published release is never replaced: a run for its tag stops, and an older run's uploads stop once the tag has moved. Release a fix to a published version as a new version.
 
-The files go straight into the release rather than into workflow artifacts. The Windows job is the only Windows run in Coord's CI.
+The files go straight into the release rather than into workflow artifacts. The Windows jobs are the only Windows runs in Coord's CI.

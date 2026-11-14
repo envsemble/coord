@@ -18,3 +18,7 @@ app/out/
 app/release/
 app/test-results/
 app/playwright-report/
+app/release-proof/
+
+# The website's build output
+site/dist/

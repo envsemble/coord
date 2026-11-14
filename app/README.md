@@ -6,12 +6,18 @@ Coord is a desktop app for your Coord projects and their plans. Every window ope
 
 ## Install
 
-Coord is built for Windows and Linux. Builds are unsigned, by decision for a single user; a newer version installs over an older one, and there is no auto-update. Each [GitHub Release](../docs/releases.md#github-releases) carries both; `npm run package` in a checkout builds the one for its system into `app/release/`.
+Coord is built for Windows and Linux. Builds are unsigned for now; a newer version installs over an older one, and the installed app updates itself (see [Updates](#updates)). Each [GitHub Release](../docs/releases.md#github-releases) carries both; `npm run package` in a checkout builds the one for its system into `app/release/`.
 
 - **Windows:** run `Coord-Setup-<version>.exe`. SmartScreen warns about an unsigned app the first time: choose **More info › Run anyway**. It installs for the current user only, without administrator rights (you can pick the folder), and adds Coord to the Start menu. Uninstall it from **Settings › Apps**; your Coord home is kept.
 - **Linux:** make `Coord-<version>-x86_64.AppImage` executable (`chmod +x`) and run it.
 
 The app carries the [`coord` command](../docs/command.md) and the Coord plugin for agents. Each start of a new version copies them to `agent/` in the Coord home, and the first start puts the command on your PATH without asking, as VS Code does with `code`: the user `Path` on Windows, a link at `~/.local/bin/coord` on Linux (an existing file there is left alone). The command runs on a Node.js the app ships with it, copied there too, so nothing else needs installing. The copy of the plugin calls the command by its full path, so an agent started before the PATH changed runs it too. Then the onboarding connects your agents (see [Settings](#settings)); after an update, Coord refreshes the plugin in the agents it connected. Uninstalling on Windows (not updating) disconnects Claude Code and Codex where Coord connected them, since their plugin calls the command, and takes the command off the PATH.
+
+### Updates
+
+The installed app updates itself from the [GitHub Releases](../docs/releases.md#github-releases) of envsemble/coord, on one of two channels: **stable**, the releases, or **nightly**, a build of `dev` each night. A build follows its own channel until **Settings › Updates** chooses the other. Coord checks the channel when it starts and every four hours. A newer build shows as **Update** in the title bar and in Settings › Updates: a click downloads it, and **Restart to update** installs it and starts it again (on Windows the installer runs without its pages, into the same folder; on Linux the AppImage replaces itself). Nothing downloads or installs on its own.
+
+Coord never moves to an older build, whose code may not read the home this one wrote: a nightly switched to stable stays until a stable release newer than it is out. Updates are off in a development build (`npm run dev`), in the end-to-end build, on Linux when Coord does not run as its AppImage, and with `COORD_NO_UPDATES=1`; Settings › Updates then says why. The builds are not code-signed, so an update's integrity rests on HTTPS and the SHA-512 in the channel's update file (`latest.yml` or `nightly.yml`).
 
 ### Linux sandbox
 
@@ -168,7 +174,7 @@ The app follows Electron's security checklist:
 - Commands a page could misuse wait for you. Right after your click, key press or tap in the window, which a page cannot fake, Coord runs one: exiting, opening a window or the logs, turning remote access on or moving it, pairing with another computer, opening a web address in the browser, a link in its application, or a file in your editor. Otherwise it first asks in a system dialog the page cannot answer. Creating a pairing link always asks first.
 - Electron fuses turn off running as Node.js and `NODE_OPTIONS`; the `coord` command runs on its own Node.js, which the app ships and copies to the Coord home. The installer and AppImage also turn off `--inspect`, and refuse to start with `--remote-debugging-port`, `--remote-debugging-pipe` or `--inspect`, which would let other programs control the window.
 - Planning folders are read by the Coord host in a separate process, which the main process reaches over loopback with a token made at each start; windows never reach it directly.
-- No data leaves the computer unless you turn on remote access; then the devices you paired can work on its projects. There is no telemetry, update check or crash upload.
+- No data leaves the computer unless you turn on remote access; then the devices you paired can work on its projects. The one request Coord makes on its own is the update check, which reads the release list and update file of envsemble/coord on GitHub and sends nothing of yours. There is no telemetry or crash upload.
 
 ## Diagnostics
 
