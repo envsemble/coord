@@ -128,9 +128,8 @@ function ChannelPicker({ channel, onChange }: { channel: Channel; onChange: (cha
 
 const names: Record<Platform, string> = { windows: 'Windows', linux: 'Linux' };
 const details: Record<Platform, string> = { windows: 'Windows 10 and 11 · .exe', linux: 'x86_64 · AppImage' };
-const files: Record<Platform, string> = { windows: '.exe', linux: 'AppImage' };
 
-/** A store-style download button: the system's logo, "Download for …", and what the file is; Windows's in its blue, a nightly's in violet. */
+/** A store-style download button: the system's logo, "Download for …", and what the file is; a stable Windows build's in Windows blue, a nightly's plain. */
 function DownloadButton({ platform, channel, build, loading }: { platform: Platform; channel: Channel; build: Build | null; loading: boolean }) {
   // Without a build to offer (GitHub did not answer), the button leads to the releases page.
   const href = build?.downloads[platform]?.url ?? releasesPage;
@@ -138,7 +137,7 @@ function DownloadButton({ platform, channel, build, loading }: { platform: Platf
     {platform === 'windows' ? <WindowsLogo /> : <LinuxLogo />}
     <span className="download-text">
       <span className="download-label">Download for {names[platform]}</span>
-      <span className="download-detail">{channel === 'nightly' ? 'Nightly · ' + files[platform] : details[platform]}</span>
+      <span className="download-detail">{details[platform]}</span>
     </span>
   </a>;
 }
