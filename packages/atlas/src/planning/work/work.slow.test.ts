@@ -47,14 +47,14 @@ test('a folder finds its planning folders in the home: in one of their folders, 
   assert.equal(await resolvePlanningFolder({ planningFolder: root, home }), root);
   await assert.rejects(resolvePlanningFolder({ cwd: directory, home }), /No project in the Atlas home .* covers/);
   // A second project covers the shop too: both are listed by name, and the tools need the one to plan in.
-  writeFileSync(path.join(unrelated, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Coord', folders: [shop], work_items: [] }));
+  writeFileSync(path.join(unrelated, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Harbor', folders: [shop], work_items: [] }));
   const several = await findPlanning(shop, { home });
-  assert.deepEqual(several.matches.map(match => match.project), ['Planning', 'Coord']);
-  await assert.rejects(resolvePlanningFolder({ cwd: shop, home }), /Several projects cover this folder: Planning \(.*\), Coord \(.*\)\. Ask the user which project to plan in/);
+  assert.deepEqual(several.matches.map(match => match.project), ['Planning', 'Harbor']);
+  await assert.rejects(resolvePlanningFolder({ cwd: shop, home }), /Several projects cover this folder: Planning \(.*\), Harbor \(.*\)\. Ask the user which project to plan in/);
   assert.equal(await resolvePlanningFolder({ cwd: shop, home, work: 'work-0001' }), root, 'a work item only one of them registers names its project');
   // Archived projects do not match; a folder without a project row is active.
-  const coord = realpathSync(unrelated);
-  withDatabase(home, database => database.addProject(coord, 'Coord', null, 'archived'));
+  const harbor = realpathSync(unrelated);
+  withDatabase(home, database => database.addProject(harbor, 'Harbor', null, 'archived'));
   assert.deepEqual((await findPlanning(shop, { home })).matches.map(match => match.project), ['Planning']);
   assert.equal(await resolvePlanningFolder({ cwd: shop, home }), root);
   assert.deepEqual((await findPlanning(directory, { home })).projects.map(project => project.project), ['Planning'], 'archived projects are not listed');

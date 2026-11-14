@@ -41,11 +41,11 @@ Bounds: 200 selected files or 8 MiB of source text, 500 declarations, 4,000 memb
 {
   "formatVersion": 1,
   "adapter": "java",
-  "identity": "coord",
+  "identity": "harbor",
   "projects": [
     {
-      "identity": "coord",
-      "path": "coord",
+      "identity": "harbor",
+      "path": "harbor",
       "files": [
         "src/main/java/example/User.java",
         "src/main/java/example/Enrollment.java"

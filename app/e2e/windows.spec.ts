@@ -59,22 +59,22 @@ test('a second launch brings the running app forward, and windows open again sho
 test('a plan of a project whose folder is not a planning folder at the start shows again when it is', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
-  const coord = addProject(home.dataDirectory, 'coord', 'Coord');
+  const harbor = addProject(home.dataDirectory, 'harbor', 'Harbor');
   launched = await launchProject(home);
-  await filterHub(launched.window, 'Coord');
+  await filterHub(launched.window, 'Harbor');
   await openPlan(launched.window, 'Customer order notifications');
   await launched.window.waitForTimeout(600);
   await close(launched);
-  // Coord's planning.json is briefly away: it is not listed, and the window shows the hub meanwhile.
-  renameSync(path.join(coord, 'planning.json'), path.join(coord, 'planning.json.away'));
+  // Harbor's planning.json is briefly away: it is not listed, and the window shows the hub meanwhile.
+  renameSync(path.join(harbor, 'planning.json'), path.join(harbor, 'planning.json.away'));
   launched = await launch({ dataDirectory: home.dataDirectory });
   await expectHub(launched.window);
   await launched.window.waitForTimeout(600);
   await close(launched);
-  renameSync(path.join(coord, 'planning.json.away'), path.join(coord, 'planning.json'));
+  renameSync(path.join(harbor, 'planning.json.away'), path.join(harbor, 'planning.json'));
   launched = await launch({ dataDirectory: home.dataDirectory });
   await expect(launched.window.locator('.work-page h1')).toHaveText('Customer order notifications');
-  await expect(launched.window.locator('.work-page .breadcrumb')).toContainText('Coord');
+  await expect(launched.window.locator('.work-page .breadcrumb')).toContainText('Harbor');
 });
 
 /** Open a plan of the project Shop from the hub, and see it read from its folder. */

@@ -57,7 +57,7 @@ test('window state is checked deeply', () => {
 });
 
 test("a project's folder is a full path of the computer", () => {
-  for (const good of ['C:\\Dev\\atlas-workspace', 'c:/dev/coord', '\\\\server\\share\\work', '/home/me/work']) assert.equal(folderPath(good), good);
+  for (const good of ['C:\\Dev\\atlas-workspace', 'c:/dev/harbor', '\\\\server\\share\\work', '/home/me/work']) assert.equal(folderPath(good), good);
   for (const bad of ['', 'relative/folder', 'C:relative', '..\\up', 'x'.repeat(5000), 'C:\\a\0b', 42, null]) assert.throws(() => folderPath(bad), ValidationError, String(bad));
 });
 

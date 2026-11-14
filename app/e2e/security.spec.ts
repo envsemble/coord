@@ -112,7 +112,7 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
       paste: await bridge.command('paste'),
       closeWindow: await bridge.command('closeWindow'),
       // A workspace folder is a full path of this computer.
-      createRelative: await bridge.createProject('Coord', ['relative/folder']),
+      createRelative: await bridge.createProject('Harbor', ['relative/folder']),
       updateRelative: await bridge.updateProject(projectId, { folders: ['..\\up'] }),
       // Quitting and opening windows or the logs ask first.
       quit: await bridge.command('quit'),

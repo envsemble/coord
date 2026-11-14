@@ -101,8 +101,8 @@ test('a link into a sibling project in the home names that folder and the path i
   assert.deepEqual(siblingReference('../../../envui/README.md', plan), { folder: 'envui', path: 'README.md', anchor: null });
   // Inside the project itself, above the home's planning folder, absolute or external: none.
   for (const href of ['../0019-x/plan.md', '../../../../elsewhere/plan.md', '/etc/passwd', 'https://example.com/a', '../../../atlas', '../../../.git/config']) assert.equal(siblingReference(href, plan), null, href);
-  const projects = [{ id: 'f-1', path: 'C:\\Users\\me\\.atlas\\planning\\coord' }, { id: 'f-2', path: 'C:\\Users\\me\\.atlas\\planning\\Atlas' }, { id: 'f-3', path: 'D:\\old\\atlas' }];
+  const projects = [{ id: 'f-1', path: 'C:\\Users\\me\\.atlas\\planning\\harbor' }, { id: 'f-2', path: 'C:\\Users\\me\\.atlas\\planning\\Atlas' }, { id: 'f-3', path: 'D:\\old\\atlas' }];
   assert.equal(siblingProject(projects, 'f-1', 'atlas'), 'f-2', 'Windows paths compare without case');
   assert.equal(siblingProject(projects, 'f-1', 'envui'), null);
-  assert.equal(siblingProject([{ id: 'a', path: '/home/me/.atlas/planning/coord' }, { id: 'b', path: '/home/me/.atlas/planning/Atlas' }], 'a', 'atlas'), null, 'POSIX paths keep their case');
+  assert.equal(siblingProject([{ id: 'a', path: '/home/me/.atlas/planning/harbor' }, { id: 'b', path: '/home/me/.atlas/planning/Atlas' }], 'a', 'atlas'), null, 'POSIX paths keep their case');
 });

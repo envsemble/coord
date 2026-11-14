@@ -150,7 +150,7 @@ test('what agents do now: sessions in a turn, seen lately, and those waiting for
   const database = HomeDatabase.open(home);
   try {
     const shop = database.addProject(path.join(home, 'planning', 'shop'), 'Shop');
-    const coord = database.addProject(path.join(home, 'planning', 'coord'), 'Coord');
+    const harbor = database.addProject(path.join(home, 'planning', 'harbor'), 'Harbor');
     const now = Date.parse('2026-10-15T12:00:00Z');
     const ago = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
     /** A session as the hooks leave it: seen, in a turn since, or waiting since, its time not yet reported counting from; linked to work it touched minutes ago. */
@@ -162,7 +162,7 @@ test('what agents do now: sessions in a turn, seen lately, and those waiting for
       database.db.prepare('UPDATE session SET focus = ? WHERE id = ?').run(rows.sort((a, b) => a.touched - b.touched)[0].row, id);
     };
     // One conversation on two plans counts for the one it touched last.
-    session('a', 2, { turn: 10 }, [[shop.id, 'work-0001', 30], [coord.id, 'work-0003', 5]]);
+    session('a', 2, { turn: 10 }, [[shop.id, 'work-0001', 30], [harbor.id, 'work-0003', 5]]);
     session('b', 5, { turn: 8 }, [[shop.id, 'work-0001', 6], [shop.id, 'work-0002', 7]]);
     database.db.prepare('INSERT INTO work_report (project_id, work_id, at, stage, model, session) VALUES (?, ?, ?, ?, ?, ?)').run(shop.id, 'work-0001', ago(3), 'implementation', 'claude-opus', 'b');
     session('c', 1, { waiting: 1 }, [[shop.id, 'work-0001', 4]]);
@@ -170,11 +170,11 @@ test('what agents do now: sessions in a turn, seen lately, and those waiting for
     session('stopped', 1, { waiting: 40, counts: 45 }, [[shop.id, 'work-0004', 50]]);
     // Waiting since before another session worked on the plan: nothing waits for the person there.
     session('answered', 1, { waiting: 20 }, [[shop.id, 'work-0002', 25]]);
-    session('gone', 20, { turn: 30 }, [[coord.id, 'work-0005', 30]]);
-    session('left', 25 * 60, { waiting: 25 * 60 }, [[coord.id, 'work-0006', 25 * 60]]);
-    session('ended', 1, null, [[coord.id, 'work-0007', 1]]);
+    session('gone', 20, { turn: 30 }, [[harbor.id, 'work-0005', 30]]);
+    session('left', 25 * 60, { waiting: 25 * 60 }, [[harbor.id, 'work-0006', 25 * 60]]);
+    session('ended', 1, null, [[harbor.id, 'work-0007', 1]]);
     // Out of its turn without asking for the person (waiting on CI): the plan still works, its time stopped.
-    session('held', 1, { waiting: 3, counts: 9 }, [[coord.id, 'work-0008', 9]]);
+    session('held', 1, { waiting: 3, counts: 9 }, [[harbor.id, 'work-0008', 9]]);
     // The others asked: a permission prompt or needs_you left their wait open.
     for (const id of ['c', 'stopped', 'answered', 'left']) database.db.prepare('INSERT INTO session_wait (session_id, started_at) VALUES (?, ?)').run(id, ago(1));
     const activity = database.workActivity(now);
@@ -185,7 +185,7 @@ test('what agents do now: sessions in a turn, seen lately, and those waiting for
       ] },
       { workId: 'work-0004', state: 'waiting', since: ago(40), sessions: [{ session: 'stopped', harness: 'claude-code', state: 'waiting', since: ago(40), countsFrom: ago(45) }] },
     ], 'working while any session works, its time counting from its last report; else waiting');
-    assert.deepEqual(activity.get(coord.id), [
+    assert.deepEqual(activity.get(harbor.id), [
       { workId: 'work-0008', state: 'working', since: ago(3), sessions: [{ session: 'held', harness: 'claude-code', state: 'idle', since: ago(3), countsFrom: ago(9) }] },
       { workId: 'work-0003', state: 'working', since: ago(10), sessions: [{ session: 'a', harness: 'claude-code', state: 'working', since: ago(10), countsFrom: ago(10) }] },
     ], 'a session not seen for 15 minutes, one waiting for a day and one that ended are not listed; one idle works on, its time stopped');

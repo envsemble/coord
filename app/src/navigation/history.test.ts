@@ -4,11 +4,11 @@ import { canGoBack, canGoForward, currentEntry, historyLimit, keyStep, record, s
 import { diagramTarget, fileTarget, hubPlace, placeId, scrollKey, settingsPlace, statisticsPlace, stepTarget, workTarget, type ProjectPlace } from './targets.ts';
 import type { Target } from '../types.ts';
 
-const shop = 'f-' + 'a'.repeat(32), coord = 'f-' + 'b'.repeat(32);
+const shop = 'f-' + 'a'.repeat(32), harbor = 'f-' + 'b'.repeat(32);
 const at = (target: Target, project = shop): ProjectPlace => ({ projectId: project, target });
 const hub = hubPlace();
 const plan = at(workTarget('work-0001'));
-const other = at(workTarget('work-0001'), coord);
+const other = at(workTarget('work-0001'), harbor);
 const notes = at(fileTarget('notes/notes.md'));
 
 test('each new place shown follows the current entry; the same place again adds nothing', () => {
@@ -39,7 +39,7 @@ test("the hub's project filter, a project's statistics and Settings' sections ar
   assert.equal(samePlace(hub, hubPlace()), true);
   assert.equal(samePlace(hub, hubPlace(shop)), false, 'filtering the hub to a project is a step');
   assert.equal(samePlace(hubPlace(shop), hubPlace(shop)), true);
-  assert.equal(samePlace(statisticsPlace(shop), statisticsPlace(coord)), false);
+  assert.equal(samePlace(statisticsPlace(shop), statisticsPlace(harbor)), false);
   assert.equal(samePlace(statisticsPlace(shop), hubPlace(shop)), false);
   // Each section of Settings is a step of its own, on the same page, each scrolled on its own.
   assert.equal(samePlace(settingsPlace('agents'), settingsPlace()), true);

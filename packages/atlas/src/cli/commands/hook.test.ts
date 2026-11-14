@@ -258,22 +258,22 @@ test('a work item the session left is reported at its end when no turn end measu
 
 test('a session in a folder that several projects cover is told to ask which one to plan in', async t => {
   const { checkout, home, env } = homeWithPlanning(t);
-  const other = path.join(home, 'planning', 'coord');
-  write(path.join(other, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Coord', folders: [checkout], work_items: [] }));
+  const other = path.join(home, 'planning', 'harbor');
+  write(path.join(other, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Harbor', folders: [checkout], work_items: [] }));
   const context = await contextIn(env, checkout);
-  assert.ok(context.includes('Atlas project "shop-planning"') && context.includes(`Atlas project "Coord" for this folder: planning folder ${realpathSync.native(other)}`), context);
-  assert.match(context, /Several projects cover this folder \(Coord, shop-planning\): before planning, ask the user which project to plan in/);
+  assert.ok(context.includes('Atlas project "shop-planning"') && context.includes(`Atlas project "Harbor" for this folder: planning folder ${realpathSync.native(other)}`), context);
+  assert.match(context, /Several projects cover this folder \(Harbor, shop-planning\): before planning, ask the user which project to plan in/);
   // The tools need the project: a work item only one of them registers names it; otherwise it is asked for.
   const created = await run(['work', 'create', '--title', 'Payments'], { env, cwd: checkout });
   assert.equal(created.status, 1);
-  assert.match(created.stderr, /Several projects cover this folder: Coord \(.*\), shop-planning \(.*\)\. Ask the user which project to plan in/);
+  assert.match(created.stderr, /Several projects cover this folder: Harbor \(.*\), shop-planning \(.*\)\. Ask the user which project to plan in/);
   assert.equal((await run(['work', 'status', 'work-0001'], { env, cwd: checkout })).status, 0);
   const where = JSON.parse((await run(['where', '--cwd', checkout], { env })).stdout);
-  assert.deepEqual(where.matches.map((match: { project: string }) => match.project), ['Coord', 'shop-planning']);
-  // Once Coord covers only the folder around the checkout, the deeper folder decides.
-  write(path.join(other, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Coord', folders: [path.dirname(checkout)], work_items: [] }));
+  assert.deepEqual(where.matches.map((match: { project: string }) => match.project), ['Harbor', 'shop-planning']);
+  // Once Harbor covers only the folder around the checkout, the deeper folder decides.
+  write(path.join(other, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Harbor', folders: [path.dirname(checkout)], work_items: [] }));
   assert.match(await contextIn(env, checkout), /^Atlas project "shop-planning" for this folder: planning folder .*\.\nActive work \(plans relative to the planning folder\):\n/);
-  assert.equal(await contextIn(env, path.dirname(checkout)), `Atlas project "Coord" for this folder: planning folder ${realpathSync.native(other)}.\nNo active work in this project.`);
+  assert.equal(await contextIn(env, path.dirname(checkout)), `Atlas project "Harbor" for this folder: planning folder ${realpathSync.native(other)}.\nNo active work in this project.`);
 });
 
 test('choices made on a page reach the session with its next message, once, while they are open', async t => {

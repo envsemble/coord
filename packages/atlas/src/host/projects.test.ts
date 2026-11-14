@@ -34,37 +34,37 @@ test('projects are the home\'s planning folders: created from the templates, ren
   } finally { database.close(); }
   assert.deepEqual((await projectNamed(owner.connection)).summary?.activity.map(item => [item.workId, item.state]), [['work-0001', 'working']]);
   // A device creates one: a Git repository in the home with the templates and its name.
-  const coord = await device.connection.request('projects.create', { name: 'Coord', folders: [] });
-  assert.deepEqual([coord.name, coord.path, coord.position, coord.state, coord.folders], ['Coord', path.join(data, 'planning', 'coord'), 1, 'active', []]);
-  assert.deepEqual(JSON.parse(readFileSync(path.join(coord.path, 'planning.json'), 'utf8')), { schema_version: 2, name: 'Coord', folders: [], work_items: [] });
-  for (const file of ['AGENTS.md', 'PLANS.md', 'README.md', 'plan-frontmatter.md', '.gitattributes', '.git']) assert.ok(existsSync(path.join(coord.path, file)), file);
+  const harbor = await device.connection.request('projects.create', { name: 'Harbor', folders: [] });
+  assert.deepEqual([harbor.name, harbor.path, harbor.position, harbor.state, harbor.folders], ['Harbor', path.join(data, 'planning', 'harbor'), 1, 'active', []]);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(harbor.path, 'planning.json'), 'utf8')), { schema_version: 2, name: 'Harbor', folders: [], work_items: [] });
+  for (const file of ['AGENTS.md', 'PLANS.md', 'README.md', 'plan-frontmatter.md', '.gitattributes', '.git']) assert.ok(existsSync(path.join(harbor.path, file)), file);
   const { execFileSync } = await import('node:child_process');
-  assert.match(execFileSync('git', ['-C', coord.path, 'log', '--format=%s'], { encoding: 'utf8' }), /^Create the Coord project/);
-  assert.equal((await device.connection.request('projects.create', { name: 'Coord', folders: [] })).path, path.join(data, 'planning', 'coord-2'), 'a taken name gets a number');
+  assert.match(execFileSync('git', ['-C', harbor.path, 'log', '--format=%s'], { encoding: 'utf8' }), /^Create the Harbor project/);
+  assert.equal((await device.connection.request('projects.create', { name: 'Harbor', folders: [] })).path, path.join(data, 'planning', 'harbor-2'), 'a taken name gets a number');
   await assert.rejects(device.connection.request('projects.create', { name: ' ', folders: [] }), (error: HostRequestError) => error.code === 'invalid-argument');
   await until(() => owner.lists.some(list => list.length === 3), 5000, () => owner.lists);
   // The lists clients are sent have the summaries too (a new project's folder has its first commit); a single project answered has none.
-  const sent = owner.lists.find(list => list.length === 3)!.find(project => project.id === coord.id)!;
+  const sent = owner.lists.find(list => list.length === 3)!.find(project => project.id === harbor.id)!;
   assert.deepEqual({ ...sent.summary, updated: typeof sent.summary?.updated, now: typeof sent.summary?.now }, { active: [], closed: [], updated: 'string', activity: [], now: 'string' });
-  assert.equal('summary' in coord, false);
+  assert.equal('summary' in harbor, false);
   // Renaming writes the name into its planning.json; hiding, archiving and moving change only the order and state.
-  const renamed = await owner.connection.request('projects.update', { projectId: coord.id, name: 'Coord platform' });
-  assert.equal(renamed.name, 'Coord platform');
+  const renamed = await owner.connection.request('projects.update', { projectId: harbor.id, name: 'Harbor platform' });
+  assert.equal(renamed.name, 'Harbor platform');
   assert.equal('summary' in renamed, false);
-  assert.equal(JSON.parse(readFileSync(path.join(coord.path, 'planning.json'), 'utf8')).name, 'Coord platform');
-  await owner.connection.request('projects.update', { projectId: coord.id, position: 0 });
+  assert.equal(JSON.parse(readFileSync(path.join(harbor.path, 'planning.json'), 'utf8')).name, 'Harbor platform');
+  await owner.connection.request('projects.update', { projectId: harbor.id, position: 0 });
   const second = (await owner.connection.request('projects.list', {}))[2];
   await owner.connection.request('projects.update', { projectId: second.id, state: 'archived' });
   const planningProject = await projectNamed(owner.connection);
   // Projects are active or archived: there is no hiding them any more.
   await assert.rejects(owner.connection.request('projects.update', { projectId: planningProject.id, state: 'hidden' as never }), (error: HostRequestError) => error.code === 'invalid-argument');
-  assert.deepEqual((await device.connection.request('projects.list', {})).map(project => [project.name, project.position, project.state]), [['Coord platform', 0, 'active'], ['Northwind', 1, 'active'], ['Coord', 2, 'archived']]);
+  assert.deepEqual((await device.connection.request('projects.list', {})).map(project => [project.name, project.position, project.state]), [['Harbor platform', 0, 'active'], ['Northwind', 1, 'active'], ['Harbor', 2, 'archived']]);
   // A planning folder that appears in the home becomes the last project; one that leaves it is no longer listed.
   cpSync(fixture, path.join(data, 'planning', 'later'), { recursive: true });
   await until(() => owner.lists.some(list => list.some(project => project.path === path.join(data, 'planning', 'later'))), 5000, () => owner.lists);
   assert.equal((await owner.connection.request('projects.list', {})).find(project => project.path === path.join(data, 'planning', 'later'))?.position, 3);
-  rmSync(path.join(data, 'planning', 'coord-2'), { recursive: true, force: true, maxRetries: 10 });
-  assert.deepEqual((await owner.connection.request('projects.list', {})).map(project => project.name), ['Coord platform', 'Northwind', 'Northwind']);
+  rmSync(path.join(data, 'planning', 'harbor-2'), { recursive: true, force: true, maxRetries: 10 });
+  assert.deepEqual((await owner.connection.request('projects.list', {})).map(project => project.name), ['Harbor platform', 'Northwind', 'Northwind']);
   await assert.rejects(owner.connection.request('projects.update', { projectId: 'f-' + 'a'.repeat(32), state: 'active' }), (error: HostRequestError) => error.code === 'not-found');
 });
 
@@ -147,10 +147,10 @@ test('the search covers every active project of the home, best first', async t =
   const archived = path.join(data, 'planning', 'archived');
   cpSync(fixture, archived, { recursive: true });
   writeFileSync(path.join(archived, 'notes', 'secret.md'), '# Archived walrus\n');
-  const other = path.join(data, 'planning', 'coord');
+  const other = path.join(data, 'planning', 'harbor');
   cpSync(fixture, other, { recursive: true });
-  writeFileSync(path.join(other, 'planning.json'), readFileSync(path.join(other, 'planning.json'), 'utf8').replace('"Northwind"', '"Coord"'));
-  writeFileSync(path.join(other, 'notes', 'walrus.md'), '# Coord walrus\n\nA walrus lives in Coord.\n');
+  writeFileSync(path.join(other, 'planning.json'), readFileSync(path.join(other, 'planning.json'), 'utf8').replace('"Northwind"', '"Harbor"'));
+  writeFileSync(path.join(other, 'notes', 'walrus.md'), '# Harbor walrus\n\nA walrus lives in Harbor.\n');
   const outside = path.join(temporary(t, 'atlas-outside-'), 'Outside planning');
   cpSync(fixture, outside, { recursive: true });
   writeFileSync(path.join(outside, 'notes', 'walrus.md'), '# Outside walrus\n');
@@ -158,7 +158,7 @@ test('the search covers every active project of the home, best first', async t =
   try { database.addProject(realpathSync.native(outside), 'Outside', null, 'active'); } finally { database.close(); }
   const listed = await owner.connection.request('projects.list', {});
   assert.ok(!listed.some(project => project.path === realpathSync.native(outside)), 'a folder outside the home is not listed');
-  const northwind = listed.find(project => project.path === planning)!, coord = listed.find(project => project.name === 'Coord')!;
+  const northwind = listed.find(project => project.path === planning)!, harbor = listed.find(project => project.name === 'Harbor')!;
   await owner.connection.request('projects.update', { projectId: listed.find(project => project.path === archived)!.id, state: 'archived' });
   const search = (query: string, limit?: number) => device.connection.request('search.query', limit === undefined ? { query } : { query, limit });
   // Each kind, where it opens (the two projects have the same plans: Northwind's best).
@@ -171,14 +171,14 @@ test('the search covers every active project of the home, best first', async t =
   assert.deepEqual((await search('conceptual model')).filter(hit => hit.kind === 'diagram' && hit.projectName === 'Northwind').map(hit => [hit.title, hit.path, hit.work]), [['Fulfilment · conceptual model', 'active/0002-order-fulfilment-model/diagrams/fulfilment.puml', 'work-0002']]);
   assert.deepEqual(await first('savedpaymentmethod').then(hit => [hit.kind, hit.element, hit.work]), ['element', 'SavedPaymentMethod', 'work-0001']);
   assert.deepEqual(await first('Payments constraints').then(hit => [hit.kind, hit.path, hit.work]), ['document', 'notes/shop/payments-constraints.md', null]);
-  assert.deepEqual(await first('Coord', 'Coord').then(hit => [hit.kind, hit.projectId, hit.path]), ['project', coord.id, null]);
-  const text = await first('lives in', 'Coord');
-  assert.deepEqual([text.kind, text.projectName, text.snippet], ['document', 'Coord', 'A walrus lives in Coord.'], 'text, with its snippet');
+  assert.deepEqual(await first('Harbor', 'Harbor').then(hit => [hit.kind, hit.projectId, hit.path]), ['project', harbor.id, null]);
+  const text = await first('lives in', 'Harbor');
+  assert.deepEqual([text.kind, text.projectName, text.snippet], ['document', 'Harbor', 'A walrus lives in Harbor.'], 'text, with its snippet');
   // Every active project of the home, never an archived one or a folder outside the home; best first, at most the limit.
   const walrus = await search('walrus');
-  assert.deepEqual(walrus.map(hit => [hit.projectName, hit.title]), [['Coord', 'Coord walrus']], 'an archived project, and a folder outside the home, are not searched');
+  assert.deepEqual(walrus.map(hit => [hit.projectName, hit.title]), [['Harbor', 'Harbor walrus']], 'an archived project, and a folder outside the home, are not searched');
   const both = await search('saved payment methods');
-  assert.deepEqual([...new Set(both.slice(0, 2).map(hit => hit.kind + ':' + hit.projectName))].sort(), ['plan:Coord', 'plan:Northwind'], 'both active projects\' plans first');
+  assert.deepEqual([...new Set(both.slice(0, 2).map(hit => hit.kind + ':' + hit.projectName))].sort(), ['plan:Harbor', 'plan:Northwind'], 'both active projects\' plans first');
   assert.equal((await search('e')).length, 50, 'at most 50 by default');
   assert.deepEqual(await search('e', 3), (await search('e')).slice(0, 3), 'or the limit given');
   // The request is checked.

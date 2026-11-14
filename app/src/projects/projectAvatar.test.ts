@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { initials, projectFacts, projectHue } from './projectAvatar.ts';
 
 test('a project row shows its initials, and its open plans and whose turn they say they are', () => {
-  assert.equal(initials('Coord platform'), 'CP');
+  assert.equal(initials('Harbor platform'), 'HP');
   assert.equal(initials('atlas'), 'A');
   assert.equal(initials('envUI-kit'), 'EK');
   const work = (state: 'implementing' | 'closed', turn?: 'working' | 'your_turn') => ({ state, ...turn && { turn: { kind: turn, note: null, since: null } } }) as never;

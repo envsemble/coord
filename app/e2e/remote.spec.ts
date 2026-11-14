@@ -135,26 +135,26 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   // are paths there, chosen in Atlas there: here it gets a name only, and its folders are not changed.
   await (await openProjectMenu(viewer)).getByRole('menuitem', { name: 'New Project…', exact: true }).click();
   const create = viewer.getByRole('dialog', { name: 'Create project' });
-  await create.getByLabel('Project name').fill('Coord');
+  await create.getByLabel('Project name').fill('Harbor');
   await expect(create.getByLabel('Folder')).toHaveCount(0);
   await expect(create.getByRole('button', { name: 'Browse…' })).toHaveCount(0);
   await expect(create).toContainText(`Its folders are chosen in Atlas on ${name}`);
   await create.getByRole('button', { name: 'Create project' }).click();
-  await expectProjects(viewer, ['Northwind', 'Coord']);
-  expect(existsSync(path.join(path.dirname(folder), 'coord', 'planning.json'))).toBe(true);
-  expect(JSON.parse(readFileSync(path.join(path.dirname(folder), 'coord', 'planning.json'), 'utf8')).folders).toEqual([]);
-  const details = await projectDetails(viewer, 'Coord');
+  await expectProjects(viewer, ['Northwind', 'Harbor']);
+  expect(existsSync(path.join(path.dirname(folder), 'harbor', 'planning.json'))).toBe(true);
+  expect(JSON.parse(readFileSync(path.join(path.dirname(folder), 'harbor', 'planning.json'), 'utf8')).folders).toEqual([]);
+  const details = await projectDetails(viewer, 'Harbor');
   await expect(details.getByRole('button', { name: 'Add folder…' })).toHaveCount(0);
   await expect(details).toContainText(`Folders are chosen in Atlas on ${name}.`);
   await viewer.keyboard.press('Escape');
   await expect(details).toHaveCount(0);
   // (The owner's window stays on Settings › Computers, so its projects are read through its bridge.)
-  await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Coord']);
+  await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Harbor']);
   // Renaming goes to that computer (the name is in the project's planning.json)...
-  await projectAction(viewer, 'Coord', 'Rename…');
-  await viewer.getByRole('dialog', { name: 'Rename project' }).getByLabel('Name').fill('Coord platform');
+  await projectAction(viewer, 'Harbor', 'Rename…');
+  await viewer.getByRole('dialog', { name: 'Rename project' }).getByLabel('Name').fill('Harbor platform');
   await viewer.getByRole('dialog', { name: 'Rename project' }).getByRole('button', { name: 'Rename' }).click();
-  await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Coord platform']);
+  await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Harbor platform']);
   // ...while archiving is this app's own: the project leaves the menu's projects for its archived ones,
   // and its plans leave the hub, while that computer still lists it as before. A plan of it, shown
   // before, is still shown when back steps to it.
@@ -162,10 +162,10 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   await openPlan(viewer, 'Customer order notifications');
   await goHome(viewer);
   await projectAction(viewer, 'Northwind', 'Archive');
-  await expectProjects(viewer, ['Coord platform']);
+  await expectProjects(viewer, ['Harbor platform']);
   await expectArchived(viewer, ['Northwind']);
   await expect(hubRows(viewer, 'Customer order notifications')).toHaveCount(0);
-  await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Coord platform']);
+  await expect.poll(() => projectNames(owner)).toEqual(['Northwind', 'Harbor platform']);
   for (let step = 0; step < 3; step++) await viewer.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(viewer.locator('.work-page h1')).toHaveText('Customer order notifications');
 
@@ -205,7 +205,7 @@ test('another Atlas pairs with a one-time link and works on that computer\'s pro
   reading = await launch({ dataDirectory: readerData });
   await expect(reading.window.getByRole('button', { name: /^Computer:/ })).toContainText(name);
   await expect(reading.window.locator('.work-page h1')).toHaveText('Customer order notifications');
-  await expect.poll(() => projectNames(reading!.window).then(names => names.sort())).toEqual(['Coord platform', 'Northwind (archived)']);
+  await expect.poll(() => projectNames(reading!.window).then(names => names.sort())).toEqual(['Harbor platform', 'Northwind (archived)']);
 
   // Started while that computer cannot be reached, the window shows at once, on the hub, and keeps its
   // place (also through a save meanwhile); it comes back when the computer answers again.

@@ -55,7 +55,7 @@ test('windows, their places per computer and the shared settings are kept in the
     // A window on this computer with places of a local project, and places of a paired computer's project it showed before.
     const local = database.addProject(path.join(directory, 'planning', 'shop'), 'Shop');
     database.db.prepare('INSERT INTO paired_computer (id, host_id, name, origin, device_id, token, paired_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('c1', 'host-0001', 'Laptop', 'http://100.64.0.2:7346', 'd-' + 'a'.repeat(32), Buffer.from('plain:x'), '2026-10-15T00:00:00.000Z');
-    const remote = database.addProject('/home/me/.atlas/planning/coord', 'Coord', 'c1');
+    const remote = database.addProject('/home/me/.atlas/planning/harbor', 'Harbor', 'c1');
     const window = state.addWindow(null, { x: 10, y: 20, width: 900, height: 700 });
     state.updateWindow(window, { maximized: true });
     assert.deepEqual(state.windows(), [{ id: window, computerId: null, bounds: { x: 10, y: 20, width: 900, height: 700 }, maximized: true }]);

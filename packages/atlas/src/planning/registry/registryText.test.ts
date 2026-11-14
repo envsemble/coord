@@ -49,9 +49,9 @@ test('updates members of one entry in place, leaving every other byte', () => {
 test('a registry is named in place, keeping every other byte', async () => {
   const { setRegistryName } = await import('./registryText.ts');
   const source = '{\n  "schema_version": 2,\n  "folders": [],\n  "work_items": []\n}\n';
-  const named = setRegistryName(source, 'Coord');
-  assert.equal(named, '{\n  "schema_version": 2,\n  "name": "Coord",\n  "folders": [],\n  "work_items": []\n}\n');
-  assert.equal(setRegistryName(named, 'Coord "web"'), named.replace('"Coord"', '"Coord \\"web\\""'));
+  const named = setRegistryName(source, 'Harbor');
+  assert.equal(named, '{\n  "schema_version": 2,\n  "name": "Harbor",\n  "folders": [],\n  "work_items": []\n}\n');
+  assert.equal(setRegistryName(named, 'Harbor "web"'), named.replace('"Harbor"', '"Harbor \\"web\\""'));
   assert.equal(setRegistryName('{"schema_version": 2}', 'One'), '{"schema_version": 2, "name": "One"}');
 });
 

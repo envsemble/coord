@@ -49,21 +49,21 @@ test('the home and its database are owner-only on POSIX', { skip: process.platfo
 
 test('projects keep their order and state, and a paired computer\'s rows are kept apart', async t => {
   const home = temporary(t);
-  const one = planningFolder(path.join(home, 'planning', 'one'), 'Coord');
+  const one = planningFolder(path.join(home, 'planning', 'one'), 'Harbor');
   const two = planningFolder(path.join(home, 'planning', 'two'));
-  assert.equal(await planningName(one), 'Coord', 'the registry names the project');
+  assert.equal(await planningName(one), 'Harbor', 'the registry names the project');
   assert.equal(await planningName(two), 'two', 'else the folder does');
   withDatabase(home, database => {
-    const first = database.addProject(one, 'Coord');
+    const first = database.addProject(one, 'Harbor');
     const second = database.addProject(two, 'two');
     if (process.platform === 'win32' || process.platform === 'darwin') assert.equal(database.addProject(one.toUpperCase(), 'Again').id, first.id, 'a folder is one project however it is spelled');
     const third = database.addProject(path.join(home, 'planning', 'three'), 'Three');
-    assert.deepEqual(database.projects().map(project => [project.name, project.position, project.state]), [['Coord', 0, 'active'], ['two', 1, 'active'], ['Three', 2, 'active']]);
+    assert.deepEqual(database.projects().map(project => [project.name, project.position, project.state]), [['Harbor', 0, 'active'], ['two', 1, 'active'], ['Three', 2, 'active']]);
     database.updateProject(third.id, { position: 0 });
     database.updateProject(second.id, { name: 'Two' });
     database.updateProject(first.id, { state: 'archived' });
     database.updateProject(second.id, { state: 'archived' });
-    assert.deepEqual(database.projects().map(project => [project.name, project.state]), [['Three', 'active'], ['Coord', 'archived'], ['Two', 'archived']]);
+    assert.deepEqual(database.projects().map(project => [project.name, project.state]), [['Three', 'active'], ['Harbor', 'archived'], ['Two', 'archived']]);
     // A paired computer's projects: rows of this app, ordered and archived here.
     database.db.prepare('INSERT INTO paired_computer (id, host_id, name, origin, device_id, token, paired_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('c1', 'host-0001', 'Laptop', 'http://100.64.0.2:7346', 'd-' + 'a'.repeat(32), Buffer.from('plain:x'), '2026-10-15T00:00:00.000Z');
     const remote = database.addProject('/home/me/.atlas/planning/one', 'One', 'c1');
