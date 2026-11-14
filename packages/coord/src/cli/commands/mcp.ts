@@ -19,8 +19,11 @@ import { coordHome } from '../../home/homePath.ts';
 import { parseOptions, UsageError, wantsHelp, type Output } from '../args.ts';
 import { createHomeProject } from './planning.ts';
 
-const require = createRequire(import.meta.url);
-const { version } = require('../../../package.json') as { version: string };
+/**
+ * The command's version, read when the server starts: the desktop app bundles this module (its host
+ * runs the tools for pages), where no package.json sits at this path, so it is never read on load.
+ */
+const commandVersion = () => (createRequire(import.meta.url)('../../../package.json') as { version: string }).version;
 
 const instructions = "Coord keeps plans in projects: planning folders in the Coord home (~/.coord/planning). A session in one of a project's folders (the deepest wins when they nest), or in its planning folder, belongs to that project; where lists the projects and their active work. "
   + 'When several projects match, ask the user which one to plan in and pass its planningFolder; when none does, ask which project the work belongs to. '
@@ -198,7 +201,7 @@ export async function callTool(name: string, input: Arguments) {
 }
 
 export function createMcpServer() {
-  const server = new Server({ name: 'coord', version }, { capabilities: { tools: {} }, instructions });
+  const server = new Server({ name: 'coord', version: commandVersion() }, { capabilities: { tools: {} }, instructions });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) }));
   // The first tool call notes which agent uses Coord's tools (by the name its client gave), once:
   // the app warns when an agent's sessions use them but its hooks never run.

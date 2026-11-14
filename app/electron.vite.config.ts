@@ -61,10 +61,10 @@ const envUIRoot = envUISource ? realpathSync(resolve(import.meta.dirname, 'node_
 export default defineConfig({
   main: {
     build: {
-      // The diagram package (CommonJS with native and lazily loaded dependencies) and esbuild (a
-      // native binary, which builds pages) stay in node_modules; everything else, including the
-      // planning reader, is bundled.
-      externalizeDeps: { include: ['@envsemble/coord-diagrams', 'esbuild'] },
+      // The diagram package (CommonJS with native and lazily loaded dependencies), esbuild (a
+      // native binary, which builds pages) and electron-updater (CommonJS that reads files of its
+      // own) stay in node_modules; everything else, including the planning reader, is bundled.
+      externalizeDeps: { include: ['@envsemble/coord-diagrams', 'esbuild', 'electron-updater'] },
       // The app's main process and the Coord host it runs in a utility process (main/host/hostProcess.ts).
       lib: { entry: { index: resolve(import.meta.dirname, 'main/index.ts'), host: resolve(import.meta.dirname, 'main/host/hostProcess.ts') } },
       sourcemap: true,

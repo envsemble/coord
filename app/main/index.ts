@@ -18,6 +18,7 @@ import { scheme } from './windows/protocol.ts';
 import { AppState } from './appState.ts';
 import { Agents } from './agent/agents.ts';
 import { WindowManager } from './windows/windowManager.ts';
+import updater from 'electron-updater';
 import { Updates, type UpdaterEngine } from './updates.ts';
 import type { AboutInfo } from '../shared/contract.ts';
 import { isProjectListing } from '../shared/validate.ts';
@@ -57,7 +58,7 @@ if (refusal) {
   try { database = HomeDatabase.open(dataDirectory); } catch (error) {
     refuseHome(`Coord cannot open its home database: ${(error as Error).message}`);
   }
-  if (database) await start(database);
+  if (database) start(database);
 }
 
 /** Leave without touching the home when its database cannot be opened. */
@@ -80,12 +81,11 @@ function endToEndBuild() {
  * app on Windows and the AppImage on Linux, never with a development or end-to-end build, and a
  * test run can turn them off (COORD_NO_UPDATES=1).
  */
-async function updaterEngine(): Promise<UpdaterEngine | { off: string }> {
+function updaterEngine(): UpdaterEngine | { off: string } {
   if (!app.isPackaged) return { off: 'This is a development build: updates come with the installed app.' };
   if (endToEndBuild() || process.env.COORD_NO_UPDATES === '1') return { off: 'Updates are turned off for this run.' };
   if (process.platform === 'linux' && !process.env.APPIMAGE) return { off: 'Coord updates itself when it runs as its AppImage.' };
   if (process.platform !== 'win32' && process.platform !== 'linux') return { off: 'Coord updates itself on Windows and Linux.' };
-  const { default: updater } = await import('electron-updater');
   const engine = updater.autoUpdater;
   engine.logger = { info: (message: unknown) => log.info('Updater: ' + String(message)), warn: (message: unknown) => log.warn('Updater: ' + String(message)), error: (message: unknown) => log.warn('Updater: ' + String(message)), debug: () => {} };
   return engine as unknown as UpdaterEngine;
@@ -106,7 +106,7 @@ function refuse(found: Refusal) {
   });
 }
 
-async function start(database: HomeDatabase) {
+function start(database: HomeDatabase) {
   const devUrl = !app.isPackaged && process.env.ELECTRON_RENDERER_URL ? process.env.ELECTRON_RENDERER_URL : null;
   const state = new AppState(database);
   // The chosen theme reaches every window as prefers-color-scheme, and themes Coord's own menus and dialogs.
@@ -155,7 +155,7 @@ async function start(database: HomeDatabase) {
   // Coord's own updates, from its releases on GitHub, in the installed app only.
   const updates = new Updates({
     version: app.getVersion(), log,
-    engine: await updaterEngine(),
+    engine: updaterEngine(),
     setting: { get: () => database.setting('updateChannel'), set: value => database.setSetting('updateChannel', value) },
     onChange: state => manager?.updatesChanged(state),
   });

@@ -54,6 +54,10 @@ exports.default = async function afterPack(context) {
   const resources = context.electronPlatformName === 'darwin' ? path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`, 'Contents', 'Resources') : path.join(context.appOutDir, 'resources');
   const app = path.join(resources, 'app');
   const kept = runtimePackages(repository);
+  // electron-builder lays node_modules out on its own: a package nested in the lockfile (such as
+  // electron-updater's own builder-util-runtime) can land at the top. A package is kept wherever it
+  // lands when the app loads one of that name.
+  const keptNames = new Set([...kept].map(location => location.slice(location.lastIndexOf('node_modules/') + 'node_modules/'.length)));
   let removed = 0, bytes = 0;
   const prune = (directory, prefix) => {
     if (!fs.existsSync(directory)) return;
@@ -62,7 +66,7 @@ exports.default = async function afterPack(context) {
       if (entry.name.startsWith('@')) { prune(path.join(directory, entry.name), prefix + entry.name + '/'); continue; }
       const location = prefix + entry.name;
       const full = path.join(directory, entry.name);
-      if (kept.has(location)) { prune(path.join(full, 'node_modules'), location + '/node_modules/'); continue; }
+      if (kept.has(location) || keptNames.has(prefix.slice(prefix.lastIndexOf('node_modules/') + 'node_modules/'.length) + entry.name)) { prune(path.join(full, 'node_modules'), location + '/node_modules/'); continue; }
       bytes += size(full);
       fs.rmSync(full, { recursive: true, force: true });
       removed++;
