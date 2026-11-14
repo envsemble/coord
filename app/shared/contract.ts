@@ -169,6 +169,8 @@ export interface OnboardingState { done: boolean }
 /** Where Coord's updates come from: its stable releases, or a build of its development branch each night. */
 export const updateChannels = ['stable', 'nightly'] as const;
 export type UpdateChannel = typeof updateChannels[number];
+/** Whether a version is a nightly build's (`0.9.1-nightly.20261114.42`): its updates follow the nightly channel, and its title bar says Nightly. */
+export const isNightlyVersion = (version: string) => /-nightly\./.test(version);
 /**
  * Where the installed app's update stands: off for this run (a development or test build, or a
  * Linux build not run as its AppImage, with why), nothing to do (`checkedAt`: the last check that

@@ -4,7 +4,7 @@
 // nightly (a build of dev each night); a build starts on its own kind, and the choice is kept in the
 // home database. Moving from nightly to stable never goes back to an older build: the install waits
 // for a stable release newer than itself.
-import type { UpdateChannel, UpdateState, UpdateStatus } from '../shared/contract.ts';
+import { isNightlyVersion, type UpdateChannel, type UpdateState, type UpdateStatus } from '../shared/contract.ts';
 
 /** What Coord uses of electron-updater's AppUpdater, so the logic can be tested without Electron. */
 export interface UpdaterEngine {
@@ -38,7 +38,7 @@ export interface UpdatesOptions {
 }
 
 /** A nightly build's version carries its prerelease name: 0.9.1-nightly.20261115.42. */
-export const buildChannel = (version: string): UpdateChannel => /-nightly\./.test(version) ? 'nightly' : 'stable';
+export const buildChannel = (version: string): UpdateChannel => isNightlyVersion(version) ? 'nightly' : 'stable';
 
 /** electron-updater's error as one line fit to show (its messages can carry a whole feed). */
 function shortMessage(error: unknown) {

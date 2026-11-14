@@ -3,7 +3,7 @@
 // goes to every plan, a project's plans and all plans' statistics; the breadcrumbs of each page lead
 // back the same way. The shortcuts shown in the menus are taken by the window and main's
 // application menu (on macOS, the system's menu bar).
-import { Badge, IconButton, Menu, Menubar, Tooltip } from '@envsemble/envui';
+import { IconButton, Menu, Menubar, Tooltip } from '@envsemble/envui';
 import { IconArrowBack as ArrowBack } from '@envsemble/envui/icons/ArrowBack';
 import { IconArrowForward as ArrowForward } from '@envsemble/envui/icons/ArrowForward';
 import { CoordMark } from '@envsemble/coord-diagrams/mark';
@@ -12,6 +12,7 @@ import type { Project, SettingsSection, WindowInfo } from '../types';
 import { api, CoordError } from '../api';
 import { ComputerMenu } from '../computers/ComputerMenu';
 import { useAppActions } from '../appActions';
+import { BuildBadge } from './BuildBadge';
 
 /** What the window adds to the title bar: back and forward, the plans to go to, a new project and Settings. */
 export interface WindowMenus {
@@ -94,8 +95,7 @@ export function AppMenus({ info, menus, onError }: { info: WindowInfo; menus: Wi
 export function TitleBarStart({ info, menus, onError }: { info: WindowInfo; menus: WindowMenus; onError(message: string): void }) {
   return <div className="title-bar-start">
     <CoordLogo />
-    {/* Coord Dev, on a copy of the data (main/dev.ts). */}
-    {info.dev && <Badge tone="warning">Dev</Badge>}
+    <BuildBadge info={info} />
     <HistoryButtons platform={info.platform} menus={menus} />
     <AppMenus info={info} menus={menus} onError={onError} />
     <ComputerMenu current={info.computer} onError={onError} onSettings={() => menus.settings('computers')} />
