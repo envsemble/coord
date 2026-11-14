@@ -34,12 +34,21 @@ export function App() {
         {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={stable} loading={builds === 'loading'} />)}
       </div>
       <p className="note">
-        {stable ? <>Version {stable.version} · </> : null}
-        {nightly ? <><a href={nightly.page}>Nightly build</a> · </> : null}
+        {stable ? <><a href={stable.page}>Version {stable.version}</a> · </> : null}
         <a href={releasesPage}>All releases</a>
       </p>
       <img className="screenshot" src={plan} width={2163} height={1352}
         alt="A plan in Coord: its title, whose turn it is and what to do, its outcome and scope, and beside it the plan's progress, steps and statistics." />
+      <section className="nightly" aria-labelledby="nightly-title">
+        <h2 id="nightly-title">Nightly</h2>
+        <p>A build of the newest changes, made every night. It can break. <span className="nowrap">Settings › Updates</span> in the app switches between stable and nightly.</p>
+        {nightly ? <>
+          <div className="downloads">
+            {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={nightly} loading={false} plain />)}
+          </div>
+          <p className="note"><a href={nightly.page}>Version {nightly.version}</a></p>
+        </> : <p className="note">{builds === 'loading' ? 'Looking for the newest nightly…' : <>No nightly build yet. Every build is on the <a href={releasesPage}>releases page</a>.</>}</p>}
+      </section>
     </main>
     <footer className="footer">© 2026 envsemble · MIT license</footer>
   </>;
@@ -48,11 +57,11 @@ export function App() {
 const names: Record<Platform, string> = { windows: 'Windows', linux: 'Linux' };
 const details: Record<Platform, string> = { windows: 'Windows 10 and 11 · .exe', linux: 'x86_64 · AppImage' };
 
-/** A store-style download button: the system's logo, "Download for …", and what the file is; Windows's in its blue. */
-function DownloadButton({ platform, build, loading }: { platform: Platform; build: Build | null; loading: boolean }) {
+/** A store-style download button: the system's logo, "Download for …", and what the file is; Windows's in its blue unless plain. */
+function DownloadButton({ platform, build, loading, plain = false }: { platform: Platform; build: Build | null; loading: boolean; plain?: boolean }) {
   // Without a build to offer (GitHub did not answer), the button leads to the releases page.
   const href = build?.downloads[platform]?.url ?? releasesPage;
-  return <a className={'download download-' + platform} href={href} aria-busy={loading || undefined}>
+  return <a className={'download' + (plain ? '' : ' download-' + platform)} href={href} aria-busy={loading || undefined}>
     {platform === 'windows' ? <WindowsLogo /> : <LinuxLogo />}
     <span className="download-text">
       <span className="download-label">Download for {names[platform]}</span>
