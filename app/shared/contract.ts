@@ -47,7 +47,7 @@ export type ThemePreference = typeof themePreferences[number];
 export const appCommands = [
   'newWindow', 'quit', 'openLogs',
   'zoomIn', 'zoomOut', 'resetZoom', 'toggleFullScreen', 'reload', 'toggleDevTools',
-  // Coord Dev's Dev menu (main/dev.ts); nothing in any other build.
+  // The menu of Coord Dev's Dev tag (main/dev.ts); nothing in any other build.
   'devCopyRealData', 'devRemovePlugin',
 ] as const;
 export type AppCommand = typeof appCommands[number];
@@ -84,7 +84,7 @@ export interface WindowInfo {
   platform: string;
   /** Whether the menu offers Reload and the developer tools (unpackaged builds). */
   devTools: boolean;
-  /** Whether this is Coord Dev (`npm run dev`, on a copy of the data): the title bar says so, and it has the Dev menu. */
+  /** Whether this is Coord Dev (`npm run dev`, on a copy of the data): the title bar says Dev, a tag that is also its menu. */
   dev: boolean;
 }
 /**

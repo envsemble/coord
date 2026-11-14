@@ -7,7 +7,7 @@
 //    into its home's agent folder and turns it on in Claude Code and Codex.
 // 3. It runs the app with electron-vite, as a development build, on that home (its own Electron
 //    folder too, so it runs while the installed Coord does).
-// 4. When the app asks for the real data again (Dev › Copy My Real Data Again, exiting with
+// 4. When the app asks for the real data again (the Dev tag's Copy My Real Data Again, exiting with
 //    refreshExitCode) it copies, then starts the app again; when the app ends otherwise, it turns
 //    the dev plugin off in both agents, so its hooks run only while Coord Dev does.
 import { spawn } from 'node:child_process';

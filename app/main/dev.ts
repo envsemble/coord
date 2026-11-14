@@ -6,8 +6,9 @@
 //
 // - Starting, it turns its plugin (coord-dev) on in each agent found, connecting it the first time:
 //   the same Connect as Settings › Agents, which in Coord Dev connects coord-dev.
-// - The Dev menu copies the real data again (the app exits with refreshExitCode; the launcher copies
-//   while nothing holds the copy open, and starts the app again) and removes the plugin.
+// - The menu of the Dev tag in the title bar copies the real data again (the app exits with
+//   refreshExitCode; the launcher copies while nothing holds the copy open, and starts the app
+//   again) and removes the plugin.
 // - Quitting, the launcher turns the plugin off, so its hooks run only while Coord Dev does.
 import { app } from 'electron';
 import type { Agents } from './agent/agents.ts';

@@ -11,7 +11,7 @@
 
 **Coord Dev**
 
-- **`npm run dev` starts Coord Dev:** the app in development, beside the installed Coord, on a copy of your Coord data in `~/.coord-dev`, with a **Dev** badge and menu (copy the real data again, remove the dev plugin).
+- **`npm run dev` starts Coord Dev:** the app in development, beside the installed Coord, on a copy of your Coord data in `~/.coord-dev`, with a **Dev** tag in the title bar that is also its menu (copy the real data again, remove the dev plugin).
 - **A dev plugin of its own:** Coord Dev installs `coord-dev` in Claude Code and Codex beside the real plugin, every skill prefixed `dev-` (`dev-coord-implement`, `dev-full-stop`, …), on while it runs. It is the release's plugin with its names changed, so what it tests is what ships. Its skills and hooks act only when you ask for them with "dev" or in a session you start with "dev session".
 - **The agents' plugin is named by its marketplace,** so connecting, listing and removing serve both plugins; and a command installed in a Coord home's agent folder uses that home.
 

@@ -33,6 +33,11 @@ export interface WindowMenus {
   settings(section?: SettingsSection): void;
 }
 
+/** Ask main to run a command; a failure other than a cancelled question is shown. */
+const runCommand = (command: AppCommand, onError: (message: string) => void) => {
+  api.command(command).catch(error => { if ((error as CoordError).code !== 'cancelled') onError((error as Error).message); });
+};
+
 /** The modifier shortcuts use: ⌘ on macOS, Ctrl elsewhere. */
 export const modifierKey = (platform: string) => platform === 'darwin' ? '⌘' : 'Ctrl';
 /** Back and forward: Alt+← and Alt+→, ⌘[ and ⌘] on macOS; as shown, and for aria-keyshortcuts. */
@@ -43,13 +48,13 @@ const historyKeys = (platform: string) => platform === 'darwin'
 /**
  * The window's menus: Plans (every plan, each active project's, and their statistics), File
  * (windows, projects and Settings), View (zoom and full screen,
- * and the developer's tools where offered), Help, and in Coord Dev, Dev. Alt and their letter open them, except on macOS.
+ * and the developer's tools where offered) and Help. Alt and their letter open them, except on macOS.
  * The computers to switch to are in the computer menu.
  */
 export function AppMenus({ info, menus, onError }: { info: WindowInfo; menus: WindowMenus; onError(message: string): void }) {
   const actions = useAppActions();
   const mod = modifierKey(info.platform);
-  const run = (command: AppCommand) => () => { api.command(command).catch(error => { if ((error as CoordError).code !== 'cancelled') onError((error as Error).message); }); };
+  const run = (command: AppCommand) => () => runCommand(command, onError);
   const active = (menus.projects ?? []).filter(project => project.state === 'active');
   return <Menubar.Root aria-label="Application menu" accessKeys={info.platform !== 'darwin'}>
     <Menubar.Menu label="Plans" accessKey="P">
@@ -83,11 +88,6 @@ export function AppMenus({ info, menus, onError }: { info: WindowInfo; menus: Wi
       <Menu.Item onClick={run('openLogs')}>Open Logs</Menu.Item>
       <Menu.Item onClick={actions.about}>About Coord</Menu.Item>
     </Menubar.Menu>
-    {/* Coord Dev only (main/dev.ts): its copy of the data, and its plugin in the agents. */}
-    {info.dev && <Menubar.Menu label="Dev" accessKey="D">
-      <Menu.Item onClick={run('devCopyRealData')}>Copy My Real Data Again…</Menu.Item>
-      <Menu.Item onClick={run('devRemovePlugin')}>Remove the Dev Plugin…</Menu.Item>
-    </Menubar.Menu>}
   </Menubar.Root>;
 }
 
@@ -95,7 +95,7 @@ export function AppMenus({ info, menus, onError }: { info: WindowInfo; menus: Wi
 export function TitleBarStart({ info, menus, onError }: { info: WindowInfo; menus: WindowMenus; onError(message: string): void }) {
   return <div className="title-bar-start">
     <CoordLogo />
-    <BuildBadge info={info} />
+    <BuildBadge info={info} run={command => runCommand(command, onError)} />
     <HistoryButtons platform={info.platform} menus={menus} />
     <AppMenus info={info} menus={menus} onError={onError} />
     <ComputerMenu current={info.computer} onError={onError} onSettings={() => menus.settings('computers')} />

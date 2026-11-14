@@ -236,7 +236,7 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
           case 'toggleFullScreen': window.win.setFullScreen(!window.win.isFullScreen()); return;
           case 'reload': if (devTools) contents.reload(); return;
           case 'toggleDevTools': if (devTools) contents.toggleDevTools(); return;
-          // Coord Dev's Dev menu: each asks first, in a dialog a page cannot answer.
+          // The menu of Coord Dev's Dev tag: each asks first, in a dialog a page cannot answer.
           case 'devCopyRealData':
             if (!actions.dev) return;
             await confirmed(window, 'Copy your real Coord data again? Coord Dev restarts on the new copy; what changed in this copy is lost.', 'Copy and Restart');
