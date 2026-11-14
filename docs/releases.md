@@ -1,6 +1,6 @@
 # Local packages and versioned artifacts
 
-Atlas remains `private` and `UNLICENSED`. Install the tarball locally; no public registry release is enabled. Any source-license or hosting decision is separate.
+Coord remains `private` and `UNLICENSED`. Install the tarball locally; no public registry release is enabled. Any source-license or hosting decision is separate.
 
 From a clean committed checkout, with Node 24, npm, Git and Java 21:
 
@@ -16,11 +16,11 @@ npm run check:release
 npm run release:assemble -- artifacts/release
 ```
 
-Configure `ATLAS_TEST_POSTGRES` for the PostgreSQL 17 fixture before the full suite. Without it the PostgreSQL fixture is explicitly skipped; that does not establish the adapter's gate. SQLite uses Node 24's built-in engine. D1 fixtures use the pinned Wrangler development tool. See each adapter's support matrix.
+Configure `COORD_TEST_POSTGRES` for the PostgreSQL 17 fixture before the full suite. Without it the PostgreSQL fixture is explicitly skipped; that does not establish the adapter's gate. SQLite uses Node 24's built-in engine. D1 fixtures use the pinned Wrangler development tool. See each adapter's support matrix.
 
-Assembly rejects dirty source or stale committed build output and uses an isolated copy of the actual committed Git tree, excluding ignored files and hidden working-tree edits. Git replacement objects and lazy network fetches are disabled. It produces one `atlas-<version>-<commit>.zip` and an `atlas/release` manifest with content hashes. The ZIP includes the committed `app/`, `packages/`, `plugin/`, `assets/` and `docs/` trees and the plugin marketplace manifests (`.claude-plugin/`, `.agents/`) with the root documents, `package.json` and lockfile, an installable tarball of the diagram package, and the shop and enrollment examples as offline HTML. Fixed local calendar metadata makes archive hashes consistent across timezones. `check:release` assembles in two timezones, verifies hashes and reads back the examples' embedded diagrams; it never publishes.
+Assembly rejects dirty source or stale committed build output and uses an isolated copy of the actual committed Git tree, excluding ignored files and hidden working-tree edits. Git replacement objects and lazy network fetches are disabled. It produces one `coord-<version>-<commit>.zip` and an `coord/release` manifest with content hashes. The ZIP includes the committed `app/`, `packages/`, `plugin/`, `assets/` and `docs/` trees and the plugin marketplace manifests (`.claude-plugin/`, `.agents/`) with the root documents, `package.json` and lockfile, an installable tarball of the diagram package, and the shop and enrollment examples as offline HTML. Fixed local calendar metadata makes archive hashes consistent across timezones. `check:release` assembles in two timezones, verifies hashes and reads back the examples' embedded diagrams; it never publishes.
 
-Install the included tarball with `npm install ./envsemble-atlas-diagrams-<version>.tgz`. The package contains the Node API and the precompiled React entry point (the `atlas` command lives in `packages/atlas`), the capture configuration schemas and the viewer icon. Source examples remain in the repository/release ZIP rather than the core package. React 19.3 is a peer dependency. Use default ESM import (`import atlas from '@envsemble/atlas-diagrams'`) or CommonJS; the lazy CJS exports do not promise static named ESM import detection.
+Install the included tarball with `npm install ./envsemble-coord-diagrams-<version>.tgz`. The package contains the Node API and the precompiled React entry point (the `coord` command lives in `packages/coord`), the capture configuration schemas and the viewer icon. Source examples remain in the repository/release ZIP rather than the core package. React 19.3 is a peer dependency. Use default ESM import (`import coord from '@envsemble/coord-diagrams'`) or CommonJS; the lazy CJS exports do not promise static named ESM import detection.
 
 The app in `app/` depends on the diagram package through the npm workspace; there is no separately pinned tarball.
 
@@ -42,4 +42,4 @@ git fetch origin && git tag -f v0.8.0 origin/main && git push --force origin v0.
 
 A published release is never replaced: a run for its tag stops, and an older run's uploads stop once the tag has moved. Release a fix to a published version as a new version.
 
-The files go straight into the release rather than into workflow artifacts. The Windows job is the only Windows run in Atlas's CI.
+The files go straight into the release rather than into workflow artifacts. The Windows job is the only Windows run in Coord's CI.

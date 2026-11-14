@@ -69,7 +69,7 @@ async function check() {
   );
   assert(!/url\(\s*['"]?https?:/i.test(html), "Remote CSS dependency");
   const data = html.match(
-    /<script id="atlas-diagram" type="application\/json">([\s\S]*?)<\/script>/,
+    /<script id="coord-diagram" type="application\/json">([\s\S]*?)<\/script>/,
   );
   assert(data, "Missing the diagram the page shows");
   const carried = JSON.parse(data[1]);

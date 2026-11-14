@@ -23,7 +23,7 @@ export interface WindowActions {
   open(target: Target, options?: OpenOptions): void;
   /** Show any place: the hub, a page, or something of a project. */
   go(place: Place): void;
-  /** The project of the window's computer in a sibling folder of this one's in the Atlas home, by the folder's name (its project ID), if one is listed. */
+  /** The project of the window's computer in a sibling folder of this one's in the Coord home, by the folder's name (its project ID), if one is listed. */
   sibling(folder: string): string | null;
   /** Open a document, work folder or diagram of another project by its path there, once that project is read. */
   openPath(project: string, path: string, anchor: string | null): void;

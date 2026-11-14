@@ -7,18 +7,18 @@ let project: string;
 test.beforeEach(async () => {
   launched = await launchProject();
   project = await launched.window.evaluate(async () => {
-    const result = await (window as unknown as { atlas: { projects(): Promise<{ ok: boolean; value: { id: string }[] }> } }).atlas.projects();
+    const result = await (window as unknown as { coord: { projects(): Promise<{ ok: boolean; value: { id: string }[] }> } }).coord.projects();
     return result.value[0].id;
   });
 });
 test.afterEach(async () => { await close(launched); launched = undefined; });
 
 test('the window is isolated and sandboxed, with a strict content security policy; the file protocol serves only the projects it follows, and it cannot navigate away or open windows', async () => {
-  const { window: atlasWindow, app } = launched!;
-  const page = await atlasWindow.evaluate(() => ({
+  const { window: coordWindow, app } = launched!;
+  const page = await coordWindow.evaluate(() => ({
     require: typeof (globalThis as { require?: unknown }).require,
     process: typeof (globalThis as { process?: unknown }).process,
-    bridge: Object.keys((window as unknown as { atlas: object }).atlas).sort(),
+    bridge: Object.keys((window as unknown as { coord: object }).coord).sort(),
     ipc: typeof (window as unknown as { ipcRenderer?: unknown }).ipcRenderer,
     policy: document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute('content') ?? '',
   }));
@@ -33,38 +33,38 @@ test('the window is isolated and sandboxed, with a strict content security polic
     const values = (contents as unknown as { getLastWebPreferences(): Electron.WebPreferences }).getLastWebPreferences();
     return { contextIsolation: values.contextIsolation, sandbox: values.sandbox, nodeIntegration: values.nodeIntegration, webviewTag: values.webviewTag, url: contents.getURL() };
   });
-  expect(preferences).toEqual({ contextIsolation: true, sandbox: true, nodeIntegration: false, webviewTag: false, url: 'atlas://app/index.html' });
+  expect(preferences).toEqual({ contextIsolation: true, sandbox: true, nodeIntegration: false, webviewTag: false, url: 'coord://app/index.html' });
   // Inline script is refused by the policy.
-  const inline = await atlasWindow.evaluate(() => { const script = document.createElement('script'); script.textContent = 'window.__inline = 1'; document.head.append(script); return (window as unknown as { __inline?: number }).__inline ?? null; });
+  const inline = await coordWindow.evaluate(() => { const script = document.createElement('script'); script.textContent = 'window.__inline = 1'; document.head.append(script); return (window as unknown as { __inline?: number }).__inline ?? null; });
   expect(inline).toBeNull();
 
   // A plan of the project shows, so the window follows its folder. It opens by a click from the page,
   // which is no person's press, so none is pending below.
-  await hubRows(atlasWindow, 'Customer order notifications').first().getByRole('link', { name: 'Customer order notifications', exact: true }).evaluate(link => (link as HTMLElement).click());
-  await expect(atlasWindow.locator('.work-page h1')).toHaveText('Customer order notifications');
+  await hubRows(coordWindow, 'Customer order notifications').first().getByRole('link', { name: 'Customer order notifications', exact: true }).evaluate(link => (link as HTMLElement).click());
+  await expect(coordWindow.locator('.work-page h1')).toHaveText('Customer order notifications');
   // Requests through the window's own session, as its pages make them.
   const status = await app.evaluate(async ({ BrowserWindow }, projectId) => {
     const session = BrowserWindow.getAllWindows()[0].webContents.session;
     const get = (url: string) => session.fetch(url).then(response => response.status, () => 'blocked');
     return {
-      readme: await get(`atlas://planning/${projectId}/README.md`),
-      escape: await get(`atlas://planning/${projectId}/..%2F..%2Fsecret.txt`),
-      hidden: await get(`atlas://planning/${projectId}/active/0001-saved-payment-methods/.atlas/plan.md`),
-      unfollowed: await get('atlas://planning/f-' + '0'.repeat(32) + '/README.md'),
-      app: await get('atlas://app/index.html'),
-      appEscape: await get('atlas://app/..%2Fmain%2Findex.js'),
-      other: await get('atlas://elsewhere/README.md'),
+      readme: await get(`coord://planning/${projectId}/README.md`),
+      escape: await get(`coord://planning/${projectId}/..%2F..%2Fsecret.txt`),
+      hidden: await get(`coord://planning/${projectId}/active/0001-saved-payment-methods/.coord/plan.md`),
+      unfollowed: await get('coord://planning/f-' + '0'.repeat(32) + '/README.md'),
+      app: await get('coord://app/index.html'),
+      appEscape: await get('coord://app/..%2Fmain%2Findex.js'),
+      other: await get('coord://elsewhere/README.md'),
       // A page's frame has an origin of its own, which serves only the frame (and what it loads).
-      frame: await get('atlas://page/page-frame.html'),
-      frameApp: await get('atlas://page/index.html'),
-      appFrame: await get('atlas://app/page-frame.html'),
+      frame: await get('coord://page/page-frame.html'),
+      frameApp: await get('coord://page/index.html'),
+      appFrame: await get('coord://app/page-frame.html'),
     };
   }, project);
   expect(status).toEqual({ readme: 200, escape: 403, hidden: 403, unfollowed: 404, app: 200, appEscape: 404, other: 404, frame: 200, frameApp: 404, appFrame: 404 });
   // The page itself cannot reach the network or read planning files with fetch.
-  const fetched = await atlasWindow.evaluate(async projectId => ({
+  const fetched = await coordWindow.evaluate(async projectId => ({
     remote: await fetch('https://example.com/').then(() => 'loaded', () => 'blocked'),
-    planning: await fetch(`atlas://planning/${projectId}/README.md`).then(() => 'loaded', () => 'blocked'),
+    planning: await fetch(`coord://planning/${projectId}/README.md`).then(() => 'loaded', () => 'blocked'),
   }), project);
   expect(fetched).toEqual({ remote: 'blocked', planning: 'blocked' });
   // Web links go to the system browser; record them instead of starting one. A page that sends the
@@ -77,31 +77,31 @@ test('the window is isolated and sandboxed, with a strict content security polic
     dialog.showMessageBox = (async (_window: unknown, options: { detail?: string }) => { asked.push(options.detail ?? ''); return { response: asked.length === 1 ? 0 : 1, checkboxChecked: false }; }) as unknown as typeof dialog.showMessageBox;
   });
   // A relative link (in a document or an agent's message) never takes the window off its page.
-  await atlasWindow.evaluate(() => { location.href = 'app/src/plan/sessions.ts:12'; });
-  await atlasWindow.evaluate(() => { window.open('https://example.com/new', '_blank'); });
+  await coordWindow.evaluate(() => { location.href = 'app/src/plan/sessions.ts:12'; });
+  await coordWindow.evaluate(() => { window.open('https://example.com/new', '_blank'); });
   await expect.poll(() => app.evaluate(() => (globalThis as unknown as { askedExternally: string[] }).askedExternally.length)).toBe(1);
-  await atlasWindow.evaluate(() => { location.href = 'https://example.com/away'; });
+  await coordWindow.evaluate(() => { location.href = 'https://example.com/away'; });
   await expect.poll(() => app.evaluate(() => (globalThis as unknown as { askedExternally: string[] }).askedExternally.length)).toBe(2);
   const state = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(item => item.webContents.getURL()));
-  expect(state).toEqual(['atlas://app/index.html']);
+  expect(state).toEqual(['coord://app/index.html']);
   expect(await app.evaluate(() => (globalThis as unknown as { askedExternally: string[] }).askedExternally)).toEqual(['https://example.com/new', 'https://example.com/away']);
   expect(await app.evaluate(() => (globalThis as { openedExternally?: string[] }).openedExternally)).toEqual(['https://example.com/new']);
 });
 
 test('messages are checked: wrong arguments, unknown projects and paths outside a project are refused with structured errors, and the folder dialog answers on this computer only, one at a time', async () => {
-  const { window: atlasWindow, app } = launched!;
+  const { window: coordWindow, app } = launched!;
   // Commands a page could misuse ask first without a person's press; the person declines here.
   await app.evaluate(({ dialog }) => {
     const asked: string[] = [];
     (globalThis as unknown as { asked: string[] }).asked = asked;
     dialog.showMessageBox = (async (_window: unknown, options: { message: string }) => { asked.push(options.message); return { response: 1, checkboxChecked: false }; }) as unknown as typeof dialog.showMessageBox;
   });
-  const results = await atlasWindow.evaluate(async projectId => {
-    const bridge = (window as unknown as { atlas: unknown }).atlas as Record<string, (...args: unknown[]) => Promise<unknown>>;
+  const results = await coordWindow.evaluate(async projectId => {
+    const bridge = (window as unknown as { coord: unknown }).coord as Record<string, (...args: unknown[]) => Promise<unknown>>;
     return {
       traversal: await bridge.document(projectId, '../outside.md'),
       absolute: await bridge.document(projectId, 'C:/Windows/win.ini'),
-      hidden: await bridge.document(projectId, 'active/0001-saved-payment-methods/.atlas/plan.md'),
+      hidden: await bridge.document(projectId, 'active/0001-saved-payment-methods/.coord/plan.md'),
       wrongType: await bridge.diagrams(projectId, 42),
       noProject: await bridge.snapshot('not a folder id'),
       otherProject: await bridge.snapshot('f-' + '0'.repeat(32)),
@@ -138,8 +138,8 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
   expect(results.otherProject).toMatchObject({ ok: false });
   for (const key of ['quit', 'newWindow', 'openLogs', 'access', 'pairing', 'pair', 'web', 'application'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'cancelled' } });
   expect(await app.evaluate(() => (globalThis as unknown as { asked: string[] }).asked)).toEqual([
-    'Exit Atlas?', 'Open a new Atlas window?', 'Open the folder with Atlas’s logs?',
-    'Let paired devices reach this computer at 127.0.0.1?', 'Create a pairing link for this computer?', 'Pair with the Atlas at 127.0.0.1:9?', 'Open this address in your browser?',
+    'Exit Coord?', 'Open a new Coord window?', 'Open the folder with Coord’s logs?',
+    'Let paired devices reach this computer at 127.0.0.1?', 'Create a pairing link for this computer?', 'Pair with the Coord at 127.0.0.1:9?', 'Open this address in your browser?',
     'Open this link in its application?',
   ]);
   expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
@@ -154,8 +154,8 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
       return { canceled: true, filePaths: [] };
     }) as unknown as typeof dialog.showOpenDialog;
   });
-  const chosen = await atlasWindow.evaluate(async () => {
-    const bridge = (window as unknown as { atlas: unknown }).atlas as Record<string, (...args: unknown[]) => Promise<unknown>>;
+  const chosen = await coordWindow.evaluate(async () => {
+    const bridge = (window as unknown as { coord: unknown }).coord as Record<string, (...args: unknown[]) => Promise<unknown>>;
     const first = bridge.chooseFolder();
     const second = await bridge.chooseFolder();
     return { first: await first, second };
@@ -167,7 +167,7 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
 });
 
 test('each press allows one command a page could misuse, and not its release or repeats', async () => {
-  const { window: atlasWindow, app } = launched!;
+  const { window: coordWindow, app } = launched!;
   // The page opens web addresses; the person declines every question.
   await app.evaluate(({ dialog, shell }) => {
     const log: string[] = [];
@@ -175,25 +175,25 @@ test('each press allows one command a page could misuse, and not its release or 
     shell.openExternal = (async (url: string) => { log.push('opened ' + url); }) as typeof shell.openExternal;
     dialog.showMessageBox = (async (_window: unknown, options: { detail?: string }) => { log.push('asked ' + (options.detail ?? '')); return { response: 1, checkboxChecked: false }; }) as unknown as typeof dialog.showMessageBox;
   });
-  const open = (name: string) => atlasWindow.evaluate(async url => { await (window as unknown as { atlas: { openExternal(url: string): Promise<unknown> } }).atlas.openExternal(url); }, `https://example.com/${name}`);
-  const title = (await atlasWindow.locator('.hub h1').boundingBox())!;
-  await atlasWindow.mouse.move(title.x + 4, title.y + title.height / 2);
-  await atlasWindow.mouse.down();
+  const open = (name: string) => coordWindow.evaluate(async url => { await (window as unknown as { coord: { openExternal(url: string): Promise<unknown> } }).coord.openExternal(url); }, `https://example.com/${name}`);
+  const title = (await coordWindow.locator('.hub h1').boundingBox())!;
+  await coordWindow.mouse.move(title.x + 4, title.y + title.height / 2);
+  await coordWindow.mouse.down();
   await open('press');
-  await atlasWindow.mouse.up();
+  await coordWindow.mouse.up();
   await open('release');
-  await atlasWindow.keyboard.down('Shift');
+  await coordWindow.keyboard.down('Shift');
   await open('key');
   // Held down, the key repeats.
-  await atlasWindow.keyboard.down('Shift');
+  await coordWindow.keyboard.down('Shift');
   await open('repeat');
-  await atlasWindow.keyboard.up('Shift');
+  await coordWindow.keyboard.up('Shift');
   await open('key-release');
   // Creating a pairing link asks even right after a press.
-  await atlasWindow.mouse.down();
-  await atlasWindow.mouse.up();
-  expect(await atlasWindow.evaluate(async () => {
-    const bridge = (window as unknown as { atlas: { createPairing(...args: unknown[]): Promise<{ ok: boolean; error?: { code: string } }> } }).atlas;
+  await coordWindow.mouse.down();
+  await coordWindow.mouse.up();
+  expect(await coordWindow.evaluate(async () => {
+    const bridge = (window as unknown as { coord: { createPairing(...args: unknown[]): Promise<{ ok: boolean; error?: { code: string } }> } }).coord;
     const result = await bridge.createPairing(null, null, { label: null, manageAccess: false });
     return result.ok ? 'created' : result.error!.code;
   })).toBe('cancelled');

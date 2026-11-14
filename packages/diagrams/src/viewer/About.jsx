@@ -5,7 +5,7 @@ import { ProvenanceBadge } from "./ProvenanceBadge";
 /** Help for the standalone viewer: how to move around, and source downloads. */
 export function About({ model, exports, provenance }) {
   return (
-    <Column gap={4} className="atlas-portal about-content">
+    <Column gap={4} className="coord-portal about-content">
       <ProvenanceBadge document={provenance} className="inline" />
       <Text emphasis="muted">{model.status}</Text>
       <dl className="shortcut-list">

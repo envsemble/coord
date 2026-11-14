@@ -34,7 +34,7 @@ function Examples({ examples, model, names, onInspect }) {
               <Text
                 render={<h3 />}
                 variant="title"
-                className="atlas-section-heading"
+                className="coord-section-heading"
               >
                 {scenario.title}
               </Text>

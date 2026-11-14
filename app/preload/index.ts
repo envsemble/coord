@@ -1,11 +1,11 @@
 // The only bridge between the sandboxed window and the main process. It exposes one object,
-// `window.atlas`, whose methods map one-to-one onto the fixed channel list; the renderer never
+// `window.coord`, whose methods map one-to-one onto the fixed channel list; the renderer never
 // sees ipcRenderer itself. Results, including errors, cross as plain structured values.
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import { eventChannels, menuCommands, type AccessChange, type AtlasBridge, type EventChannel, type InvokeChannel, type MenuCommand, type ProjectChange, type ProjectsChange, type Result } from '../shared/contract.ts';
+import { eventChannels, menuCommands, type AccessChange, type CoordBridge, type EventChannel, type InvokeChannel, type MenuCommand, type ProjectChange, type ProjectsChange, type Result } from '../shared/contract.ts';
 
 function call<T>(channel: InvokeChannel, ...args: unknown[]): Promise<Result<T>> {
-  return ipcRenderer.invoke(channel, ...args).catch(() => ({ ok: false, error: { code: 'internal', message: 'Atlas could not reach its main process.' } }));
+  return ipcRenderer.invoke(channel, ...args).catch(() => ({ ok: false, error: { code: 'internal', message: 'Coord could not reach its main process.' } }));
 }
 
 function subscribe<T>(channel: EventChannel, accept: (value: unknown) => value is T, listener: (value: T) => void) {
@@ -19,7 +19,7 @@ const isMenu = (value: unknown): value is MenuCommand => typeof value === 'strin
 const isAccess = (value: unknown): value is AccessChange => Boolean(value && typeof value === 'object' && 'state' in value && 'hostId' in value);
 const isProjects = (value: unknown): value is ProjectsChange => Boolean(value && typeof value === 'object' && 'hostId' in value);
 
-const api: AtlasBridge = {
+const api: CoordBridge = {
   info: () => call('window:info'),
   projects: () => call('projects:list'),
   createProject: (name, folders) => call('projects:create', name, folders),
@@ -81,4 +81,4 @@ const api: AtlasBridge = {
   onAccessChanged: listener => subscribe('access:changed', isAccess, listener),
 };
 
-contextBridge.exposeInMainWorld('atlas', api);
+contextBridge.exposeInMainWorld('coord', api);

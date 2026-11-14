@@ -5,16 +5,16 @@ import { api } from './api';
 import { Scaffold, Spinner, TopBar, useToast } from '@envsemble/envui';
 import { EmptyState } from './ui/EmptyState';
 import { ErrorIcon } from './ui/icons';
-import { AtlasWindow } from './window/Window';
+import { CoordWindow } from './window/Window';
 import { AppActionsContext, type AppActions } from './appActions';
 import { AboutDialog } from './titleBar/AboutDialog';
-import { AtlasLogo } from './titleBar/TitleBar';
+import { CoordLogo } from './titleBar/TitleBar';
 import { Onboarding } from './onboarding/Onboarding';
 
 /**
  * One window shows the projects of one computer, this one or another one. Main reads them; this
  * component waits for the window's facts, its saved layout and whether the onboarding is done, then
- * shows the onboarding until it is finished, and the window (AtlasWindow) after it; and it
+ * shows the onboarding until it is finished, and the window (CoordWindow) after it; and it
  * draws the dialog every window has: About.
  */
 export default function App() {
@@ -43,12 +43,12 @@ export default function App() {
     window.addEventListener('focus', again);
     return () => window.removeEventListener('focus', again);
   }, [onboarding]);
-  useEffect(() => { document.title = info && info.computer.hostId !== null ? info.computer.name + ' — Atlas' : 'Atlas'; }, [info]);
+  useEffect(() => { document.title = info && info.computer.hostId !== null ? info.computer.name + ' — Coord' : 'Coord'; }, [info]);
 
-  const bare = (body: ReactNode) => <Scaffold className="atlas-window" scroll="body" topBarSpan="full" topBar={<TopBar titleBar className="window-title-bar" start={<AtlasLogo />} />}>{body}</Scaffold>;
-  const content = failure ? bare(<div className="page-state"><EmptyState icon={<ErrorIcon />} headingLevel={1} title="Atlas could not start this window" description={failure} /></div>)
-    : !info || !ui || onboarding === null ? bare(<div className="page-state"><Spinner size="lg" label="Starting Atlas" /></div>)
+  const bare = (body: ReactNode) => <Scaffold className="coord-window" scroll="body" topBarSpan="full" topBar={<TopBar titleBar className="window-title-bar" start={<CoordLogo />} />}>{body}</Scaffold>;
+  const content = failure ? bare(<div className="page-state"><EmptyState icon={<ErrorIcon />} headingLevel={1} title="Coord could not start this window" description={failure} /></div>)
+    : !info || !ui || onboarding === null ? bare(<div className="page-state"><Spinner size="lg" label="Starting Coord" /></div>)
     : onboarding ? bare(<Onboarding onDone={() => setOnboarding(false)} />)
-    : <AtlasWindow info={info} initialUi={ui} />;
+    : <CoordWindow info={info} initialUi={ui} />;
   return <AppActionsContext.Provider value={actions}>{content}{about && <AboutDialog onClose={() => setAbout(false)} onError={warn} />}</AppActionsContext.Provider>;
 }

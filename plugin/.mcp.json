@@ -1,7 +1,7 @@
 {
   "mcpServers": {
-    "atlas": {
-      "command": "atlas",
+    "coord": {
+      "command": "coord",
       "args": ["mcp"]
     }
   }

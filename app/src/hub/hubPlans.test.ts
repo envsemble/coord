@@ -7,11 +7,11 @@ import type { Project, ProjectSummary, ProjectWork } from '../types.ts';
 const work = (id: string, state: ProjectWork['state'], change: Partial<ProjectWork> = {}): ProjectWork =>
   ({ id, title: 'Work ' + id, state, blocked: null, summary: null, tags: [], steps: null, updated: null, outcome: null, step: null, completed: null, statistics: null, ...change });
 const project = (name: string, position: number, summary: Partial<ProjectSummary> | null, state: Project['state'] = 'active'): Project => ({
-  id: 'f-' + String(position).repeat(32), name, path: '/home/me/.atlas/planning/' + name.toLowerCase(), position, state, folders: [],
+  id: 'f-' + String(position).repeat(32), name, path: '/home/me/.coord/planning/' + name.toLowerCase(), position, state, folders: [],
   summary: summary && { active: [], closed: [], updated: null, activity: [], now: '2026-10-15T10:05:00Z', ...summary },
 });
 
-const atlas = project('Atlas', 1, {
+const coord = project('Coord', 1, {
   active: [
     work('work-0021', 'implementing', { updated: '2026-10-10', steps: { done: 2, total: 5, planning: { done: 2, total: 2 } }, turn: { kind: 'your_turn', note: 'Merge example/shop#12', since: '2026-10-15T09:40:00Z' } }),
     work('work-0022', 'draft', { summary: 'A hub for every plan, so a plan is one click away.' }),
@@ -24,12 +24,12 @@ const atlas = project('Atlas', 1, {
 const harbor = project('Harbor', 2, { active: [work('work-0001', 'implementing', { updated: '2026-10-15' })] });
 const archived = project('envUI', 3, { active: [work('work-0007', 'draft')] }, 'archived');
 const unread = project('Broken', 4, null);
-const projects = [atlas, harbor, archived, unread];
+const projects = [coord, harbor, archived, unread];
 
 test('the hub lists the plans of every active project, or of the project it is filtered to', () => {
   const all = hubItems(projects, null);
   assert.deepEqual(all.map(item => item.project.name + ' ' + item.work.id), [
-    ...['work-0021', 'work-0022', 'work-0023', 'work-0024', 'work-0025', 'work-0019', 'work-0018'].map(id => 'Atlas ' + id), 'Harbor work-0001',
+    ...['work-0021', 'work-0022', 'work-0023', 'work-0024', 'work-0025', 'work-0019', 'work-0018'].map(id => 'Coord ' + id), 'Harbor work-0001',
   ], 'archived projects and projects whose folder could not be read list none');
   assert.deepEqual(all.filter(item => item.work.turn).map(item => item.work.id + ' ' + item.status.label), ['work-0021 Your turn', 'work-0024 Working']);
   assert.deepEqual(hubItems(projects, harbor.id).map(item => item.work.id), ['work-0001']);
@@ -152,5 +152,5 @@ test('a part says its place in its group, and a group how many of its parts are 
   const [group, second] = grouped.summary!.active;
   assert.deepEqual(partsFacts(group, grouped), { kind: 'group', count: 2, closed: 1 });
   assert.deepEqual(partsFacts(second, grouped), { kind: 'part', group: 'work-0005', index: 2, count: 2 });
-  assert.equal(partsFacts(atlas.summary!.active[0], atlas), null);
+  assert.equal(partsFacts(coord.summary!.active[0], coord), null);
 });

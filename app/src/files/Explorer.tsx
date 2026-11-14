@@ -138,7 +138,7 @@ export function PlanFiles({ work }: { work: Work }) {
 
 const NO_DESTINATIONS: NavigationDrawerDestination[] = [];
 const DEFAULT_WIDTH = 16;
-const WIDTH_KEY = 'atlas-files-width';
+const WIDTH_KEY = 'coord-files-width';
 /** The width the reader gave the files in this window's browser storage, if any (storage can be blocked). */
 function storedWidth() {
   try {
@@ -164,7 +164,7 @@ export function focusPlanFiles() {
 }
 
 /**
- * A row of the tree. Only the files Atlas reads for what they are have an icon: the plan, its ledger,
+ * A row of the tree. Only the files Coord reads for what they are have an icon: the plan, its ledger,
  * its glossary and its diagrams; every other row keeps the icon's room empty, so the names line up.
  */
 function treeItem(row: ExplorerRow, workPath: string, tag: string | undefined, attention: Record<string, string>): Row {

@@ -68,31 +68,31 @@ jobs:
       - name: Start the PostgreSQL 17 fixture
         if: ${{ steps.changes.outputs.code != 'false' }}
         run: |
-          docker run --detach --name atlas-postgres --publish 5432:5432 \
-            --env POSTGRES_USER=atlas_fixture --env POSTGRES_DB=atlas_fixture \
+          docker run --detach --name coord-postgres --publish 5432:5432 \
+            --env POSTGRES_USER=coord_fixture --env POSTGRES_DB=coord_fixture \
             --env POSTGRES_HOST_AUTH_METHOD=trust \
             --health-cmd pg_isready --health-interval 2s --health-retries 60 \
             postgres:17
           for attempt in $(seq 1 60); do
-            status=$(docker inspect --format '{{.State.Health.Status}}' atlas-postgres)
+            status=$(docker inspect --format '{{.State.Health.Status}}' coord-postgres)
             [ "$status" = healthy ] && break
             sleep 2
           done
           [ "$status" = healthy ]
-          echo "ATLAS_TEST_POSTGRES=postgresql://atlas_fixture@127.0.0.1:5432/atlas_fixture" >> "$GITHUB_ENV"
+          echo "COORD_TEST_POSTGRES=postgresql://coord_fixture@127.0.0.1:5432/coord_fixture" >> "$GITHUB_ENV"
       - run: npm ci
         if: ${{ steps.changes.outputs.code != 'false' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npm run format:check && npm run lint && npm run check:types
         if: ${{ steps.changes.outputs.code != 'false' }}
-      # Workspace tests: diagrams, planning (reader and ported helpers), the atlas command and the app.
+      # Workspace tests: diagrams, planning (reader and ported helpers), the coord command and the app.
       - run: npm test
         if: ${{ steps.changes.outputs.code != 'false' }}
       # The plugin packaging test (plugin/tests/*.test.mjs): its skills, manifests and hooks.
       - run: npm run test:skills
         if: ${{ steps.changes.outputs.code != 'false' }}
-      - run: npm run build --workspace @envsemble/atlas-app
+      - run: npm run build --workspace @envsemble/coord-app
         if: ${{ steps.changes.outputs.code != 'false' }}
       - run: npm run check && npm run check:package && npm run check:performance
         if: ${{ steps.changes.outputs.code != 'false' }}

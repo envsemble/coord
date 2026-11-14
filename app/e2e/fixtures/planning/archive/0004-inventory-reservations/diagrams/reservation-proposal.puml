@@ -1,6 +1,6 @@
 @startuml
 title Inventory · reservation proposal
-' atlas proposal inventory-before.puml
+' coord proposal inventory-before.puml
 
 entity product {
   *sku : TEXT <<PK>>

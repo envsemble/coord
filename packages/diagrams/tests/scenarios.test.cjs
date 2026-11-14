@@ -1,6 +1,6 @@
 const { test } = require("node:test"),
   assert = require("node:assert/strict");
-const atlas = require("../lib/index.cjs");
+const coord = require("../lib/index.cjs");
 const { createElement } = require("react"),
   { renderToStaticMarkup } = require("react-dom/server");
 const { loadComponents: load } = require("./loadComponents.cjs");
@@ -25,7 +25,7 @@ Enrollment "0..*" -- "1" School : school
 const scenario = (expected, ...lines) =>
   [
     "@startuml",
-    `' atlas scenario enrollment.puml expected ${expected}`,
+    `' coord scenario enrollment.puml expected ${expected}`,
     ...lines,
     "@enduml",
     "",
@@ -33,7 +33,7 @@ const scenario = (expected, ...lines) =>
 const read = (reference) =>
   reference === "enrollment.puml" ? ENROLLMENT : null;
 const check = (text) =>
-  atlas.checkDiagram(text, { path: "example.puml", read });
+  coord.checkDiagram(text, { path: "example.puml", read });
 const VALID = scenario(
   "valid",
   'object "e1 : Active" as e1',
@@ -97,13 +97,13 @@ test("Scenario classes, slots and links must resolve in the class diagram", () =
   ]);
   // The class diagram itself must exist and read.
   assert.deepEqual(
-    atlas
+    coord
       .checkDiagram(VALID, { path: "example.puml", read: () => null })
       .map((p) => p.code),
     ["REFERENCE"],
   );
   assert.deepEqual(
-    atlas
+    coord
       .checkDiagram(VALID, {
         path: "example.puml",
         read: () => "@startuml\nentity t\n@enduml\n",
@@ -120,8 +120,8 @@ class B
 A ..> B
 @enduml
 `;
-  const problems = atlas.checkDiagram(
-    '@startuml\n\' atlas scenario classes.puml expected valid\nobject "one : A" as one\nobject "two : B" as two\none -- two : uses\n@enduml\n',
+  const problems = coord.checkDiagram(
+    '@startuml\n\' coord scenario classes.puml expected valid\nobject "one : A" as one\nobject "two : B" as two\none -- two : uses\n@enduml\n',
     { read: () => classes },
   );
   assert.deepEqual(
@@ -129,8 +129,8 @@ A ..> B
     ["SCENARIO_LINK"],
     "a dependency has no name to link by",
   );
-  const unlinked = atlas.checkDiagram(
-    '@startuml\n\' atlas scenario classes.puml expected valid\nobject "one : A" as one\n@enduml\n',
+  const unlinked = coord.checkDiagram(
+    '@startuml\n\' coord scenario classes.puml expected valid\nobject "one : A" as one\n@enduml\n',
     { read: () => classes },
   );
   assert.deepEqual(
@@ -140,7 +140,7 @@ A ..> B
 });
 
 test("A class diagram's payload carries the scenarios that exemplify it, assessed, for the scenario panel", async () => {
-  const { diagrams, prepared } = await atlas.prepareDiagrams({
+  const { diagrams, prepared } = await coord.prepareDiagrams({
     files: [
       { path: "enrollment.puml", text: ENROLLMENT },
       {
@@ -198,9 +198,9 @@ Concrete --|> Abstract
 @enduml
 `;
   const scenario = (classNames, expected) =>
-    atlas.checkDiagram(
+    coord.checkDiagram(
       `@startuml
-' atlas scenario classes.puml expected ${expected}
+' coord scenario classes.puml expected ${expected}
 object "i : ${classNames}" as i
 @enduml
 `,
@@ -229,10 +229,10 @@ Invoice "0..*" -- "1" Payable : bills
 @enduml
 `;
   const scenario = (expected, ...lines) =>
-    atlas.checkDiagram(
+    coord.checkDiagram(
       [
         "@startuml",
-        `' atlas scenario classes.puml expected ${expected}`,
+        `' coord scenario classes.puml expected ${expected}`,
         ...lines,
         "@enduml",
         "",

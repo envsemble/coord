@@ -1,15 +1,15 @@
 {
-  "name": "@envsemble/atlas-app",
-  "productName": "Atlas",
+  "name": "@envsemble/coord-app",
+  "productName": "Coord",
   "version": "0.8.0",
   "private": true,
-  "description": "Atlas desktop app: plans, models and shared understanding for agents and the people they work with",
+  "description": "Coord desktop app: plans, models and shared understanding for agents and the people they work with",
   "author": "envsemble",
   "license": "UNLICENSED",
-  "homepage": "https://github.com/envsemble/atlas",
+  "homepage": "https://github.com/envsemble/coord",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/envsemble/atlas.git",
+    "url": "git+https://github.com/envsemble/coord.git",
     "directory": "app"
   },
   "type": "module",
@@ -20,21 +20,21 @@
   "scripts": {
     "dev": "node scripts/electron.mjs electron-vite dev --watch --",
     "build": "npm run check:types && electron-vite build",
-    "package": "npm run build && electron-builder --config electron-builder.yml --publish never --dir -c.directories.output=release/e2e -c.electronFuses.enableNodeCliInspectArguments=true -c.extraMetadata.atlasEndToEndBuild=true && electron-builder --config electron-builder.yml --publish never",
+    "package": "npm run build && electron-builder --config electron-builder.yml --publish never --dir -c.directories.output=release/e2e -c.electronFuses.enableNodeCliInspectArguments=true -c.extraMetadata.coordEndToEndBuild=true && electron-builder --config electron-builder.yml --publish never",
     "test": "node ../scripts/test-tier.mjs full --runner tsx --import ../scripts/test-home.mjs src && node ../scripts/test-tier.mjs full --import ../scripts/test-home.mjs main shared",
     "test:quick": "node ../scripts/test-tier.mjs quick --runner tsx --import ../scripts/test-home.mjs src && node ../scripts/test-tier.mjs quick --import ../scripts/test-home.mjs main shared",
     "test:e2e": "node scripts/electron.mjs playwright test",
     "check:types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },
   "dependencies": {
-    "@envsemble/atlas-diagrams": "*",
+    "@envsemble/coord-diagrams": "*",
     "esbuild": "0.28.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@electron/fuses": "1.8.0",
-    "@envsemble/atlas": "*",
+    "@envsemble/coord": "*",
     "@envsemble/envui": "1.0.0",
     "@pierre/diffs": "1.6.4",
     "@pierre/theme": "2.0.0",

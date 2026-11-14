@@ -6,16 +6,16 @@ import { defaultClientConditions, searchForWorkspaceRoot, type Plugin } from 'vi
 import { themeStorageKey } from './shared/theme';
 import { pagePolicy } from './shared/pagePolicy';
 
-// The production policy is also sent as a header by the atlas:// protocol (main/windows/protocol.ts).
+// The production policy is also sent as a header by the coord:// protocol (main/windows/protocol.ts).
 // Development allows the Vite client (inline React refresh preamble, HMR socket) on localhost only.
-// The window may frame only its pages' frames (atlas://page, or the dev server in development).
-const productionPolicy = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' atlas: data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; frame-src atlas://page; worker-src 'none'; base-uri 'none'; form-action 'none'";
-const developmentPolicy = "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' atlas: data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:* ws://127.0.0.1:*; object-src 'none'; frame-src 'self'; worker-src 'none'; base-uri 'none'; form-action 'none'";
+// The window may frame only its pages' frames (coord://page, or the dev server in development).
+const productionPolicy = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' coord: data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; frame-src coord://page; worker-src 'none'; base-uri 'none'; form-action 'none'";
+const developmentPolicy = "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' coord: data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost:* ws://127.0.0.1:*; object-src 'none'; frame-src 'self'; worker-src 'none'; base-uri 'none'; form-action 'none'";
 
 function contentSecurityPolicy(): Plugin {
   let serving = false;
   return {
-    name: 'atlas-content-security-policy',
+    name: 'coord-content-security-policy',
     configResolved(config) { serving = config.command === 'serve'; },
     // A page's frame runs the page's own code, under its own policy (shared/pagePolicy.ts).
     transformIndexHtml(html, context) {
@@ -41,7 +41,7 @@ async function themeScript() {
 }
 function themeStartup(): Plugin {
   return {
-    name: 'atlas-theme-startup',
+    name: 'coord-theme-startup',
     configureServer(server) {
       server.middlewares.use('/theme-startup.js', (_request, response, next) => {
         themeScript().then(script => { response.setHeader('Content-Type', 'text/javascript'); response.end(script); }, next);
@@ -64,11 +64,11 @@ export default defineConfig({
       // The diagram package (CommonJS with native and lazily loaded dependencies) and esbuild (a
       // native binary, which builds pages) stay in node_modules; everything else, including the
       // planning reader, is bundled.
-      externalizeDeps: { include: ['@envsemble/atlas-diagrams', 'esbuild'] },
-      // The app's main process and the Atlas host it runs in a utility process (main/host/hostProcess.ts).
+      externalizeDeps: { include: ['@envsemble/coord-diagrams', 'esbuild'] },
+      // The app's main process and the Coord host it runs in a utility process (main/host/hostProcess.ts).
       lib: { entry: { index: resolve(import.meta.dirname, 'main/index.ts'), host: resolve(import.meta.dirname, 'main/host/hostProcess.ts') } },
       sourcemap: true,
-      // ws loads these optional native speed-ups only when installed; Atlas does not ship them.
+      // ws loads these optional native speed-ups only when installed; Coord does not ship them.
       rolldownOptions: { external: ['bufferutil', 'utf-8-validate'] },
     },
   },

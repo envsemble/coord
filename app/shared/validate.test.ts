@@ -57,12 +57,12 @@ test('window state is checked deeply', () => {
 });
 
 test("a project's folder is a full path of the computer", () => {
-  for (const good of ['C:\\Dev\\atlas-workspace', 'c:/dev/harbor', '\\\\server\\share\\work', '/home/me/work']) assert.equal(folderPath(good), good);
+  for (const good of ['C:\\Dev\\coord-workspace', 'c:/dev/harbor', '\\\\server\\share\\work', '/home/me/work']) assert.equal(folderPath(good), good);
   for (const bad of ['', 'relative/folder', 'C:relative', '..\\up', 'x'.repeat(5000), 'C:\\a\0b', 42, null]) assert.throws(() => folderPath(bad), ValidationError, String(bad));
 });
 
 test("a host's listing of its projects is taken only when it reads as one", () => {
-  const listed = { id: projectId, name: 'Northwind', path: '/home/me/.atlas/planning/northwind', position: 0, state: 'active', folders: ['/home/me/work'], summary: null };
+  const listed = { id: projectId, name: 'Northwind', path: '/home/me/.coord/planning/northwind', position: 0, state: 'active', folders: ['/home/me/work'], summary: null };
   assert.equal(isProjectListing([]), true);
   assert.equal(isProjectListing([listed, { ...listed, summary: undefined }]), true);
   for (const bad of [undefined, null, 'projects', { length: 1 }, [null], [{ ...listed, id: '../x' }], [{ ...listed, state: 'gone' }], [{ ...listed, folders: '/home/me/work' }], [{ ...listed, folders: [1] }], [{ ...listed, position: '0' }], [{ ...listed, summary: 'x' }]]) {

@@ -1,18 +1,18 @@
 // The agents on this computer for the Settings page and the onboarding: Claude Code and Codex, each
-// found or not, connected or not, through the agent's own commands (packages/atlas/src/agents, as
-// `atlas setup`). An agent is found as a program, as a terminal finds it: the app repairs its PATH at
+// found or not, connected or not, through the agent's own commands (packages/coord/src/agents, as
+// `coord setup`). An agent is found as a program, as a terminal finds it: the app repairs its PATH at
 // start (userPath.ts), and an agent the PATH lacks can have its program chosen (programs.ts). At each
-// launch the packaged app first brings the agent folder in the Atlas home up to date
+// launch the packaged app first brings the agent folder in the Coord home up to date
 // (agentFolder.ts), and on the user's own home puts its bin/ on the PATH the first time (userPath.ts)
 // and after an update refreshes the agents connected to it. A connected agent is checked for whether
-// it runs Atlas (verify.ts). In development the app carries no agent folder: agents connect to this
-// checkout, as `atlas setup` does, and the user's PATH is left alone.
+// it runs Coord (verify.ts). In development the app carries no agent folder: agents connect to this
+// checkout, as `coord setup` does, and the user's PATH is left alone.
 import { readFileSync } from 'node:fs';
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { AgentError, agentStatus, connectAgent, disconnectAgent, harness, harnesses, marketplaceName, onPath, refreshAgent, type AgentId } from '@envsemble/atlas/agents';
-import { readActivity } from '@envsemble/atlas/agents/activity';
-import { codexTrust } from '@envsemble/atlas/agents/trust';
+import { AgentError, agentStatus, connectAgent, disconnectAgent, harness, harnesses, marketplaceName, onPath, refreshAgent, type AgentId } from '@envsemble/coord/agents';
+import { readActivity } from '@envsemble/coord/agents/activity';
+import { codexTrust } from '@envsemble/coord/agents/trust';
 import type { AgentChange, AgentCheck, AgentFolder, AgentState, OnboardingState } from '../../shared/contract.ts';
 import type { RotatingLog } from '../log.ts';
 import { installAgentFolder, markOnPath, readAgentRecords, readBundle, recordAgent, type AgentRecord } from './agentFolder.ts';
@@ -21,7 +21,7 @@ import { addToUserPath, linkCommand, pathKey, registryPath, mergedPath, repairPa
 import { agentCheck, later } from './verify.ts';
 
 export interface AgentsOptions {
-  /** The Atlas home; the agent folder is its agent/. */
+  /** The Coord home; the agent folder is its agent/. */
   home: string;
   /** What the app carries (resources/agent), or null in development. */
   bundle: string | null;
@@ -29,8 +29,8 @@ export interface AgentsOptions {
   checkout: string;
   /**
    * Whether this is the installed app on the user's own home. Only then does it put the command on
-   * the PATH and refresh the connected agents after an update: a home chosen with ATLAS_HOME (tests,
-   * a separate instance) leaves the user's `atlas` and agents alone.
+   * the PATH and refresh the connected agents after an update: a home chosen with COORD_HOME (tests,
+   * a separate instance) leaves the user's `coord` and agents alone.
    */
   ownHome: boolean;
   /** When the last session of a harness (as the home database names it: claude-code, codex) recorded by the hooks was last seen. */
@@ -48,7 +48,7 @@ export class Agents {
   /** Each agent's commands run one after another, so two windows never change one agent at once. */
   private queues = new Map<AgentId, Promise<unknown>>();
   private listing: Promise<AgentState[]> | null = null;
-  /** The agents as last checked, for the windows that only read whether they run Atlas. */
+  /** The agents as last checked, for the windows that only read whether they run Coord. */
   private last = new Map<AgentId, AgentState>();
   /** Writes of the agents' records, one after another and after the agent folder is ready. */
   private records: Promise<unknown> = Promise.resolve();
@@ -103,17 +103,17 @@ export class Agents {
     const bin = path.join(this.folder, 'bin');
     try {
       if (process.platform === 'win32') {
-        if (await addToUserPath(bin)) this.options.log.info('The atlas command was put on the user Path', { folder: bin });
+        if (await addToUserPath(bin)) this.options.log.info('The coord command was put on the user Path', { folder: bin });
       } else if (process.platform === 'linux') {
-        const linked = await linkCommand(path.join(bin, 'atlas'));
+        const linked = await linkCommand(path.join(bin, 'coord'));
         if (linked === 'taken') {
-          this.options.log.warn('~/.local/bin/atlas is another file: the atlas command was not linked there; the next launch tries again', { launcher: path.join(bin, 'atlas') });
+          this.options.log.warn('~/.local/bin/coord is another file: the coord command was not linked there; the next launch tries again', { launcher: path.join(bin, 'coord') });
           return;
         }
-        this.options.log.info('The atlas command is linked in ~/.local/bin', { launcher: path.join(bin, 'atlas') });
+        this.options.log.info('The coord command is linked in ~/.local/bin', { launcher: path.join(bin, 'coord') });
       } else return;
       await markOnPath(this.folder, state);
-    } catch (error) { this.options.log.warn('The atlas command could not be put on the PATH; the next launch tries again', { error: (error as Error).message }); }
+    } catch (error) { this.options.log.warn('The coord command could not be put on the PATH; the next launch tries again', { error: (error as Error).message }); }
   }
 
   private serial<T>(id: AgentId, task: () => Promise<T>): Promise<T> {
@@ -152,7 +152,7 @@ export class Agents {
   }
 
   /**
-   * Whether a connected agent runs Atlas, from what is cheap to read (no agent's command runs). An
+   * Whether a connected agent runs Coord, from what is cheap to read (no agent's command runs). An
    * agent found connected without a record (connected by hand, or before this app) counts as
    * connected from now. Its record is forgotten only when the agent said (`listed`) that the plugin
    * is not there: a list that failed or ran out of time leaves it.
@@ -205,7 +205,7 @@ export class Agents {
     return this.listing;
   }
 
-  /** The agents as last checked (checked now the first time), with whether each connected one runs Atlas read again. */
+  /** The agents as last checked (checked now the first time), with whether each connected one runs Coord read again. */
   async checks(): Promise<AgentState[]> {
     if (this.last.size < harnesses.length) return this.list();
     return harnesses.map(item => {
@@ -214,7 +214,7 @@ export class Agents {
     });
   }
 
-  /** Grant the agent the Atlas home and install the plugin; the error says what failed, as the agent said it. */
+  /** Grant the agent the Coord home and install the plugin; the error says what failed, as the agent said it. */
   connect(id: AgentId): Promise<AgentChange> {
     return this.change(id, 'connect', async (environment, program) => {
       const { grantError } = await connectAgent(harness(id), this.directory, this.options.home, environment, program);

@@ -1,15 +1,15 @@
-// Whether a connected agent runs Atlas, as Settings › Agents, the onboarding's Start step and the
-// hub show it, from what is cheap to read: when Atlas's hooks last ran in it (the hooks' notes and the
-// sessions they recorded in the home database), when a session of it last used Atlas's tools (the MCP
-// server's note), and for Codex whether its config.toml trusts each of Atlas's hooks. Only what
+// Whether a connected agent runs Coord, as Settings › Agents, the onboarding's Start step and the
+// hub show it, from what is cheap to read: when Coord's hooks last ran in it (the hooks' notes and the
+// sessions they recorded in the home database), when a session of it last used Coord's tools (the MCP
+// server's note), and for Codex whether its config.toml trusts each of Coord's hooks. Only what
 // happened since the agent was connected counts.
-import type { HookTrust } from '@envsemble/atlas/agents/trust';
+import type { HookTrust } from '@envsemble/coord/agents/trust';
 import type { AgentCheck } from '../../shared/contract.ts';
 
 export interface CheckSources {
   /** When the agent was connected (or first found connected), as an ISO time. */
   connectedAt: string;
-  /** When Atlas's hooks last ran in the agent, and when its tools were last used there (ISO times, or null). */
+  /** When Coord's hooks last ran in the agent, and when its tools were last used there (ISO times, or null). */
   hooksAt: string | null;
   toolsAt: string | null;
   /** Codex's trust of the hooks; 'unknown' for Claude Code, which has no trust step. */

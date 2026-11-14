@@ -142,8 +142,8 @@ function Benchmark() {
 
   return (
     <>
-      <header className="atlas-overlay-top">
-        <div className="atlas-island">
+      <header className="coord-overlay-top">
+        <div className="coord-island">
           <span>
             {count} classes · {diagram.edges.length} relations
           </span>

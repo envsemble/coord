@@ -1,13 +1,13 @@
-// The onboarding, shown in place of the window on every launch until it is finished: what Atlas is,
+// The onboarding, shown in place of the window on every launch until it is finished: what Coord is,
 // the agents on this computer (choosing which to connect, or none), connecting each one chosen, and
-// how to start the first session, with a warning for a connected agent that does not run Atlas yet.
+// how to start the first session, with a warning for a connected agent that does not run Coord yet.
 // It installs nothing until the person chooses Connect, and Settings › Agents does the same any time
 // afterwards. Back and Next (Finish at the end) are buttons; each step's heading takes focus as it
 // shows, so a screen reader starts reading it.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Text } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/code';
-import { AtlasMark } from '@envsemble/atlas-diagrams/mark';
+import { CoordMark } from '@envsemble/coord-diagrams/mark';
 import { agentNames } from '../../shared/contract';
 import type { AgentId } from '../types';
 import { api } from '../api';
@@ -16,7 +16,7 @@ import { CopyButton } from '../ui/CopyButton';
 import { chosenAgents, stepFrom, stepsFor, type OnboardingStep } from './steps';
 
 /** What the Start step suggests asking a new session. */
-export const firstQuestion = 'What is Atlas and how do I use it?';
+export const firstQuestion = 'What is Coord and how do I use it?';
 
 export function Onboarding({ onDone }: { onDone(): void }) {
   const agents = useAgents();
@@ -60,13 +60,13 @@ export function Onboarding({ onDone }: { onDone(): void }) {
   const title = (text: string) => <Text render={<h1 />} variant="title" ref={heading} tabIndex={-1} className="onboarding-title">{text}</Text>;
   let content: ReactNode;
   if (step === 'welcome') content = <>
-    <AtlasMark size={56} label="" />
-    {title('Welcome to Atlas')}
+    <CoordMark size={56} label="" />
+    {title('Welcome to Coord')}
     <Text>Your coding agents’ plans, and their work as it happens.</Text>
   </>;
   else if (step === 'agents') content = <>
     {title('Connect your agents')}
-    <Text>Atlas installs its plugin into the agents you choose.</Text>
+    <Text>Coord installs its plugin into the agents you choose.</Text>
     {agents.error && <Alert tone="warning" announce>{agents.error}</Alert>}
     <AgentList agents={agents} mode={{ kind: 'choose', chosen, choose: (id, yes) => setDeclined(current => yes ? current.filter(item => item !== id) : [...current, id]) }} label="Agents on this computer" />
     {agents.agents && !agents.agents.some(agent => agent.found) && <Text emphasis="muted">Neither is installed yet: install one, then come back.</Text>}
@@ -86,14 +86,14 @@ export function Onboarding({ onDone }: { onDone(): void }) {
         <span>Ask it:</span>
         <span className="onboarding-question"><strong>“{firstQuestion}”</strong><CopyButton text={firstQuestion} label="Copy" /></span>
       </li>
-      {trustHint && <li>In Codex, trust the Atlas hooks once in <Code>/hooks</Code>.</li>}
+      {trustHint && <li>In Codex, trust the Coord hooks once in <Code>/hooks</Code>.</li>}
     </ol>
     <AgentWarnings agents={agents.agents} />
   </>;
 
   const index = steps.indexOf(step);
   const nextLabel = step === 'agents' ? (chosen.length ? 'Connect' : 'Next') : step === 'start' ? 'Finish' : 'Next';
-  return <main className="onboarding" aria-label="Set up Atlas">
+  return <main className="onboarding" aria-label="Set up Coord">
     <div className="onboarding-card">
       <p className="onboarding-count" aria-live="polite">Step {index + 1} of {steps.length}</p>
       <div className="onboarding-progress" aria-hidden="true">{steps.map((item, at) => <span key={item} data-done={at <= index || undefined} />)}</div>

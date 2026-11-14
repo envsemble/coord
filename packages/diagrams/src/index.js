@@ -1,6 +1,6 @@
 export { DiagramViewer } from "./viewer/DiagramViewer";
 export { DiagramPanel } from "./viewer/DiagramPanel";
-export { AtlasMark } from "./ui/AtlasMark";
+export { CoordMark } from "./ui/CoordMark";
 export { describeProvenance, formatCaptureDate } from "./viewer/provenance";
 export { ProvenanceBadge } from "./viewer/ProvenanceBadge";
 export { ViewerErrorBoundary } from "./viewer/ViewerErrorBoundary";

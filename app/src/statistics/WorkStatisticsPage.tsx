@@ -172,7 +172,7 @@ function Timeline({ timeline, sessions, live }: { timeline: WorkTimeline; sessio
           </Table.Row>)}</Table.Body>
         </Table.Root>
       </Disclosure>
-    </> : <p className="muted">No session has worked on this plan since Atlas began recording when agents work.</p>}
+    </> : <p className="muted">No session has worked on this plan since Coord began recording when agents work.</p>}
   </Section>;
 }
 
@@ -193,7 +193,7 @@ function Headline({ work, live, sessions, timeline }: { work: Work; live: LiveAc
 
 /** A plan's statistics page. */
 export function WorkStatisticsPage({ work }: { work: Work }) {
-  // Agent time is as reported: Atlas no longer counts it up live.
+  // Agent time is as reported: Coord no longer counts it up live.
   const live = null;
   const key = '';
   const sessions = useWorkSessions(work.id, key)?.sessions ?? [];

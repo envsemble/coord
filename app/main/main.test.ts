@@ -6,26 +6,26 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { RotatingLog } from './log.ts';
 import { containedFile, contentSecurityPolicy, isEntry, originOf } from './windows/protocol.ts';
-import { HomeDatabase } from '@envsemble/atlas/planning';
+import { HomeDatabase } from '@envsemble/coord/planning';
 import { AppState, placeRow, savedPlace } from './appState.ts';
 import { appLink, editorLink } from './windows/launch.ts';
 import { target as tabTarget } from '../shared/validate.ts';
 import type { Target } from '../shared/contract.ts';
 
-const temporary = () => mkdtempSync(path.join(tmpdir(), 'atlas-main-'));
+const temporary = () => mkdtempSync(path.join(tmpdir(), 'coord-main-'));
 
 test('the renderer and planning protocol never resolve outside their folder', () => {
   const base = path.resolve('/app/renderer');
   assert.equal(containedFile(base, '/index.html'), path.join(base, 'index.html'));
   assert.equal(containedFile(base, '/'), path.join(base, 'index.html'));
   for (const escape of ['/../main/index.js', '/..%2Fmain%2Findex.js', '/assets/..\\..\\x', '/%00', '/%E0%A4%A']) assert.equal(containedFile(base, escape), null, escape);
-  assert.equal(originOf('atlas://app/index.html'), 'atlas://app');
+  assert.equal(originOf('coord://app/index.html'), 'coord://app');
   assert.equal(originOf('http://localhost:5173/x'), 'http://localhost:5173');
   assert.equal(originOf('not a url'), null);
   // A window navigates on its own origin only to its own page.
-  assert.equal(isEntry('atlas://app/index.html#top', 'atlas://app/index.html'), true);
+  assert.equal(isEntry('coord://app/index.html#top', 'coord://app/index.html'), true);
   assert.equal(isEntry('http://localhost:5173/', 'http://localhost:5173/'), true);
-  for (const away of ['atlas://app/app/src/plan/sessions.ts:12', 'atlas://planning/f-0/README.md', 'https://app/index.html']) assert.equal(isEntry(away, 'atlas://app/index.html'), false, away);
+  for (const away of ['coord://app/app/src/plan/sessions.ts:12', 'coord://planning/f-0/README.md', 'https://app/index.html']) assert.equal(isEntry(away, 'coord://app/index.html'), false, away);
   assert.match(contentSecurityPolicy, /default-src 'none'/);
   assert.doesNotMatch(contentSecurityPolicy, /unsafe-eval|script-src[^;]*unsafe-inline/);
 });
@@ -35,9 +35,9 @@ test('the log rotates and keeps a bounded number of files', () => {
   try {
     const log = new RotatingLog(directory, { maxBytes: 400, keep: 2 });
     for (let index = 0; index < 40; index++) log.info('line ' + index, { index });
-    assert.deepEqual(readdirSync(directory).sort(), ['atlas.1.log', 'atlas.2.log', 'atlas.log']);
-    assert.match(readFileSync(path.join(directory, 'atlas.log'), 'utf8'), /line 39/);
-    for (const line of readFileSync(path.join(directory, 'atlas.log'), 'utf8').trim().split('\n')) assert.ok(JSON.parse(line).time);
+    assert.deepEqual(readdirSync(directory).sort(), ['coord.1.log', 'coord.2.log', 'coord.log']);
+    assert.match(readFileSync(path.join(directory, 'coord.log'), 'utf8'), /line 39/);
+    for (const line of readFileSync(path.join(directory, 'coord.log'), 'utf8').trim().split('\n')) assert.ok(JSON.parse(line).time);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
@@ -55,7 +55,7 @@ test('windows, their places per computer and the shared settings are kept in the
     // A window on this computer with places of a local project, and places of a paired computer's project it showed before.
     const local = database.addProject(path.join(directory, 'planning', 'shop'), 'Shop');
     database.db.prepare('INSERT INTO paired_computer (id, host_id, name, origin, device_id, token, paired_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('c1', 'host-0001', 'Laptop', 'http://100.64.0.2:7346', 'd-' + 'a'.repeat(32), Buffer.from('plain:x'), '2026-10-15T00:00:00.000Z');
-    const remote = database.addProject('/home/me/.atlas/planning/harbor', 'Harbor', 'c1');
+    const remote = database.addProject('/home/me/.coord/planning/harbor', 'Harbor', 'c1');
     const window = state.addWindow(null, { x: 10, y: 20, width: 900, height: 700 });
     state.updateWindow(window, { maximized: true });
     assert.deepEqual(state.windows(), [{ id: window, computerId: null, bounds: { x: 10, y: 20, width: 900, height: 700 }, maximized: true }]);
@@ -99,7 +99,7 @@ async function waitFor(condition: () => boolean, timeout = 5000) {
   }
 }
 
-test('Atlas refuses to start without its sandbox, and a released build refuses debuggers', async () => {
+test('Coord refuses to start without its sandbox, and a released build refuses debuggers', async () => {
   const { startupRefusal } = await import('./startupRefusal.ts');
   const check = (switches: string[], options: { packaged?: boolean; endToEndBuild?: boolean; environment?: NodeJS.ProcessEnv } = {}) =>
     startupRefusal({ hasSwitch: name => switches.includes(name), environment: options.environment ?? {}, packaged: options.packaged ?? true, endToEndBuild: options.endToEndBuild ?? false });
@@ -132,9 +132,9 @@ test('a window saves the place it shows as a row of its project, and loads it ba
   assert.deepEqual(savedPlace(projectId, placeRow(statistics)!), statistics);
 });
 
-test('outside Atlas, only applications on the allowlist and VS Code through its links open', () => {
+test('outside Coord, only applications on the allowlist and VS Code through its links open', () => {
   assert.equal(appLink('t3-thread://thread/abc'), 't3-thread://thread/abc');
   for (const refused of ['file:///C:/Windows/System32/calc.exe', 'javascript:alert(1)', 'ms-settings:', 'unknown-app://x', 'vscode://file/C:/x.bat', 'slack://open', 'not a link', 't3-thread://x\u0000y']) assert.equal(appLink(refused), null, refused);
-  assert.equal(editorLink('C:\\Dev\\atlas\\app\\src\\a b#.ts', 68), 'vscode://file/C:/Dev/atlas/app/src/a%20b%23.ts:68');
-  assert.equal(editorLink('/home/me/atlas/README.md', null), 'vscode://file/home/me/atlas/README.md');
+  assert.equal(editorLink('C:\\Dev\\coord\\app\\src\\a b#.ts', 68), 'vscode://file/C:/Dev/coord/app/src/a%20b%23.ts:68');
+  assert.equal(editorLink('/home/me/coord/README.md', null), 'vscode://file/home/me/coord/README.md');
 });

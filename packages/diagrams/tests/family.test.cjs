@@ -2,7 +2,7 @@
 // every member draws its classes and routes where the others do.
 const { test } = require("node:test"),
   assert = require("node:assert/strict");
-const atlas = require("../lib/index.cjs");
+const coord = require("../lib/index.cjs");
 const { validateDiagram } = require("../lib/layout/validateDiagram.cjs");
 
 const CAPTURE = {
@@ -25,12 +25,12 @@ Customer "1" -- "0..*" Checkout : buys`;
 // saved methods, with a count of the payment relation changed in place; B,
 // the customer holding its methods, without the gateway.
 function family() {
-  const { diagram } = atlas.parseDiagram(
+  const { diagram } = coord.parseDiagram(
     `@startuml\ntitle Checkout\n${CHECKOUT}\n@enduml\n`,
   );
-  const capture = atlas.formatDiagram({ ...diagram, capture: CAPTURE });
+  const capture = coord.formatDiagram({ ...diagram, capture: CAPTURE });
   const proposal = (title, body) =>
-    `@startuml\ntitle ${title}\n' atlas proposal capture.puml\n${body}\n@enduml\n`;
+    `@startuml\ntitle ${title}\n' coord proposal capture.puml\n${body}\n@enduml\n`;
   return [
     { path: "capture.puml", text: capture },
     {
@@ -80,7 +80,7 @@ function placements(payloads) {
   return compared;
 }
 async function prepared(files, paths) {
-  const { prepared } = await atlas.prepareDiagrams({ files, paths });
+  const { prepared } = await coord.prepareDiagrams({ files, paths });
   return (paths || files.map((f) => f.path)).map(
     (p) => prepared.get(p).payload,
   );

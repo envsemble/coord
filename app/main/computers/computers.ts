@@ -1,6 +1,6 @@
 // The computers whose projects the app shows: this one, whose host (main/host/localHost.ts) it reaches
 // as the owner, and the computers it paired with, whose hosts it reaches with a device token. A paired
-// computer is the same person's: its device token reaches everything Atlas can do there, and Manage
+// computer is the same person's: its device token reaches everything Coord can do there, and Manage
 // access when its pairing link granted it. Paired computers are rows of the home database's
 // paired_computer table; tokens are encrypted with the system's credential store (Electron
 // safeStorage) where it has one. A paired computer's connection stays open while a window shows its
@@ -8,8 +8,8 @@
 import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import { safeStorage } from 'electron';
-import type { HomeDatabase } from '@envsemble/atlas/planning';
-import { describeHost, HostClient, HostRequestError, pairWithHost, parsePairing, type ClientStatus, type EventName, type Events } from '@envsemble/atlas/host';
+import type { HomeDatabase } from '@envsemble/coord/planning';
+import { describeHost, HostClient, HostRequestError, pairWithHost, parsePairing, type ClientStatus, type EventName, type Events } from '@envsemble/coord/host';
 import type { Computer, ComputerStatus } from '../../shared/contract.ts';
 import { boolean, object, optional, string } from '../../shared/validate.ts';
 import type { LocalHost } from '../host/localHost.ts';
@@ -159,13 +159,13 @@ export class Computers {
     if (entry) entry.client = null;
   }
 
-  /** Pair with another computer's Atlas from its pairing link (or address and code), and save it. */
+  /** Pair with another computer's Coord from its pairing link (or address and code), and save it. */
   async pair(link: string, code?: string): Promise<Computer> {
     const target = parsePairing(link, code);
     // Check whose link it is before spending its one-time code.
     const described = await describeHost(target.origin);
     if (described.hostId === this.localHost.hostId) throw new HostRequestError('invalid-argument', 'That pairing link belongs to this computer. Open the link on the other computer instead.');
-    const { descriptor, pairing } = await pairWithHost(target.origin, target.code, { name: hostname().trim().slice(0, 80) || 'Atlas', platform: process.platform });
+    const { descriptor, pairing } = await pairWithHost(target.origin, target.code, { name: hostname().trim().slice(0, 80) || 'Coord', platform: process.platform });
     if (descriptor.hostId !== described.hostId) throw new HostRequestError('unavailable', 'The host changed while pairing. Try again.');
     // Everything saved comes from the other computer: keep only what fits.
     let entry: SavedComputer;
@@ -176,7 +176,7 @@ export class Computers {
         deviceId: pairing.deviceId, token: this.seal(pairing.token), pairedAt: new Date().toISOString(),
       });
       entry = { ...checked, id: previous?.saved.id ?? randomUUID(), manageAccess: Array.isArray(pairing.scopes) && pairing.scopes.includes('access:manage') };
-    } catch (error) { throw new HostRequestError('unavailable', 'The other computer answered with something Atlas cannot use (' + (error as Error).message + ').'); }
+    } catch (error) { throw new HostRequestError('unavailable', 'The other computer answered with something Coord cannot use (' + (error as Error).message + ').'); }
     previous?.client?.close();
     this.remote.set(descriptor.hostId, { saved: entry, client: null });
     this.save(entry);

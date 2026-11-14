@@ -244,7 +244,7 @@ function finishCode(options, model, diagnostics, projects, adapter) {
   const capture = {
     capturedAt: new Date().toISOString(),
     adapter: {
-      id: `atlas-${adapter.id}`,
+      id: `coord-${adapter.id}`,
       version: "1.0.0",
       compilerVersion: adapter.version,
     },
@@ -780,7 +780,7 @@ async function captureJava(options) {
           : "directory (dependency contents unverified)",
       ]);
     const dependenciesBefore = fingerprint(dependencyState());
-    const temp = fs.mkdtempSync(path.join(os.tmpdir(), "atlas-java-")),
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), "coord-java-")),
       request = path.join(temp, "request.txt");
     try {
       const emptyClasspath = path.join(temp, "empty-classpath");
@@ -801,7 +801,7 @@ async function captureJava(options) {
           "-Xmx512m",
           "--source",
           "21",
-          path.join(__dirname, "java/AtlasJava.java"),
+          path.join(__dirname, "java/CoordJava.java"),
           request,
         ],
         { windowsHide: true, timeout: 30000, maxBuffer: BOUNDS.bytes },

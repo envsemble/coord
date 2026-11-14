@@ -5,7 +5,7 @@ import { CameraControls } from "./CameraControls";
 import { ExportMenu, downloadData, downloadURL } from "../ui/ExportMenu";
 import { Island, IslandDivider } from "../ui/Island";
 import { ViewSwitcher } from "../ui/ViewSwitcher";
-import { AtlasMark } from "../ui/AtlasMark";
+import { CoordMark } from "../ui/CoordMark";
 import { ProvenanceLabel } from "./ProvenanceBadge";
 import { describeProvenance } from "./provenance";
 import {
@@ -83,17 +83,17 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
   const origin = describeProvenance(provenance);
   return (
     <header
-      className={`atlas-overlay-top viewer-toolbar${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`}
+      className={`coord-overlay-top viewer-toolbar${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`}
       ref={ref}
     >
       <Island label="Diagram navigation" className="island-start">
         <span className="brand-mark">
-          <AtlasMark label="" />
+          <CoordMark label="" />
         </span>
         <Text
           render={<span />}
           variant="title"
-          className="atlas-section-heading island-title"
+          className="coord-section-heading island-title"
           title={model.title}
         >
           {model.title}

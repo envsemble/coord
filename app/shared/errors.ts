@@ -3,7 +3,7 @@
 import type { ErrorCode } from './contract.ts';
 
 /** An error whose message is safe and useful to show in the window. */
-export class AtlasError extends Error {
+export class CoordError extends Error {
   readonly code: ErrorCode;
-  constructor(code: ErrorCode, message: string) { super(message); this.name = 'AtlasError'; this.code = code; }
+  constructor(code: ErrorCode, message: string) { super(message); this.name = 'CoordError'; this.code = code; }
 }

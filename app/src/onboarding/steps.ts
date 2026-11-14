@@ -1,4 +1,4 @@
-// The onboarding's steps: Welcome (what Atlas is), Agents (the agents on this computer, choosing
+// The onboarding's steps: Welcome (what Coord is), Agents (the agents on this computer, choosing
 // which to connect), Connect (connecting each one chosen) and Start (the first session). With no
 // agent chosen there is nothing to connect, and Agents leads straight to Start.
 import type { AgentId, AgentState } from '../types';

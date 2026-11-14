@@ -93,11 +93,11 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
   if (refused) return <Alert tone="warning" announce>{refused}</Alert>;
   return <>
     <Text emphasis="muted" className="settings-description">{here
-      ? 'Pair your other devices, such as your laptop, to work on this computer from them: they work on its projects and create new ones, as Atlas does here. Pair only your own devices.'
-      : `Pair your other devices with ${computer.name}, and revoke the ones that should no longer reach it. Only Atlas on ${computer.name} changes how it is reached.`}</Text>
+      ? 'Pair your other devices, such as your laptop, to work on this computer from them: they work on its projects and create new ones, as Coord does here. Pair only your own devices.'
+      : `Pair your other devices with ${computer.name}, and revoke the ones that should no longer reach it. Only Coord on ${computer.name} changes how it is reached.`}</Text>
     {!state ? (error ? <Alert tone="danger" announce>{error}</Alert> : <Spinner label="Loading remote access" />) : <>
       {state.problem ? <Alert tone="danger" announce>{state.problem}</Alert>
-        : state.managedBy && <Alert tone="warning">Remote access on this computer is managed by {state.managedBy}. Quit it, and Atlas takes over here within a few seconds.</Alert>}
+        : state.managedBy && <Alert tone="warning">Remote access on this computer is managed by {state.managedBy}. Quit it, and Coord takes over here within a few seconds.</Alert>}
 
       {here ? <section className="access-section" aria-label="Network">
         <Switch label="Allow paired devices to connect to this computer" checked={settings!.network.enabled} disabled={busy || managed}
@@ -110,7 +110,7 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
             onValueChange={value => setPort(value.replace(/[^0-9]/g, '').slice(0, 5))} onBlur={savePort} onKeyDown={event => { if (event.key === 'Enter') savePort(); }} />
         </div>
         {chosen?.kind === 'lan' && <Alert tone="warning">On a local network, the connection is not encrypted. Prefer Tailscale, which encrypts it end to end.</Alert>}
-        {chosen?.kind === 'loopback' && <Text variant="caption" emphasis="muted">Only Atlas on this same computer can connect through this address.</Text>}
+        {chosen?.kind === 'loopback' && <Text variant="caption" emphasis="muted">Only Coord on this same computer can connect through this address.</Text>}
         <p className="access-status" data-state={state.status.listening ? 'on' : state.status.error ? 'error' : 'off'} role="status">
           {state.status.listening ? `Listening on ${state.status.address}:${state.status.port}.` : state.status.error ?? 'Remote access is off.'}
         </p>
@@ -131,7 +131,7 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
               <CopyButton text={link.code} label="Copy code only" />
               <Button variant="outline" tone="danger" onClick={() => void revokeLink()}>Revoke</Button>
             </div>
-            <Text variant="caption" emphasis="muted">In Atlas on the other device, choose <strong>Connect to Another Atlas…</strong> in <strong>Settings › Computers</strong> and paste the link. Treat it like a password.</Text>
+            <Text variant="caption" emphasis="muted">In Coord on the other device, choose <strong>Connect to Another Coord…</strong> in <strong>Settings › Computers</strong> and paste the link. Treat it like a password.</Text>
           </div>
         </div> : <form className="pairing-form" onSubmit={event => { event.preventDefault(); void createLink(); }}>
           {link && <Text emphasis="muted">That pairing link expired.</Text>}

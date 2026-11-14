@@ -21,11 +21,11 @@ import {
 } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-const atlas = resolve(import.meta.dirname, "..");
-const envUI = resolve(atlas, process.env.ENVUI_PATH ?? "../envUI");
+const coord = resolve(import.meta.dirname, "..");
+const envUI = resolve(coord, process.env.ENVUI_PATH ?? "../envUI");
 const library = resolve(envUI, "packages/ui");
 const consumers = ["app", "packages/diagrams"].map((workspace) =>
-  resolve(atlas, workspace, "node_modules/@envsemble/envui"),
+  resolve(coord, workspace, "node_modules/@envsemble/envui"),
 );
 const windows = process.platform === "win32";
 const npm = windows ? "npm.cmd" : "npm";
@@ -52,13 +52,13 @@ if (process.argv.includes("--unlink")) {
     // A clean install removes node_modules before it downloads, so the registry is checked first:
     // without a GitHub Packages token, nothing changes.
     const { packages } = JSON.parse(
-      readFileSync(resolve(atlas, "package-lock.json"), "utf8"),
+      readFileSync(resolve(coord, "package-lock.json"), "utf8"),
     );
     const version = packages["node_modules/@envsemble/envui"].version;
     const check = spawnSync(
       npm,
       ["view", `@envsemble/envui@${version}`, "version"],
-      { cwd: atlas, stdio: "pipe", shell: windows },
+      { cwd: coord, stdio: "pipe", shell: windows },
     );
     if (check.status !== 0) {
       console.error(
@@ -68,10 +68,10 @@ if (process.argv.includes("--unlink")) {
     }
     // The links go first, so the clean install never reaches into the envUI checkout through them.
     for (const path of linked) rmSync(path);
-    run(["ci", "--no-audit", "--no-fund"], atlas);
+    run(["ci", "--no-audit", "--no-fund"], coord);
   }
   console.log(
-    "Atlas uses the published @envsemble/envui from package-lock.json.",
+    "Coord uses the published @envsemble/envui from package-lock.json.",
   );
   process.exit(0);
 }
@@ -107,7 +107,7 @@ const children = [
     shell: windows,
   }),
   spawn(npm, ["run", "dev"], {
-    cwd: atlas,
+    cwd: coord,
     stdio: "inherit",
     shell: windows,
     env: { ...process.env, ENVUI_SOURCE: "1" },

@@ -1,11 +1,11 @@
-// An Atlas window: it shows the projects of one computer, this one or another computer this app
+// An Coord window: it shows the projects of one computer, this one or another computer this app
 // paired with, one place at a time (the hub, or something of one project), and follows each project
-// on that computer's Atlas host as its pages need it. Each window has its own in-memory session, so
-// its `atlas:` file protocol can only ever see the projects it follows.
+// on that computer's Coord host as its pages need it. Each window has its own in-memory session, so
+// its `coord:` file protocol can only ever see the projects it follows.
 import { BrowserWindow, dialog, nativeTheme, screen, session as electronSession, shell, type Session } from 'electron';
-import type { HostClient, Project } from '@envsemble/atlas/host';
+import type { HostClient, Project } from '@envsemble/coord/host';
 import type { EventChannel, ProjectChangeRequest, WindowInfo } from '../../shared/contract.ts';
-import { AtlasError } from '../errors.ts';
+import { CoordError } from '../errors.ts';
 import { ProjectView } from '../computers/projectView.ts';
 import { createProtocolHandler, isEntry, isPageFrameUrl, originOf, rendererOrigin, scheme } from './protocol.ts';
 import { defaultSize, type Bounds, type WindowRow } from '../appState.ts';
@@ -50,7 +50,7 @@ export function externalUrl(value: string): string | null {
 
 let partitions = 0;
 
-export class AtlasWindow {
+export class CoordWindow {
   readonly win: BrowserWindow;
   readonly session: Session;
   /** The window's row in the home database. */
@@ -80,11 +80,11 @@ export class AtlasWindow {
     this.rowId = row.id;
     this.computer = computer;
     const context = manager.context;
-    this.session = electronSession.fromPartition('atlas-window-' + ++partitions, { cache: false });
+    this.session = electronSession.fromPartition('coord-window-' + ++partitions, { cache: false });
     this.harden();
     this.win = new BrowserWindow({
       ...defaultSize, ...visibleBounds(row.bounds),
-      minWidth: 640, minHeight: 420, show: false, backgroundColor: windowBackground(), title: 'Atlas',
+      minWidth: 640, minHeight: 420, show: false, backgroundColor: windowBackground(), title: 'Coord',
       icon: context.icon, ...titleBar(),
       webPreferences: {
         preload: context.preload, session: this.session,
@@ -137,7 +137,7 @@ export class AtlasWindow {
     const dev = context.devUrl ? new URL(context.devUrl) : null;
     session.webRequest.onBeforeRequest((details, callback) => {
       const url = new URL(details.url);
-      const local = ['atlas:', 'data:', 'blob:', 'devtools:'].includes(url.protocol);
+      const local = ['coord:', 'data:', 'blob:', 'devtools:'].includes(url.protocol);
       const devServer = dev && (url.protocol === 'http:' || url.protocol === 'ws:') && url.host === dev.host;
       // A page, in its frame, reaches what its agent made it for: no guards (work-0036).
       const page = Boolean(details.frame?.parent) && isPageFrameUrl(details.frame!.url, context.devUrl);
@@ -224,7 +224,7 @@ export class AtlasWindow {
   async projectRow(projectId: string): Promise<number> {
     if (!this.listed.has(projectId)) await this.projects();
     const entry = this.listed.get(projectId);
-    if (!entry) throw new AtlasError('not-found', `This project is not on ${this.computerName}.`);
+    if (!entry) throw new CoordError('not-found', `This project is not on ${this.computerName}.`);
     return entry.rowId;
   }
   /** A project's row among the projects last listed, without listing them again; null when it is not among them. */
@@ -258,7 +258,7 @@ export class AtlasWindow {
       this.manager.projectsChanged(this.computer);
     }
     const project = (await this.projects()).find(entry => entry.id === projectId);
-    if (!project) throw new AtlasError('not-found', `This project is not on ${this.computerName}.`);
+    if (!project) throw new CoordError('not-found', `This project is not on ${this.computerName}.`);
     return project;
   }
 
@@ -297,7 +297,7 @@ export class AtlasWindow {
   /** A project for a request: followed, and its planning folder readable. */
   async readable(projectId: string): Promise<ProjectView> {
     const view = await this.open(projectId);
-    if (view.status === 'missing' || (view.status === 'invalid' && view.error)) throw new AtlasError(view.status === 'missing' ? 'folder-missing' : 'folder-invalid', view.error ?? 'This project cannot be read.');
+    if (view.status === 'missing' || (view.status === 'invalid' && view.error)) throw new CoordError(view.status === 'missing' ? 'folder-missing' : 'folder-invalid', view.error ?? 'This project cannot be read.');
     return view;
   }
   /** Let every project go (the window shows another computer, or closes); other windows keep those they follow. */
@@ -344,7 +344,7 @@ export class AtlasWindow {
   /**
    * Commands a page could misuse (quitting, opening windows, remote access, leaving for the browser)
    * run at once right after a person's press. Without one (a compromised page, but also a screen
-   * reader's click, which makes no input event), Atlas asks in a system dialog the page cannot
+   * reader's click, which makes no input event), Coord asks in a system dialog the page cannot
    * answer. One question or dialog at a time.
    */
   async confirm(message: string, action: string, detail?: string): Promise<boolean> {
@@ -357,10 +357,10 @@ export class AtlasWindow {
    */
   async ask(message: string, action: string, detail?: string): Promise<boolean> {
     if (this.win.isDestroyed()) return false;
-    if (this.asking) throw new AtlasError('unavailable', 'Finish the dialog that is open first.');
+    if (this.asking) throw new CoordError('unavailable', 'Finish the dialog that is open first.');
     this.asking = true;
     try {
-      const { response } = await dialog.showMessageBox(this.win, { type: 'question', title: 'Atlas', message, detail, buttons: [action, 'Cancel'], defaultId: 0, cancelId: 1, noLink: true });
+      const { response } = await dialog.showMessageBox(this.win, { type: 'question', title: 'Coord', message, detail, buttons: [action, 'Cancel'], defaultId: 0, cancelId: 1, noLink: true });
       return response === 0 && !this.win.isDestroyed();
     } finally { this.asking = false; }
   }
@@ -372,14 +372,14 @@ export class AtlasWindow {
 
   /** Dialogs a page opens (choosing a file) come one at a time, so a page cannot pile them up. */
   async oneDialog<T>(open: () => Promise<T>): Promise<T> {
-    if (this.asking) throw new AtlasError('unavailable', 'Finish the dialog that is open first.');
+    if (this.asking) throw new CoordError('unavailable', 'Finish the dialog that is open first.');
     this.asking = true;
     try { return await open(); } finally { this.asking = false; }
   }
 
   updateTitle() {
     if (this.win.isDestroyed()) return;
-    this.win.setTitle(this.computer === null ? 'Atlas' : this.computerName + ' — Atlas');
+    this.win.setTitle(this.computer === null ? 'Coord' : this.computerName + ' — Coord');
   }
 
   info(): WindowInfo {
@@ -415,8 +415,8 @@ export class AtlasWindow {
     this.crashes = [...this.crashes.filter(time => now - time < 60000), now];
     if (this.crashes.length <= 3) { this.load(); return; }
     void dialog.showMessageBox(this.win, {
-      type: 'error', title: 'Atlas', message: 'This window keeps closing unexpectedly.',
-      detail: 'Atlas reloaded it three times in the last minute. Details are in the log (Open Logs, in the menu).',
+      type: 'error', title: 'Coord', message: 'This window keeps closing unexpectedly.',
+      detail: 'Coord reloaded it three times in the last minute. Details are in the log (Open Logs, in the menu).',
       buttons: ['Reload', 'Close Window'], defaultId: 0, cancelId: 1,
     }).then(({ response }) => {
       if (this.win.isDestroyed()) return;

@@ -7,7 +7,7 @@ const assert = require("node:assert/strict"),
 const { execFileSync } = require("node:child_process");
 const { checkDiagram, parseDiagram } = require("../lib/index.cjs");
 function fixture(t) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "atlas-code-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "coord-code-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   return root;
 }
@@ -38,7 +38,7 @@ const related = (diagram, kind, source, target) =>
 const undated = (text) =>
   text
     .replace(/"capturedAt":"[^"]*"/, "")
-    .replace(/' atlas fingerprint \w+/, "");
+    .replace(/' coord fingerprint \w+/, "");
 const commit = (root) => {
   const git = (...args) =>
     execFileSync("git", ["-C", root, ...args], { stdio: "pipe" });
@@ -46,9 +46,9 @@ const commit = (root) => {
   git("add", ".");
   git(
     "-c",
-    "user.name=Atlas fixture",
+    "user.name=Coord fixture",
     "-c",
-    "user.email=atlas@example.test",
+    "user.email=coord@example.test",
     "commit",
     "-m",
     "fixture",

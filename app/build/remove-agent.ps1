@@ -1,17 +1,17 @@
 # Run by the Windows uninstaller (installer.nsh), not on an update. It disconnects Claude Code and
-# Codex from the Atlas plugin in the agent folder, as Settings > Agents does (main/agent/agents.ts):
-# their plugin would otherwise call a command that is gone. It takes the atlas command's folder
-# (%USERPROFILE%\.atlas\agent\bin, which the app put there; main/agent/userPath.ts) off the user's
+# Codex from the Coord plugin in the agent folder, as Settings > Agents does (main/agent/agents.ts):
+# their plugin would otherwise call a command that is gone. It takes the coord command's folder
+# (%USERPROFILE%\.coord\agent\bin, which the app put there; main/agent/userPath.ts) off the user's
 # Path, keeping every other entry and the value's type, and forgets the agent folder's state, the
 # programs chosen for the agents, their activity and the finished onboarding, so that installing
-# Atlas again sets them up again. The plugin's files stay.
+# Coord again sets them up again. The plugin's files stay.
 #
 # Best effort: nothing here fails the uninstall, and the agents' commands have a minute and a half in all.
 # -KeepRegistry, for its test, neither reads nor writes the registry: only the PATH given is searched.
 param([switch] $KeepRegistry)
 $ErrorActionPreference = 'Stop'
-# The app puts the command on the Path only on its default home, never on one ATLAS_HOME chooses (main/index.ts).
-$agent = Join-Path $env:USERPROFILE '.atlas\agent'
+# The app puts the command on the Path only on its default home, never on one COORD_HOME chooses (main/index.ts).
+$agent = Join-Path $env:USERPROFILE '.coord\agent'
 # A path as Windows compares it: variables expanded, either slash, no trailing one (and -eq ignores case).
 function Get-EntryKey([string] $Entry) { [Environment]::ExpandEnvironmentVariables($Entry.Trim()).Replace('/', '\').TrimEnd('\') -replace '^\\\\\?\\(?!UNC\\)', '' }
 $system = Join-Path $env:SystemRoot 'System32'
@@ -59,13 +59,13 @@ $folder = Get-EntryKey $agent
 # The programs chosen in Settings > Agents for agents the PATH does not have (main/agent/programs.ts).
 $chosen = @{}
 try { (Get-Content -LiteralPath (Join-Path $agent 'programs.json') -Raw -Encoding UTF8 | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $chosen[$_.Name] = [string]$_.Value } } catch { }
-# Each agent's plugin list says where its Atlas plugin came from; only one from the agent folder is
-# removed, never one a checkout installed (atlas setup).
+# Each agent's plugin list says where its Coord plugin came from; only one from the agent folder is
+# removed, never one a checkout installed (coord setup).
 $agents = @(
-  @{ Id = 'claude'; Program = 'claude'; Name = '^claude\.exe$'; List = @('plugin', 'list', '--json'); Uninstall = @(@('plugin', 'uninstall', 'atlas@atlas'), @('plugin', 'marketplace', 'remove', 'atlas'))
-     Source = { param($listed) $entry = @($listed | Where-Object { $_.id -eq 'atlas@atlas' })[0]; if ($entry.readFromFolder) { Split-Path -Parent $entry.readFromFolder } } },
-  @{ Id = 'codex'; Program = 'codex'; Name = '^codex\.(exe|cmd)$'; List = @('plugin', 'list', '--json', '--marketplace', 'atlas'); Uninstall = @(@('plugin', 'remove', 'atlas@atlas'), @('plugin', 'marketplace', 'remove', 'atlas'))
-     Source = { param($listed) $entry = @($listed.installed | Where-Object { $_.pluginId -eq 'atlas@atlas' })[0]; $entry.marketplaceSource.source } }
+  @{ Id = 'claude'; Program = 'claude'; Name = '^claude\.exe$'; List = @('plugin', 'list', '--json'); Uninstall = @(@('plugin', 'uninstall', 'coord@coord'), @('plugin', 'marketplace', 'remove', 'coord'))
+     Source = { param($listed) $entry = @($listed | Where-Object { $_.id -eq 'coord@coord' })[0]; if ($entry.readFromFolder) { Split-Path -Parent $entry.readFromFolder } } },
+  @{ Id = 'codex'; Program = 'codex'; Name = '^codex\.(exe|cmd)$'; List = @('plugin', 'list', '--json', '--marketplace', 'coord'); Uninstall = @(@('plugin', 'remove', 'coord@coord'), @('plugin', 'marketplace', 'remove', 'coord'))
+     Source = { param($listed) $entry = @($listed.installed | Where-Object { $_.pluginId -eq 'coord@coord' })[0]; $entry.marketplaceSource.source } }
 )
 foreach ($item in $agents) {
   try {
@@ -94,9 +94,9 @@ if (-not $KeepRegistry) {
         if ($kept.Count -ne $entries.Count) {
           $key.SetValue('Path', ($kept -join ';'), $key.GetValueKind('Path'))
           try {
-            Add-Type -Namespace Atlas -Name Native -MemberDefinition '[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessageTimeout(IntPtr window, uint message, UIntPtr wParam, string lParam, uint flags, uint timeout, out UIntPtr result);'
+            Add-Type -Namespace Coord -Name Native -MemberDefinition '[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessageTimeout(IntPtr window, uint message, UIntPtr wParam, string lParam, uint flags, uint timeout, out UIntPtr result);'
             $result = [UIntPtr]::Zero
-            [void][Atlas.Native]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$result)
+            [void][Coord.Native]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$result)
           } catch { }
         }
       }

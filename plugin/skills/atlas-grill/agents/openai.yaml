@@ -1,6 +1,0 @@
-interface:
-  display_name: "Atlas Grill"
-  short_description: "Interview in rounds until a design is settled"
-  default_prompt: "Use $atlas-grill to settle this design and record the plan."
-policy:
-  allow_implicit_invocation: true

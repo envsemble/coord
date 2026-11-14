@@ -1,8 +1,8 @@
-// Reads, checks and writes Atlas's PlantUML subset. The grammar
+// Reads, checks and writes Coord's PlantUML subset. The grammar
 // (plantuml.peggy) splits a file into statements; this reader turns them into
 // a diagram and reports every line outside the subset with its position and
 // what to do instead. `checkDiagram` adds the model rules and the rules of the
-// `' atlas` headers, which may need the files a header names.
+// `' coord` headers, which may need the files a header names.
 const { createHash } = require("node:crypto");
 const { posix } = require("node:path");
 const { parse } = require("./parser.cjs");
@@ -83,46 +83,46 @@ const CREOLE = [
   "<img",
   "<code",
 ];
-// Single lines Atlas rejects, with what to do instead. The first pattern a line
+// Single lines Coord rejects, with what to do instead. The first pattern a line
 // matches names it.
 const REJECTED_LINES = [
   [
     /^skinparam\b/i,
-    "Atlas lays out and styles diagrams itself; remove `{line}`.",
+    "Coord lays out and styles diagrams itself; remove `{line}`.",
   ],
   [
     /^(?:left to right|top to bottom) direction$/i,
-    "Atlas lays out diagrams itself; remove `{line}`.",
+    "Coord lays out diagrams itself; remove `{line}`.",
   ],
-  [/^!theme\b/i, "Atlas styles diagrams itself; remove the theme `{line}`."],
+  [/^!theme\b/i, "Coord styles diagrams itself; remove the theme `{line}`."],
   [
     /^!/,
-    "Atlas does not run the PlantUML preprocessor; write the diagram out in full instead of `{line}`.",
+    "Coord does not run the PlantUML preprocessor; write the diagram out in full instead of `{line}`.",
   ],
   [
     /^(?:hide|show|remove|restore)\b/i,
-    "Atlas decides what a diagram shows; remove `{line}` and leave out what should not be in the diagram.",
+    "Coord decides what a diagram shows; remove `{line}` and leave out what should not be in the diagram.",
   ],
   [
     /^(?:note|legend|header|footer|caption|newpage|mainframe)\b/i,
-    "Atlas diagrams have no notes, legends, headers, footers or captions; the rationale belongs in the plan. Remove `{line}`.",
+    "Coord diagrams have no notes, legends, headers, footers or captions; the rationale belongs in the plan. Remove `{line}`.",
   ],
   [/^title$/i, "Write the title on one line: `title Name`."],
   [
     /^(?:scale|allowmixing|allow_mixing|set|sprite|hide|skin)\b/i,
-    "Atlas lays out and styles diagrams itself; remove `{line}`.",
+    "Coord lays out and styles diagrams itself; remove `{line}`.",
   ],
   [
     /^(?:namespace|folder|frame|node|rectangle|cloud|database|card|file|stack|queue|storage|artifact|agent|boundary|control|collections|hexagon|label|person|portin|portout)\b/i,
-    "Atlas diagrams group classes only with `package`; `{word}` is not part of Atlas's subset.",
+    "Coord diagrams group classes only with `package`; `{word}` is not part of Coord's subset.",
   ],
   [
     /^(?:component|usecase|actor|participant|state|start|stop|activity|partition|map|json|diamond|circle|annotation|protocol|struct|exception|metaclass|stereotype|dataclass|record|abstract)\b/i,
-    "Atlas supports class, object and entity diagrams with `class`, `abstract class`, `interface`, `enum`, `entity` and `object`; `{word}` is not part of its subset.",
+    "Coord supports class, object and entity diagrams with `class`, `abstract class`, `interface`, `enum`, `entity` and `object`; `{word}` is not part of its subset.",
   ],
   [
     /^@start(?!uml)\w*/i,
-    "Atlas supports only @startuml class, object and entity diagrams.",
+    "Coord supports only @startuml class, object and entity diagrams.",
   ],
   [/^\/'/, "Write comments as lines starting with `'`."],
   [/^[{}]/, "This brace does not open or close an element or package."],
@@ -189,12 +189,12 @@ function syntaxProblem(error, text) {
     line,
     column,
     "SYNTAX",
-    "Atlas could not read this line; check that every `{` that opens a body or package is closed by a `}` on a line of its own.",
+    "Coord could not read this line; check that every `{` that opens a body or package is closed by a `}` on a line of its own.",
   );
 }
 
 /**
- * Reads a diagram. Problems are the lines outside Atlas's subset and the
+ * Reads a diagram. Problems are the lines outside Coord's subset and the
  * headers it cannot read; `diagram` is null only when the file cannot be read
  * at all. Model rules are `checkDiagram`'s.
  */
@@ -284,7 +284,7 @@ class Reader {
   }
   statements(statements, packageName) {
     for (const statement of statements) {
-      if (statement.type !== "atlas") this.annotate(statement);
+      if (statement.type !== "coord") this.annotate(statement);
       // The lines of a body opened on a line of its own are reported once,
       // with its `{`.
       if (this.strayBody) {
@@ -302,8 +302,8 @@ class Reader {
         case "blank":
         case "comment":
           break;
-        case "atlas":
-          this.atlas(statement, packageName);
+        case "coord":
+          this.coord(statement, packageName);
           break;
         case "title":
           if (packageName)
@@ -350,7 +350,7 @@ class Reader {
         default:
           this.unknown(statement);
       }
-      if (!["blank", "comment", "atlas"].includes(statement.type))
+      if (!["blank", "comment", "coord"].includes(statement.type))
         this.previous = statement;
     }
   }
@@ -367,21 +367,21 @@ class Reader {
       )
         this.fail(
           line,
-          "ATLAS_PLACEMENT",
+          "COORD_PLACEMENT",
           key === "description"
-            ? "Write `' atlas description` directly above the class, interface, enum, entity, object or member it describes; relations and slots take none."
-            : `Write \`' atlas ${key}\` directly above the element, member or relation it describes.`,
+            ? "Write `' coord description` directly above the class, interface, enum, entity, object or member it describes; relations and slots take none."
+            : `Write \`' coord ${key}\` directly above the element, member or relation it describes.`,
         );
       else if (key in statement)
         this.fail(
           line,
-          "ATLAS_REPEATED",
-          `Write one \`' atlas ${key}\` for each element, member or relation; merge this line with the one above it.`,
+          "COORD_REPEATED",
+          `Write one \`' coord ${key}\` for each element, member or relation; merge this line with the one above it.`,
         );
       else statement[key] = value;
     this.pending = [];
   }
-  atlas(statement, packageName, inBody = false) {
+  coord(statement, packageName, inBody = false) {
     const [, keyword = "", rest = ""] =
       /^(\S*)\s*([\s\S]*)$/.exec(statement.text) || [];
     const line = statement.line;
@@ -393,8 +393,8 @@ class Reader {
       } catch {}
       this.fail(
         line,
-        "ATLAS_JSON",
-        `Write \`' atlas ${keyword}\` with a JSON object on the same line.`,
+        "COORD_JSON",
+        `Write \`' coord ${keyword}\` with a JSON object on the same line.`,
       );
       return null;
     };
@@ -402,13 +402,13 @@ class Reader {
       const length = [...rest].length;
       const token = formattingIn(rest, true);
       const wrong = !rest
-        ? "Write the description on the same line: `' atlas description <one short sentence of its purpose>`."
+        ? "Write the description on the same line: `' coord description <one short sentence of its purpose>`."
         : length > DESCRIPTION_LIMIT
           ? `A description is one short sentence of at most ${DESCRIPTION_LIMIT} characters (this one has ${length}); shorten it and keep the rationale in the plan.`
           : token
             ? `A description is plain text; remove the formatting (\`${token}\`).`
             : null;
-      if (wrong) this.fail(line, "ATLAS_DESCRIPTION", wrong);
+      if (wrong) this.fail(line, "COORD_DESCRIPTION", wrong);
       else this.pending.push({ line, key: keyword, value: rest });
       return;
     }
@@ -434,7 +434,7 @@ class Reader {
               : value.code.split(/\r?\n/).length > 12
                 ? "A snippet is at most twelve lines; shorten its `code`."
                 : null;
-        if (wrong) this.fail(line, "ATLAS_JSON", wrong);
+        if (wrong) this.fail(line, "COORD_JSON", wrong);
         else this.pending.push({ line, key: keyword, value });
       }
       return;
@@ -449,24 +449,24 @@ class Reader {
     if (!header.includes(keyword)) {
       this.fail(
         line,
-        "ATLAS_UNKNOWN",
-        `Atlas reads \`' atlas\` comments of these kinds: ${[...header, "evidence", "snippet", "description"].join(", ")}; \`${keyword || "(none)"}\` is not one of them. Write other remarks as plain \`'\` comments.`,
+        "COORD_UNKNOWN",
+        `Coord reads \`' coord\` comments of these kinds: ${[...header, "evidence", "snippet", "description"].join(", ")}; \`${keyword || "(none)"}\` is not one of them. Write other remarks as plain \`'\` comments.`,
       );
       return;
     }
     if (packageName || inBody) {
       this.fail(
         line,
-        "ATLAS_PLACEMENT",
-        `Write \`' atlas ${keyword}\` at the top of the diagram, outside packages and bodies.`,
+        "COORD_PLACEMENT",
+        `Write \`' coord ${keyword}\` at the top of the diagram, outside packages and bodies.`,
       );
       return;
     }
     if (this.diagram[keyword] !== null) {
       this.fail(
         line,
-        "ATLAS_REPEATED",
-        `A diagram has one \`' atlas ${keyword}\`.`,
+        "COORD_REPEATED",
+        `A diagram has one \`' coord ${keyword}\`.`,
       );
       return;
     }
@@ -484,7 +484,7 @@ class Reader {
       if (!valid)
         this.fail(
           line,
-          "ATLAS_CAPTURE",
+          "COORD_CAPTURE",
           "A capture header names `capturedAt`, `adapter.id`, `source.kind`, `source.identity` and `coverage.status` (complete or partial).",
         );
       this.diagram.capture = value;
@@ -492,8 +492,8 @@ class Reader {
       if (!/^[0-9a-f]{64}$/.test(rest))
         this.fail(
           line,
-          "ATLAS_FINGERPRINT",
-          "A capture's fingerprint is the SHA-256 Atlas wrote; do not write one by hand.",
+          "COORD_FINGERPRINT",
+          "A capture's fingerprint is the SHA-256 Coord wrote; do not write one by hand.",
         );
       this.diagram.fingerprint = rest;
     } else if (keyword === "scenario") {
@@ -501,15 +501,15 @@ class Reader {
       if (!match)
         this.fail(
           line,
-          "ATLAS_SCENARIO",
-          "Write `' atlas scenario <class diagram> expected valid` (or `expected invalid`).",
+          "COORD_SCENARIO",
+          "Write `' coord scenario <class diagram> expected valid` (or `expected invalid`).",
         );
       else this.diagram.scenario = { of: match[1], expected: match[2] };
     } else if (!rest)
       this.fail(
         line,
-        "ATLAS_REFERENCE",
-        `Write \`' atlas ${keyword} <path>\` with the path of the diagram it ${keyword === "proposal" ? "starts from" : "compares with"}, relative to this file.`,
+        "COORD_REFERENCE",
+        `Write \`' coord ${keyword} <path>\` with the path of the diagram it ${keyword === "proposal" ? "starts from" : "compares with"}, relative to this file.`,
       );
     else this.diagram[keyword] = rest;
   }
@@ -519,37 +519,37 @@ class Reader {
     if (d.capture && d.proposal)
       this.fail(
         at("proposal"),
-        "ATLAS_HEADER",
-        "A proposal is not a capture: replace the `' atlas capture` and `' atlas fingerprint` lines with `' atlas proposal <capture path>`.",
+        "COORD_HEADER",
+        "A proposal is not a capture: replace the `' coord capture` and `' coord fingerprint` lines with `' coord proposal <capture path>`.",
       );
     if (d.compares && !this.headers.capture)
       this.fail(
         at("compares"),
-        "ATLAS_HEADER",
-        "Only a capture compares with an earlier capture; `' atlas compares` needs `' atlas capture`.",
+        "COORD_HEADER",
+        "Only a capture compares with an earlier capture; `' coord compares` needs `' coord capture`.",
       );
     if (this.headers.fingerprint && !this.headers.capture)
       this.fail(
         at("fingerprint"),
-        "ATLAS_HEADER",
-        "`' atlas fingerprint` belongs to a capture header.",
+        "COORD_HEADER",
+        "`' coord fingerprint` belongs to a capture header.",
       );
     if (d.capture && !this.headers.fingerprint)
       this.fail(
         at("capture"),
-        "ATLAS_HEADER",
+        "COORD_HEADER",
         "A capture records its fingerprint; capture again rather than writing one by hand.",
       );
     if (d.scenario && d.kind !== "object")
       this.fail(
         at("scenario"),
-        "ATLAS_HEADER",
+        "COORD_HEADER",
         "A scenario is an object diagram of example instances.",
       );
     if (d.kind === "object" && (d.proposal || d.capture))
       this.fail(
         at(d.proposal ? "proposal" : "capture"),
-        "ATLAS_HEADER",
+        "COORD_HEADER",
         "Object diagrams are scenarios; they are not captured or proposed.",
       );
   }
@@ -564,19 +564,19 @@ class Reader {
       this.fail(
         line,
         "FORMATTING",
-        `${what} uses formatting (\`${token}\`); Atlas diagrams are plain text.`,
+        `${what} uses formatting (\`${token}\`); Coord diagrams are plain text.`,
       );
     else if (stereotype)
       this.fail(
         line,
         "STEREOTYPE",
-        `${what} has a stereotype (\`${stereotype[0]}\`); Atlas has none but <<PK>> and <<FK>> after an entity column. Remove it.`,
+        `${what} has a stereotype (\`${stereotype[0]}\`); Coord has none but <<PK>> and <<FK>> after an entity column. Remove it.`,
       );
     else if (modifier)
       this.fail(
         line,
         "MEMBER",
-        `Atlas has no member modifiers; remove \`${modifier[0]}\`.`,
+        `Coord has no member modifiers; remove \`${modifier[0]}\`.`,
       );
   }
   package(statement, packageName) {
@@ -584,7 +584,7 @@ class Reader {
       this.fail(
         statement.line,
         "PACKAGE",
-        `Write \`package ${statement.name} {\` without \`${statement.extra}\`; Atlas styles packages itself.`,
+        `Write \`package ${statement.name} {\` without \`${statement.extra}\`; Coord styles packages itself.`,
       );
     this.checkText(statement.line, statement.name, "The package name");
     const name = packageName
@@ -642,8 +642,8 @@ class Reader {
       );
     let separator = null;
     for (const member of members || []) {
-      if (member.type !== "atlas") this.annotate(member);
-      if (member.type === "atlas") this.atlas(member, packageName, true);
+      if (member.type !== "coord") this.annotate(member);
+      if (member.type === "coord") this.coord(member, packageName, true);
       else if (member.type === "separator") {
         if (kind !== "entity")
           this.fail(
@@ -699,7 +699,7 @@ class Reader {
             member.line,
             "MEMBER",
             kind === "enum"
-              ? `Enum literals have no values in Atlas; write the literal's name alone, \`${member.name}\`.`
+              ? `Enum literals have no values in Coord; write the literal's name alone, \`${member.name}\`.`
               : "Only objects have slot values (`name = value`); write an attribute as `name : Type`.",
           );
       } else if (member.type === "unknown") this.unknownMember(member, kind);
@@ -753,16 +753,16 @@ class Reader {
   }
   rejectExtra(line, kind, id, extra) {
     const message = /<</.test(extra)
-      ? `Atlas has no stereotypes on ${kind === "entity" ? "entities" : "elements"}; remove \`${extra}\`.`
+      ? `Coord has no stereotypes on ${kind === "entity" ? "entities" : "elements"}; remove \`${extra}\`.`
       : /^#/.test(extra)
-        ? `Atlas colours diagrams itself; remove \`${extra}\`.`
+        ? `Coord colours diagrams itself; remove \`${extra}\`.`
         : /^(?:extends|implements)\b/.test(extra)
           ? `Draw inheritance as a relation of its own, \`${id} ${extra.startsWith("extends") ? "--|>" : "..|>"} ${extra.split(/\s+/)[1] || "Parent"}\`, instead of \`${extra}\`.`
           : /^as\b/.test(extra)
             ? `Write a display name first: \`${kind} "Display name" as ${id}\`.`
             : /^[\uD800-\uDFFF]/.test(extra)
               ? `PlantUML cannot relate an element whose name has a character such as \`${String.fromCodePoint(extra.codePointAt(0))}\`; give it a display name, \`${kind} "${id}${extra.split(/[\s{]/)[0]}" as ${id}\`.`
-              : `Atlas does not support \`${extra}\` after a declaration.`;
+              : `Coord does not support \`${extra}\` after a declaration.`;
     this.fail(line, "DECLARATION", message);
   }
   field(element, member) {
@@ -811,7 +811,7 @@ class Reader {
           "STEREOTYPE",
           element.kind === "entity"
             ? `A column takes one of <<PK>> and <<FK>>; remove <<${stereotype}>>.`
-            : `Atlas has no stereotypes on attributes; remove <<${stereotype}>>.`,
+            : `Coord has no stereotypes on attributes; remove <<${stereotype}>>.`,
         );
     if (member.mandatory && element.kind !== "entity")
       this.fail(
@@ -865,11 +865,11 @@ class Reader {
   unknownMember(member, kind) {
     const text = member.text;
     const message = /^(?:\.\.|==|__|---)/.test(text)
-      ? "Atlas does not draw separators in bodies; remove this line."
+      ? "Coord does not draw separators in bodies; remove this line."
       : MODIFIER.test(text)
-        ? `Atlas has no member modifiers; remove \`${MODIFIER.exec(text)[0]}\`.`
+        ? `Coord has no member modifiers; remove \`${MODIFIER.exec(text)[0]}\`.`
         : /<</.test(text)
-          ? "Atlas has no stereotypes on members."
+          ? "Coord has no stereotypes on members."
           : kind === "object"
             ? "Write an object's slot as `name = value`."
             : kind === "enum"
@@ -910,17 +910,17 @@ class Reader {
   }
   rejected(statement) {
     const messages = {
-      note: "Atlas diagrams have no notes; the rationale belongs in the plan. Remove the note.",
-      legend: "Atlas diagrams have no legends; remove it.",
-      header: "Atlas diagrams have no headers; remove it.",
-      footer: "Atlas diagrams have no footers; remove it.",
+      note: "Coord diagrams have no notes; the rationale belongs in the plan. Remove the note.",
+      legend: "Coord diagrams have no legends; remove it.",
+      header: "Coord diagrams have no headers; remove it.",
+      footer: "Coord diagrams have no footers; remove it.",
       title: "Write the title on one line: `title Name`.",
       skinparam:
-        "Atlas lays out and styles diagrams itself; remove the `skinparam` block.",
-      style: "Atlas styles diagrams itself; remove the `<style>` block.",
+        "Coord lays out and styles diagrams itself; remove the `skinparam` block.",
+      style: "Coord styles diagrams itself; remove the `<style>` block.",
       "block comment": "Write comments as lines starting with `'`.",
       together:
-        "Atlas lays out diagrams itself; remove `together` and keep its elements.",
+        "Coord lays out diagrams itself; remove `together` and keep its elements.",
     };
     this.fail(statement.line, "UNSUPPORTED", messages[statement.what]);
   }
@@ -937,7 +937,7 @@ class Reader {
       this.fail(
         statement.line,
         "UNSUPPORTED",
-        `Open ${previous.id}'s body at the end of its declaration, \`${previous.kind} ${previous.quoted ? `"${previous.name}" as ${previous.id}` : previous.id}${previous.generic || ""} {\`; Atlas reads no body from a \`{\` on a line of its own.`,
+        `Open ${previous.id}'s body at the end of its declaration, \`${previous.kind} ${previous.quoted ? `"${previous.name}" as ${previous.id}` : previous.id}${previous.generic || ""} {\`; Coord reads no body from a \`{\` on a line of its own.`,
       );
       this.strayBody = true;
       return;
@@ -953,13 +953,13 @@ class Reader {
       }
     const message =
       /^(?:class|interface|enum|entity|object|abstract class)\b/.test(text)
-        ? `Atlas could not read this declaration (\`${text}\`); write it as \`class Name\`, \`class "Display name" as Name\`, or with a body \`class Name {\`.`
+        ? `Coord could not read this declaration (\`${text}\`); write it as \`class Name\`, \`class "Display name" as Name\`, or with a body \`class Name {\`.`
         : /^package\b/.test(text)
           ? `Write a package as \`package name {\`, its elements on the lines below and \`}\` on a line of its own (\`${text}\`).`
           : /\s[-.<>|*o{}]*[-.]{1,}[-.<>|*o{}]*\s/.test(` ${text} `) ||
               /[-.]>|<[-.]/.test(text)
-            ? `Atlas could not read this relation (\`${text}\`); write it as \`A "1" -- "0..*" B : label\` with spaces around the arrow and names declared above.`
-            : `\`${text}\` is not part of Atlas's PlantUML subset.`;
+            ? `Coord could not read this relation (\`${text}\`); write it as \`A "1" -- "0..*" B : label\` with spaces around the arrow and names declared above.`
+            : `\`${text}\` is not part of Coord's PlantUML subset.`;
     this.fail(statement.line, "UNSUPPORTED", message);
   }
   relation(statement, packageName) {
@@ -972,14 +972,14 @@ class Reader {
     if (body.includes("[")) {
       fail(
         /\[\s*hidden\s*\]/i.test(body)
-          ? "Atlas lays out diagrams itself; remove the `[hidden]` link."
-          : `Atlas styles relations itself; remove \`${/\[[^\]]*\]/.exec(body)[0]}\` from the arrow.`,
+          ? "Coord lays out diagrams itself; remove the `[hidden]` link."
+          : `Coord styles relations itself; remove \`${/\[[^\]]*\]/.exec(body)[0]}\` from the arrow.`,
       );
       return;
     }
     if (/[a-z]/i.test(body)) {
       fail(
-        `Atlas lays out diagrams itself; remove the direction \`${/[a-z]+/i.exec(body)[0]}\` from the arrow \`${arrow}\`.`,
+        `Coord lays out diagrams itself; remove the direction \`${/[a-z]+/i.exec(body)[0]}\` from the arrow \`${arrow}\`.`,
       );
       return;
     }
@@ -993,7 +993,7 @@ class Reader {
       );
     if (body.length > 2)
       return fail(
-        `Write the arrow with two ${body[0] === "-" ? "dashes" : "dots"}: \`${arrow.replace(body, body.slice(0, 2))}\`; a longer arrow is a layout hint, and Atlas lays out diagrams itself.`,
+        `Write the arrow with two ${body[0] === "-" ? "dashes" : "dots"}: \`${arrow.replace(body, body.slice(0, 2))}\`; a longer arrow is a layout hint, and Coord lays out diagrams itself.`,
       );
     const kind = this.diagram.kind;
     const label = statement.label || null;
@@ -1001,7 +1001,7 @@ class Reader {
       this.checkText(line, label, "The label", true, false);
       if (/^[<>]\s|\s[<>]$|^[<>]$/.test(label))
         fail(
-          "Atlas draws relations itself; remove the reading direction (`<` or `>`) from the label.",
+          "Coord draws relations itself; remove the reading direction (`<` or `>`) from the label.",
         );
     }
     if (statement.label === "")
@@ -1040,7 +1040,7 @@ class Reader {
         return fail(
           kind === "object"
             ? `Link objects with \`--\` or \`-->\`, not \`${arrow}\`.`
-            : `Atlas draws ${Object.keys(CLASS_ARROWS)
+            : `Coord draws ${Object.keys(CLASS_ARROWS)
                 .map((a) => `\`${a}\``)
                 .join(", ")}; \`${arrow}\` is not one of them.`,
         );
@@ -1141,7 +1141,7 @@ function modelProblems(diagram) {
       fail(
         r.line,
         "UNDECLARED",
-        `Declare ${[...new Set(missing)].join(" and ")} before relating ${missing.length > 1 ? "them" : "it"}; Atlas does not create elements from relations.`,
+        `Declare ${[...new Set(missing)].join(" and ")} before relating ${missing.length > 1 ? "them" : "it"}; Coord does not create elements from relations.`,
       );
       continue;
     }
@@ -1252,7 +1252,7 @@ function foreignKeyColumns(relation, elements) {
 
 // --- Fingerprints ----------------------------------------------------------
 
-const FINGERPRINT_LINE = /^\s*'\s*atlas\s+fingerprint\b.*$/;
+const FINGERPRINT_LINE = /^\s*'\s*coord\s+fingerprint\b.*$/;
 /** A capture's fingerprint: SHA-256 of its text without the fingerprint line. */
 function diagramFingerprint(text) {
   const lines = text
@@ -1287,7 +1287,7 @@ function checkDiagram(text, options = {}) {
         1,
         1,
         "CAPTURE_EDITED",
-        "This capture was edited after Atlas wrote it, and captures are frozen. To show a change, copy it to a new file and replace its `' atlas capture` and `' atlas fingerprint` lines with `' atlas proposal <this file>`; to refresh it, capture again.",
+        "This capture was edited after Coord wrote it, and captures are frozen. To show a change, copy it to a new file and replace its `' coord capture` and `' coord fingerprint` lines with `' coord proposal <this file>`; to refresh it, capture again.",
       ),
     );
   const read = options.read;
@@ -1300,7 +1300,7 @@ function checkDiagram(text, options = {}) {
       (text || "")
         .split(/\r?\n/)
         .findIndex((l) =>
-          new RegExp(`^\\s*'\\s*atlas\\s+${keyword}\\b`).test(l),
+          new RegExp(`^\\s*'\\s*coord\\s+${keyword}\\b`).test(l),
         ) + 1 || line;
     const fail = (code, message) =>
       problems.push(problem(at, 1, code, message));
@@ -1383,7 +1383,7 @@ function checkDiagram(text, options = {}) {
               1,
               1,
               "SCENARIO_UNASSESSED",
-              `Atlas cannot fully assess this scenario: ${result.unassessed.map((u) => u.message).join(" ")}`,
+              `Coord cannot fully assess this scenario: ${result.unassessed.map((u) => u.message).join(" ")}`,
             ),
             severity: "warning",
           });
@@ -1443,13 +1443,13 @@ function declaredName(element) {
 }
 const annotationLines = (item, indent) => [
   ...(item.description
-    ? [`${indent}' atlas description ${item.description}`]
+    ? [`${indent}' coord description ${item.description}`]
     : []),
   ...(item.evidence
-    ? [`${indent}' atlas evidence ${JSON.stringify(item.evidence)}`]
+    ? [`${indent}' coord evidence ${JSON.stringify(item.evidence)}`]
     : []),
   ...(item.snippet
-    ? [`${indent}' atlas snippet ${JSON.stringify(item.snippet)}`]
+    ? [`${indent}' coord snippet ${JSON.stringify(item.snippet)}`]
     : []),
 ];
 function elementLines(element, indent) {
@@ -1517,21 +1517,21 @@ function relationLines(r) {
 }
 
 /**
- * Writes a diagram in Atlas's canonical form. A capture (a diagram with
+ * Writes a diagram in Coord's canonical form. A capture (a diagram with
  * `capture`) gets its fingerprint, computed over the text written.
  */
 function formatDiagram(diagram) {
   const lines = ["@startuml"];
   if (diagram.title) lines.push(`title ${diagram.title}`);
   if (diagram.capture) {
-    lines.push(`' atlas capture ${JSON.stringify(diagram.capture)}`);
-    lines.push("' atlas fingerprint ");
+    lines.push(`' coord capture ${JSON.stringify(diagram.capture)}`);
+    lines.push("' coord fingerprint ");
   }
-  if (diagram.proposal) lines.push(`' atlas proposal ${diagram.proposal}`);
-  if (diagram.compares) lines.push(`' atlas compares ${diagram.compares}`);
+  if (diagram.proposal) lines.push(`' coord proposal ${diagram.proposal}`);
+  if (diagram.compares) lines.push(`' coord compares ${diagram.compares}`);
   if (diagram.scenario)
     lines.push(
-      `' atlas scenario ${diagram.scenario.of} expected ${diagram.scenario.expected}`,
+      `' coord scenario ${diagram.scenario.of} expected ${diagram.scenario.expected}`,
     );
   // Elements in the order they are listed, each package's in one block where
   // its first element is.
@@ -1568,8 +1568,8 @@ function formatDiagram(diagram) {
   let text = lines.join("\n");
   if (diagram.capture)
     text = text.replace(
-      "' atlas fingerprint \n",
-      `' atlas fingerprint ${diagramFingerprint(text)}\n`,
+      "' coord fingerprint \n",
+      `' coord fingerprint ${diagramFingerprint(text)}\n`,
     );
   return text;
 }

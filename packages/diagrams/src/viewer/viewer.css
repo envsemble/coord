@@ -1,29 +1,29 @@
 /* Viewer chrome. Controls are envUI components; this sheet only arranges
-   them over the canvas and styles Atlas-owned markup, using envUI's tokens.
+   them over the canvas and styles Coord-owned markup, using envUI's tokens.
    Hosts load envUI's stylesheet; the offline file bundles it. */
 :root,
-.atlas-page,
-.atlas-panel {
+.coord-page,
+.coord-panel {
   /* Floating panes over the canvas: a hairline in both themes and a shadow
      that reads on light canvases. */
-  --atlas-elevation:
+  --coord-elevation:
     0 0 0 0.0625rem
       color-mix(in srgb, var(--env-color-fg-default) 9%, transparent),
     0 0.0625rem 0.1875rem
       oklch(from var(--env-color-bg-page) calc(l * 0.2) c h / 0.14),
     0 0.5rem 1.5rem -0.5rem
       oklch(from var(--env-color-bg-page) calc(l * 0.2) c h / 0.28);
-  --atlas-gutter: var(--env-space-3);
+  --coord-gutter: var(--env-space-3);
   /* Code in panels: envUI's code typeface and size, which its code
      styles define, with the same values where the host loads none. */
-  --atlas-font-code: var(
+  --coord-font-code: var(
     --env-code-font-family,
     ui-monospace,
     "Cascadia Code",
     Consolas,
     monospace
   );
-  --atlas-font-size-code: var(--env-code-font-size, 0.8125rem);
+  --coord-font-size-code: var(--env-code-font-size, 0.8125rem);
 }
 body {
   margin: 0;
@@ -35,66 +35,66 @@ body {
   position: relative;
   height: 100dvh;
   overflow: hidden;
-  container: atlas-viewer / size;
+  container: coord-viewer / size;
 }
-.atlas-overlay-top {
+.coord-overlay-top {
   position: absolute;
   z-index: var(--env-z-sticky);
-  top: var(--atlas-gutter);
-  left: var(--atlas-gutter);
-  right: var(--atlas-gutter);
+  top: var(--coord-gutter);
+  left: var(--coord-gutter);
+  right: var(--coord-gutter);
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: var(--env-space-2);
   pointer-events: none;
 }
-.atlas-overlay-top > * {
+.coord-overlay-top > * {
   pointer-events: auto;
 }
 /* With the host's own navigation (such as a work item's sections) the
    overlay has two rows: that navigation and the tools on the first, the
    diagram's navigation island below them. Each island keeps its cell, so a
    crowded overlay shows as an island wrapping its controls. */
-.atlas-overlay-top.stacked {
+.coord-overlay-top.stacked {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   justify-items: start;
 }
-.atlas-overlay-top.stacked > .atlas-overlay-sections {
+.coord-overlay-top.stacked > .coord-overlay-sections {
   grid-area: 1 / 1;
 }
-.atlas-overlay-top.stacked > .island-start {
+.coord-overlay-top.stacked > .island-start {
   grid-area: 2 / 1 / 3 / -1;
 }
-.atlas-overlay-top.stacked > .island-end {
+.coord-overlay-top.stacked > .island-end {
   grid-area: 1 / 3;
   justify-self: end;
 }
 /* At the tightest density a long model name gives way, rather than the
    navigation wrapping its controls. */
-.atlas-overlay-top.tighter > .island-start {
+.coord-overlay-top.tighter > .island-start {
   flex-wrap: nowrap;
 }
-.atlas-overlay-top.tighter > .island-start > :not(.island-leading) {
+.coord-overlay-top.tighter > .island-start > :not(.island-leading) {
   flex-shrink: 0;
 }
-.atlas-overlay-top.tighter .island-leading > * {
+.coord-overlay-top.tighter .island-leading > * {
   min-width: 0;
 }
 
 /* The toolbars over the canvas hold small controls, as do the provenance
    pills: envUI's controls take their container's control height. */
-.atlas-island,
-.atlas-provenance {
+.coord-island,
+.coord-provenance {
   --env-control-height: var(--env-control-height-sm);
 }
 /* A heading a step below the title type, for panel titles and the headings
    inside panels. */
-.atlas-section-heading {
+.coord-section-heading {
   font-size: calc(var(--env-font-size-title) - 0.125rem);
 }
-.atlas-island {
+.coord-island {
   position: relative;
   display: flex;
   flex-wrap: wrap;
@@ -102,9 +102,9 @@ body {
   gap: var(--env-space-1);
   min-width: 0;
   max-width: 100%;
-  box-shadow: var(--atlas-elevation);
+  box-shadow: var(--coord-elevation);
 }
-.atlas-island.inline {
+.coord-island.inline {
   display: inline-flex;
   box-shadow: none;
 }
@@ -147,14 +147,14 @@ body {
 }
 
 /* Provenance: where a model came from, as a badge and a detail line. */
-.atlas-provenance {
+.coord-provenance {
   display: inline-flex;
   align-items: center;
   gap: var(--env-space-2);
   max-width: 100%;
-  box-shadow: var(--atlas-elevation);
+  box-shadow: var(--coord-elevation);
 }
-.atlas-provenance.inline {
+.coord-provenance.inline {
   box-shadow: none;
 }
 /* The standalone viewer's badge beside the model's title. */
@@ -178,11 +178,11 @@ body {
   position: absolute;
   /* Below the overlay's toolbars, which open their popups over it. */
   z-index: calc(var(--env-z-sticky) - 1);
-  top: var(--atlas-top-inset, 4rem);
-  right: var(--atlas-gutter);
-  width: min(22.5rem, calc(100% - 2 * var(--atlas-gutter)));
-  max-height: calc(100% - var(--atlas-top-inset, 4rem) - var(--atlas-gutter));
-  box-shadow: var(--atlas-elevation);
+  top: var(--coord-top-inset, 4rem);
+  right: var(--coord-gutter);
+  width: min(22.5rem, calc(100% - 2 * var(--coord-gutter)));
+  max-height: calc(100% - var(--coord-top-inset, 4rem) - var(--coord-gutter));
+  box-shadow: var(--coord-elevation);
   user-select: text;
 }
 .panel.open {
@@ -249,7 +249,7 @@ body {
   border-radius: 0.3125rem;
   background: color-mix(in srgb, var(--change-color) 16%, transparent);
   color: var(--change-color);
-  font: 600 0.8125rem / 1 var(--atlas-font-code);
+  font: 600 0.8125rem / 1 var(--coord-font-code);
 }
 .change-badge {
   display: inline-flex;
@@ -362,7 +362,7 @@ button.change-row[aria-current="true"] {
   flex-wrap: wrap;
   gap: 0 var(--env-space-2);
   color: var(--env-color-fg-muted);
-  font: var(--atlas-font-size-code) / 1.5 var(--atlas-font-code);
+  font: var(--coord-font-size-code) / 1.5 var(--coord-font-code);
   overflow-wrap: anywhere;
 }
 .change-token {
@@ -435,21 +435,21 @@ button.change-row[aria-current="true"] {
   margin: 0;
 }
 
-.atlas-portal.about-content .shortcut-list {
+.coord-portal.about-content .shortcut-list {
   display: grid;
   gap: var(--env-space-2);
   margin: 0;
 }
-.atlas-portal.about-content .shortcut {
+.coord-portal.about-content .shortcut {
   display: grid;
   grid-template-columns: minmax(7rem, max-content) minmax(0, 1fr);
   gap: var(--env-space-3);
   align-items: baseline;
 }
-.atlas-portal.about-content .shortcut dt {
+.coord-portal.about-content .shortcut dt {
   color: var(--env-color-fg-muted);
 }
-.atlas-portal.about-content .shortcut dd {
+.coord-portal.about-content .shortcut dd {
   margin: 0;
 }
 
@@ -461,8 +461,8 @@ button.change-row[aria-current="true"] {
   margin: 15vh auto;
   padding: var(--env-space-5);
 }
-.atlas-overlay-top.tight .island-title,
-.atlas-overlay-top.tight .collapsible-label {
+.coord-overlay-top.tight .island-title,
+.coord-overlay-top.tight .collapsible-label {
   display: none;
 }
 .view-select {
@@ -470,34 +470,34 @@ button.change-row[aria-current="true"] {
 }
 
 /* Narrow panels (embedded cards, phones): tighter gutters, full-width panes. */
-@container atlas-viewer (max-width: 640px) {
-  .atlas-overlay-top {
-    --atlas-gutter: var(--env-space-2);
+@container coord-viewer (max-width: 640px) {
+  .coord-overlay-top {
+    --coord-gutter: var(--env-space-2);
     gap: var(--env-space-1);
   }
   /* Beside the host's navigation the tools no longer fit: they take the
      row below the diagram's navigation. */
-  .atlas-overlay-top.stacked {
+  .coord-overlay-top.stacked {
     grid-template-columns: minmax(0, 1fr);
   }
-  .atlas-overlay-top.stacked > .island-start {
+  .coord-overlay-top.stacked > .island-start {
     grid-area: 2 / 1;
   }
-  .atlas-overlay-top.stacked > .island-end {
+  .coord-overlay-top.stacked > .island-end {
     grid-area: 3 / 1;
   }
   .panel {
     left: var(--env-space-2);
     right: var(--env-space-2);
     width: auto;
-    max-height: calc(100% - var(--atlas-top-inset, 4rem) - var(--env-space-2));
+    max-height: calc(100% - var(--coord-top-inset, 4rem) - var(--env-space-2));
   }
   .island-title,
   .collapsible-label {
     display: none;
   }
 }
-@container atlas-viewer (max-width: 420px) {
+@container coord-viewer (max-width: 420px) {
   .provenance-detail,
   .island-provenance {
     display: none;

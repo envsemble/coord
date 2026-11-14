@@ -1,8 +1,8 @@
-// The `atlas:` scheme, registered on each window's own session:
-//   atlas://app/…       the built renderer (production), served with a strict CSP
-//   atlas://page/…      the same files, for the frame a page runs in (page-frame.html), on an origin
+// The `coord:` scheme, registered on each window's own session:
+//   coord://app/…       the built renderer (production), served with a strict CSP
+//   coord://page/…      the same files, for the frame a page runs in (page-frame.html), on an origin
 //                       of its own and under the page's policy (shared/pagePolicy.ts)
-//   atlas://planning/<project ID>/…  a file inside the planning folder of a project that window follows (images
+//   coord://planning/<project ID>/…  a file inside the planning folder of a project that window follows (images
 //                       and attachments in documents), fetched from its host, which checks containment
 // Nothing else is reachable: other hosts, paths outside the renderer build, hidden files and
 // paths outside the planning folder all answer 404/403.
@@ -10,10 +10,10 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pagePolicy } from '../../shared/pagePolicy.ts';
 
-export const scheme = 'atlas';
-export const rendererOrigin = 'atlas://app';
+export const scheme = 'coord';
+export const rendererOrigin = 'coord://app';
 /** The origin pages run on, apart from the window's. */
-export const pageOrigin = 'atlas://page';
+export const pageOrigin = 'coord://page';
 /** The document a page's frame loads. */
 export const pageFrame = 'page-frame.html';
 
@@ -35,7 +35,7 @@ export function isEntry(value: string, entry: string): boolean {
   } catch { return false; }
 }
 
-/** Whether an address is a page's frame: atlas://page/page-frame.html, or the dev server's in development. */
+/** Whether an address is a page's frame: coord://page/page-frame.html, or the dev server's in development. */
 export function isPageFrameUrl(value: string, devUrl: string | null): boolean {
   try {
     const url = new URL(value);
@@ -49,12 +49,12 @@ export const contentSecurityPolicy = [
   "default-src 'none'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' atlas: data: blob:",
+  "img-src 'self' coord: data: blob:",
   "font-src 'self' data:",
   "connect-src 'self'",
   "media-src 'none'",
   "object-src 'none'",
-  "frame-src atlas://page",
+  "frame-src coord://page",
   "worker-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",

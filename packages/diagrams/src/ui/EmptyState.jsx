@@ -15,12 +15,12 @@ export function EmptyState({
   return (
     <Column
       gap={2}
-      className={`atlas-empty-state${className ? ` ${className}` : ""}`}
+      className={`coord-empty-state${className ? ` ${className}` : ""}`}
     >
       <Text
         render={createElement(`h${headingLevel}`)}
         variant="title"
-        className="atlas-section-heading"
+        className="coord-section-heading"
       >
         {title}
       </Text>

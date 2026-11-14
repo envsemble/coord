@@ -1,6 +1,0 @@
-interface:
-  display_name: "Atlas"
-  short_description: "Record projects and work items in Atlas planning folders"
-  default_prompt: "Use $atlas to plan this change and record the settled design."
-policy:
-  allow_implicit_invocation: true

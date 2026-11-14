@@ -4,8 +4,8 @@
 // steps, dimmed under a "Proposed" label, outside the progress. While an agent works on the plan, the step in progress pulses, in
 // the list and in the bar; while one waits for the person, it turns amber.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { stepCounts, stepSummary } from '@envsemble/atlas/planning/ledger';
-import type { LedgerStep, LedgerStepStatus, StepCounts } from '@envsemble/atlas/planning/types';
+import { stepCounts, stepSummary } from '@envsemble/coord/planning/ledger';
+import type { LedgerStep, LedgerStepStatus, StepCounts } from '@envsemble/coord/planning/types';
 import { CompleteIcon, InProgressIcon, OpenIcon } from '../ui/icons';
 import { stepPhase, type StepPhase } from './work';
 

@@ -156,7 +156,7 @@ async function prepareModel({
 }
 // The standalone viewer's stored theme preference; src/main.jsx uses the same
 // key, so envUI's startup script themes the page before the first paint.
-const THEME_STORAGE_KEY = "atlas-theme";
+const THEME_STORAGE_KEY = "coord-theme";
 const packageDirectory = (name) =>
   path.dirname(require.resolve(`${name}/package.json`, { paths: [rootPath] }));
 // The offline file has no host: it carries the styles of the envUI components
@@ -246,7 +246,7 @@ async function buildViewer({ prepared, file } = {}) {
   const { views: clientViews, exports } = prepared.payload;
   const inline = (value) => JSON.stringify(value).replaceAll("<", "\\u003c");
   const carried = file
-    ? `<script id="atlas-diagram" type="application/json">${inline(file)}</script>`
+    ? `<script id="coord-diagram" type="application/json">${inline(file)}</script>`
     : "";
   const template = fs.readFileSync(
     path.join(rootPath, "src/viewer.html"),
@@ -265,12 +265,12 @@ async function buildViewer({ prepared, file } = {}) {
     .replace(
       "<!--APP_ICON-->",
       () =>
-        `<link rel="icon" href="data:image/svg+xml,${encodeURIComponent(fs.readFileSync(path.join(rootPath, "assets/atlas-icon.svg"), "utf8"))}">`,
+        `<link rel="icon" href="data:image/svg+xml,${encodeURIComponent(fs.readFileSync(path.join(rootPath, "assets/coord-icon.svg"), "utf8"))}">`,
     )
     .replace(
       /<title>.*?<\/title>/,
       () =>
-        `<title>${model.title.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")} | Atlas</title>`,
+        `<title>${model.title.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")} | Coord</title>`,
     )
     .replace("/*APP_STYLES*/", () => styles.replace(/<\/style/gi, "<\\/style"))
     // In the head, so a stored theme applies before the model data is parsed

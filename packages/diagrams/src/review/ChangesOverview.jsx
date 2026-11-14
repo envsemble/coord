@@ -201,7 +201,7 @@ export const ChangesOverview = memo(function ChangesOverview({
           <Text
             render={<h3 />}
             variant="title"
-            className="atlas-section-heading change-group-heading"
+            className="coord-section-heading change-group-heading"
           >
             Conflicts
             <Badge count={rollup.conflicts.length} />
@@ -227,7 +227,7 @@ export const ChangesOverview = memo(function ChangesOverview({
             <Text
               render={<h3 />}
               variant="title"
-              className="atlas-section-heading change-group-heading"
+              className="coord-section-heading change-group-heading"
             >
               <ChangeMark status={group.status} />
               {group.label}

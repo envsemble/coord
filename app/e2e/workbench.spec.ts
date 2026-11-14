@@ -23,7 +23,7 @@ test('a window opens on the hub: every plan of every active project, grouped by 
   launched = await launch({ dataDirectory: home.dataDirectory });
   const { window } = launched;
   await expectHub(window);
-  await expect.poll(() => titles(launched!)).toEqual(['Atlas']);
+  await expect.poll(() => titles(launched!)).toEqual(['Coord']);
   // By whose turn their agents say they are: the user's (with what for), then waiting or blocked, then later (the drafts); each row says its project.
   await expect(window.locator('.hub-group-heading')).toHaveText([/^Your turn\s*2$/, /^Waiting\s*2$/, /^Later\s*2$/]);
   await expect(groupRows(window, 'Your turn').first().locator('.hub-row-note')).toHaveText('Choose how a customer picks a saved card, on the card picker page');
@@ -161,7 +161,7 @@ test("a plan opens from the hub with its summary and its side column, and with i
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
   // A diagram opens from its link in the plan; Back returns to the plan.
   await window.locator('.prose .diagram-link').first().click();
-  await expect(window.locator('.diagrams .atlas-panel').first()).toBeVisible();
+  await expect(window.locator('.diagrams .coord-panel').first()).toBeVisible();
   await expect(window.locator('.diagrams .diagram-title')).toHaveCount(1);
   await window.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
@@ -227,9 +227,9 @@ test("the plan's files are beside its pages with the plan's own folder, open a f
   await openPlan(window, 'Saved payment methods');
   const files = await showFiles(window);
   await expect(sidebar.getByRole('heading', { name: 'Files' })).toBeVisible();
-  // Only the plan's folder: its plan (marked, it is shown), ledger, context, diagrams and evidence, never its .atlas folder or another plan.
+  // Only the plan's folder: its plan (marked, it is shown), ledger, context, diagrams and evidence, never its .coord folder or another plan.
   await expect(files.locator(row('f:active/0001-saved-payment-methods/plan.md'))).toHaveAttribute('aria-selected', 'true');
-  await expect(files.locator('[role="treeitem"]', { hasText: '.atlas' })).toHaveCount(0);
+  await expect(files.locator('[role="treeitem"]', { hasText: '.coord' })).toHaveCount(0);
   await expect(files.locator('[role="treeitem"][data-id^="d:active/0002-"]')).toHaveCount(0);
   // Its end edge resizes it, and the width stays as the window shows another plan.
   const narrow = (await sidebar.boundingBox())!.width;
@@ -280,7 +280,7 @@ test("the plan's files are beside its pages with the plan's own folder, open a f
 test("the hub's project menu makes a project from a name and a folder, gives a project folders and takes them away, and renames, archives and restores projects", async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
-  const workspace = temporaryDirectory('atlas-e2e-workspace-');
+  const workspace = temporaryDirectory('coord-e2e-workspace-');
   homes.push(workspace);
   launched = await launch({ dataDirectory: home.dataDirectory });
   const { window } = launched;
@@ -295,7 +295,7 @@ test("the hub's project menu makes a project from a name and a folder, gives a p
   await expect(details).toContainText('None: agents find the project only in its planning folder');
   // Folders, added (chosen in the system's folder dialog, never typed) and removed there: each change goes into its planning.json.
   const workspaces = () => JSON.parse(readFileSync(path.join(home.folder, 'planning.json'), 'utf8')).folders;
-  const [first, second] = [temporaryDirectory('atlas-e2e-workspace-'), temporaryDirectory('atlas-e2e-workspace-')];
+  const [first, second] = [temporaryDirectory('coord-e2e-workspace-'), temporaryDirectory('coord-e2e-workspace-')];
   homes.push(first, second);
   const choose = (chosen: string | null) => launched!.app.evaluate(({ dialog }, target) => {
     dialog.showOpenDialog = (async () => ({ canceled: !target, filePaths: target ? [target] : [] })) as unknown as typeof dialog.showOpenDialog;
@@ -460,13 +460,13 @@ test('one row at the top: the logo, back and forward, the Plans, File, View and 
   const items = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.map(entry => [entry.label, entry.submenu!.items.filter(item => item.type !== 'separator').map(item => item.accelerator ? item.label + ' ' + item.accelerator : item.label || item.role)]));
   // Electron gives the roles the system's own shortcuts: Exit and Redo differ on Windows.
   const windows = process.platform === 'win32';
-  // A development build (ATLAS_E2E_UNPACKAGED) adds the developer's tools to View.
-  const devTools = process.env.ATLAS_E2E_UNPACKAGED === '1' ? ['Reload CmdOrCtrl+R', 'Toggle Developer Tools Ctrl+Shift+I'] : [];
+  // A development build (COORD_E2E_UNPACKAGED) adds the developer's tools to View.
+  const devTools = process.env.COORD_E2E_UNPACKAGED === '1' ? ['Reload CmdOrCtrl+R', 'Toggle Developer Tools Ctrl+Shift+I'] : [];
   expect(items).toEqual([
     ['&File', ['New &Window CmdOrCtrl+Shift+N', 'New &Project…', '&Settings… CmdOrCtrl+,', 'Close Win&dow CmdOrCtrl+Shift+W', windows ? 'E&xit' : 'E&xit CommandOrControl+Q']],
     ['&Edit', ['Undo CommandOrControl+Z', windows ? 'Redo Control+Y' : 'Redo Shift+CommandOrControl+Z', 'Cut CommandOrControl+X', 'Copy CommandOrControl+C', 'Paste CommandOrControl+V', 'Select All CommandOrControl+A']],
     ['&View', ['&Back Alt+Left', '&Forward Alt+Right', '&Plans', 'S&tatistics', '&Search… CmdOrCtrl+P', 'F&iles CmdOrCtrl+Shift+E', 'Zoom &In CmdOrCtrl+Plus', 'Zoom &Out CmdOrCtrl+-', '&Actual Size CmdOrCtrl+0', 'Toggle Full Screen F11', ...devTools]],
-    ['&Help', ['Open &Logs', '&About Atlas']],
+    ['&Help', ['Open &Logs', '&About Coord']],
   ]);
   await applicationMenu(app, '&File', 'New &Project…');
   await expect(window.getByRole('dialog', { name: 'Create project' })).toBeVisible();

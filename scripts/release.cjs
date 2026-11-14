@@ -44,7 +44,7 @@ ${status}`,
     );
   const commit = git("rev-parse", "HEAD"),
     output = path.resolve(outputDirectory),
-    stage = fs.mkdtempSync(path.join(os.tmpdir(), "atlas-release-"));
+    stage = fs.mkdtempSync(path.join(os.tmpdir(), "coord-release-"));
   if (fs.existsSync(output) && fs.readdirSync(output).length)
     throw new Error("RELEASE_OUTPUT: choose a new or empty directory");
   try {
@@ -165,7 +165,7 @@ ${status}`,
         files.set(name, data);
     }
     const manifest = {
-      format: "atlas/release",
+      format: "coord/release",
       formatVersion: 1,
       version,
       commit,
@@ -189,7 +189,7 @@ ${status}`,
       ),
       { level: 6 },
     );
-    const filename = `atlas-${version}-${commit.slice(0, 12)}.zip`;
+    const filename = `coord-${version}-${commit.slice(0, 12)}.zip`;
     fs.mkdirSync(output, { recursive: true });
     fs.writeFileSync(path.join(output, filename), archive);
     fs.writeFileSync(

@@ -1,9 +1,9 @@
 // How a returning customer picks a saved card at checkout: two layouts to choose between, the
-// proposal's model beside them, and the work item's steps, read through the Atlas tools.
+// proposal's model beside them, and the work item's steps, read through the Coord tools.
 import { useEffect, useState } from 'react';
 import { Badge, Button, Card, Row, Column, Text } from '@envsemble/envui';
 import { IconCreditCard } from '@envsemble/envui/icons/CreditCard';
-import { Diagram, tool, useChoice, useJSON } from '@envsemble/atlas-page';
+import { Diagram, tool, useChoice, useJSON } from '@envsemble/coord-page';
 import "./style.css";
 
 interface Layout { key: string; title: string; summary: string }

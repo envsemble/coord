@@ -5,7 +5,7 @@
 // closed work with how it ended. A part says its place in its group, a group how many of its parts
 // are closed. The project menu (its choice part of the place, so back and forward and a plan's
 // breadcrumb set it), where projects are also made and managed, and a state filter narrow it, on its heading's
-// line with the search field, which opens the search. One click opens a plan. A connected agent that does not run Atlas (Codex not trusting its hooks, say)
+// line with the search field, which opens the search. One click opens a plan. A connected agent that does not run Coord (Codex not trusting its hooks, say)
 // has a notice above the plans, linking to Settings › Agents, until it does.
 import { memo, useMemo, type MouseEvent } from 'react';
 import { Alert, Button, Link, Row, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
@@ -135,7 +135,7 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, s
   if (!projects) return <div className="page-state" aria-busy="true"><Spinner size="lg" label="Loading the plans" /></div>;
   // The computer did not list its projects (another computer that does not answer, say).
   if (!projects.length && error) return <Page className="hub">
-    <EmptyState className="page-empty" icon={<WorkIcon />} headingLevel={1} title="The projects can’t be listed right now" description={error + ' Atlas lists them again as soon as it can.'} />
+    <EmptyState className="page-empty" icon={<WorkIcon />} headingLevel={1} title="The projects can’t be listed right now" description={error + ' Coord lists them again as soon as it can.'} />
   </Page>;
   if (!projects.length) return <Page className="hub">
     {warnings}

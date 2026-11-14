@@ -1,12 +1,12 @@
 # Planning repository governance
 
-This repository is an Atlas project's planning folder: its work items, each a plan with its steps. `README.md` orients, `planning.json` lists the project's folders and work, and `PLANS.md` defines the plan, registry and ledger formats.
+This repository is an Coord project's planning folder: its work items, each a plan with its steps. `README.md` orients, `planning.json` lists the project's folders and work, and `PLANS.md` defines the plan, registry and ledger formats.
 
 ## Scope
 
-A session in one of the folders `planning.json` lists, or inside one, belongs to this project (the deepest folder wins when projects' folders nest), and so does a session in this planning folder. Atlas names the project at session start, and the Atlas tool `where` finds it on request. Reach this folder by its absolute path from any checkout; do not search the machine for others.
+A session in one of the folders `planning.json` lists, or inside one, belongs to this project (the deepest folder wins when projects' folders nest), and so does a session in this planning folder. Coord names the project at session start, and the Coord tool `where` finds it on request. Reach this folder by its absolute path from any checkout; do not search the machine for others.
 
-Atlas keeps no repositories: the same repository may be checked out in several folders. Confirm which repository a change is about from the checkout itself, and name it in every reference: `owner/repo#12`, `owner/repo@4ab195a`, or their URLs. A shared planning folder does not make one product's constraints apply to another.
+Coord keeps no repositories: the same repository may be checked out in several folders. Confirm which repository a change is about from the checkout itself, and name it in every reference: `owner/repo#12`, `owner/repo@4ab195a`, or their URLs. A shared planning folder does not make one product's constraints apply to another.
 
 ## What is true
 
@@ -25,7 +25,7 @@ Keep canonical product documentation in its own repository and link to it; do no
 
 ## State and files
 
-The Atlas tools change structured state: creating work items, accepting a design, starting implementation, steps, `blocked`, closing, archiving and reopening. Everything else is an ordinary file edited directly; Atlas checks each edit and reports what to fix, and `atlas check` runs the same checks on request.
+The Coord tools change structured state: creating work items, accepting a design, starting implementation, steps, `blocked`, closing, archiving and reopening. Everything else is an ordinary file edited directly; Coord checks each edit and reports what to fix, and `coord check` runs the same checks on request.
 
 Design acceptance, implementation completion, PR readiness, merge and release are separate facts; do not guess dates or turn an uncertain status into completion. Commit the plan before implementation starts, so its history shows what was agreed, and record later amendments in it. Close work once its agreed completion criteria are verified and the outcome is recorded (for PR delivery, the required PRs merged unless agreed otherwise). Closing grants no merge or deployment. Unfinished scope stays active unless it is explicitly transferred, superseded or dropped.
 

@@ -2,9 +2,9 @@ const fs = require("node:fs"),
   path = require("node:path");
 const postcss = require("postcss"),
   selectors = require("postcss-selector-parser");
-// Atlas-owned roots: the panel, and Atlas content that envUI portals (popovers
+// Coord-owned roots: the panel, and Coord content that envUI portals (popovers
 // and dialogs) render outside it. Embedded rules only match inside them.
-const SCOPES = ["atlas-panel", "atlas-portal"];
+const SCOPES = ["coord-panel", "coord-portal"];
 function embeddedCSS(css) {
   const root = postcss.parse(css);
   root.walkRules((rule) => {
@@ -20,13 +20,13 @@ function embeddedCSS(css) {
             (node.type === "pseudo" && node.value === ":root") ||
             (node.type === "tag" && ["html", "body"].includes(node.value))
           ) {
-            node.replaceWith(selectors.className({ value: "atlas-panel" }));
+            node.replaceWith(selectors.className({ value: "coord-panel" }));
             rooted = true;
           }
         });
         if (!rooted) {
           selector.prepend(selectors.combinator({ value: " " }));
-          selector.prepend(selectors.className({ value: "atlas-panel" }));
+          selector.prepend(selectors.className({ value: "coord-panel" }));
         }
       }),
     ).processSync(rule.selector);

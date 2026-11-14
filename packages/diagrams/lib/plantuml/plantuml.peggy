@@ -1,4 +1,4 @@
-// Atlas's subset of PlantUML: class, object and entity diagrams.
+// Coord's subset of PlantUML: class, object and entity diagrams.
 //
 // Derived from the PlantUML grammar of plantuml-parser
 // (https://github.com/Enteee/plantuml-parser, src/plantuml.pegjs, 0.4.0),
@@ -7,12 +7,12 @@
 // in licenses/plantuml-parser-LICENSE). Distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 //
-// Atlas changed it into a strict allowlist: the diagram is read line by line,
-// every statement Atlas supports has its own rule, and any other line becomes
+// Coord changed it into a strict allowlist: the diagram is read line by line,
+// every statement Coord supports has its own rule, and any other line becomes
 // an `unknown` statement (or, for a block such as a note, a `rejected` one)
 // that the reader in diagram.cjs reports with its position, instead of being
 // skipped. The C4, component, use case, note and skin parameter rules are
-// gone; objects, slots, entity columns, `' atlas` comments and the arrow
+// gone; objects, slots, entity columns, `' coord` comments and the arrow
 // tokens are new.
 //
 // Regenerate lib/plantuml/parser.cjs with `node scripts/build-parser.cjs`.
@@ -53,7 +53,7 @@ Inner
 
 Statement
   = Blank
-  / AtlasComment
+  / CoordComment
   / Comment
   / RejectedBlock
   / Title
@@ -66,12 +66,12 @@ Blank
   = _ NL
     { return { type: "blank" }; }
 
-// `' atlas …` comments carry what PlantUML cannot: capture headers, proposal,
+// `' coord …` comments carry what PlantUML cannot: capture headers, proposal,
 // comparison and scenario references, and evidence and descriptions for the
 // next element.
-AtlasComment
-  = _ "'" _ "atlas" text:(Space @$(!NL .)*)? NL
-    { return { type: "atlas", ...at(), text: (text || "").trim() }; }
+CoordComment
+  = _ "'" _ "coord" text:(Space @$(!NL .)*)? NL
+    { return { type: "coord", ...at(), text: (text || "").trim() }; }
 
 Comment
   = _ "'" $(!NL .)* NL
@@ -136,7 +136,7 @@ Extra
 
 Member
   = Blank
-  / AtlasComment
+  / CoordComment
   / Comment
   / Separator
   / Method
@@ -195,7 +195,7 @@ MemberLine
   = _ target:Name _ ":" _ text:$(!NL .)+ NL
     { return { type: "memberLine", ...at(), target, text: text.trim() }; }
 
-// Blocks Atlas does not support, read to their end so their lines are reported
+// Blocks Coord does not support, read to their end so their lines are reported
 // once: notes, legends, headers, footers, multi-line titles, skin parameter
 // and style blocks, block comments and `together` groups.
 RejectedBlock

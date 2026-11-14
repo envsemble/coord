@@ -51,7 +51,7 @@ export function buildMenu(manager: WindowManager, actions: { openLogs(): void; d
       submenu: [
         { label: 'Open &Logs', click: actions.openLogs },
         { type: 'separator' },
-        { label: '&About Atlas', click: () => manager.sendMenu('about') },
+        { label: '&About Coord', click: () => manager.sendMenu('about') },
       ],
     },
   ];

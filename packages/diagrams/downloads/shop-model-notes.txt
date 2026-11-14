@@ -57,4 +57,4 @@ src/checkout.ts
 OPEN QUESTIONS
 
 VALIDATION
-Checks cover Atlas's PlantUML subset and its model rules; they do not establish that the model is accurate.
+Checks cover Coord's PlantUML subset and its model rules; they do not establish that the model is accurate.

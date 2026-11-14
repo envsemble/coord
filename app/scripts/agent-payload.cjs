@@ -1,5 +1,5 @@
-// Assembles resources/agent, what the packaged app copies into the Atlas home's agent/ folder
-// (main/agent/agentFolder.ts): the atlas command, which is the @envsemble/atlas package's sources
+// Assembles resources/agent, what the packaged app copies into the Coord home's agent/ folder
+// (main/agent/agentFolder.ts): the coord command, which is the @envsemble/coord package's sources
 // (Node runs them as they are) with its production dependencies as the lockfile resolves them, and
 // the Node.js it runs on, in runtime/; the plugin; and the two marketplace manifests that name it.
 // Its build.json names the build: the version and a hash of every file, so a rebuild of one version
@@ -59,7 +59,7 @@ exports.nodeRuntime = async function nodeRuntime(repository, platform, arch) {
     const entries = unzipSync(bytes, { filter: file => wanted.has(file.name) });
     files = { executable: Buffer.from(entries[name + '/' + executable] ?? []), license: Buffer.from(entries[name + '/LICENSE'] ?? []) };
   } else {
-    const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-node-'));
+    const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'coord-node-'));
     try {
       fs.writeFileSync(path.join(temporary, archive), bytes);
       execFileSync('tar', ['-xzf', archive, name + '/' + executable, name + '/LICENSE'], { cwd: temporary });
@@ -70,7 +70,7 @@ exports.nodeRuntime = async function nodeRuntime(repository, platform, arch) {
   return { name: path.basename(executable), version: nodeVersion, ...files };
 };
 
-/** Files of the @envsemble/atlas package the command reads: no tests and no test helpers. */
+/** Files of the @envsemble/coord package the command reads: no tests and no test helpers. */
 const commandFiles = relative => /^(?:bin|src|templates)(?:\/|$)/.test(relative) && !/\.test\.ts$|(?:^|\/)testing\.ts$/.test(relative)
   || relative === 'package.json';
 /** The diagram package's development pages and tooling are not needed (as in electron-builder.yml's files). */
@@ -87,7 +87,7 @@ const dependencyFiles = relative => !/\.d\.[cm]?ts$|(?:^|\/)(?:readme|changelog|
 const viewerOnly = new Set(['@envsemble/envui']);
 
 /**
- * The installed packages the command can load, by walking the lockfile from @envsemble/atlas: each
+ * The installed packages the command can load, by walking the lockfile from @envsemble/coord: each
  * one's location in the repository, and where it goes under the command's folder.
  */
 function dependencies(repository) {
@@ -103,7 +103,7 @@ function dependencies(repository) {
       base = index < 0 ? '' : base.slice(0, index);
     }
   };
-  const root = 'packages/atlas';
+  const root = 'packages/coord';
   // A workspace package linked into node_modules goes where the link is.
   const linked = new Map([[root, '']]);
   const found = new Map();
@@ -173,7 +173,7 @@ exports.assemble = function assemble(repository, destination, version, runtime) 
   const hash = Object.assign(crypto.createHash('sha256'), { base: destination });
   let files = 0, bytes = 0;
   const add = (from, to, filter = () => true) => { const done = copy(path.join(repository, from), path.join(destination, to), filter, hash); files += done.files; bytes += done.bytes; };
-  add('packages/atlas', 'command', commandFiles);
+  add('packages/coord', 'command', commandFiles);
   for (const [to, { real, filter }] of dependencies(repository)) add(real, path.join('command', to), filter);
   for (const [name, content, mode] of [[runtime.name, runtime.executable, 0o755], ['LICENSE', runtime.license, 0o644]]) {
     const file = path.join(destination, 'command', 'runtime', name);
@@ -185,8 +185,8 @@ exports.assemble = function assemble(repository, destination, version, runtime) 
   }
   add('plugin', 'plugin', relative => !/^tests(?:\/|$)/.test(relative));
   // envUI's documentation, with its license, for the agents that write pages (the page guide, references/pages.md, points to it).
-  add('node_modules/@envsemble/envui/docs', 'plugin/skills/atlas/references/envui');
-  add('node_modules/@envsemble/envui', 'plugin/skills/atlas/references/envui', relative => relative === 'LICENSE');
+  add('node_modules/@envsemble/envui/docs', 'plugin/skills/coord/references/envui');
+  add('node_modules/@envsemble/envui', 'plugin/skills/coord/references/envui', relative => relative === 'LICENSE');
   add('.claude-plugin', '.claude-plugin', relative => relative === 'marketplace.json');
   add('.agents', '.agents', relative => relative === 'plugins' || relative === 'plugins/marketplace.json');
   const build = version + '-' + hash.digest('hex').slice(0, 12);

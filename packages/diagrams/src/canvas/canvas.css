@@ -1,13 +1,13 @@
 /* The diagram follows envUI's tokens throughout: the canvas is the page's
    own background, so a diagram sits in the window as a page does, and its
    elements are surfaces on it, as envUI's cards are on a page; the grid,
-   text, lines and selection take envUI's colours too. It is declared on each of Atlas's theme boundaries (the offline
+   text, lines and selection take envUI's colours too. It is declared on each of Coord's theme boundaries (the offline
    page and every panel), so the canvas follows the nearest Theme as soon as
    React commits a change; light-dark() picks the value for the colour scheme
    that theme sets. */
 :root,
-.atlas-page,
-.atlas-panel {
+.coord-page,
+.coord-panel {
   --canvas: var(--env-color-bg-page);
   /* Elements sit on the canvas as surfaces sit on a page. */
   --surface: var(--env-color-bg-default);

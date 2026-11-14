@@ -1,0 +1,6 @@
+interface:
+  display_name: "Coord"
+  short_description: "Record projects and work items in Coord planning folders"
+  default_prompt: "Use $coord to plan this change and record the settled design."
+policy:
+  allow_implicit_invocation: true

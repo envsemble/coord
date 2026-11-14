@@ -78,7 +78,7 @@ function withWork(snapshot: Snapshot, work: SnapshotWork[]): Snapshot {
   return changed ? { ...snapshot, work: next } : snapshot;
 }
 
-export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: LoadedUi }) {
+export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: LoadedUi }) {
   const toast = useToast();
   const notify = useCallback<Notify>((message, tone = 'info') => { toast.show({ message, tone: toastTones[tone] }); }, [toast]);
   const warn = useCallback((message: string) => notify(message, 'warning'), [notify]);
@@ -477,7 +477,7 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   const files = filesWork && scope && read ? <WindowContext.Provider value={scope}><ReadingContext.Provider value={read}>
     <FilesContext.Provider value={filesState}><PlanFiles work={filesWork} /></FilesContext.Provider>
   </ReadingContext.Provider></WindowContext.Provider> : null;
-  return <Scaffold className="atlas-window" scroll="body" topBarSpan="full" bodyRef={setScroller}
+  return <Scaffold className="coord-window" scroll="body" topBarSpan="full" bodyRef={setScroller}
     navigation={files ? { drawer: files } : undefined} navigationForms={files ? { compact: 'none', medium: 'drawer', expanded: 'drawer', large: 'drawer' } : { compact: 'none', medium: 'none', expanded: 'none', large: 'none' }}
     topBar={<TopBar titleBar className="window-title-bar"
       start={<TitleBarStart info={info} menus={menus} onError={warn} />}
@@ -561,7 +561,7 @@ function ProjectContent({ place, folder, project, scope, read, statisticsTrail }
   const frame = (state: ReactNode) => isPage(place) ? <Page className="statistics-page" title="Statistics" breadcrumbs={statisticsTrail}>{state}</Page> : state;
   if (change?.status === 'missing' || (!folder?.snapshot && (change?.status === 'invalid' || folder?.failure))) {
     return frame(<EmptyState className="page-empty" icon={<ErrorIcon />} title={change?.status === 'missing' ? 'This project’s folder was moved or deleted' : 'This project can’t be read'}
-      description={<>{(project?.path ?? folder?.snapshot?.root) && <bdi className="folder-problem-path">{project?.path ?? folder?.snapshot?.root}</bdi>} {change?.error ?? folder?.failure} Atlas reads it again as soon as it can.</>} />);
+      description={<>{(project?.path ?? folder?.snapshot?.root) && <bdi className="folder-problem-path">{project?.path ?? folder?.snapshot?.root}</bdi>} {change?.error ?? folder?.failure} Coord reads it again as soon as it can.</>} />);
   }
   if (!scope || !read || !folder?.snapshot) return frame(<div className="page-state" aria-busy="true"><Spinner size="lg" label={'Reading ' + (project?.name ?? 'the project')} /></div>);
   const snapshot = folder.snapshot;
@@ -581,7 +581,7 @@ function ProjectContent({ place, folder, project, scope, read, statisticsTrail }
         : <div className="work-page is-page"><Suspense fallback={loadingPage}><PageView key={page.folder} work={page.work} folder={page.folder} name={page.name} /></Suspense></div>;
     } else {
       const file = snapshot.documents.find(document => document.path === target.path);
-      // A plan's plan.md and ledger.md are the plan page, as Atlas shows them, however they are opened.
+      // A plan's plan.md and ledger.md are the plan page, as Coord shows them, however they are opened.
       const planned = file && snapshot.work.find(entry => entry.id === file.workId && (entry.currentPlan === file.path || file.category === 'ledger'));
       const page = !file ? <Gone title="This file no longer exists" detail={target.path} />
         : planned ? <PlanPage work={planned} snapshot={snapshot} target={{ kind: 'work', work: planned.id, anchor: target.anchor ?? null }} />
@@ -590,8 +590,8 @@ function ProjectContent({ place, folder, project, scope, read, statisticsTrail }
     }
   }
   return <WindowContext.Provider value={scope}><ReadingContext.Provider value={read}>
-    {change?.error && <Alert className="folder-error" tone="warning" announce title={scope.remote ? `Atlas can’t read this project on ${scope.remote.hostName} right now.` : 'This project can’t be read right now.'}>
-      {change.error} {scope.remote ? 'Showing the last view.' : 'Showing the last good view. Atlas reloads when the folder is readable again.'}
+    {change?.error && <Alert className="folder-error" tone="warning" announce title={scope.remote ? `Coord can’t read this project on ${scope.remote.hostName} right now.` : 'This project can’t be read right now.'}>
+      {change.error} {scope.remote ? 'Showing the last view.' : 'Showing the last good view. Coord reloads when the folder is readable again.'}
     </Alert>}
     {change?.notice && <Alert className="folder-error" tone="info">{change.notice}</Alert>}
     {content}

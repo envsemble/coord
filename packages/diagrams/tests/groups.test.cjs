@@ -3,7 +3,7 @@
 // whole, and the groups sit apart with the relations between them routed.
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const atlas = require("../lib/index.cjs");
+const coord = require("../lib/index.cjs");
 const { layoutGroups } = require("../lib/layout/groups.cjs");
 const { validateDiagram } = require("../lib/layout/validateDiagram.cjs");
 
@@ -106,7 +106,7 @@ Order "1" -- "0..1" Invoice : billed by
 Audit ..> Payment
 @enduml
 `;
-  const { prepared } = await atlas.prepareDiagrams({
+  const { prepared } = await coord.prepareDiagrams({
     files: [{ path: "shop.puml", text }],
   });
   const { payload, model } = prepared.get("shop.puml");
@@ -156,7 +156,7 @@ Audit ..> Payment
 });
 
 test("a small diagram's packages are drawn too", async () => {
-  const { prepared } = await atlas.prepareDiagrams({
+  const { prepared } = await coord.prepareDiagrams({
     files: [
       {
         path: "small.puml",

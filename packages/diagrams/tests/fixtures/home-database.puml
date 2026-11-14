@@ -1,7 +1,7 @@
 @startuml
-title Atlas home database (proposal)
+title Coord home database (proposal)
 package "Projects and layout" {
-  ' atlas description A planning folder shown as a project in the sidebar, with its order and state.
+  ' coord description A planning folder shown as a project in the sidebar, with its order and state.
   entity project {
     *id : integer <<PK>>
     --
@@ -12,7 +12,7 @@ package "Projects and layout" {
     *state : text
     *created_at : text
   }
-  ' atlas description A tab of a window, showing something of one project.
+  ' coord description A tab of a window, showing something of one project.
   entity tab {
     *id : integer <<PK>>
     --
@@ -23,7 +23,7 @@ package "Projects and layout" {
     target : text
     *active : boolean
   }
-  ' atlas description An app window, with its bounds and the computer it shows.
+  ' coord description An app window, with its bounds and the computer it shows.
   entity window {
     *id : integer <<PK>>
     --
@@ -35,7 +35,7 @@ package "Projects and layout" {
     *maximized : boolean
     *sidebar_width : integer
   }
-  ' atlas description One Atlas setting, by key.
+  ' coord description One Coord setting, by key.
   entity setting {
     *key : text <<PK>>
     --
@@ -43,7 +43,7 @@ package "Projects and layout" {
   }
 }
 package "Remote access" {
-  ' atlas description A computer this app is paired with, and the token it uses there.
+  ' coord description A computer this app is paired with, and the token it uses there.
   entity connection {
     *id : text <<PK>>
     --
@@ -54,7 +54,7 @@ package "Remote access" {
     *token : blob
     *paired_at : text
   }
-  ' atlas description A device paired with this computer's host.
+  ' coord description A device paired with this computer's host.
   entity device {
     *id : text <<PK>>
     --
@@ -65,7 +65,7 @@ package "Remote access" {
   }
 }
 package "Agent sessions" {
-  ' atlas description An agent session the hooks have seen.
+  ' coord description An agent session the hooks have seen.
   entity session {
     *id : text <<PK>>
     --
@@ -74,7 +74,7 @@ package "Agent sessions" {
     *started_at : text
     *updated_at : text
   }
-  ' atlas description Links a session to the work item it works on, and whether it amends the plan.
+  ' coord description Links a session to the work item it works on, and whether it amends the plan.
   entity session_work {
     *id : integer <<PK>>
     --
@@ -87,7 +87,7 @@ package "Agent sessions" {
   }
 }
 package "Statistics" {
-  ' atlas description An agent read or an app view of a planning document.
+  ' coord description An agent read or an app view of a planning document.
   entity document_use {
     *id : text <<PK>>
     --
@@ -101,7 +101,7 @@ package "Statistics" {
     revision : text
     content_hash : text
   }
-  ' atlas description A stretch of time when statistics could not be collected.
+  ' coord description A stretch of time when statistics could not be collected.
   entity collection_gap {
     *id : integer <<PK>>
     --
@@ -109,7 +109,7 @@ package "Statistics" {
     *at : text
     *reason : text
   }
-  ' atlas description Time and tokens reported for a work item.
+  ' coord description Time and tokens reported for a work item.
   entity work_report {
     *id : integer <<PK>>
     --
@@ -124,7 +124,7 @@ package "Statistics" {
     measured_since : text
     agent_ms : integer
   }
-  ' atlas description A work report's time and tokens for one model.
+  ' coord description A work report's time and tokens for one model.
   entity report_model {
     *id : integer <<PK>>
     --
@@ -136,7 +136,7 @@ package "Statistics" {
     *cache_write : integer
     *output : integer
   }
-  ' atlas description A subagent counted in a work report.
+  ' coord description A subagent counted in a work report.
   entity report_subagent {
     *id : integer <<PK>>
     --

@@ -1,5 +1,5 @@
 import type { Document, Work } from '../types';
-import { samePath } from '@envsemble/atlas/platform/paths';
+import { samePath } from '@envsemble/coord/platform/paths';
 
 export { samePath };
 /** Where a link leads: a document, a work item (its plan), a page (its folder), an anchor, or a web address. */
@@ -37,8 +37,8 @@ export function resolveLink(href: string, source: string, documents: Document[],
 }
 
 /**
- * A relative link out of the project's folder into a sibling folder in the Atlas home (projects sit
- * side by side there, so `../../../atlas/active/0013-x/plan.md` from a plan reaches the Atlas
+ * A relative link out of the project's folder into a sibling folder in the Coord home (projects sit
+ * side by side there, so `../../../coord/active/0013-x/plan.md` from a plan reaches the Coord
  * project): the sibling's folder name, the path inside it, and the heading. Null for anything else,
  * including a link that climbs above the home's planning folder.
  */

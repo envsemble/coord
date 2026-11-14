@@ -79,7 +79,7 @@ export type Choice = User | Base;`,
   assert(related(d, "inheritance", "User", "Base"));
   assert(related(d, "implementation", "User", "HasId"));
   assert(related(d, "dependency", "Choice", "User"));
-  assert.equal(d.capture.adapter.id, "atlas-typescript");
+  assert.equal(d.capture.adapter.id, "coord-typescript");
   assert.equal(d.capture.adapter.compilerVersion, "6.0.3");
   assert.equal(d.capture.source.kind, "typescript");
   assert.deepEqual(d.capture.source.scope, ["fixture:model.ts"]);
@@ -129,8 +129,8 @@ test("a capture and the same capture later compare element by element in the vie
     "export class Order { total!: string; lines!: Line[]; }\nexport class Line {}\n",
   );
   const after = (await captureTypeScript(options)).replace(
-    /^(' atlas fingerprint .*)$/m,
-    "$1\n' atlas compares before.puml",
+    /^(' coord fingerprint .*)$/m,
+    "$1\n' coord compares before.puml",
   );
   // The added header line makes the fingerprint stale: write it again.
   const rewritten = formatDiagram(parseDiagram(after).diagram);
@@ -415,13 +415,13 @@ export enum State {
 });
 
 // PlantUML itself accepts the captures. Opt in with the path of a PlantUML
-// jar: ATLAS_TEST_PLANTUML_JAR=/path/to/plantuml.jar.
+// jar: COORD_TEST_PLANTUML_JAR=/path/to/plantuml.jar.
 test(
   "PlantUML renders captures",
   {
     skip:
-      !process.env.ATLAS_TEST_PLANTUML_JAR &&
-      "set ATLAS_TEST_PLANTUML_JAR to a PlantUML jar",
+      !process.env.COORD_TEST_PLANTUML_JAR &&
+      "set COORD_TEST_PLANTUML_JAR to a PlantUML jar",
   },
   async (t) => {
     const root = fixture(t),
@@ -443,14 +443,14 @@ export type Choice = User | Base<string>;`,
     // Its description is broken up and has no backslash at its end.
     assert.match(
       text,
-      /^' atlas description A user, see a\/ \/b and \* \*this\* \*$/m,
+      /^' coord description A user, see a\/ \/b and \* \*this\* \*$/m,
     );
     const result = spawnSync(
       "java",
       [
         "-Djava.awt.headless=true",
         "-jar",
-        process.env.ATLAS_TEST_PLANTUML_JAR,
+        process.env.COORD_TEST_PLANTUML_JAR,
         "-checkonly",
         file,
       ],

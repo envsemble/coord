@@ -1,9 +1,9 @@
 // Handoffs between plans, as the ledger and status lines show them: the work a plan continues, above
 // its steps, and the work that continues it, after them. Each by its number and title, with its
 // project's name when it is another project's; it opens that plan unless the reference names no work
-// item Atlas can find (no title, or a project not in the home), then it stays text. Pure, so it is
+// item Coord can find (no title, or a project not in the home), then it stays text. Pure, so it is
 // unit-tested.
-import type { HandoffLink } from '@envsemble/atlas/planning/types';
+import type { HandoffLink } from '@envsemble/coord/planning/types';
 import { workNumber } from '../ui/format';
 
 export interface Handoff {

@@ -52,12 +52,12 @@ test('a capture, its later captures and its proposals are one diagram with layer
   await node(window, 'CheckoutService').click();
   await expect(node(window, 'CheckoutService')).toHaveAttribute('aria-pressed', 'true');
   // What a switch must keep: the mounted panel, the camera, the selection and where the element is drawn.
-  await window.evaluate(() => { (globalThis as { shownPanel?: Element | null }).shownPanel = document.querySelector('.diagrams .atlas-panel'); });
+  await window.evaluate(() => { (globalThis as { shownPanel?: Element | null }).shownPanel = document.querySelector('.diagrams .coord-panel'); });
   const placement = () => window.evaluate(() => {
     // The box itself: a changed element also draws a ring around it.
     const box = document.querySelector('.diagrams .diagram-base .node[data-name="CheckoutService"] .node-box')!.getBoundingClientRect();
     return {
-      samePanel: (globalThis as { shownPanel?: Element | null }).shownPanel === document.querySelector('.diagrams .atlas-panel'),
+      samePanel: (globalThis as { shownPanel?: Element | null }).shownPanel === document.querySelector('.diagrams .coord-panel'),
       camera: document.querySelector('.diagrams #world')!.getAttribute('style'),
       node: [box.x, box.y, box.width, box.height].map(Math.round),
     };

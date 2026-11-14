@@ -1,8 +1,8 @@
 @startuml
 title Inventory · captured database
-' atlas capture {"capturedAt":"2026-09-24T13:20:00.000Z","adapter":{"id":"atlas-sqlite","version":"1.0.0"},"source":{"kind":"sqlite","identity":"northwind-inventory","scope":["main"]},"coverage":{"status":"complete","diagnostics":[]},"limitations":["Declared metadata only; no application rows or runtime invariants were inspected."]}
-' atlas fingerprint f49c69c64dcfc65a19e9bfdfa38c928da23d4c840f2d71e01ef3ff8567eae9f1
-' atlas compares inventory-before.puml
+' coord capture {"capturedAt":"2026-09-24T13:20:00.000Z","adapter":{"id":"coord-sqlite","version":"1.0.0"},"source":{"kind":"sqlite","identity":"northwind-inventory","scope":["main"]},"coverage":{"status":"complete","diagnostics":[]},"limitations":["Declared metadata only; no application rows or runtime invariants were inspected."]}
+' coord fingerprint f49c69c64dcfc65a19e9bfdfa38c928da23d4c840f2d71e01ef3ff8567eae9f1
+' coord compares inventory-before.puml
 
 entity product {
   *sku : TEXT <<PK>>

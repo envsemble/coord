@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DiagramPanel, ViewerErrorBoundary } from '@envsemble/atlas-diagrams/react';
-import type { ViewerPayload } from '@envsemble/atlas-diagrams';
-import '@envsemble/atlas-diagrams/embedded.css';
+import { DiagramPanel, ViewerErrorBoundary } from '@envsemble/coord-diagrams/react';
+import type { ViewerPayload } from '@envsemble/coord-diagrams';
+import '@envsemble/coord-diagrams/embedded.css';
 import type { DiagramEntry, Target, Work } from '../types';
 import { api } from '../api';
 import { diagramTarget, workTarget } from '../navigation/targets';
 import { selectDiagram } from './diagramSelection';
 import { familyLayers, stepLayer } from './layers';
-import { elementId } from '@envsemble/atlas/planning/provenance';
+import { elementId } from '@envsemble/coord/planning/provenance';
 import { Alert, Spinner, Text, useThemePreference } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
 import { Trail } from '../ui/Trail';
@@ -31,7 +31,7 @@ const noDiagrams: DiagramEntry[] = [];
 /** What is wrong with a diagram that cannot be drawn, line by line. */
 function Problems({ diagram }: { diagram: DiagramEntry }) {
   return <EmptyState icon={<DiagramIcon />} title="This diagram has problems" description={<>
-    <span>{diagram.path} cannot be drawn until they are fixed. <code>atlas check</code> reports them too.</span>
+    <span>{diagram.path} cannot be drawn until they are fixed. <code>coord check</code> reports them too.</span>
     <ul className="diagram-problems">{diagram.problems.slice(0, 8).map((problem, index) => <li key={index}>Line {problem.line}, column {problem.column}: {problem.message}</li>)}</ul>
   </>} />;
 }
@@ -162,7 +162,7 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
       : <>
         <div className="diagrams-trail">{trail}</div>
         {!diagrams ? <div className="diagrams-state"><Spinner label="Loading diagrams" /></div>
-          : empty ? <div className="diagrams-state"><EmptyState icon={<DiagramIcon />} title="No diagrams yet" description="Diagrams appear here when your agent writes PlantUML (.puml) files into this work folder; the atlas skill tells it how." /></div>
+          : empty ? <div className="diagrams-state"><EmptyState icon={<DiagramIcon />} title="No diagrams yet" description="Diagrams appear here when your agent writes PlantUML (.puml) files into this work folder; the coord skill tells it how." /></div>
           : entry && !entry.valid ? <div className="diagrams-state"><Problems diagram={entry} /></div>
           : <div className="diagrams-state">{error ? null : <Spinner label="Loading the diagram" />}</div>}
       </>}
