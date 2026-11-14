@@ -5,8 +5,7 @@ import { useInspection } from "../src/viewer/useInspection";
 import { UMLDiagram } from "../src/canvas/UMLDiagram";
 import { renderToStaticMarkup } from "react-dom/server";
 import { useSVGExport } from "../src/canvas/useSVGExport";
-import { Theme } from "@envsemble/envui";
-import "@envsemble/envui/styles.css";
+import { Button, Theme } from "@envsemble/envui";
 import "../src/viewer/viewer.css";
 import "../src/canvas/canvas.css";
 
@@ -64,7 +63,6 @@ function fixture(count) {
   return {
     key: `stress-${count}`,
     title: `${count} classes with attributes`,
-    fields: true,
     initialFocus: [],
     width: columns * 300,
     height: Math.ceil(count / columns) * 330,
@@ -149,10 +147,12 @@ function Benchmark() {
           <span>
             {count} classes · {diagram.edges.length} relations
           </span>
-          <button onClick={run} disabled={running}>
+          <Button variant="secondary" onClick={run} disabled={running}>
             {running ? "Measuring…" : "Run hover benchmark"}
-          </button>
-          <button onClick={() => camera.current.fit()}>Fit</button>
+          </Button>
+          <Button variant="secondary" onClick={() => camera.current.fit()}>
+            Fit
+          </Button>
           <span>{zoom}%</span>
           <output aria-label="Benchmark results">
             {result && JSON.stringify(result)}

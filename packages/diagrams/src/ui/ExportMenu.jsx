@@ -1,4 +1,4 @@
-import { Menu, MenuItem } from "@envsemble/envui";
+import { Menu } from "@envsemble/envui";
 import { ToolButton } from "./ToolButton";
 import { DownloadIcon } from "./icons";
 
@@ -28,7 +28,7 @@ export function downloadData(
 /** The standalone viewer's downloads: `{ key, label, description, icon, onSelect }` items. */
 export function ExportMenu({ items }) {
   return (
-    <Menu
+    <Menu.Root
       aria-label="Export"
       trigger={
         <ToolButton
@@ -40,7 +40,7 @@ export function ExportMenu({ items }) {
       }
     >
       {items.map((item) => (
-        <MenuItem
+        <Menu.Item
           key={item.key}
           className={item.key}
           icon={item.icon}
@@ -48,8 +48,8 @@ export function ExportMenu({ items }) {
           onClick={item.onSelect}
         >
           {item.label}
-        </MenuItem>
+        </Menu.Item>
       ))}
-    </Menu>
+    </Menu.Root>
   );
 }

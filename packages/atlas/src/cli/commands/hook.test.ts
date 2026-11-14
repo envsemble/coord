@@ -300,6 +300,24 @@ test('a session in a folder that several projects cover is told to ask which one
   assert.equal(await contextIn(env, path.dirname(checkout)), `Atlas project "Coord" for this folder: planning folder ${realpathSync.native(other)}.\nNo active work in this project.`);
 });
 
+test('choices made on a page reach the session with its next message, once, while they are open', async t => {
+  const { root, checkout, env } = homeWithPlanning(t);
+  const choices = path.join(root, 'active', '0001-cart', 'pages', 'layout', 'choices.json');
+  write(path.join(path.dirname(choices), 'page.tsx'), 'export default function Page() { return null; }\n');
+  const told = async () => { const output = await hookIn(env, 'PageChoices', { session_id: session, cwd: checkout }); return output ? JSON.parse(output).hookSpecificOutput.additionalContext as string : ''; };
+  assert.equal(await told(), '');
+  // The page asks for the user's attention: the agent is reminded of it with the choice.
+  write(path.join(path.dirname(choices), 'page.json'), JSON.stringify({ attention: 'Pick a layout' }));
+  write(choices, JSON.stringify({ layout: { value: 'tiles', chosenAt: '2026-11-13T10:00:00Z' } }));
+  const notice = await told();
+  assert.match(notice, /work-0001 .*page layout .*: layout = "tiles"\. Its page\.json still asks the user: Pick a layout/);
+  assert.match(notice, /"closed": true/);
+  // Heard once; a closed choice is not told again.
+  assert.equal(await told(), '');
+  write(choices, JSON.stringify({ layout: { value: 'tiles', chosenAt: '2026-11-13T10:00:00Z', closed: true } }));
+  assert.equal(await told(), '');
+});
+
 test('a session in an empty Atlas home is told there are no projects and how to make one', async t => {
   const directory = temporary(t);
   const home = path.join(directory, 'home');

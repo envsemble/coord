@@ -9,13 +9,14 @@ import { app, dialog, Menu, nativeTheme, powerMonitor, protocol, shell } from 'e
 import { atlasHome, electronDataDirectory, HomeDatabase, prepareHome } from '@envsemble/atlas/planning';
 import icon from '../build/icon.png?asset';
 import { Computers } from './computers/computers.ts';
-import { dropImports, registerIpc } from './windows/ipc.ts';
+import { registerIpc } from './windows/ipc.ts';
 import { LocalHost } from './host/localHost.ts';
 import { RotatingLog } from './log.ts';
 import { buildMenu } from './windows/menu.ts';
 import { refusalMessage, startupRefusal, type Refusal } from './startupRefusal.ts';
 import { scheme } from './windows/protocol.ts';
 import { AppState } from './appState.ts';
+import { Agents } from './agent/agents.ts';
 import { WindowManager } from './windows/windowManager.ts';
 import type { AboutInfo } from '../shared/contract.ts';
 import { isProjectListing } from '../shared/validate.ts';
@@ -122,16 +123,24 @@ function start(database: HomeDatabase) {
     onStatus: (client, status, detail) => manager.connectionChanged(client, status, detail),
   });
 
+  // The atlas command and the plugin, which the packaged app carries in resources/agent. Only the
+  // installed app on the user's own home puts the command on the PATH and refreshes the connected
+  // agents after an update: a home chosen with ATLAS_HOME (tests, a separate instance) leaves the
+  // user's `atlas` and agents alone.
+  const agents = new Agents({
+    home: dataDirectory, log,
+    bundle: app.isPackaged ? path.join(process.resourcesPath, 'agent') : null,
+    checkout: path.resolve(app.getAppPath(), '..'),
+    ownHome: app.isPackaged && !process.env.ATLAS_HOME,
+    lastSession: harness => (database.db.prepare('SELECT max(updated_at) AS at FROM session WHERE harness = ?').get(harness) as { at: string | null }).at,
+  });
+
   manager = new WindowManager({
     state, database, log, computers, version: app.getVersion(), icon, devUrl, devTools,
     preload: path.join(import.meta.dirname, '../preload/index.cjs'),
     rendererDirectory: path.join(import.meta.dirname, '../renderer'),
   });
 
-  app.on('browser-window-created', (_event, window) => {
-    const id = window.id;
-    window.on('closed', () => { void dropImports(entry => entry.window === id); });
-  });
   app.on('web-contents-created', (_event, contents) => {
     contents.on('will-attach-webview', event => event.preventDefault());
     contents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -159,7 +168,7 @@ function start(database: HomeDatabase) {
   void app.whenReady().then(async () => {
     log.info('Atlas started', { version: app.getVersion(), packaged: app.isPackaged, platform: process.platform, uptimeMs: Math.round(process.uptime() * 1000) });
     Menu.setApplicationMenu(null);
-    registerIpc(manager, { openLogs, about });
+    registerIpc(manager, { openLogs, about, agents });
     buildMenu(manager, { openLogs, devTools });
     // The host starts while the windows open: the connection waits for its owner token.
     const hostStarted = localHost.start().catch(async error => {
@@ -172,6 +181,8 @@ function start(database: HomeDatabase) {
     // After sleep, connections may be dead without either side knowing: try them all again now.
     powerMonitor.on('resume', () => computers.wakeAll());
     manager.restore();
+    // After the windows open: an update copies the command and the plugin into the home.
+    void agents.start();
     await hostStarted;
   });
 }

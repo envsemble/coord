@@ -5,40 +5,28 @@ description: Use when the user says "atlas implement".
 
 # Atlas Implement
 
-Implement an accepted Atlas plan: its steps, review, delivery and outcome. The plan and the user's prompt define the scope; this workflow keeps progress visible and the result sound, and does not reinterpret the plan. The user's instructions and the repository's own `AGENTS.md` and contributing guides come first. It runs only when the user asks for it by name. Finding the project and recording follow the [atlas](../atlas/SKILL.md) skill.
+Keep an accepted plan's work item true while it is implemented: its steps, its summary and amendments, the findings left for later, and how it ends. How to implement, review, test and deliver is not this skill's: the user's request, the repository's own `AGENTS.md` and contributing guides, and the skills those name decide it. It runs only when the user asks for it by name. Finding the project and recording follow the [atlas](../atlas/SKILL.md) skill.
 
 ## Start
 
 1. Select the work the user names, else the registry's `current_plan`. Read the plan, its glossary, the relevant code and documentation. Surface contradictions instead of implementing a replaced design.
-2. **Delivery is part of the plan:** commits on the current branch, a branch of their own, or a PR. When the plan doesn't say, ask now, and record the answer in the plan. Push only when the delivery says so; never merge, deploy or change repository settings.
-3. A request to implement a draft is acceptance now: record it with `work_accept`. Commit the plan, then call `work_start` with the agreed steps, one per meaningful deliverable (without steps, it adopts the proposed ones when they are still right), and update the plan's `summary`.
-4. When the work has diagrams captured from code or databases, capture `before` now and `after --compares before.puml` at the end ([diagrams](../atlas/references/diagrams.md)).
+2. **How the work is delivered and proven is part of the plan**: commits, a branch or a PR, who merges it, and what proves it. What the user's request settles (in their words) goes into the plan as it is. What neither settles, ask about when it is the user's to decide; when they handed you the work to finish without them, decide it with a sensible default instead, and record it in the plan as your decision.
+3. A request to implement a draft is acceptance now: record it with `work_accept`. Commit the plan, then call `work_start` with the agreed steps, one per meaningful deliverable (without steps, it adopts the proposed ones when they are still right), and update the plan's `summary`. The last step is where the delivery ends: the merge when you are to merge it, else the PR ready, after which the work waits open for the user's merge.
+4. When the work changes a database's schema or a model's structure in a major way (tables or entities added, removed, split or merged, or their relations changed), capture `before` now and `after --compares before.puml` at the end, whether or not the plan has a diagram yet ([diagrams](../atlas/references/diagrams.md)).
 
 When resuming, read the plan as it is now: a later edit must not silently redefine the task.
 
-## Work
+## While it is implemented
 
-- **Keep the steps true** with the `step` tool as they move; add a step when agreed scope grows (record the amendment in the plan), remove one only with the user told why. Use `work_block` while genuinely blocked, and keep the `summary` and tags current at milestones.
+- **Keep the steps true** with the `step` tool as they move. Add a step when agreed scope grows (record the amendment in the plan), also for work the user asks for after delivery while the work is still open; remove one only with the user told why. A step is a deliverable the size of the others: review findings and small fixes belong to the step they serve.
+- **Keep the summary and tags current** at milestones, and use `work_block` while genuinely blocked.
 - **Follow the agreed design.** Tell the user your concerns and keep going; a material departure needs their agreement first, with the evidence and a proposal.
-- **Test** what changed with the quickest checks likely to catch a mistake; run slow suites at milestones and once before handing off, unless the repository says otherwise.
-- **Commit** in recoverable steps as the repository does, and planning changes separately with pathspecs.
-- **Clean up after yourself.** Use a worktree only when the repository allows it and the work needs a separate checkout. Every worktree and temporary branch you or your subagents create is merged into the delivery branch, or deliberately dropped, and then removed (`git worktree remove`, `git branch -d`); before finishing, check `git worktree list` in each repository you touched.
+- **Findings you don't fix now but keep**, from any review (a minor, a follow-up), go on the ledger's `## Final review` list; work through it before the work ends, or move what is left to work that continues this one. A finding dismissed as not worth doing needs no entry.
+- **Commit planning changes** separately from product changes, with pathspecs, at coherent points.
+- **When you stop for the user**, whatever the reason, call `needs_you` with what you need.
 
-## Review
+## End
 
-Review each step in proportion to its risk, with what you have: an independent review by a subagent when the harness has them, otherwise a careful self-review of the changes against the plan. Never wait for a reviewer that isn't there; findings from bots or people on a PR are handled like any others.
+Write the outcome into the plan's `summary`, naming commits and PRs in full (`owner/repo#12`, `owner/repo@4ab195a`), and check the tags fit what was done. Then close it as the [atlas](../atlas/SKILL.md#close) skill says: once the outcome is reached, close it, asking first unless the user handed you the work to finish without them; a PR still awaiting its merge means the work stays open, its summary saying so. Follow-ups go to a new work item that continues this one ([when to plan](../atlas/SKILL.md#when-to-plan) says when to ask first).
 
-Check each finding against the plan, tell defects from proposed plan changes, and grade it a **blocker**, **major** or **minor**:
-
-- Fix blockers and majors now. Another round reviews only those fixes, at most three rounds a step; a blocker still open after that goes to the user.
-- Put minors on the ledger's `## Final review` list, and work through it once, before handing off.
-
-## Deliver
-
-Check the final diff for unrelated or accidental files, then deliver as the plan says. For a PR, open it against the branch the repository integrates into, with a description a reviewer can follow without the conversation: the problem, the result, the choices that matter and how it was tested. A PR is delivered only when it can be merged: CI passes on its current head (where the repository has CI; never weaken a check), and it has no conflicts. Fix what fails and push again.
-
-## Finish
-
-Write the outcome into the plan's `summary`, naming commits and PRs in full (`owner/repo#12`, `owner/repo@4ab195a`). When every step is done and the plan's completion checks pass, check the tags fit what was done, then ask the user whether the work is finished, and close it with `work_close` only on their yes; a PR still awaiting merge means the work stays open, its summary saying so. Follow-ups go to a new work item that continues this one, with the user's agreement.
-
-End with links to the work item and its PRs or commits, what changed, how it was tested and reviewed, any limitation, and exactly where the work is: the repository, its folder and the branch to check out, with nothing left in other worktrees.
+End with links to the work item and its PRs or commits, what changed, and exactly where the work is: the repository, its folder and the branch to check out.

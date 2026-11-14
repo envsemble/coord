@@ -1,10 +1,12 @@
-import { readdir, readFile, realpath, stat } from 'node:fs/promises';
+import { mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { parse } from 'yaml';
 import { createHash } from 'node:crypto';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from '../../platform/filesystem.ts';
 import { ledgerStatus } from '../work/ledger.ts';
+import { groupsOfParts, partsOf } from '../work/parts.ts';
 import { workStatistics } from '../reports/reports.ts';
 import { planningName, type HomeDatabase } from '../../home/database.ts';
 import type { Document, DocumentContent, HistoryEntry, Issue, PlanningIndex, Work } from '../types.ts';
@@ -84,6 +86,33 @@ async function resolveInside(resolvedRoot: string, relative: string) {
   }
   if (!(await stat(actual)).isFile()) throw new PlanningError('Choose a file to read.', 400);
   return actual;
+}
+/** A file of a planning folder as text (UTF-8), whatever its kind, found as readDocument finds it. */
+export async function readText(root: string, relative: string): Promise<string> {
+  const filename = await resolveDocument(root, relative);
+  if ((await stat(filename)).size > readableLimit) throw new PlanningError('This file is too large to read as text.', 413);
+  return (await readFile(filename, 'utf8')).replace(/^﻿/, '');
+}
+/**
+ * Write a text file in a planning folder (a page's choices or data), as readDocument reads one: a
+ * path inside it, outside hidden and excluded folders. Its folders are made, and the file is
+ * replaced whole, through a temporary file beside it.
+ */
+export async function writeDocument(root: string, relative: string, content: string) {
+  requireReadable(relative);
+  const resolvedRoot = await realpath(root);
+  const target = path.resolve(resolvedRoot, relative);
+  if (!within(resolvedRoot, target)) throw new PlanningError('Write inside the planning folder.', 403);
+  await mkdir(path.dirname(target), { recursive: true });
+  const folder = await realpath(path.dirname(target));
+  if (!within(resolvedRoot, path.join(folder, 'x')) || hidden(path.relative(resolvedRoot, path.join(folder, path.basename(target))))) throw new PlanningError('Write inside the readable planning folder.', 403);
+  const existing = await stat(target).catch(() => null);
+  if (existing && !existing.isFile()) throw new PlanningError('Only a file can be written.', 400);
+  const temporary = path.join(folder, `.${path.basename(target)}.${randomUUID()}.tmp`);
+  try {
+    await writeFile(temporary, content, 'utf8');
+    await rename(temporary, path.join(folder, path.basename(target)));
+  } finally { await rm(temporary, { force: true }); }
 }
 function unpack(source: string): { body: string; metadata: Record<string, unknown> | null } {
   const normalized = source.replace(/^\uFEFF/, '');
@@ -324,7 +353,7 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
       title: path.basename(relative).replace(/^\d+-/, '').replaceAll('-', ' '),
       location: location.startsWith('active/') ? 'active' : location.startsWith('archive/') ? 'archived' : 'retained',
       design: 'unknown', implementation: 'unknown', created: null, updated: null, accepted: null,
-      completed: null, durationDays: null, documents: [],
+      completed: null, durationDays: null, documents: [], parts: [], partOf: null,
     };
     if (currentPlan === null || locationIdentity(currentPlan) !== locationIdentity(relative + '/plan.md')) {
       issues.push({ level: 'error', workId: item.id, message: "The work item's main plan must be plan.md in its folder." });
@@ -340,6 +369,7 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
         if (!Array.isArray(metadata.supersedes) || metadata.supersedes.some(id => typeof id !== 'string' || !registeredIds.has(id) || id === item.id) || new Set(metadata.supersedes).size !== metadata.supersedes.length) issues.push({ level: 'error', workId: item.id, message: 'Supersedes must list unique other registered work IDs.' });
         if (metadata.superseded_by !== null && (typeof metadata.superseded_by !== 'string' || !registeredIds.has(metadata.superseded_by) || metadata.superseded_by === item.id)) issues.push({ level: 'error', workId: item.id, message: 'Superseded by must identify another registered work item or null.' });
         entry.title = content.title;
+        entry.parts = partsOf(metadata.parts, item.id);
         if (typeof metadata.design_status === 'string' && designStates.has(metadata.design_status)) entry.design = metadata.design_status;
         else issues.push({ level: 'error', workId: item.id, message: 'The plan has an unrecognized design status.' });
         if (typeof metadata.implementation_status === 'string' && implementationStates.has(metadata.implementation_status)) entry.implementation = metadata.implementation_status;
@@ -363,6 +393,9 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
     }
     work.push(entry);
   }
+  // A part's group is the first work item in the registry that lists it.
+  const groups = groupsOfParts(work);
+  for (const item of work) item.partOf = groups.get(item.id) ?? null;
   const documents: Document[] = [];
   // The listing has only files inside the root, not through links nor hidden: each is where it is
   // listed. A Markdown document unchanged since the last reading is not read again.

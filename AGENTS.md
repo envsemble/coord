@@ -18,3 +18,9 @@ When you add or change tests:
 - Wait for a condition, never for a fixed time, and share expensive setup within a file.
 - A test that starts processes, browsers or toolchains, or takes more than about a second, goes in a `*.slow.test.*` file next to its quick one.
 - Don't restructure the suite unless the work asks for it.
+
+<!-- BEGIN envui -->
+## envUI
+
+The interface (the app's window in `app/src` and the diagram viewer in `packages/diagrams`) is built with envUI (`@envsemble/envui`). Use envUI's components, tokens and icons for every UI element. Its documentation ships with the package, in `node_modules/@envsemble/envui/docs/`: start at `docs/index.md`, which says what each page is for, and copy from `docs/examples/`. Take the API from those pages and the type declarations, not from memory. If envUI lacks something, propose an addition to envUI rather than writing a local copy. `npm run lint` runs envUI's ESLint and Stylelint rules.
+<!-- END envui -->

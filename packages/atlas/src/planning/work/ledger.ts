@@ -3,7 +3,7 @@
 // (`phase: planning`) from the work's creation, the steps the plan proposes while it is designed
 // (`phase: proposed`, todo, outside the progress), then the implementation steps (no phase). Both the
 // YAML reader (planningIndex.ts) and the restricted checker (check.ts) validate headers here, so they
-// cannot disagree. No imports: the app window and the plan export viewer use this module too.
+// cannot disagree. No imports: the app window uses this module too.
 import type { LedgerStep, LedgerStepStatus, StepCounts, WorkProgress } from '../types.ts';
 
 export const ledgerStepStatuses: readonly LedgerStepStatus[] = ['todo', 'doing', 'done'];

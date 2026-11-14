@@ -7,13 +7,11 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Worker } from 'node:worker_threads';
 import { HomeDatabase, readTemplates } from '../planning/index.ts';
 import { AccessStore } from './access/access.ts';
 import { HostClient, pairWithHost, parsePairing, type ClientStatus } from './client.ts';
 import type { OpenProjectState, Project } from './contract.ts';
 import { Host } from './host.ts';
-import type { WorkerLike } from './export/planWorkerClient.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const fixture = path.resolve(here, '../../../../app/e2e/fixtures/planning');
@@ -47,7 +45,6 @@ export async function start(t: TestContext, options: { data?: string; loopbackPo
   cpSync(fixture, planning, { recursive: true });
   const host = new Host({
     home: data, version: '0.0.0-test', log: quiet, owner: 'a test', idleClose: 50,
-    createPlanWorker: () => new Worker(new URL('./export/planWorker.ts', import.meta.url)) as unknown as WorkerLike,
     templates: () => readTemplates(templates),
     // Session logs are read in the test's home, never the developer's.
     sessionLogs: { home: data, environment: {} },

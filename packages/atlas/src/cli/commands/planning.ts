@@ -6,7 +6,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  acceptWork, addSteps, archiveWork, proposeSteps, searchWork, tagWork, atlasHome, checkPaths, closeWork, createProject, createWork, setContinues, findPlanning, homePlanningFolders, planningName,
+  acceptWork, addSteps, archiveWork, proposeSteps, searchWork, tagWork, atlasHome, checkPaths, closeWork, createProject, createWork, setContinues, setParts, findPlanning, homePlanningFolders, planningName,
   planningFolderOf, readRegistry, readTemplates, removeStep, renameStep, reopenWork, resolvePlanningFolder, setBlocked, setStepStatus, startWork, withDatabaseAsync, workStatus,
   type LedgerStepStatus,
 } from '../../planning/index.ts';
@@ -15,10 +15,11 @@ import { parseOptions, positionals, UsageError, wantsHelp, type Output } from '.
 export const planningUsage = `  atlas where [--cwd <dir>]
   atlas project create --name <name> [--folder <folder>...] [--json]
   atlas work status <work-id> [--planning-dir <dir>]
-  atlas work create --title <title> [--summary <text>] [--slug <slug>] [--continues <work>...] [--tag <tag>...] [--planning-dir <dir>]
+  atlas work create --title <title> [--summary <text>] [--slug <slug>] [--continues <work>...] [--tag <tag>...] [--part-of <work-id>] [--planning-dir <dir>]
   atlas work tag <work-id> [--add <tag>...] [--remove <tag>...] [--planning-dir <dir>]
   atlas work search [<word>...] [--tag <tag>...] [--status open|closed|all] [--planning-dir <dir>]
   atlas work continue <work-id> [<work>...] [--planning-dir <dir>]
+  atlas work parts <work-id> [<work-id>...] [--planning-dir <dir>]
   atlas work accept <work-id> [--planning-dir <dir>]
   atlas work start <work-id> [--step <title>...] [--planning-dir <dir>]
   atlas work step add <work-id> <title>... [--planning-dir <dir>]
@@ -71,7 +72,7 @@ export async function project(args: string[], out: Output) {
   if (!values.name) throw new UsageError('the following arguments are required: --name', line);
   const created = await createHomeProject({ name: values.name, folders: (lists.folder ?? []).map(folder => path.resolve(folder)) });
   if (flags.has('json')) { print(out, created); return 0; }
-  out.stdout(`Created the project ${created.name} in ${created.planningFolder}` + (created.folders.length ? `, covering ${created.folders.join(', ')}.` : '; it covers no folders yet (add them on the Projects page or in its planning.json).'));
+  out.stdout(`Created the project ${created.name} in ${created.planningFolder}` + (created.folders.length ? `, covering ${created.folders.join(', ')}.` : '; it covers no folders yet (add them from the project menu of the app’s plans, or in its planning.json).'));
   return 0;
 }
 
@@ -99,11 +100,11 @@ export async function work(operation: string | undefined, args: string[], out: O
       return 0;
     }
     case 'create': {
-      const { positional, values, lists } = parseOptions(args, { values: ['title', 'summary', 'slug', 'planning-dir'], lists: ['continues', 'tag'] }, line);
+      const { positional, values, lists } = parseOptions(args, { values: ['title', 'summary', 'slug', 'part-of', 'planning-dir'], lists: ['continues', 'tag'] }, line);
       positionals(positional, [], line);
       if (!values.title) throw new UsageError('the following arguments are required: --title', line);
       const root = await planningDir(values, null);
-      print(out, await createWork(root, { title: values.title, slug: values.slug ?? null, summary: values.summary ?? null, continues: lists.continues ?? null, tags: lists.tag ?? null }));
+      print(out, await createWork(root, { title: values.title, slug: values.slug ?? null, summary: values.summary ?? null, continues: lists.continues ?? null, tags: lists.tag ?? null, partOf: values['part-of'] ?? null }));
       return 0;
     }
     case 'tag': {
@@ -125,6 +126,14 @@ export async function work(operation: string | undefined, args: string[], out: O
       const [id, ...continues] = positional;
       if (!id) throw new UsageError('the following arguments are required: work-id', line);
       print(out, await setContinues(await planningDir(values, id), id, continues));
+      return 0;
+    }
+    case 'parts': {
+      // The work it is made of, in order: work items of this project; none clears them.
+      const { positional, values } = parseOptions(args, { values: ['planning-dir'] }, line);
+      const [id, ...parts] = positional;
+      if (!id) throw new UsageError('the following arguments are required: work-id', line);
+      print(out, await setParts(await planningDir(values, id), id, parts));
       return 0;
     }
     case 'start': case 'reopen': {

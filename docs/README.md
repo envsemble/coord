@@ -5,7 +5,6 @@
 - [App guide](../app/README.md): install the desktop app; the hub, plans, projects, statistics, diagrams and windows; security and diagnostics.
 - [Progress and statistics](progress-and-statistics.md): the ledger's steps, what the hooks measure, how Atlas counts agent time, tokens, subagents and plan revisions for planning and implementation, and a plan's sessions and timeline.
 - [Remote access](remote-access.md): work on another computer's projects; pairing, the computer menu, `atlas serve`, the host's protocol, security and privacy.
-- [Plan export](plan-export.md): share a whole work item as one offline HTML file, and import it elsewhere.
 
 ## For agents
 
@@ -19,6 +18,7 @@
 - [Diagrams](diagrams.md): Atlas's PlantUML subset, `' atlas` comments, captures with `atlas capture`, proposals, before-and-after comparisons, scenarios, and linking a diagram from a plan.
 - [Code capture](code-capture.md) and [database capture](database-capture.md): the capture adapters and their limits.
 - [Viewer](viewer.md) and [embedding](embedding.md): the viewer's behavior, and using the diagram package and its React panel elsewhere.
+- [Pages](pages.md): the views agents make in a work item's `pages/`, how Atlas builds and runs them in place, choices, and what a page may reach.
 - [Architecture](architecture.md): the parts of the diagram package and the atlas package, and the Atlas host.
 
 ## Developing Atlas

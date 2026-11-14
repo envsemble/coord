@@ -2,10 +2,13 @@
 // folders) and its clients (the desktop app's windows, another computer's Atlas, later a phone).
 // Only types and constants live here, so every client can import it. Every method declares the
 // scope it requires; the host checks it before any handler runs.
-import type { DocumentContent, HandoffLink, PlanImportResult, PlanningIndex, ProjectState, ProjectSummary as PlanningProjectSummary, ProjectWork, ProjectWorkState, ProjectWorkStatistics, Work } from '../planning/index.ts';
+import type { DocumentContent, HandoffLink, PlanningIndex, ProjectState, ProjectSummary as PlanningProjectSummary, ProjectWork, ProjectWorkState, ProjectWorkStatistics, Work } from '../planning/index.ts';
 import type { DiagramEntry, DiagramIndexEntry, DiagramReference } from '../planning/reading/diagrams.ts';
+import type { PageBuild, PageProblem } from '../planning/pages/pages.ts';
 
-export type { DiagramEntry, DiagramIndexEntry, DiagramReference, HandoffLink, ProjectState, ProjectWork, ProjectWorkState, ProjectWorkStatistics };
+export type { DiagramEntry, DiagramIndexEntry, DiagramReference, HandoffLink, PageBuild, PageProblem, ProjectState, ProjectWork, ProjectWorkState, ProjectWorkStatistics };
+/** An Atlas tool's result for a page: its value, or the refusal an agent would read. */
+export type ToolOutcome = { ok: true; value: unknown } | { ok: false; error: string };
 
 /** Raised when the protocol changes incompatibly; a client refuses a host that speaks another version. */
 export const protocolVersion = 14;
@@ -14,7 +17,7 @@ export const protocolVersion = 14;
  * Every paired device belongs to the person who owns this computer, so pairing grants the whole
  * computer; only managing who else may pair is a separate grant.
  * - `computer`: what the Atlas app can do on this computer: list, create and change its projects,
- *   read them, and import and export plans. Every paired device has it.
+ *   and read them. Every paired device has it.
  * - `access:manage`: create pairing links, list and revoke paired devices. A device has it when its
  *   pairing link granted it.
  * - `owner`: everything, including the remote-access settings. Only the desktop app on the same
@@ -53,7 +56,7 @@ export interface Project {
   summary?: ProjectSummary | null;
 }
 /** What the search finds: plans, steps, documents and their headings, diagrams and their elements, glossary terms and projects. */
-export type SearchKind = 'plan' | 'step' | 'document' | 'heading' | 'diagram' | 'element' | 'term' | 'project';
+export type SearchKind = 'plan' | 'step' | 'document' | 'heading' | 'diagram' | 'page' | 'element' | 'term' | 'project';
 /**
  * A search result in one of the computer's active projects: what it is, its title, a short snippet
  * around the match (null when the title matched), and where it opens: the project (`projectId`, and its
@@ -195,6 +198,8 @@ export interface ProjectStatistics {
 export interface Snapshot extends PlanningIndex {
   /** Every visible folder below the planning root (POSIX-relative), including empty ones. */
   folders: string[];
+  /** The work items' pages that need their user, by their folder: what each waits on (from its page.json). */
+  attention?: Record<string, string>;
 }
 /** A work item as project.snapshot and project.work send it: without its documents, which the snapshot lists once. */
 export type SnapshotWork = Omit<Work, 'documents'>;
@@ -213,14 +218,6 @@ export function withWorkDocuments(value: SnapshotValue): Snapshot {
   for (const document of value.documents) if (document.workId !== null) owned.set(document.workId, [...owned.get(document.workId) ?? [], document]);
   return { ...value, work: value.work.map(item => ({ ...item, documents: (owned.get(item.id) ?? []).sort((a, b) => Number(b.category === 'plan') - Number(a.category === 'plan') || a.path.localeCompare(b.path)) })) };
 }
-
-export interface PreparedExport { token: string; bytes: number; warnings: string[]; fileName: string }
-export interface ImportPreviewValue {
-  token: string; title: string; originalId: string | null; origin: string | null; location: string | null;
-  exportedAt: string | null; atlasVersion: string | null; newId: string | null; newFolder: string | null;
-  files: number; bytes: number; diagrams: string[];
-}
-export type ImportResultValue = Pick<PlanImportResult, 'workId' | 'path' | 'files' | 'notes'>;
 
 /** How the host can be reached from other devices. Off unless the owner turns it on. */
 export interface NetworkSettings { enabled: boolean; address: string | null; port: number }
@@ -274,15 +271,22 @@ export interface Methods {
   'project.diagrams': { params: { projectId: string; work: string }; result: DiagramEntry[] };
   /** A diagram's viewer payload, with the payloads of the rest of its family (`siblings`), laid out together. */
   'project.diagram': { params: { projectId: string; work: string; path: string }; result: unknown };
+  /** How a reader arranged a diagram (its family's, for a capture's later captures and proposals): each element's top-left corner by id; null when it is laid out automatically. */
+  'project.arrangement': { params: { projectId: string; work: string; path: string }; result: Record<string, [number, number]> | null };
+  /** Save a diagram's arrangement beside its family's first file (`name.layout.json`), or remove it (null) to lay it out automatically. */
+  'project.arrange': { params: { projectId: string; work: string; path: string; positions: Record<string, [number, number]> | null }; result: null };
   /** The diagrams a document links to, under the headings the links sit under. */
   'project.references': { params: { projectId: string; work: string | null; path: string }; result: DiagramReference[] };
   /** Every diagram of the project, for quick open. */
   'project.diagramIndex': { params: { projectId: string }; result: DiagramIndexEntry[] };
-  'plan.exportPrepare': { params: { projectId: string; work: string }; result: PreparedExport };
-  'plan.exportDrop': { params: { token: string }; result: null };
-  'plan.importRead': { params: { projectId: string; file: string }; result: ImportPreviewValue };
-  'plan.importConfirm': { params: { projectId: string; token: string }; result: ImportResultValue };
-  'plan.importDrop': { params: { token: string }; result: null };
+  /** Build a page (`path`: its folder, `<work>/pages/<name>`) for a window to run: its code, or why it does not build. */
+  'project.page': { params: { projectId: string; path: string }; result: PageBuild };
+  /** A file of the planning folder as text, whatever its kind (a page's data, an SVG), at most 4 MB. */
+  'project.readText': { params: { projectId: string; path: string }; result: string };
+  /** Write a text file in the planning folder (a page's choices or data), making its folders. */
+  'project.write': { params: { projectId: string; path: string; content: string }; result: null };
+  /** Run one of the Atlas tools agents use (work_status, step and the rest) in the project's planning folder, for a page. */
+  'project.tool': { params: { projectId: string; name: string; input: Record<string, unknown> }; result: ToolOutcome };
   'access.state': { params: Record<string, never>; result: AccessState };
   'access.update': { params: { settings: AccessSettings }; result: AccessState };
   'access.pairingCreate': { params: { address: string | null } & PairingGrant; result: PairingLink };
@@ -310,14 +314,14 @@ export const methodScopes: { readonly [M in MethodName]: Scope } = {
   'project.document': 'computer',
   'project.diagrams': 'computer',
   'project.diagram': 'computer',
+  'project.arrangement': 'computer',
+  'project.arrange': 'computer',
   'project.references': 'computer',
   'project.diagramIndex': 'computer',
-  'plan.exportPrepare': 'computer',
-  'plan.exportDrop': 'computer',
-  // A file on this computer, by path: the app's own. Another device sends its file to routes.imports.
-  'plan.importRead': 'owner',
-  'plan.importConfirm': 'computer',
-  'plan.importDrop': 'computer',
+  'project.page': 'computer',
+  'project.readText': 'computer',
+  'project.write': 'computer',
+  'project.tool': 'computer',
   'access.state': 'access:manage',
   'access.update': 'owner',
   'access.pairingCreate': 'access:manage',
@@ -343,7 +347,7 @@ export interface EventMessage<E extends EventName = EventName> { event: E; data:
 export const closeCodes = { revoked: 4401, protocol: 4400, shuttingDown: 4503 } as const;
 
 /** HTTP routes. */
-export const routes = { host: '/api/host', pair: '/api/pair', connect: '/api/connect', files: '/api/projects/:projectId/files/*', imports: '/api/projects/:projectId/imports', exports: '/api/exports/:token' } as const;
+export const routes = { host: '/api/host', pair: '/api/pair', connect: '/api/connect', files: '/api/projects/:projectId/files/*' } as const;
 /** The default port for remote access, when the owner turns it on. */
 export const defaultPort = 7346;
 /** Pairing codes expire this long after they are created. */

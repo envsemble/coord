@@ -51,6 +51,18 @@ test('a program that runs too long is stopped', async () => {
   assert.ok(Date.now() - started < 10000);
 });
 
+test('on Windows, a program stopped for running too long takes the programs it started with it', { skip: process.platform !== 'win32' && 'the tree is stopped on Windows only' }, async () => {
+  // cmd.exe runs a program, as it runs an agent's command, which says its process ID and waits.
+  const command = `""${node}" -e "console.log(process.pid); setTimeout(() => {}, 20000)""`;
+  const error = await runProgram(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', command], { timeout: 2000, windowsVerbatimArguments: true }).then(() => null, (failure: ProgramError) => failure);
+  assert.ok(error?.killed, 'timed out');
+  const pid = Number(error.stdout.trim());
+  assert.ok(pid > 0, error.stdout);
+  const running = () => { try { process.kill(pid, 0); return true; } catch { return false; } };
+  for (const until = Date.now() + 10000; running() && Date.now() < until;) await new Promise(resolve => setTimeout(resolve, 50));
+  assert.equal(running(), false, 'the program it started is stopped too');
+});
+
 test('a run ends when its program ends, while another thread starts long-lived programs', async () => {
   // The worker starts children that live for five seconds, as esbuild's service lives on.
   const worker = new Worker(`

@@ -1,12 +1,12 @@
 # Diagrams
 
-A diagram is a file in a work item, written in Atlas's subset of [PlantUML](https://plantuml.com/class-diagram): a class diagram of concepts or code, an entity diagram of a database, or an object diagram of example instances. Agents write and edit diagrams like any other file in the planning folder; `atlas check` (which the hooks run after every edit) reports what is wrong, line by line. Atlas draws diagrams with its own viewer, in the app, in plan exports and in offline HTML files.
+A diagram is a file in a work item, written in Atlas's subset of [PlantUML](https://plantuml.com/class-diagram): a class diagram of concepts or code, an entity diagram of a database, or an object diagram of example instances. Agents write and edit diagrams like any other file in the planning folder; `atlas check` (which the hooks run after every edit) reports what is wrong, line by line. Atlas draws diagrams with its own viewer, in the app and in offline HTML files.
 
 Because the subset is PlantUML, any diagram Atlas accepts also renders in PlantUML. The reverse does not hold: Atlas lays diagrams out and styles them itself, so the subset has no syntax for layout or appearance, and anything outside it is an error rather than something silently skipped.
 
 ## Where diagrams live
 
-Every `*.puml` file in a work folder is one of its diagrams, usually under `diagrams/`. A plan links a diagram with an ordinary Markdown link under the heading the diagram explains, and the app shows the diagram's card there:
+Every `*.puml` file in a work folder is one of its diagrams, usually under `diagrams/`. A plan links a diagram with an ordinary Markdown link in the sentence the diagram explains, and the app shows the link as the diagram's, with a purple diagram icon:
 
 ```md
 ## Data model
@@ -15,7 +15,7 @@ Orders keep their lines and the address they ship to.
 [Order model](diagrams/orders.puml)
 ```
 
-A fragment names one element, which the card shows as a chip and the viewer focuses: `[the order](diagrams/orders.puml#Order)`. It is the element's PlantUML name, or a class's display name, URL-encoded (`#Order%20Item`). Any Markdown document of the work item can link its diagrams this way, such as the plan or the glossary; `atlas check` warns about a diagram no document links. A diagram's history is its file's history in the planning folder's Git.
+A fragment names one element, which the viewer focuses: `[the order](diagrams/orders.puml#Order)`. It is the element's PlantUML name, or a class's display name, URL-encoded (`#Order%20Item`). Any Markdown document of the work item can link its diagrams this way, such as the plan or the glossary; `atlas check` warns about a diagram no document links. A diagram's history is its file's history in the planning folder's Git.
 
 ## The subset
 
@@ -159,8 +159,8 @@ Directly above an element, member or relation, more describe it, each at most on
 | Line                         | Meaning                                                                                                                                                                                    |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `' atlas description <text>` | What it is for, in one short sentence of plain text (at most 280 characters) on the same line. Classes, interfaces, enums, entities, objects and their members take one; relations do not. |
-| `' atlas evidence {json}`    | Where it is declared: `file` (required), `line`, `endLine`, `repo`, `commit`, `url` (`http` or `https`), `title` and `claim`. The details show it as its source.                           |
-| `' atlas snippet {json}`     | A short excerpt of its source, at most twelve lines: `language`, `code`, and optionally `startLine` and `file`. The viewer highlights it.                                                  |
+| `' atlas evidence {json}`    | Where it is declared: `file` (required), `line`, `endLine`, `repo`, `commit`, `url` (`http` or `https`), `title` and `claim`. It records where the element comes from.                     |
+| `' atlas snippet {json}`     | A short excerpt of its source, at most twelve lines: `language`, `code`, and optionally `startLine` and `file`. It is kept with the element; the viewer does not draw it.                  |
 
 Any other `' atlas` word is an error, so a typo is caught; write remarks as plain `'` comments.
 
@@ -178,7 +178,7 @@ entity place {
 }
 ```
 
-The viewer shows a description in the element's details, under its name or beside the member, and as its tooltip on the canvas. A proposal that adds, changes or removes a description changes that element. Write one sentence of purpose where the name does not say it, such as for each table of a database diagram; why the design is so is rationale, which belongs in the plan. `atlas check` reports a description that is empty, longer than 280 characters, formatted (`**bold**`, `<b>`), repeated for one element, or not directly above a class, interface, enum, entity, object or member.
+The viewer shows a description as the element's or member's tooltip on the canvas. A proposal that adds, changes or removes a description changes that element. Write one sentence of purpose where the name does not say it, such as for each table of a database diagram; why the design is so is rationale, which belongs in the plan. `atlas check` reports a description that is empty, longer than 280 characters, formatted (`**bold**`, `<b>`), repeated for one element, or not directly above a class, interface, enum, entity, object or member.
 
 ## Captures
 
@@ -230,7 +230,7 @@ Names become PlantUML names the same way every time, so the same source captured
 
 A proposal shows an intended change. Copy the capture (or any diagram) to a new file, replace its `' atlas capture` and `' atlas fingerprint` lines with `' atlas proposal <path of the capture>`, and edit it like any diagram. Atlas compares the proposal with its baseline by name: an element is its name, a member `Element.name` (an operation also by its parameters), a relation its kind, ends and label. Renaming an element is therefore removing one and adding another. A proposal never names itself, or a diagram whose own baselines lead back to it; `atlas check` reports such a cycle. The evidence lines copied from the capture can stay; a new class can say where it is meant to go with an `' atlas evidence {"file": "src/vault.ts"}` line above it.
 
-Several proposals of one capture are alternatives, for when the agent is not sure which design fits. A capture, its proposals and later captures compared with it form a family that the viewer lays out once, so switching among them keeps every class in its place. A proposal opens in its change view: the proposal with what it removes kept in place, every change marked, and the list of changes beside it.
+Several proposals of one capture are alternatives, for when the agent is not sure which design fits. A capture, its proposals and later captures compared with it form a family: one diagram whose files are its layers, laid out once, so switching layers keeps every class in its place. A proposal opens in its change view: the proposal with what it removes kept in place, every change marked, and the list of changes beside it.
 
 ## Before and after
 
@@ -252,4 +252,4 @@ The assessment counts an object as an instance of its classes, of everything the
 
 ## In the viewer
 
-The viewer draws a diagram's elements and relations with its own orthogonal layout, shows each element's details, its source excerpt and where it is declared, and offers SVG, PlantUML and ZIP downloads. [Viewer](viewer.md) describes its behaviour, and [embedding](embedding.md) the Node library and React panel the app uses.
+The viewer draws a diagram's elements and relations with its own orthogonal layout, in groups (its packages, or the groups its relations form), lets the reader drag elements into an arrangement it keeps beside the diagram, and offers SVG, PlantUML and ZIP downloads. [Viewer](viewer.md) describes its behaviour, and [embedding](embedding.md) the Node library and React panel the app uses.

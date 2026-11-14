@@ -181,7 +181,7 @@ test("A class diagram's payload carries the scenarios that exemplify it, assesse
     [["name", '"Ada"', true]],
   );
   const { UMLNode } = load();
-  const node = objects.views[0].diagramFields.nodes.find((n) => n.id === "ada");
+  const node = objects.views[0].diagram.nodes.find((n) => n.id === "ada");
   assert(
     renderToStaticMarkup(
       createElement("svg", null, createElement(UMLNode, { node })),
@@ -262,50 +262,10 @@ Invoice "0..*" -- "1" Payable : bills
     /Linked instances must satisfy the declared relation ends/,
   );
 });
-test("Details leave capture diagnostics out, and navigation resolves members", async () => {
-  const { diagram } = atlas.parseDiagram(`@startuml
-abstract class Enrollment
-class Active
-Active --|> Enrollment
-@enduml
-`);
-  const text = atlas.formatDiagram({
-    ...diagram,
-    capture: {
-      capturedAt: "2026-10-08T00:00:00.000Z",
-      adapter: { id: "fixture", version: "1" },
-      source: {
-        identity: "Structured fixture",
-        kind: "typescript",
-        scope: ["model"],
-        revision: { hash: "structured revision" },
-      },
-      coverage: {
-        status: "partial",
-        diagnostics: [{ message: { details: "structured diagnostic" } }],
-      },
-      limitations: [{ message: "structured limitation" }],
-      consistency: { kind: { note: "structured" } },
-    },
-  });
-  const { prepared: viewers } = await atlas.prepareDiagrams({
-    files: [{ path: "capture.puml", text }],
-  });
-  const prepared = viewers.get("capture.puml");
-  const details = renderToStaticMarkup(
-    createElement(load("src/details/ElementDetails.jsx").ConceptDetails, {
-      concept: prepared.model.classes[0],
-      model: prepared.model,
-      snippets: prepared.payload.snippets,
-    }),
-  );
-  // Capture metadata is provenance, not something to review per element.
-  assert(!details.includes("structured diagnostic"));
-  assert(!details.includes("structured limitation"));
+test("navigation to a member resolves to its owner", () => {
   const { inspectionTarget } = load("src/model/inspectionTarget.js"),
     { indexViewerModel } = load("src/model/viewerModelIndex.js");
   const codeModel = {
-    ...prepared.model,
     classes: [
       {
         id: "owner",

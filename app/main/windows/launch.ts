@@ -1,13 +1,12 @@
 // What Atlas opens outside itself on this computer, beyond web pages: applications' links (a T3 Code
-// thread) and files in the chosen editor. Each is built from a fixed form here, never from a command
-// a page sends: an application link only with a scheme on the allowlist, a file only through its
-// editor's link. Pure, so it is unit-tested.
-import type { Editor } from '../../shared/contract.ts';
+// thread) and files in VS Code. Each is built from a fixed form here, never from a command a page
+// sends: an application link only with a scheme on the allowlist, a file only through VS Code's link.
+// Pure, so it is unit-tested.
 
 /**
  * Applications' links a page may hand to the system, which opens the application that owns them:
  * T3 Code's threads. Never `file:`, `javascript:`, an editor's or any other application's scheme;
- * main builds editors' links itself (`editorLink`).
+ * main builds VS Code's links itself (`editorLink`).
  */
 const appSchemes = new Set(['t3-thread:', 't3code:']);
 
@@ -19,15 +18,14 @@ export function appLink(value: string): string | null {
   } catch { return null; }
 }
 
-/** A full path as an editor's link takes it: forward slashes, each part escaped, a drive letter kept. */
+/** A full path as VS Code's link takes it: forward slashes, each part escaped, a drive letter kept. */
 function linkPath(file: string) {
   const slashed = file.replaceAll('\\', '/');
   const parts = slashed.split('/').map(encodeURIComponent).join('/');
   return (parts.startsWith('/') ? parts : '/' + parts).replace(/^\/([A-Za-z])%3A/, '/$1:');
 }
 
-/** The link that opens a file at its line in an editor; null for the system's application, which Atlas only shows the file in its folder for. */
-export function editorLink(editor: Editor, file: string, line: number | null): string | null {
-  if (editor === 'system') return null;
-  return editor + '://file' + linkPath(file) + (line ? ':' + line : '');
+/** The link that opens a file at its line in VS Code. */
+export function editorLink(file: string, line: number | null): string {
+  return 'vscode://file' + linkPath(file) + (line ? ':' + line : '');
 }

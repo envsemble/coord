@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased
+
+**A simpler window, on envUI 1.0**
+
+- **envUI 1.0:** the app and the diagram viewer move to envUI 1.0.0, now on npm, keeping Atlas's look: the same pages, density and colours (the work statuses keep GitHub's colours). Installing from a checkout no longer needs a GitHub token.
+- **One row at the top:** **Plans** joins File, View and Help in the title bar (every plan, each project's plans and all plans' statistics), and the Plans and Projects sections below it are gone. Breadcrumbs start at Plans: Plans › Northwind › #0001.
+- **Projects are managed from the hub:** the Projects page is gone; the hub's project menu chooses a project, shows what agents do on each, and makes, renames, archives and restores projects and changes their folders.
+- **Files at the left:** a plan's files move from the card at the top right to the left of the plan and its pages; Ctrl+Shift+E brings the keyboard to them, and their edge drags to make them wider or narrower.
+- **Work in parts:** a work item can be made of ordered parts, other work items of the project, each with its own plan and steps. A rail at the right of the group and of each part lists them in order with their status and steps, the hub says **Part 2 of #0005**, and agents set them up with `work_create` (`partOf`) and the new `work_parts` tool (`atlas work parts`); `atlas check` checks them.
+- **Diagrams as links:** a plan's link to a diagram shows inline as the diagram's, in purple with a diagram icon, in place of the cards under its headings.
+- **Readable tables:** a plan's table columns keep a readable width and the table scrolls sideways when it has more than fit; `atlas check` warns about a table that will read cramped, and about rows a blank line cut off from their table, and an agent hears it as it writes.
+- **A plainer diagram viewer:** full view, the attributes toggle (attributes always show), search, the element details with their source excerpts, and drawn stereotypes are gone; a proposal’s changes and a class diagram’s scenarios keep a side panel of their own.
+- **One diagram with layers:** a capture, the proposals over it and the later captures compared with it are one diagram; the Files tree lists its layers under its first file, and `[` and `]` switch them, in place of the diagram picker. The plan's breadcrumb stays above a diagram, and the canvas takes the page's background.
+- **The hub's search** is a button like the title bar's **Search**, **Search every project**, rather than a field.
+- **Pages in work items:** an agent can make a page in a work item's `pages/` (a choice between layouts, a dashboard, a before and after), in React on envUI and the diagram viewer. Atlas builds it and opens it in place, like a diagram, from the plan's link, Files or the search, updates it as the agent changes it, and saves the choices made on it for the agent, who hears of them with the next message. A page that needs you (its `page.json` says what for) has an amber dot in Files and on its links, and is listed under the plan's title, until the agent clears it. Pages have the widgets icon, in teal. `atlas check` builds pages, and the atlas skill says when one helps and how to write it, with envUI's documentation shipped beside it.
+- **Before and after, without asking:** the skills have agents capture a database or model before and after work that changes its structure in a major way, comparing the two, so what the work changed can be seen later.
+- **Changes on and off:** a proposal's **Show changes** button turns its change colours off and shows the diagram it proposes plainly, in place, and on again.
+- **Diagrams in groups:** the layout draws related elements together, a diagram’s packages as named regions or the groups its relations form, with room and longer lines between the groups.
+- **Arrange a diagram by hand:** drag an element and its relations follow; the arrangement is kept beside the diagram (`name.layout.json`), for all its layers, new elements go beside the ones they relate to, and **Reset layout** lays it out again.
+- **Plans that read well:** a plan's text wraps at a comfortable line length, a touch larger with more room between its lines, its sections set apart; the plan and its side column are centred together. A plan's plan.md and ledger.md open as the plan page, and other documents show without their raw metadata header, under their plan's breadcrumb.
+- **The delivery skills in the plugin:** full send, full stop, babysitting a PR, the opus-loop and council reviews, filing a PR and leaving PR comments ship in the plugin beside Atlas's skills, with the reviewer agent they start; `extras/` is gone. **atlas implement** now only keeps the work item true while the work is done (its steps, summary, findings left for later, and closing once the outcome is reached), leaving how to review and deliver to those skills, and **atlas grill** settles how the work will be delivered and proven before the plan is accepted.
+- **Now is removed:** a plan in progress no longer leads with what its sessions are doing, and its plan no longer folds under **Plan**: the page shows the plan whole, as it does for every plan. Its sessions stay in the side column.
+- **Open in is removed:** the title bar's Open in, **File › Open in Editor** (Ctrl+O) and the choice of editor go. A file a plan links to still opens in VS Code.
+- **Plan export and import are removed**, with `atlas plan export` and `atlas plan import`, File › Import Plan… and Export Plan…, and the plan export viewer.
+
+**The installer is all you need**
+
+- **The app carries the `atlas` command and the Atlas plugin.** It copies them to `agent/` in the Atlas home, and on its first start puts the command on your PATH (the user `Path` on Windows, `~/.local/bin` on Linux), where it runs on a Node.js the app ships with it: no clone, Node.js or `atlas setup` is needed. The Windows uninstaller takes it off the PATH and disconnects the agents.
+- **Onboarding:** Atlas starts with a short flow until it is finished: what Atlas is, the agents on this computer (Claude Code and Codex), connecting them (or none), and how to start ("What is Atlas and how do I use it?").
+- **Settings** (File › Settings…, Ctrl+,): **Agents** connects and disconnects Claude Code and Codex and shows the plugin version each has; **Computers** holds both ways of pairing, the computers this one is paired with and the devices that can reach it. Updates refresh the plugin in the connected agents.
+- **Agents are found as programs**, on the PATH as a terminal has it (read again at start, however Atlas was started), or through **Choose program…** for one Atlas does not find. **Connect by hand** lists the commands that install the plugin, to copy.
+- **The app's plugin calls the command by its full path**, so it works at once, in agents started before the PATH changed too. Codex asks to trust its hooks again once.
+- **Atlas checks the connected agents:** **Ready** after a session ran Atlas's hooks, **Waiting for a first session**, or a warning, in Settings, on the onboarding's last step and on the hub, when Codex does not trust Atlas's hooks or a session used Atlas's tools without its hooks running.
+- **The computer menu** only switches computers, with **Computer settings…**; pairing and remote access moved to Settings.
+- `atlas setup` shares its code with the app's Agents; it behaves as before.
+
 ## 0.8.0 — The plans hub — 2026-10-20
 
 **The app**

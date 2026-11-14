@@ -4,29 +4,29 @@
 // its `atlas:` file protocol can only ever see the projects it follows.
 import { BrowserWindow, dialog, nativeTheme, screen, session as electronSession, shell, type Session } from 'electron';
 import type { HostClient, Project } from '@envsemble/atlas/host';
-import type { EventChannel, Place, ProjectChangeRequest, WindowInfo } from '../../shared/contract.ts';
+import type { EventChannel, ProjectChangeRequest, WindowInfo } from '../../shared/contract.ts';
 import { AtlasError } from '../errors.ts';
 import { ProjectView } from '../computers/projectView.ts';
-import { createProtocolHandler, isEntry, originOf, rendererOrigin, scheme } from './protocol.ts';
+import { createProtocolHandler, isEntry, isPageFrameUrl, originOf, rendererOrigin, scheme } from './protocol.ts';
 import { defaultSize, type Bounds, type WindowRow } from '../appState.ts';
 import type { WindowManager } from './windowManager.ts';
 
 /** envUI's canvas colour in the window's theme, shown until the page paints. */
-const windowBackground = () => nativeTheme.shouldUseDarkColors ? '#1f1f1f' : '#ffffff';
+// envUI 1.0's page colour (--env-color-bg-page), which shows before the page paints.
+const windowBackground = () => nativeTheme.shouldUseDarkColors ? '#1e1f21' : '#eaeaec';
 
-/** The height of the title bar the window draws itself, with its line, at 100% zoom. */
+/** The height of the title bar the window draws itself, at 100% zoom. */
 const titleBarHeight = 40;
 /**
- * The system's window buttons over the title bar the page draws: on the canvas colour, in its text
- * colour, and as tall as the bar above its line. envUI's title bar takes their height (the window
- * controls overlay's environment variables) and draws its line below them, so the line runs under
- * them too; scaled by 150%, the system's buttons reach one device pixel lower, which an odd height
- * leaves clear. Zoomed in, they grow with the bar; zoomed out, the bar keeps its height and so do
- * they.
+ * The system's window buttons over the title bar the page draws: on the bar's colour (envUI's
+ * TopBar, --env-color-bg-default), in its text colour (--env-color-fg-default), as tall as the bar,
+ * which takes their height (the window controls overlay's environment variables). Scaled by 150%,
+ * the system's buttons reach one device pixel lower, which an odd height leaves clear. Zoomed in,
+ * they grow with the bar; zoomed out, the bar keeps its height and so do they.
  */
 const titleBarOverlay = (zoom = 1) => {
   const height = Math.round((titleBarHeight - 1) * Math.max(1, zoom));
-  return nativeTheme.shouldUseDarkColors ? { color: '#1f1f1f', symbolColor: '#e8eaed', height } : { color: '#ffffff', symbolColor: '#202124', height };
+  return nativeTheme.shouldUseDarkColors ? { color: '#28292b', symbolColor: '#e8eaee', height } : { color: '#f4f4f6', symbolColor: '#1f1f22', height };
 };
 /**
  * Where a person's press starts, which a page cannot fake: a mouse button, a key (one raw or cooked
@@ -59,8 +59,6 @@ export class AtlasWindow {
   computer: string | null;
   /** The projects the window follows, by their IDs. */
   readonly views = new Map<string, ProjectView>();
-  /** The place the page last said it shows (ui:save); Open in opens only a file of it. */
-  shown: Place | null = null;
   /** Projects still being followed: a request for one waits for it. */
   private readonly opening = new Map<string, Promise<void>>();
   /** The projects of the window's computer as last listed, with their rows in the home database. */
@@ -141,8 +139,10 @@ export class AtlasWindow {
       const url = new URL(details.url);
       const local = ['atlas:', 'data:', 'blob:', 'devtools:'].includes(url.protocol);
       const devServer = dev && (url.protocol === 'http:' || url.protocol === 'ws:') && url.host === dev.host;
-      if (!local && !devServer) context.log.warn('Blocked a request', { url: url.protocol + '//' + url.host });
-      callback({ cancel: !local && !devServer });
+      // A page, in its frame, reaches what its agent made it for: no guards (work-0036).
+      const page = Boolean(details.frame?.parent) && isPageFrameUrl(details.frame!.url, context.devUrl);
+      if (!local && !devServer && !page) context.log.warn('Blocked a request', { url: url.protocol + '//' + url.host });
+      callback({ cancel: !local && !devServer && !page });
     });
     session.on('will-download', (event, item) => {
       // Only files the viewer generates itself (SVG/JSON exports) may be saved; the user picks where.
@@ -163,6 +163,14 @@ export class AtlasWindow {
       if (external) void this.openExternal(external).catch(() => undefined);
     });
     contents.on('will-redirect', (event, url) => { if (!own(url)) event.preventDefault(); });
+    // A page's frame stays on its page; a link it follows opens in the browser.
+    contents.on('will-frame-navigate', event => {
+      if (event.isMainFrame) return;
+      if (isPageFrameUrl(event.url, this.manager.context.devUrl ?? null)) return;
+      event.preventDefault();
+      const external = externalUrl(event.url);
+      if (external) void this.openExternal(external).catch(() => undefined);
+    });
     contents.on('will-attach-webview', event => event.preventDefault());
     contents.setWindowOpenHandler(({ url }) => {
       const external = externalUrl(url);

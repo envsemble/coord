@@ -26,7 +26,7 @@ import { documentAnchors, markdownBody, parseMarkdown } from './headings.ts';
 import { headingText, parseable, scanLines } from './markdownScan.ts';
 import { normalTag, tagsOf } from '../work/tags.ts';
 
-export type SearchKind = 'plan' | 'step' | 'document' | 'heading' | 'diagram' | 'element' | 'term' | 'project';
+export type SearchKind = 'plan' | 'step' | 'document' | 'heading' | 'diagram' | 'page' | 'element' | 'term' | 'project';
 /**
  * What a search found in a planning folder: its kind and title, a snippet around the match (null when
  * a title matched), and where it opens: the work item, the file (POSIX-relative), a heading's anchor
@@ -44,7 +44,9 @@ export const searchFileLimit = 2 * 1024 * 1024;
 const trusted = 60_000;
 /** Folders never read wherever they are, besides hidden ones; a work item's `evidence` is left out too, as the home's watch leaves it. */
 const skippedFolders = new Set(['node_modules', '__pycache__']);
-const kindOrder: Record<SearchKind, number> = { plan: 0, project: 0, step: 1, document: 2, heading: 3, diagram: 4, element: 5, term: 6 };
+const kindOrder: Record<SearchKind, number> = { plan: 0, project: 0, step: 1, document: 2, heading: 3, diagram: 4, page: 4, element: 5, term: 6 };
+/** A work item's page, found by its name: the entry of a folder in its `pages/` folder. */
+const pageEntry = /^(.+\/pages\/[^/]+)\/page\.(?:tsx|jsx|ts|js)$/;
 
 const foldedCharacters = new Map<string, string>();
 /**
@@ -249,6 +251,8 @@ export function readMarkdown(relative: string, source: string, metadata: Record<
 
 function parseFile(relative: string, source: string): Parsed {
   const text = source.replace(/^\uFEFF/, '');
+  // A page is found by its folder's name, not its code.
+  if (pageEntry.test(relative)) return {};
   if (/\.puml$/i.test(relative)) {
     const fallback = path.posix.basename(relative).replace(/\.[^.]*$/, '');
     try {
@@ -273,7 +277,7 @@ async function listFiles(root: string, relative = ''): Promise<{ relative: strin
       if (!skippedFolders.has(entry.name) && !evidence) result.push(...await listFiles(root, child));
       return;
     }
-    if (!entry.isFile() || !(/\.(md|puml)$/i.test(entry.name) || child === 'planning.json')) return;
+    if (!entry.isFile() || !(/\.(md|puml)$/i.test(entry.name) || child === 'planning.json' || pageEntry.test(child))) return;
     const info = await stat(path.join(root, child)).catch(() => null);
     if (info) result.push({ relative: child, size: info.size, mtime: info.mtimeMs });
   }));
@@ -408,6 +412,12 @@ function gather(files: Map<string, FileRecord>, registry: { work_items?: unknown
     const at = { work: workId, path: relative, changed: file.mtime };
     const { diagram, title, headings, terms } = file.parsed;
     const name = path.posix.basename(relative);
+    const page = pageEntry.exec(relative);
+    if (page) {
+      const folder = page[1], shown = path.posix.basename(folder);
+      entries.push({ ...base, ...at, path: folder, kind: 'page', title: shown, names: [...new Set([fold(shown), fold(shown.replace(/[-_]+/g, ' '))])] });
+      continue;
+    }
     if (/\.puml$/i.test(relative)) {
       const shown = diagram?.title ?? name.replace(/\.[^.]*$/, '');
       entries.push({ ...base, ...at, kind: 'diagram', title: shown, names: [...new Set([fold(shown), fold(name.replace(/\.[^.]*$/, ''))])] });

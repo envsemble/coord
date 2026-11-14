@@ -192,7 +192,7 @@ async function prepareDiagrams({
   const entryOf = (summary) => {
     if (entries.has(summary.path)) return entries.get(summary.path);
     const text = texts.get(summary.path);
-    const { model, snippets } = convert(parsed.get(summary.path), {
+    const { model } = convert(parsed.get(summary.path), {
       id: summary.path,
       title: summary.title,
     });
@@ -228,7 +228,6 @@ async function prepareDiagrams({
       model,
       semantic: semanticOf(model),
       views: [],
-      snippets,
       scenarios: exemplified.length
         ? {
             scenarios: exemplified.map((scenario) => ({

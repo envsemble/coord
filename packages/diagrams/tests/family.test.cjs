@@ -63,13 +63,12 @@ Checkout "1" -- "0..*" Vault : uses`,
 }
 // What each member shows: a proposal's change view, or the capture itself.
 const shown = (payload) => payload.comparison?.changeView || payload;
-function placements(payloads, fields = false) {
+function placements(payloads) {
   const seen = new Map();
   let compared = 0;
   for (const payload of payloads)
     for (const view of shown(payload).views) {
-      const scene = view[fields ? "diagramFields" : "diagram"];
-      for (const n of scene.nodes) {
+      for (const n of view.diagram.nodes) {
         const box = [view.key, n.x, n.y, n.width, n.height].join();
         const key = `${view.key}:${n.id}`;
         if (seen.has(key)) {
@@ -94,10 +93,9 @@ test("A capture and its proposals share one layout and keep their own review dat
     payloads.map((p) => p.family),
     ["capture.puml", "capture.puml", "capture.puml"],
   );
-  // Every class every member shows sits in one place, with or without fields,
-  // and every member's scene has the same size.
+  // Every class every member shows sits in one place, and every member's
+  // scene has the same size.
   assert(placements(payloads) >= 8);
-  assert(placements(payloads, true) >= 8);
   const sizes = payloads.map((p) =>
     shown(p).views.map((v) => [v.key, v.diagram.width, v.diagram.height]),
   );

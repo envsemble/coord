@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { argumentsOf, command, diagramPath, folderPath, isProjectListing, place, relativePath, target, uiState, ValidationError, workId } from './validate.ts';
+import { agentId, argumentsOf, command, diagramPath, folderPath, isProjectListing, place, relativePath, target, uiState, ValidationError, workId } from './validate.ts';
 import { defaultUiState } from './contract.ts';
 
 const projectId = 'f-' + 'a'.repeat(32);
@@ -20,6 +20,9 @@ test('identifiers, commands and view events have exact shapes', () => {
   for (const bad of ['../../planning.json.puml', 'diagrams/../../x.puml', '/x.puml', 'C:/x.puml', 'plan.md']) assert.throws(() => diagramPath(bad), bad);
   assert.equal(command('newWindow'), 'newWindow');
   for (const gone of ['closeFolder', 'locate', 'openFolder', 'exit', 'closeWindow', 'undo', 'paste', 'selectAll']) assert.throws(() => command(gone), /must be one of/, gone);
+  // An agent is named, never its program: main's own dialog chooses that.
+  assert.equal(agentId('codex'), 'codex');
+  for (const bad of ['C:\\Windows\\System32\\cmd.exe', '/bin/sh', 'claude.exe']) assert.throws(() => agentId(bad), /must be one of/, bad);
 });
 
 test('argument lists reject extra arguments', () => {
@@ -41,8 +44,9 @@ test("a place is a plan, a diagram or a file of a project, or one of the window'
   assert.deepEqual(place({ page: 'hub', projectId: null }), { page: 'hub', projectId: null });
   assert.deepEqual(place({ page: 'hub', projectId }), { page: 'hub', projectId });
   assert.deepEqual(place({ page: 'statistics', projectId }), { page: 'statistics', projectId });
-  assert.deepEqual(place({ page: 'projects', projectId }), { page: 'projects' });
-  for (const bad of [{ page: 'project', projectId }, { page: 'hub', projectId: '../x' }, { page: 'hub' }, { projectId: '../x', target: { kind: 'file', path: 'a.md' } }, { projectId }, null]) assert.throws(() => place(bad), JSON.stringify(bad));
+  assert.deepEqual(place({ page: 'projects', projectId }), { page: 'hub', projectId: null });
+  assert.deepEqual(place({ page: 'settings', section: 'computers', projectId }), { page: 'settings', section: 'computers' });
+  for (const bad of [{ page: 'project', projectId }, { page: 'hub', projectId: '../x' }, { page: 'hub' }, { page: 'settings' }, { page: 'settings', section: 'theme' }, { projectId: '../x', target: { kind: 'file', path: 'a.md' } }, { projectId }, null]) assert.throws(() => place(bad), JSON.stringify(bad));
 });
 
 test('window state is checked deeply', () => {
@@ -50,11 +54,6 @@ test('window state is checked deeply', () => {
   const state = uiState({ place: { projectId, target: { kind: 'work', work: 'work-0001' } }, sidebar: { visible: false, width: 300 }, tabs: { items: [], active: null } });
   assert.deepEqual(state, { place: { projectId, target: { kind: 'work', work: 'work-0001' } } }, 'the sidebar and the tabs are gone');
   assert.throws(() => uiState({ tabs: { items: [], active: null } }), /place/);
-  // The width of a diagram's details is kept when the reader chose one.
-  assert.equal(uiState({ ...defaultUiState, inspectorWidth: 480 }).inspectorWidth, 480);
-  assert.equal('inspectorWidth' in uiState(defaultUiState), false);
-  assert.throws(() => uiState({ ...defaultUiState, inspectorWidth: 20 }), /inspectorWidth/);
-  assert.throws(() => uiState({ ...defaultUiState, inspectorWidth: 480.5 }), /inspectorWidth/);
 });
 
 test("a project's folder is a full path of the computer", () => {

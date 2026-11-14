@@ -12,13 +12,13 @@ export function ViewSwitcher({
   label = "Diagram view",
   compact = false,
 }) {
-  const options = items.map((item) => ({ value: item.key, label: item.label }));
+  const choices = items.map((item) => ({ value: item.key, label: item.label }));
   if (compact)
     return (
       <Select
         className="view-select"
         aria-label={label}
-        options={options}
+        items={choices}
         value={value}
         onValueChange={(next) => next && onChange(next)}
       />
@@ -27,8 +27,7 @@ export function ViewSwitcher({
     <SegmentedControl
       className="view-switcher"
       aria-label={label}
-      size="compact"
-      options={options}
+      items={choices}
       value={value}
       onValueChange={onChange}
     />

@@ -9,11 +9,13 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
-  acceptWork, addSteps, archiveWork, proposeSteps, projectTags, searchWork, tagWork, closeWork, createWork, findPlanning, DatabaseVersionError, PlanningNotFoundError, removeStep, renameStep, reopenWork, setContinues,
+  acceptWork, addSteps, archiveWork, proposeSteps, projectTags, searchWork, tagWork, closeWork, createWork, findPlanning, DatabaseVersionError, PlanningNotFoundError, removeStep, renameStep, reopenWork, setContinues, setParts,
   resolvePlanningFolder, setBlocked, setStepStatus, startWork, WorkError, workStatus, type LedgerStepStatus,
 } from '../../planning/index.ts';
 import type { Whereabouts } from '../../planning/projects/findProject.ts';
 import type { WorkResult } from '../../planning/work/work.ts';
+import { agentOfClient, noteActivity } from '../../agents/activity.ts';
+import { atlasHome } from '../../home/homePath.ts';
 import { parseOptions, UsageError, wantsHelp, type Output } from '../args.ts';
 import { createHomeProject } from './planning.ts';
 
@@ -22,9 +24,10 @@ const { version } = require('../../../package.json') as { version: string };
 
 const instructions = "Atlas keeps plans in projects: planning folders in the Atlas home (~/.atlas/planning). A session in one of a project's folders (the deepest wins when they nest), or in its planning folder, belongs to that project; where lists the projects and their active work. "
   + 'When several projects match, ask the user which one to plan in and pass its planningFolder; when none does, ask which project the work belongs to. '
-  + 'Ask the user before project_create or work_create, and open work items only for work big enough to plan; small tasks stay plain coding. '
+  + 'Ask the user before project_create or work_create (a follow-up of work they handed you to finish without them you create yourself), and open work items only for work big enough to plan; small tasks stay plain coding. '
   + 'Change planning state (work items, steps, blocked, closing, archiving) only through these tools; edit plan prose, glossaries and diagrams directly as files in the planning folder. '
   + 'When work continues other work (follow-ups moved off work that is closing, a next phase), record the handoff with continues. '
+  + 'When one task is better planned as several ordered pieces, each with its own plan and steps, make them its parts (work_create with partOf; work_parts). '
   + "Tag work with what it will be searched for later: the release it ships in and the areas it touches, reusing the project's tags (where and work_tag count them). "
   + 'Answer questions about past work with work_search. '
   + 'In planning files, write PRs and issues as owner/repo#N and commits as owner/repo@hash (or their URLs), naming the repository yourself, so Atlas links them. '
@@ -98,8 +101,8 @@ const tools: Tool[] = [
   {
     name: 'work_create',
     description: 'Ask the user first; only for work big enough to plan. Create a work item: active/NNNN-slug/ with a draft plan.md (its header holds the summary) and a ledger with the planning steps (Understand the request, doing; Settle the design; Write the plan; Accepted). Then write the plan body directly, and keep the summary and planning steps true as the design settles.',
-    inputSchema: object({ title: { type: 'string' }, summary: { type: 'string', description: 'Two or three plain sentences, on one line: what the work is, why, and where it stands.' }, slug: { type: 'string', description: 'Folder name after the number; derived from the title by default.' }, continues, tags: titles('Its first tags, such as ["search"].') }, ['title']),
-    run: (root, input) => createWork(root, { title: input.title as string, slug: (input.slug as string | undefined) ?? null, summary: (input.summary as string | undefined) ?? null, continues: (input.continues as string[] | undefined) ?? null, tags: (input.tags as string[] | undefined) ?? null }),
+    inputSchema: object({ title: { type: 'string' }, summary: { type: 'string', description: 'Two or three plain sentences, on one line: what the work is, why, and where it stands.' }, slug: { type: 'string', description: 'Folder name after the number; derived from the title by default.' }, continues, tags: titles('Its first tags, such as ["search"].'), partOf: { ...work, description: "The work item of this project it is a part of; it becomes the last of that group's parts." } }, ['title']),
+    run: (root, input) => createWork(root, { title: input.title as string, slug: (input.slug as string | undefined) ?? null, summary: (input.summary as string | undefined) ?? null, continues: (input.continues as string[] | undefined) ?? null, tags: (input.tags as string[] | undefined) ?? null, partOf: (input.partOf as string | undefined) ?? null }),
   },
   {
     name: 'work_tag', description: "Add and remove a work item's tags (lowercase letters, digits, dots and hyphens). Returns its tags and the project's, with counts.",
@@ -144,7 +147,13 @@ const tools: Tool[] = [
     run: (root, input) => setContinues(root, input.work!, input.continues as string[]),
   },
   {
-    name: 'work_close', description: 'Close finished work, once the user confirms it is finished: refused with the open items unless every step is done and nothing is blocked; then complete today and moved to archive/.',
+    name: 'work_parts',
+    description: 'Set the work items a work item is made of (its parts, other work of this project), in order, replacing them: to reorder, add existing work or take a part out; an empty list removes them. Groups are one level deep, and a part belongs to one group.',
+    inputSchema: object({ work, parts: titles('Its parts in order, such as ["work-0034", "work-0035"].') }, ['work', 'parts']),
+    run: (root, input) => setParts(root, input.work!, input.parts as string[]),
+  },
+  {
+    name: 'work_close', description: 'Close finished work, once its outcome is reached and the user confirms it, or handed you the work to finish without them: refused with the open items unless every step is done and nothing is blocked; then complete today and moved to archive/.',
     inputSchema: object({ work }, ['work']), run: (root, input) => closeWork(root, input.work!),
   },
   {
@@ -208,7 +217,17 @@ export async function callTool(name: string, input: Arguments) {
 export function createMcpServer() {
   const server = new Server({ name: 'atlas', version }, { capabilities: { tools: {} }, instructions });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) }));
-  server.setRequestHandler(CallToolRequestSchema, async request => callTool(request.params.name, (request.params.arguments ?? {}) as Arguments) as never);
+  // The first tool call notes which agent uses Atlas's tools (by the name its client gave), once:
+  // the app warns when an agent's sessions use them but its hooks never run.
+  let noted = false;
+  server.setRequestHandler(CallToolRequestSchema, async request => {
+    if (!noted) {
+      noted = true;
+      const agent = agentOfClient(server.getClientVersion()?.name);
+      if (agent) noteActivity(atlasHome(undefined, process.env), agent, 'mcp');
+    }
+    return callTool(request.params.name, (request.params.arguments ?? {}) as Arguments) as never;
+  });
   return server;
 }
 

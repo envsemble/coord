@@ -1,5 +1,6 @@
-// Validates the Atlas plugin's packaging: its three skills, the standalone babysit-pr skill, their
-// invocation rules, the commands and tools they name, and the plugin and marketplace manifests.
+// Validates the Atlas plugin's packaging: its skills (Atlas's three and the delivery skills beside
+// them) and the reviewer agent, their invocation rules, the commands and tools they name, and the
+// plugin and marketplace manifests.
 // Run with `npm run test:skills`.
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -10,20 +11,28 @@ import { fileURLToPath } from "node:url";
 const PLUGIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const REPO = path.dirname(PLUGIN);
 const SKILLS = path.join(PLUGIN, "skills");
-const EXTRAS = path.join(REPO, "extras");
 
-const PLUGIN_SKILLS = ["atlas", "atlas-grill", "atlas-implement"];
-const EXTRA_SKILLS = ["babysit-pr"];
-const EXPLICIT_ONLY = new Set(["babysit-pr"]);
+// Atlas's own skills, which name no model or provider, and the delivery skills the plugin carries
+// beside them (filing, babysitting and reviewing PRs, full send and full stop), which are the user's
+// as they wrote them and name the reviewers they choose.
+const ATLAS_SKILLS = ["atlas", "atlas-grill", "atlas-implement"];
+const DELIVERY_SKILLS = [
+  "babysit-pr",
+  "council",
+  "file-pr",
+  "full-send",
+  "full-stop",
+  "leaving-pr-comments",
+  "opus-loop",
+];
+const PLUGIN_SKILLS = [...ATLAS_SKILLS, ...DELIVERY_SKILLS].sort();
+const EXPLICIT_ONLY = new Set();
 // Skills the user triggers by saying their names: the description is that trigger and nothing else.
 const BY_NAME = {
   "atlas-grill": ["atlas grill", "grill", "grill me"],
   "atlas-implement": ["atlas implement"],
 };
-const ALL = [
-  ...PLUGIN_SKILLS.map((name) => path.join(SKILLS, name)),
-  ...EXTRA_SKILLS.map((name) => path.join(EXTRAS, name)),
-];
+const ALL = PLUGIN_SKILLS.map((name) => path.join(SKILLS, name));
 // Keys valid for both Codex and Claude Code skill frontmatter.
 const FRONTMATTER_KEYS = new Set([
   "name",
@@ -36,7 +45,7 @@ const FRONTMATTER_KEYS = new Set([
 // it loads by default, and Codex's hooks/codex.json, which its manifest names instead.
 const HOOK_EVENTS = {
   SessionStart: ["SessionStart"],
-  UserPromptSubmit: ["UserPromptSubmit"],
+  UserPromptSubmit: ["UserPromptSubmit", "PageChoices"],
   PostToolUse: ["PostToolUse", "ToolUse"],
   PostToolUseFailure: ["ToolUse"],
   Notification: ["Notification"],
@@ -177,13 +186,16 @@ function openaiMetadata(dir) {
   return result;
 }
 
-test("the plugin packages exactly the atlas, atlas-grill and atlas-implement skills; babysit-pr stands apart", () => {
+test("the plugin packages exactly its skills, and the reviewer agent they use", () => {
   const folders = (dir) =>
     readdirSync(dir)
       .filter((name) => existsSync(path.join(dir, name, "SKILL.md")))
       .sort();
   assert.deepEqual(folders(SKILLS), PLUGIN_SKILLS);
-  assert.deepEqual(folders(EXTRAS), EXTRA_SKILLS);
+  assert.match(
+    read(path.join(PLUGIN, "agents", "reviewer.md")),
+    /^---\r?\nname: reviewer\r?\n/,
+  );
   for (const name of readdirSync(REPO))
     assert.ok(
       !existsSync(path.join(REPO, name, "SKILL.md")),
@@ -254,8 +266,12 @@ test("Codex interface metadata uses the Atlas names", () => {
   }
 });
 
-test("skills name no model, provider or harness-specific reviewer", () => {
-  for (const file of textFiles()) {
+test("Atlas's skills name no model, provider or harness-specific reviewer", () => {
+  for (const file of textFiles().filter((name) =>
+    ATLAS_SKILLS.some((skill) =>
+      name.startsWith(path.join(SKILLS, skill) + path.sep),
+    ),
+  )) {
     const text = read(file);
     const found = [...text.matchAll(PROVIDER_NAME)].map((m) => m[0]);
     assert.deepEqual(found, [], `${rel(file)} names a model or provider`);
@@ -304,9 +320,7 @@ test("every atlas command and Atlas tool the skills and docs name exists in the 
 
 test("relative links resolve and stay inside their skill set", () => {
   for (const file of skillFiles().filter((name) => name.endsWith(".md"))) {
-    const home = file.startsWith(SKILLS + path.sep)
-      ? SKILLS
-      : path.join(EXTRAS, path.relative(EXTRAS, file).split(path.sep)[0]);
+    const home = SKILLS;
     // Links quoted as inline code are examples, not links.
     for (const [, target] of withoutFences(read(file))
       .replace(/`[^`\n]*`/g, "")

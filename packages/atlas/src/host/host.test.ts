@@ -1,5 +1,5 @@
 // The host end to end on 127.0.0.1: authentication and scopes, pairing with a one-time code, the
-// whole computer for a paired device (its folders, exports, import), Manage access, revocation, and
+// whole computer for a paired device, Manage access, revocation, and
 // the checks that keep browsers and other hosts out. Its projects are in projects.test.ts; what
 // waits on watchers and the host's timers is in host.slow.test.ts.
 import test from 'node:test';
@@ -12,7 +12,7 @@ import { HomeDatabase } from '../planning/index.ts';
 import { AccessStore, lockAddress, normalizeCode } from './access/access.ts';
 import { HostRequestError, describeHost, pairWithHost, parsePairing } from './client.ts';
 import { withWorkDocuments } from './contract.ts';
-import { acceptableHost, attachment } from './host.ts';
+import { acceptableHost } from './host.ts';
 import { pairRequest, accessSettings } from './validate.ts';
 import { accessStore, client, freePort, noGrant, opened, pairDevice, projectNamed, quiet, start, temporary, until } from './testing.ts';
 
@@ -64,7 +64,7 @@ test('the owner reads any folder it opens; a request with the wrong shape or sco
     await assert.rejects(connection.request('project.diagram', { projectId: opened.id, work: 'work-0001', path }), (error: HostRequestError) => error.code === 'invalid-argument', path);
   await assert.rejects(connection.request('project.snapshot', { projectId: 'f-' + 'a'.repeat(32) }), (error: HostRequestError) => error.code === 'forbidden');
   await assert.rejects(connection.request('projects.update' as never, { projectId: 42 } as never), (error: HostRequestError) => error.code === 'invalid-argument');
-  // Files in documents and plan exports come over authenticated HTTP.
+  // Files in documents come over authenticated HTTP.
   const image = await connection.fetch(`/api/projects/${opened.id}/files/active/0001-saved-payment-methods/plan.md`);
   assert.equal(image.status, 200);
   assert.equal(image.headers.get('content-type'), 'application/octet-stream', 'only images keep their type');
@@ -72,15 +72,6 @@ test('the owner reads any folder it opens; a request with the wrong shape or sco
   // Paths stay inside the folder: an encoded escape and hidden folders are refused.
   assert.equal((await connection.fetch(`/api/projects/${opened.id}/files/..%2F..%2Fpackage.json`)).status, 403);
   assert.equal((await connection.fetch(`/api/projects/${opened.id}/files/active/0001-saved-payment-methods/.cache/x.json`)).status, 403);
-  const prepared = await connection.request('plan.exportPrepare', { projectId: opened.id, work: 'work-0003' });
-  assert.equal(prepared.fileName, 'customer-notifications-work-0003.atlas-plan.html');
-  const exported = await connection.fetch('/api/exports/' + prepared.token);
-  assert.equal(exported.status, 200);
-  assert.match(await exported.text(), /<!doctype html>/i);
-  assert.equal((await connection.fetch('/api/exports/' + prepared.token)).status, 404, 'an export is handed over once');
-  // The owner (one app, several windows) may prepare several exports at once.
-  const both = await Promise.all([1, 2].map(() => connection.request('plan.exportPrepare', { projectId: opened.id, work: 'work-0003' })));
-  for (const each of both) assert.equal((await connection.fetch('/api/exports/' + each.token)).status, 200);
   // A change on disk reaches the subscriber, and the folder's view shows it.
   writeFileSync(path.join(planning, 'README.md'), '# Changed\n');
   const readme = async () => (await connection.request('project.snapshot', { projectId: opened.id })).documents.find(document => document.path === 'README.md')?.title;
@@ -132,8 +123,6 @@ test('a device pairs once with a five-minute code, gets the whole computer, and 
   assert.equal(snapshot.name, 'Northwind', 'the project\'s name, from its planning.json');
   // A folder that is not a project's is out of reach.
   await assert.rejects(device.connection.request('projects.subscribe', { projectId: 'f-' + 'a'.repeat(32) }), (error: HostRequestError) => error.code === 'not-found');
-  // It sends its plans for import (below); it cannot make this computer read a file by path.
-  await assert.rejects(device.connection.request('plan.importRead', { projectId: folder.projectId, file: path.join(planning, 'README.md') }), (error: HostRequestError) => error.code === 'forbidden');
   // Only the owner changes the remote-access settings; managing access needs Manage access.
   await assert.rejects(device.connection.request('access.update', { settings: { network: { enabled: false, address: null, port } } }), (error: HostRequestError) => error.code === 'forbidden' && /Only the Atlas app on/.test(error.message));
   await assert.rejects(device.connection.request('access.devices', {}), (error: HostRequestError) => error.code === 'forbidden' && /may not manage access/.test(error.message));
@@ -143,18 +132,6 @@ test('a device pairs once with a five-minute code, gets the whole computer, and 
   const onLoopback = client(t, origin, pairing.token, descriptor.hostId);
   await until(() => onLoopback.connection.status === 'revoked');
   assert.equal((await fetch(origin + '/api/projects/' + folder.projectId + '/files/README.md', { headers: { Authorization: 'Bearer ' + pairing.token } })).status, 401);
-  // Exports download with an exact UTF-8 name besides the ASCII one (the unit test below covers non-ASCII names).
-  const prepared = await device.connection.request('plan.exportPrepare', { projectId: folder.projectId, work: 'work-0003' });
-  const download = await device.connection.fetch('/api/exports/' + prepared.token);
-  assert.equal(download.status, 200);
-  assert.match(download.headers.get('content-disposition') ?? '', /filename\*=UTF-8''/);
-  await download.arrayBuffer();
-  // Exports belong to whoever prepared them: a device cannot take the owner's.
-  const ownerFolder = await projectNamed(owner.connection);
-  await owner.connection.follow(ownerFolder.id);
-  const ownerExport = await owner.connection.request('plan.exportPrepare', { projectId: ownerFolder.id, work: 'work-0003' });
-  assert.equal((await device.connection.fetch('/api/exports/' + ownerExport.token)).status, 404);
-  assert.equal((await owner.connection.fetch('/api/exports/' + ownerExport.token)).status, 200);
 
   await owner.connection.request('access.deviceRevoke', { deviceId: pairing.deviceId });
   await until(() => device.connection.status === 'revoked');
@@ -193,31 +170,6 @@ test('a device with Manage access pairs and revokes devices, but does not change
   await manager.connection.request('access.deviceRevoke', { deviceId: phone.pairing.deviceId });
   await until(() => phoneClient.connection.status === 'revoked');
   await assert.rejects(manager.connection.request('access.update', { settings: { network: { enabled: false, address: null, port: 7346 } } }), (error: HostRequestError) => error.code === 'forbidden');
-});
-
-test('another computer imports a plan by sending its file', async t => {
-  const { host, origin, planning } = await start(t);
-  const owner = client(t, origin, host.ownerToken, host.descriptor.hostId).connection;
-  const device = await pairDevice(t, host, owner);
-  const opened = await projectNamed(device.connection);
-  assert.equal(opened.path, planning);
-  await device.connection.follow(opened.id);
-  const prepared = await device.connection.request('plan.exportPrepare', { projectId: opened.id, work: 'work-0003' });
-  const html = new Uint8Array(await (await device.connection.fetch('/api/exports/' + prepared.token)).arrayBuffer());
-  const sent = await device.connection.fetch(`/api/projects/${opened.id}/imports`, 60000, { method: 'POST', body: html, length: html.byteLength });
-  assert.equal(sent.status, 200, await sent.clone().text());
-  const preview = await sent.json() as { token: string; newId: string; title: string };
-  assert.equal(preview.newId, 'work-0005');
-  // The preview belongs to the device that sent the file.
-  await assert.rejects(owner.request('plan.importConfirm', { projectId: opened.id, token: preview.token }), /expired/);
-  const result = await device.connection.request('plan.importConfirm', { projectId: opened.id, token: preview.token });
-  assert.equal(result.workId, 'work-0005');
-  assert.equal((await device.connection.request('project.snapshot', { projectId: opened.id })).work.length, 5);
-  // Something that is not a plan export is refused, and nothing is written.
-  const junk = new TextEncoder().encode('<!doctype html><p>not a plan</p>');
-  const refused = await device.connection.fetch(`/api/projects/${opened.id}/imports`, 60000, { method: 'POST', body: junk, length: junk.byteLength });
-  assert.equal(refused.status, 400);
-  assert.equal((await fetch(device.remote + `/api/projects/${opened.id}/imports`, { method: 'POST', body: junk })).status, 401, 'only paired devices send files');
 });
 
 test('a client sends no credential to another host answering on a known address', async t => {
@@ -381,9 +333,4 @@ test('a program squatting on the lock\'s name is not taken for Atlas', async t =
   await new Promise<void>(resolve => squatter.listen(address, resolve));
   t.after(() => new Promise(resolve => { for (const socket of connections) socket.destroy(); squatter.close(resolve); }));
   assert.equal(await store.lock(), 'a program that is not Atlas');
-});
-
-test('download names keep their exact characters, with an ASCII fallback', () => {
-  assert.equal(attachment('přehled-work-0001.atlas-plan.html'), `attachment; filename="p_ehled-work-0001.atlas-plan.html"; filename*=UTF-8''p%C5%99ehled-work-0001.atlas-plan.html`);
-  assert.equal(attachment('a "quoted" (one).html'), `attachment; filename="a _quoted_ (one).html"; filename*=UTF-8''a%20%22quoted%22%20%28one%29.html`);
 });

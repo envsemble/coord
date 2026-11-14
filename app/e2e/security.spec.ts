@@ -41,7 +41,7 @@ test('the window is isolated and sandboxed, with a strict content security polic
   // A plan of the project shows, so the window follows its folder. It opens by a click from the page,
   // which is no person's press, so none is pending below.
   await hubRows(atlasWindow, 'Customer order notifications').first().getByRole('link', { name: 'Customer order notifications', exact: true }).evaluate(link => (link as HTMLElement).click());
-  await expect(atlasWindow.locator('.work-header h1')).toHaveText('Customer order notifications');
+  await expect(atlasWindow.locator('.work-page h1')).toHaveText('Customer order notifications');
   // Requests through the window's own session, as its pages make them.
   const status = await app.evaluate(async ({ BrowserWindow }, projectId) => {
     const session = BrowserWindow.getAllWindows()[0].webContents.session;
@@ -54,9 +54,13 @@ test('the window is isolated and sandboxed, with a strict content security polic
       app: await get('atlas://app/index.html'),
       appEscape: await get('atlas://app/..%2Fmain%2Findex.js'),
       other: await get('atlas://elsewhere/README.md'),
+      // A page's frame has an origin of its own, which serves only the frame (and what it loads).
+      frame: await get('atlas://page/page-frame.html'),
+      frameApp: await get('atlas://page/index.html'),
+      appFrame: await get('atlas://app/page-frame.html'),
     };
   }, project);
-  expect(status).toEqual({ readme: 200, escape: 403, hidden: 403, unfollowed: 404, app: 200, appEscape: 404, other: 404 });
+  expect(status).toEqual({ readme: 200, escape: 403, hidden: 403, unfollowed: 404, app: 200, appEscape: 404, other: 404, frame: 200, frameApp: 404, appFrame: 404 });
   // The page itself cannot reach the network or read planning files with fetch.
   const fetched = await atlasWindow.evaluate(async projectId => ({
     remote: await fetch('https://example.com/').then(() => 'loaded', () => 'blocked'),
@@ -124,18 +128,13 @@ test('messages are checked: wrong arguments, unknown projects and paths outside 
       application: await bridge.openExternal('t3-thread://thread/abc'),
       script: await bridge.openExternal('javascript:alert(1)'),
       unknownScheme: await bridge.openExternal('ms-settings:'),
-      // Open in opens, without asking, only the file of the place the window shows, inside the project's folder.
-      notShown: await bridge.openShown({ projectId, target: { kind: 'file', path: 'README.md' } }, 'README.md'),
-      fileTraversal: await bridge.openShown({ projectId, target: { kind: 'file', path: '../outside.md' } }, '../outside.md'),
-      // Files open only as the host resolves them, and the editor is one of a fixed list.
+      // Files open only as the host resolves them.
       referenceKind: await bridge.openReference(projectId, { kind: 'commit', repository: null, value: 'abcdef1', line: null }),
-      editorCommand: await bridge.setEditor('notepad.exe'),
       ok: await bridge.document(projectId, 'README.md').then(value => (value as { ok: boolean }).ok),
     };
   }, project);
-  for (const key of ['traversal', 'absolute', 'wrongType', 'noProject', 'badDiagram', 'notDiagram', 'command', 'paste', 'closeWindow', 'createRelative', 'updateRelative', 'referenceKind', 'editorCommand', 'fileTraversal'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });
+  for (const key of ['traversal', 'absolute', 'wrongType', 'noProject', 'badDiagram', 'notDiagram', 'command', 'paste', 'closeWindow', 'createRelative', 'updateRelative', 'referenceKind'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'invalid-argument' } });
   expect(results.hidden).toMatchObject({ ok: false, error: { code: 'forbidden' } });
-  expect(results.notShown).toMatchObject({ ok: false, error: { code: 'forbidden' } });
   expect(results.otherProject).toMatchObject({ ok: false });
   for (const key of ['quit', 'newWindow', 'openLogs', 'access', 'pairing', 'pair', 'web', 'application'] as const) expect(results[key], key).toMatchObject({ ok: false, error: { code: 'cancelled' } });
   expect(await app.evaluate(() => (globalThis as unknown as { asked: string[] }).asked)).toEqual([

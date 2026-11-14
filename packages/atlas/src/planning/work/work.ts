@@ -12,6 +12,7 @@ import { appendToSection, setFields, setSteps, yamlValue } from './headerText.ts
 import { HandoffGraph, parseHandoff, type HandoffReference } from '../handoffs/handoffs.ts';
 import { agreed, ledgerStatus, ledgerStepStatuses, stepCounts, stepSummary } from './ledger.ts';
 import { normalTag, tagCounts, tagsOf } from './tags.ts';
+import { isWorkId, partsOf } from './parts.ts';
 import { appendRegistryEntries, RegistryFormatError, updateRegistryEntry } from '../registry/registryText.ts';
 import { stepLimit, workStatistics } from '../reports/reports.ts';
 import type { LedgerStep, LedgerStepStatus } from '../types.ts';
@@ -309,6 +310,33 @@ function checkedHandoffs(root: string, values: unknown, workId: string | null): 
   return written;
 }
 
+/**
+ * A group's parts as its header writes them, refused unless each is a registered work item of this
+ * project, other than the group, listed once, in no other group and without parts of its own, and
+ * the group (when it gets parts) is not itself a part: groups are one level deep.
+ */
+async function checkedParts(root: string, values: unknown, groupId: string): Promise<string[]> {
+  if (!Array.isArray(values)) throw new WorkError('Give the parts as a list, such as ["work-0034", "work-0035"].');
+  const plans = await registeredPlans(root);
+  const registered = new Set((await registryOf(root)).workItems.map(item => item?.id));
+  const partsOfPlan = new Map(plans.map(item => [item.id, partsOf(item.metadata.parts, item.id)]));
+  const written: string[] = [];
+  for (const value of values) {
+    const id = typeof value === 'string' ? value.trim() : value;
+    if (!isWorkId(id)) throw new WorkError(`${JSON.stringify(value)} is not a work item of this project: write work-0034 (parts are always in the group's project).`);
+    if (!registered.has(id)) throw new WorkError(`${id} names no work item in this project.`);
+    if (id === groupId) throw new WorkError('A work item cannot be its own part.');
+    if (written.includes(id)) throw new WorkError(`${id} is listed twice: each part once, in its place.`);
+    const other = [...partsOfPlan].find(([group, parts]) => group !== groupId && parts.includes(id))?.[0];
+    if (other) throw new WorkError(`${id} is already a part of ${other}; take it out there first (work_parts on ${other}).`);
+    if (partsOfPlan.get(id)?.length) throw new WorkError(`${id} has parts of its own; groups are one level deep.`);
+    written.push(id);
+  }
+  const outer = [...partsOfPlan].find(([group, parts]) => group !== groupId && parts.includes(groupId))?.[0];
+  if (written.length && outer) throw new WorkError(`${groupId} is a part of ${outer}, so it cannot have parts: groups are one level deep.`);
+  return written;
+}
+
 /** The longest plan summary: a few sentences, on one header line. */
 export const summaryLimit = 1000;
 
@@ -334,9 +362,10 @@ const implementationStep = (step: LedgerStep) => !step.phase;
 /**
  * Create and register a work item: the next unused number across active, archived and registered
  * work, `active/NNNN-slug/plan.md` with a draft plan header (with its summary, when given), its
- * ledger with the planning steps, and its planning.json entry.
+ * ledger with the planning steps, and its planning.json entry. With `partOf`, a work item of this
+ * project, it becomes the last of that group's parts.
  */
-export async function createWork(input: string, request: { title: string; slug?: string | null; summary?: string | null; continues?: string[] | null; tags?: string[] | null }, options: OperationOptions = {}): Promise<WorkResult> {
+export async function createWork(input: string, request: { title: string; slug?: string | null; summary?: string | null; continues?: string[] | null; tags?: string[] | null; partOf?: string | null }, options: OperationOptions = {}): Promise<WorkResult & { partOf?: string }> {
   const today = dateOf(options);
   const title = oneLine(request.title, 'The title');
   const summary = request.summary == null || String(request.summary).trim() === '' ? null : oneLine(request.summary, 'The summary', summaryLimit);
@@ -344,6 +373,15 @@ export async function createWork(input: string, request: { title: string; slug?:
   const registry = await registryOf(root);
   const continues = request.continues?.length ? checkedHandoffs(root, request.continues, null) : [];
   const tags = request.tags?.length ? checkedTags(request.tags) : [];
+  // The group it is a part of, which must not be a part itself: groups are one level deep.
+  let group: Loaded | null = null;
+  if (request.partOf != null && String(request.partOf).trim() !== '') {
+    const groupId = String(request.partOf).trim();
+    if (!isWorkId(groupId)) throw new WorkError(`${JSON.stringify(request.partOf)} is not a work item of this project: write work-0034 (parts are always in the group's project).`);
+    group = await load(root, groupId);
+    const outer = (await registeredPlans(root)).find(item => item.id !== groupId && partsOf(item.metadata.parts, item.id).includes(groupId));
+    if (outer) throw new WorkError(`${groupId} is a part of ${outer.id}, so it cannot have parts: groups are one level deep.`);
+  }
   const slug = request.slug ? request.slug : slugOf(title);
   if (!slugPattern.test(slug) || slug.length > 80) throw new WorkError('The slug must be lowercase letters and digits joined by hyphens.');
   const folders = (await Promise.all(['active', 'archive'].map(location => readdir(path.join(root, location)).catch(() => [] as string[])))).flat();
@@ -365,7 +403,10 @@ export async function createWork(input: string, request: { title: string; slug?:
     await rm(file(root, location), { recursive: true, force: true });
     throw error;
   }
-  return result(root, workId, [plan, location + '/ledger.md', 'planning.json']);
+  const changed = [plan, location + '/ledger.md', 'planning.json'];
+  if (!group) return result(root, workId, changed);
+  changed.push(await writePlan(group, { parts: [...partsOf(group.planMetadata.parts, group.entry.id), workId] }, today));
+  return { ...await result(root, workId, changed), partOf: group.entry.id };
 }
 
 /** Accept the design: `design_status: accepted`, `accepted_at` today, and every planning step done. */
@@ -503,6 +544,17 @@ export async function setContinues(input: string, workId: string, continues: str
   const written = checkedHandoffs(loaded.root, continues, workId);
   const changed = [await writePlan(loaded, { continues: written }, dateOf(options))];
   return { ...await result(loaded.root, workId, changed), continues: written };
+}
+
+/**
+ * Set the work a work item is made of (its header's `parts`), in order, replacing what was
+ * recorded: to reorder them, add existing work or take a part out. An empty list records none.
+ */
+export async function setParts(input: string, workId: string, parts: string[], options: OperationOptions = {}) {
+  const loaded = await load(input, workId);
+  const written = await checkedParts(loaded.root, parts, workId);
+  const changed = [await writePlan(loaded, { parts: written }, dateOf(options))];
+  return { ...await result(loaded.root, workId, changed), parts: written };
 }
 
 export async function setBlocked(root: string, workId: string, reason: string | null, options: OperationOptions = {}) {

@@ -17,6 +17,9 @@ files:
 asar: false
 npmRebuild: false
 publish: null
+# Prunes the app's node_modules and assembles resources/agent: the atlas command, the Node.js it
+# runs on and the plugin, which the app copies into the Atlas home (scripts/agent-payload.cjs,
+# main/agent/agentFolder.ts).
 afterPack: scripts/after-pack.cjs
 electronFuses:
   runAsNode: false

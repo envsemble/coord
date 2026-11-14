@@ -40,19 +40,18 @@ export function relevantChange(relative: string | null): boolean {
 export function ignoredPath(relative: string): boolean {
   const normalized = relative.replaceAll('\\', '/').replace(/^\.\//, '');
   if (normalized === '.git/objects' || normalized.startsWith('.git/objects/')) return true;
-  if (normalized.startsWith('.atlas-import')) return true;
   return normalized.split('/').some(part => part === 'node_modules' || part === '__pycache__');
 }
 
 const homeIgnored = new Set(['.git', 'node_modules', '__pycache__']);
 /**
  * Folders in the home's planning folder (paths `<project>/…`) never watched for the project list
- * and the search: Git's, dependencies, Atlas's own, and a work folder's evidence
+ * and the search: Git's, dependencies, and a work folder's evidence
  * (`<project>/active|archive/<work>/evidence`). Diagrams are watched, for the search.
  */
 export function ignoredInHome(relative: string): boolean {
   const parts = relative.replaceAll('\\', '/').split('/').filter(Boolean);
-  if (parts.some(part => homeIgnored.has(part) || part.startsWith('.atlas-import'))) return true;
+  if (parts.some(part => homeIgnored.has(part))) return true;
   return parts.length >= 4 && (parts[1] === 'active' || parts[1] === 'archive') && parts[3] === 'evidence';
 }
 /**

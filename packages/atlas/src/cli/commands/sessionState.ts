@@ -97,7 +97,7 @@ function writeStamp(home: string, session: string, state: Stamp) {
  * further for a week (recordReport.ts keeps them in <home>/cache/session-logs).
  */
 export function pruneStamps(home: string, now = Date.now()) {
-  for (const folder of [stampFolder(home), path.join(home, 'cache', 'session-logs')]) {
+  for (const folder of [stampFolder(home), path.join(home, 'cache', 'session-logs'), path.join(home, 'cache', 'page-choices')]) {
     try {
       for (const name of readdirSync(folder)) {
         const file = path.join(folder, name);

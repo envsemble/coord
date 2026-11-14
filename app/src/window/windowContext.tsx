@@ -32,11 +32,6 @@ export interface WindowActions {
   notify: Notify;
   /** Set when the project is on another computer: its files are not on this one. */
   remote: { hostId: string; hostName: string } | null;
-  /** The width the reader gave a diagram's details, kept with the window's layout; null for the default. */
-  inspectorWidth: number | null;
-  setInspectorWidth(width: number): void;
-  /** Export a work item's plan to a file. */
-  exportPlan(work: string): void;
 }
 /** What changes of a project as its folder is read again and the projects are listed again. */
 export interface WindowReading {
@@ -70,13 +65,12 @@ export function useWindowActions(): WindowActions {
   return value;
 }
 
-/** A link to a target; `rowTarget` makes it cover its interactive row (envUI), without being dragged away as a link. */
-export function TargetLink({ target, children, className, title, id, underline = false, rowTarget = false }: { target: Target; children: ReactNode; className?: string; title?: string; id?: string; underline?: boolean; rowTarget?: boolean }) {
+/** A link to a target. */
+export function TargetLink({ target, children, className, title, id, underline = false }: { target: Target; children: ReactNode; className?: string; title?: string; id?: string; underline?: boolean }) {
   const { open } = useWindowActions();
   const activate = (event: MouseEvent) => {
     event.preventDefault();
     open(target);
   };
-  return <Link id={id} href="#" underline={underline} className={className} title={title} onClick={activate}
-    {...(rowTarget && { 'data-row-target': '', draggable: false })}>{children}</Link>;
+  return <Link id={id} href="#" underline={underline} className={className} title={title} onClick={activate}>{children}</Link>;
 }

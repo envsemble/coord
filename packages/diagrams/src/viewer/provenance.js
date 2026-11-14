@@ -87,7 +87,7 @@ export function describeProvenance(document) {
       kind: "generated",
       label,
       detail: captureDetail(baselineSnapshot(document)),
-      tone: "accent",
+      tone: "primary",
     };
   } else if (document.state === "proposal") {
     const date = formatCaptureDate(
@@ -97,7 +97,7 @@ export function describeProvenance(document) {
       kind: "proposal",
       label: "Agent proposal",
       detail: date ? `Changes to source captured ${date}` : "",
-      tone: "done",
+      tone: "accent",
     };
   } else if (document.state === "authored") {
     result = {

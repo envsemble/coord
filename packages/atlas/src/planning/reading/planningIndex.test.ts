@@ -289,7 +289,10 @@ test('normalized plan health reports missing or contradictory metadata while kee
       assert.ok((await readDocument(setup.root, 'active/0001-example/plan.md')).body.includes('Preserve this body.'));
       assert.equal(await readFile(filename, 'utf8'), source);
     }
-    await writeFile(filename, original.replace('supersedes: []', 'supersedes: [work-0002]'));
-    assert.equal((await loadPlanning(setup.root)).issues.filter(issue => issue.level === 'error').length, 0);
+    // Its parts, the work IDs each once and in order, and each part's group.
+    await writeFile(filename, original.replace('supersedes: []', 'supersedes: [work-0002]\nparts: ["work-0002", nope, "work-0002"]'));
+    const loaded = await loadPlanning(setup.root);
+    assert.equal(loaded.issues.filter(issue => issue.level === 'error').length, 0);
+    assert.deepEqual(loaded.work.map(item => [item.id, item.parts, item.partOf]), [['work-0001', ['work-0002'], null], ['work-0002', [], 'work-0001']]);
   } finally { await setup.cleanup(); }
 });

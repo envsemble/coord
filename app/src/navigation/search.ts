@@ -7,7 +7,7 @@ import { workNumber } from '../ui/format';
 import { diagramTarget, hubPlace, stepTarget, workTarget, type Place } from './targets';
 
 const searchKindLabels: Record<SearchKind, string> = {
-  plan: 'Plans', step: 'Steps', document: 'Documents', heading: 'Headings', diagram: 'Diagrams', element: 'Elements', term: 'Glossary terms', project: 'Projects',
+  plan: 'Plans', step: 'Steps', document: 'Documents', heading: 'Headings', diagram: 'Diagrams', page: 'Pages', element: 'Elements', term: 'Glossary terms', project: 'Projects',
 };
 
 /** Where a result opens: a place, or a file of a project (by its path in the planning folder) that the window resolves. */
@@ -62,7 +62,7 @@ export function hostEntries(results: SearchResult[], projects: Project[]): Searc
   return results.filter(result => !archived.has(result.projectId)).map((result, index) => {
     const work = result.work && result.kind !== 'plan' ? [workNumber(result.work), titles.get(workKey(result.projectId, result.work))].filter(Boolean).join(' ') : result.work ? workNumber(result.work) : null;
     const key = result.kind === 'plan' && result.work ? workKey(result.projectId, result.work)
-      : (result.kind === 'document' || result.kind === 'diagram') && result.path && !result.anchor && !result.element ? pathKey(result.projectId, result.path) : null;
+      : (result.kind === 'document' || result.kind === 'diagram' || result.kind === 'page') && result.path && !result.anchor && !result.element ? pathKey(result.projectId, result.path) : null;
     return {
       id: 'search:' + index + ':' + result.kind + ':' + result.projectId + ':' + (result.work ?? '') + ':' + (result.path ?? '') + '#' + (result.anchor ?? result.element ?? ''),
       kind: result.kind, label: result.title, detail: [result.kind === 'project' ? null : result.projectName, work].filter(Boolean).join(' · '),

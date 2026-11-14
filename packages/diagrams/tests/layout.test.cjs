@@ -29,14 +29,13 @@ function modelFixture(pairs) {
   };
 }
 
-async function draw(model, fields = false) {
+async function draw(model) {
   const [view] = prepareViews(model);
   const rendered = await layoutDiagram(
     view,
     new Map(model.classes.map((c) => [c.id, c])),
     view.edges,
     view.generalizations,
-    fields,
   );
   validateDiagram(rendered.diagram, model);
   return rendered;
@@ -66,31 +65,28 @@ test("generic compaction shortens links across chains, hubs, cycles and disconne
     ],
   ];
   let shortened = 0;
-  for (const pairs of topologies)
-    for (const fields of [false, true]) {
-      const model = modelFixture(pairs);
-      const original = structuredClone(model);
-      const { diagram, check } = await draw(model, fields);
-      const layout = check.layout,
-        baseline = layout.candidates[0];
-      assert(layout.score <= baseline.score);
-      for (const metric of ["crossings", "overlaps", "labelIntersections"])
-        assert(layout[metric] <= baseline[metric], `${metric} regressed`);
-      if (layout.length < baseline.length * 0.95) shortened++;
-      assert.equal(diagram.edges.length, model.relations.length);
-      for (const edge of diagram.edges) {
-        const semantic = model.relations.find((r) => r.id === edge.id);
-        assert.equal(edge.sourceAggregation, semantic.sourceAggregation);
-        assert.equal(edge.source, semantic.sourceId);
-        assert.equal(edge.target, semantic.targetId);
-      }
-      assert(
-        diagram.nodes.every((n) => n.attributes.length === (fields ? 1 : 0)),
-      );
-      assert.deepEqual(model, original);
+  for (const pairs of topologies) {
+    const model = modelFixture(pairs);
+    const original = structuredClone(model);
+    const { diagram, check } = await draw(model);
+    const layout = check.layout,
+      baseline = layout.candidates[0];
+    assert(layout.score <= baseline.score);
+    for (const metric of ["crossings", "overlaps", "labelIntersections"])
+      assert(layout[metric] <= baseline[metric], `${metric} regressed`);
+    if (layout.length < baseline.length * 0.95) shortened++;
+    assert.equal(diagram.edges.length, model.relations.length);
+    for (const edge of diagram.edges) {
+      const semantic = model.relations.find((r) => r.id === edge.id);
+      assert.equal(edge.sourceAggregation, semantic.sourceAggregation);
+      assert.equal(edge.source, semantic.sourceId);
+      assert.equal(edge.target, semantic.targetId);
     }
+    assert(diagram.nodes.every((n) => n.attributes.length === 1));
+    assert.deepEqual(model, original);
+  }
   assert(
-    shortened >= 4,
+    shortened >= 2,
     "Compaction should make a material improvement on varied graphs",
   );
 });

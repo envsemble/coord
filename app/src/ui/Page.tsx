@@ -1,17 +1,23 @@
-// The frame of a page: its heading with its controls and its toolbar; and a page for something gone.
+// A page of the window, on envUI's Page and PageHeader: the trail, the title with what goes beside it
+// (meta) and under it (description), the page's actions and its toolbar; and a page for something gone.
 import type { ReactNode } from 'react';
-import { EmptyState, Text } from '@envsemble/envui';
-import { Code } from '@envsemble/envui/content';
+import { Column, Page as EnvPage, PageHeader } from '@envsemble/envui';
+import { Code } from '@envsemble/envui/code';
+import { EmptyState } from './EmptyState';
 import { ErrorIcon } from './icons';
 
-export function Page({ title, heading, toolbar, children, className = '' }: { title?: ReactNode; heading?: ReactNode; toolbar?: ReactNode; children: ReactNode; className?: string }) {
-  return <div className={'page ' + className}>
-    {(title || heading) && <header className="page-header">
-      {heading ?? <Text as="h1" variant="page-heading">{title}</Text>}
-    </header>}
-    {toolbar && <div className="page-toolbar">{toolbar}</div>}
-    {children}
-  </div>;
+export function Page({ title, breadcrumbs, meta, description, actions, toolbar, controlSize, width = 'lg', className, children }: {
+  title?: ReactNode; breadcrumbs?: ReactNode; meta?: ReactNode; description?: ReactNode; actions?: ReactNode; toolbar?: ReactNode;
+  /** sm on a dense page: the toolbar's controls and the actions at the small height. */
+  controlSize?: 'sm' | 'md';
+  /** envUI's page widths: sm for a form or settings, md for a document, lg for a list (the default), full for a canvas. */
+  width?: 'sm' | 'md' | 'lg' | 'full';
+  className?: string; children: ReactNode;
+}) {
+  return <EnvPage className={'page' + (className ? ' ' + className : '')} width={width}
+    header={title ? <PageHeader title={title} breadcrumbs={breadcrumbs} meta={meta} description={description} actions={actions} toolbar={toolbar} controlSize={controlSize} /> : undefined}>
+    <Column gap={5}>{children}</Column>
+  </EnvPage>;
 }
 
 export function Gone({ title, detail }: { title: string; detail: string }) {

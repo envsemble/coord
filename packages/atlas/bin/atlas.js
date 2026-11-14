@@ -6,7 +6,7 @@
 // it is answered here before any TypeScript loads, and otherwise only that file loads. So is a
 // PostToolUse with nothing to do: no Atlas tool that changes a work item, and no file edited in the
 // home's planning folder. Every other hook loads src/cli/commands/hook.ts, not the whole command.
-import { readFileSync, realpathSync, statSync } from "node:fs";
+import { mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 
@@ -89,9 +89,31 @@ function idle(text) {
   } catch { return false; }
 }
 
+/**
+ * Note that Atlas's hooks ran in the session's agent, for the app's check of the connected agents
+ * (src/agents/activity.ts reads it, and tells the agent from the hook's input the same way: the
+ * session's log, else a turn_id, which only Codex sends). Written whole: a temporary file renamed into place.
+ * @param {string} text
+ */
+function noteHooks(text) {
+  let temporary = null;
+  try {
+    const input = JSON.parse(text || "{}"), transcript = input.transcript_path;
+    const agent = typeof transcript === "string" ? (/[\\/]\.codex[\\/]|[\\/]rollout-[^\\/]*\.jsonl$/.test(transcript) ? "codex" : "claude")
+      : typeof input.turn_id === "string" ? "codex" : null;
+    if (!agent) return;
+    const folder = path.join(atlasHome(), "agent", "activity"), file = path.join(folder, agent + "-hooks");
+    mkdirSync(folder, { recursive: true });
+    temporary = file + "." + process.pid + ".tmp";
+    writeFileSync(temporary, new Date(started).toISOString());
+    renameSync(temporary, file);
+  } catch { if (temporary) rmSync(temporary, { force: true }); /* Best effort: the check waits for the next hook. */ }
+}
+
 if (command === "hook") {
   let text = "";
   if (!process.stdin.isTTY) for await (const chunk of process.stdin) text += chunk;
+  if (event === "SessionStart" || event === "UserPromptSubmit") noteHooks(text);
   if (stateEvents.has(event)) {
     if (!settled(text)) await (await import("../src/cli/commands/sessionState.ts")).stateHook(event, text, started);
   } else if (!(event === "PostToolUse" && idle(text))) {

@@ -1,7 +1,6 @@
 import { createRoot } from "react-dom/client";
 import { ThemePreferenceProvider } from "@envsemble/envui";
 import { DevelopmentApp } from "./DevelopmentApp";
-import "@envsemble/envui/styles.css";
 import "../src/viewer/viewer.css";
 import "../src/canvas/canvas.css";
 
