@@ -223,7 +223,31 @@ h1 {
 
 .nowrap { white-space: nowrap; }
 
-.footer { padding-block: 2rem 2.5rem; color: var(--muted); font-size: 0.8125rem; justify-content: center; }
+/* The footer: the copyright, and the site's other pages on the right, below a hairline. */
+.footer {
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  margin-top: 1rem;
+  padding-block: 1.5rem 2.5rem;
+  border-top: 1px solid rgb(232 234 238 / 0.08);
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+.footer nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; }
+.footer a { color: var(--muted); text-decoration: none; }
+.footer a:hover { color: var(--text); }
+
+/* The privacy and terms pages: one readable column. */
+.legal { align-items: stretch; max-width: 42rem; line-height: 1.65; }
+.legal h1 { font-size: 1.75rem; }
+.legal-updated { margin: 0.375rem 0 0; color: var(--muted); font-size: 0.875rem; }
+.legal h2 { margin: 2.25rem 0 0; font-size: 1.125rem; font-weight: 600; }
+.legal p, .legal ul { margin: 0.75rem 0 0; color: var(--muted); }
+.legal ul { padding-left: 1.25rem; }
+.legal li + li { margin-top: 0.5rem; }
+.legal strong { color: var(--text); font-weight: 600; }
+.legal a { color: var(--text); text-underline-offset: 0.2em; }
+.legal code { font-size: 0.9em; color: var(--text); }
 
 /* On a phone the download buttons take the column's width. */
 @media (max-width: 40rem) {

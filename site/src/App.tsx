@@ -1,4 +1,4 @@
-// Coord's website: one dark page. The name, one line on what Coord is, a download button for
+// Coord's website: one dark page, with its privacy and terms pages (legal.tsx). The name, one line on what Coord is, a download button for
 // Windows and one for Linux under a Stable or Nightly switch (the newest build of each, read from GitHub Releases in the visitor's
 // browser by releases.ts), and a screenshot of a big run's statistics. Hovering a feature shows its screenshot by the cursor.
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
@@ -8,13 +8,36 @@ import dashboard from './shots/dashboard.png';
 import diagrams from './shots/diagrams.png';
 import grill from './shots/grill.png';
 import statistics from './shots/statistics.png';
+import { Privacy, Terms } from './legal.tsx';
 import { linuxPath } from './linuxPath.ts';
 import { acceptedPath, claudePath, codexPath, diagramPath, draftPath, moonPath, pagePath, previewPath, yourTurnPath } from './marks.ts';
 import { fetchBuilds, releasesPage, sourcePage, visitorPlatform, type Build, type Channel, type Platform } from './releases.ts';
 
 type Builds = Record<Channel, Build | null> | 'loading' | 'failed';
 
+/** The site: the home page, or the privacy or terms page by its path, under one header and footer. */
 export function App() {
+  const path = location.pathname.replace(/\/+$/, '');
+  const Page = path === '/privacy' ? Privacy : path === '/terms' ? Terms : Home;
+  return <>
+    <header className="header">
+      <a href="/" className="brand"><img src={logo} alt="Coord" width={711} height={241} /></a>
+      <a href={sourcePage} className="quiet">GitHub</a>
+    </header>
+    <Page />
+    <footer className="footer">
+      <span>© 2026 envsemble</span>
+      <nav aria-label="Site">
+        <a href={releasesPage}>Releases</a>
+        <a href={sourcePage + '/blob/main/LICENSE'}>MIT license</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+      </nav>
+    </footer>
+  </>;
+}
+
+function Home() {
   const [builds, setBuilds] = useState<Builds>('loading');
   useEffect(() => {
     // In development, /?sample shows sample releases (sample.ts) in place of GitHub's.
@@ -28,12 +51,7 @@ export function App() {
   useEffect(() => { document.documentElement.dataset.channel = channel; }, [channel]);
   // The visitor's system first.
   const platforms: Platform[] = visitor === 'linux' ? ['linux', 'windows'] : ['windows', 'linux'];
-  return <>
-    <header className="header">
-      <a href="/" className="brand"><img src={logo} alt="Coord" width={711} height={241} /></a>
-      <a href={sourcePage} className="quiet">GitHub</a>
-    </header>
-    <main>
+  return <main>
       {/* One box as wide as its longest line, centred; its lines break where they read best. */}
       <div className="intro">
         <h1>A desktop app for planning <br />with <Agent name="Claude Code" path={claudePath} kind="claude" /> or <Agent name="Codex" path={codexPath} kind="codex" /></h1>
@@ -52,9 +70,7 @@ export function App() {
       </p>
       <img className="screenshot" src={statistics} width={2184} height={1364}
         alt="A plan's statistics in Coord: 4 hours of agent time in 2 hours, and its timeline, where one Claude Opus session hands work to eleven Claude Haiku subagents at once, then to Opus and Fable." />
-    </main>
-    <footer className="footer">© 2026 envsemble · MIT license</footer>
-  </>;
+    </main>;
 }
 
 /** A Material Symbol from envUI, on its 960-unit grid. */
