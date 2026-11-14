@@ -31,7 +31,7 @@ export function statusOf(work: Pick<Work, 'design' | 'implementation' | 'progres
   if (work.design === 'abandoned') return statuses.abandoned;
   if (work.implementation === 'complete') return statuses.complete;
   if (work.implementation === 'partial' && work.location === 'archived') return statuses.partial;
-  if (work.state) return statuses[work.state.kind];
+  if (work.state) return statuses[work.state.kind] ?? statuses.unknown;
   if (work.progress?.blocked) return statuses.blocked;
   if (work.design === 'draft') return statuses.draft;
   if (work.implementation === 'in_progress' || work.implementation === 'partial') return statuses.nostate;

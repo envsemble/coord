@@ -27,8 +27,10 @@ export function contradictions(work: readonly ActiveWork[], now = Date.now()): s
     }
     if (item.implementationStatus === 'in_progress' && !state && !item.blocked) lines.push(`${name} is being implemented but says nobody's turn: set its state.`);
     if (state?.kind === 'your_turn' && since !== null && now - since > userTurnDays * day) lines.push(`${name} has waited on the user since ${shortDate(state.since!)}: ${state.note}. Ask them about it.`);
-    if ((state?.kind === 'working' || state?.kind === 'planning') && since !== null && now - since > day && (!item.updated || now - Date.parse(item.updated + 'T23:59:59') > day)) {
-      lines.push(`${name} has said ${state.kind} since ${shortDate(state.since!)}, and its plan has not changed since: if nobody is on it, say whose turn it is.`);
+    // Its plan or its ledger (a step moved) changed lately: someone is on it.
+    const touched = [item.updated, item.ledgerUpdated].filter((value): value is string => Boolean(value)).sort().at(-1);
+    if ((state?.kind === 'working' || state?.kind === 'planning') && since !== null && now - since > day && (!touched || now - Date.parse(touched + 'T23:59:59') > day)) {
+      lines.push(`${name} has said ${state.kind} since ${shortDate(state.since!)}, and neither its plan nor its steps changed since: if nobody is on it, say whose turn it is.`);
     }
   }
   return lines;

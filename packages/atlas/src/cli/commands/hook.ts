@@ -285,7 +285,7 @@ async function postToolUse(input: HookInput, home: string, links: SessionLinks):
   const requests: LinkRequest[] = [];
   // Tools that change a work item link it; reading (work_status, work_search) leaves the session where it is.
   // So does the atlas command run in a shell (shellWork), the last work item it names last.
-  const tool = /^mcp__.*atlas.*__(?:step$|work_(?!(?:status|search)$))/.test(input.tool_name ?? '');
+  const tool = /^mcp__.*atlas.*__(?:step$|state$|work_(?!(?:status|search)$))/.test(input.tool_name ?? '');
   const changed = tool ? [toolWork(input)].filter(about => about !== null) : shellWork(input);
   if (changed.length) {
     const { resolvePlanningFolder } = await import('../../planning/projects/findProject.ts');

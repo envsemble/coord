@@ -174,7 +174,7 @@ function shaped(name: string, value: unknown) {
   const { statistics: _, changed, warnings, ...status } = value as WorkResult;
   const notes = warnings.length ? { warnings } : {};
   if (ledgerTools.has(name)) return { planningFolder: status.planningFolder, workId: status.workId, steps: status.steps, progress: status.progress, blocked: status.blocked, ...notes };
-  if (name === 'work_update' && 'projectTags' in (value as object) && (value as { projectTags?: unknown }).projectTags) return { planningFolder: status.planningFolder, workId: status.workId, tags: status.tags, projectTags: (value as unknown as { projectTags: unknown }).projectTags, ...notes };
+  if (name === 'work_update' && (value as { projectTags?: unknown }).projectTags && !('continues' in (value as object)) && !('parts' in (value as object))) return { planningFolder: status.planningFolder, workId: status.workId, tags: status.tags, projectTags: (value as unknown as { projectTags: unknown }).projectTags, ...notes };
   return { ...status, changed, ...notes };
 }
 

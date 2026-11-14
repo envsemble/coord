@@ -106,8 +106,8 @@ test('hooks give the session its planning context, check and link planning edits
   const about = { tool_input: { work: 'work-0003' }, tool_response: [{ type: 'text', text: JSON.stringify({ workId: 'work-0003', planningFolder: root }) }] };
   for (const tool of ['work_status', 'work_search']) await hook('PostToolUse', { tool_name: 'mcp__plugin_atlas_atlas__' + tool, ...about });
   assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002']);
-  await hook('PostToolUse', { tool_name: 'mcp__plugin_atlas_atlas__step', ...about });
-  assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002', 'work-0003']);
+  await hook('PostToolUse', { tool_name: 'mcp__plugin_atlas_atlas__state', ...about });
+  assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002', 'work-0003'], 'saying whose turn it is changes the work item too');
   // A session on several work items counts as working on the one it touched last.
   const activity = () => withDatabase(base.ATLAS_HOME!, database => [...database.workActivity().values()].flat().map(item => [item.workId, item.state]));
   assert.deepEqual(activity(), [['work-0003', 'working']]);

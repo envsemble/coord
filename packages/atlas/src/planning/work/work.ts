@@ -336,7 +336,7 @@ async function checkedParts(root: string, values: unknown, groupId: string): Pro
     if (id === groupId) throw new WorkError('A work item cannot be its own part.');
     if (written.includes(id)) throw new WorkError(`${id} is listed twice: each part once, in its place.`);
     const other = [...partsOfPlan].find(([group, parts]) => group !== groupId && parts.includes(id))?.[0];
-    if (other) throw new WorkError(`${id} is already a part of ${other}; take it out there first (work_parts on ${other}).`);
+    if (other) throw new WorkError(`${id} is already a part of ${other}; take it out there first (work_update with its parts, on ${other}).`);
     if (partsOfPlan.get(id)?.length) throw new WorkError(`${id} has parts of its own; groups are one level deep.`);
     written.push(id);
   }
@@ -458,7 +458,8 @@ export async function startWork(root: string, workId: string, request: { steps?:
   const taken = titles.filter(title => kept.ledgerSteps.some(step => step.title === title));
   if (taken.length) throw new WorkError('The ledger already has these steps: ' + taken.join(', ') + '. Give new titles.');
   if (locationOf(loaded.entry.path) === 'archive') throw new WorkError('The work is archived; reopen it instead.');
-  const ledger = await writeLedger(loaded, withSteps(kept, titles, today));
+  // Working, it is not blocked: the ledger's blocker goes, as with any state but blocked.
+  const ledger = await writeLedger(loaded, setFields(withSteps(kept, titles, today), { blocked: null }));
   const plan = await writePlan(loaded, { implementation_status: 'in_progress', ...stateHeader('working', null, options) }, today);
   return result(loaded.root, workId, [ledger, plan]);
 }
@@ -773,7 +774,7 @@ export async function reopenWork(root: string, workId: string, request: { steps:
   const taken = titles.filter(title => loaded.ledgerSteps.some(step => step.title === title));
   if (taken.length) throw new WorkError('The ledger already has these steps: ' + taken.join(', ') + '. Give new titles.');
   const changed = await move(loaded, 'active');
-  changed.push(await writeLedger(loaded, withSteps(loaded, titles, today)));
+  changed.push(await writeLedger(loaded, setFields(withSteps(loaded, titles, today), { blocked: null })));
   changed.push(await writePlan(loaded, { implementation_status: 'in_progress', completed_at: null, ...disposed && { design_status: 'accepted', superseded_by: null }, ...stateHeader('working', null, options) }, today));
   return result(loaded.root, workId, changed);
 }

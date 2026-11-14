@@ -33,7 +33,7 @@ test('a work item is created under the next unused number, registered, and valid
   assert.deepEqual(errorsOf(root), []);
   const slugged = await createWork(root, { title: 'Other', slug: 'custom-name' }, today);
   assert.equal(slugged.path, 'active/0005-custom-name');
-  // The work it continues goes into its header; work_continue replaces it, and only work items are taken.
+  // The work it continues goes into its header; work_update replaces it, and only work items are taken.
   // Each reference is written as it resolves, once: bare in its own project, whatever spelling named it.
   const continuing = await createWork(root, { title: 'Next', summary: 'The next phase.', continues: ['work-0004', (caseless ? path.basename(root).toUpperCase() : path.basename(root)) + ':work-0004'] }, today);
   assert.ok(read(root, continuing.plan).includes('\ncontinues: ["work-0004"]\n'));
@@ -46,7 +46,7 @@ test('a work item is created under the next unused number, registered, and valid
   await assert.rejects(setContinues(root, 'work-0005', [continuing.workId], today), /a loop/);
   await setContinues(root, continuing.workId, [], today);
   assert.ok(read(root, continuing.plan).includes('\ncontinues: []\n'));
-  // Parts: new work with partOf becomes its group's last part; work_parts sets them in order. Groups
+  // Parts: new work with partOf becomes its group's last part; work_update sets them in order. Groups
   // are one level deep, a part belongs to one group, and parts are work items of this project.
   const part = await createWork(root, { title: 'First part', summary: 'A part.', partOf: 'work-0004' }, today);
   assert.deepEqual([part.partOf, part.changed.at(-1)], ['work-0004', created.plan]);
@@ -196,8 +196,11 @@ test('the design is accepted, then implementation starts with a ledger of its st
   assert.deepEqual([accepted.designStatus, accepted.acceptedAt, accepted.updated], ['accepted', '2026-10-14', '2026-10-14']);
   assert.match((await acceptWork(root, 'work-0001', today)).warnings[0], /already accepted on 2026-10-14/);
   assert.equal(read(root, 'active/0001-existing/plan.md'), plan('work-0001', { updated: '"2026-10-14"', design_status: 'accepted', accepted_at: '"2026-10-14"' }), 'only the changed lines are rewritten');
+  // Blocked while it was planned: starting it means it is no longer blocked.
+  await setState(root, 'work-0001', { kind: 'blocked', note: 'Waiting for the API key' }, today);
   const started = await startWork(root, 'work-0001', { steps: ['Build the cart', 'Review'] }, today);
   assert.equal(started.implementationStatus, 'in_progress');
+  assert.deepEqual([started.state?.kind, started.blocked], ['working', null]);
   assert.deepEqual(started.steps, [{ title: 'Build the cart', status: 'todo' }, { title: 'Review', status: 'todo' }]);
   assert.equal(started.progress, '0 of 2 steps done · 2 left');
   assert.match(read(root, 'active/0001-existing/ledger.md'), /\nsteps:\n  - title: "Build the cart"\n    status: todo\n  - title: "Review"\n    status: todo\n---\n$/);

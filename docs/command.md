@@ -42,7 +42,7 @@ atlas check [<path>...]
 atlas home [list]
 atlas capture <source.json> (--work <work-id> | --out <file>) [--name <name>] [--compares <capture.puml>] [--force] [--planning-dir <dir>]
 atlas mcp
-atlas hook <SessionStart|UserPromptSubmit|PostToolUse|ToolUse|Notification|PermissionRequest|Stop|StopFailure|Interrupt|SubagentStart|SubagentStop|SessionEnd>
+atlas hook <SessionStart|UserPromptSubmit|PageChoices|PostToolUse|ToolUse|Stop|StopFailure|Interrupt|SubagentStop|SessionEnd>
 atlas setup [--dry-run]
 atlas work report <planning-root> --work <work-id> [--step <title>] [--model <model>] [--session <id>] [--tokens <n>]
 atlas serve [--address <ip>] [--port <n>] [--home <dir>]

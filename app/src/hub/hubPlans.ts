@@ -29,7 +29,7 @@ const groupOf = (key: StatusKey): HubGroupId => groupOfStatus[key] ?? 'closed';
  */
 export function hubStatus(work: ProjectWork): StatusLook {
   if (work.state === 'closed') return work.outcome ? statuses[work.outcome] : statuses.partial;
-  if (work.turn) return statuses[work.turn.kind];
+  if (work.turn) return statuses[work.turn.kind] ?? statuses.unknown;
   return work.state === 'blocked' ? statuses.blocked : work.state === 'implementing' ? statuses.nostate : work.state === 'draft' ? statuses.draft : statuses.ready;
 }
 
