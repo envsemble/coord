@@ -2,7 +2,7 @@
 // Windows and one for Linux under a Stable or Nightly switch (the newest build of each, read from GitHub Releases in the visitor's
 // browser by releases.ts), and a screenshot of a plan. Hovering a feature shows its screenshot by the cursor.
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
-import logo from '../../assets/coord-logo-dark.svg';
+import logo from '../../assets/coord-horizontal-on-dark.svg';
 import attention from './shots/attention.png';
 import dashboard from './shots/dashboard.png';
 import diagrams from './shots/diagrams.png';
@@ -22,7 +22,7 @@ export function App() {
   const Page = path === '/privacy' ? Privacy : path === '/terms' ? Terms : Home;
   return <>
     <header className="header">
-      <a href="/" className="brand"><img src={logo} alt="Coord" width={711} height={241} /></a>
+      <a href="/" className="brand"><img src={logo} alt="Coord" width={711} height={208} /></a>
       <a href={sourcePage} className="quiet">GitHub</a>
     </header>
     <Page />
