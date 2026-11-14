@@ -106,7 +106,7 @@ Mark each old id `resolved` or `still open: <reason>`.
 
 Agreed: APPROVE on the current behavior diff, no blocker or should open, no
 concern of your own. Stuck: an item stays disputed after two replies, or budget
-ends. Show both sides in 2-3 lines each. The user decides. Budget end is not
+ends. Show both sides in 2-3 lines each. The user decides, unless the skill that asked for this loop says otherwise. Budget end is not
 approval.
 
 Do not push during the loop. Push after agreement only if the user asked to
