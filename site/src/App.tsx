@@ -1,7 +1,7 @@
 // Coord's website: one dark page. The name, one line on what Coord is, a download button for
 // Windows and one for Linux (the newest stable build, read from GitHub Releases in the visitor's
 // browser by releases.ts), and a screenshot of a big run's statistics. Hovering a feature shows its screenshot by the cursor.
-import { useEffect, useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import logo from '../../assets/coord-logo-dark.svg';
 import attention from './shots/attention.png';
 import dashboard from './shots/dashboard.png';
@@ -9,7 +9,7 @@ import diagrams from './shots/diagrams.png';
 import grill from './shots/grill.png';
 import statistics from './shots/statistics.png';
 import { linuxPath } from './linuxPath.ts';
-import { acceptedPath, claudePath, codexPath, diagramPath, draftPath, imagePath, pagePath, yourTurnPath } from './marks.ts';
+import { acceptedPath, claudePath, codexPath, diagramPath, draftPath, pagePath, yourTurnPath } from './marks.ts';
 import { fetchBuilds, releasesPage, sourcePage, visitorPlatform, type Build, type Channel, type Platform } from './releases.ts';
 
 type Builds = Record<Channel, Build | null> | 'loading' | 'failed';
@@ -60,8 +60,8 @@ export function App() {
 }
 
 /** A Material Symbol from envUI, on its 960-unit grid. */
-function Symbol({ path, className = 'symbol' }: { path: string; className?: string }) {
-  return <svg className={className} viewBox="0 -960 960 960" aria-hidden="true"><path fill="currentColor" d={path} /></svg>;
+function Symbol({ path }: { path: string }) {
+  return <svg className="symbol" viewBox="0 -960 960 960" aria-hidden="true"><path fill="currentColor" d={path} /></svg>;
 }
 /** An agent by its name, with its maker's mark, as the app shows a model. */
 function Agent({ name, path, kind }: { name: string; path: string; kind: 'claude' | 'codex' }) {
@@ -84,24 +84,32 @@ const features: { key: string; text: ReactNode; shot: string; alt: string }[] = 
   { key: 'attention', text: <>Shows which plans are <State kind="turn">Your turn</State></>, shot: attention, alt: 'The hub: Your turn first, saying what to do, then Waiting and Later.' },
 ];
 
-/** The features; with a mouse, each one's screenshot follows the cursor while it is hovered, as the image mark after each one says. */
+/**
+ * The features, each underlined with dashes; with a mouse, a feature's screenshot follows the cursor
+ * while it is hovered. The screenshots stay in the page, decoded once, and the cursor moves them
+ * without React: hovering only swaps which one shows.
+ */
 function Features() {
-  const [peek, setPeek] = useState<{ index: number; x: number; y: number } | null>(null);
-  // Load the screenshots up front, so the first hover shows at once.
-  useEffect(() => { for (const feature of features) new Image().src = feature.shot; }, []);
-  const follow = (index: number) => (event: MouseEvent) => {
+  const [shown, setShown] = useState<number | null>(null);
+  const peek = useRef<HTMLDivElement>(null);
+  const follow = (event: MouseEvent) => {
+    const element = peek.current;
+    if (!element) return;
     // Beside the cursor, flipped to the other side near the window's right and bottom edges.
-    const width = Math.min(520, window.innerWidth * 0.6), height = width * 1364 / 2184, gap = 20;
+    const width = element.offsetWidth, height = element.offsetHeight, gap = 20;
     const x = event.clientX + gap + width > window.innerWidth ? event.clientX - gap - width : event.clientX + gap;
     const y = Math.max(gap, Math.min(event.clientY + gap, window.innerHeight - height - gap));
-    setPeek({ index, x, y });
+    element.style.transform = `translate3d(${x}px, ${y}px, 0)`;
   };
   return <>
     <ul className="features">
-      {features.map((feature, index) => <li key={feature.key} onMouseMove={follow(index)} onMouseLeave={() => setPeek(null)}>{feature.text}<Symbol path={imagePath} className="peek-hint" /></li>)}
+      {features.map((feature, index) => <li key={feature.key} onMouseEnter={event => { follow(event); setShown(index); }} onMouseMove={follow} onMouseLeave={() => setShown(null)}>
+        <span className="feature-text">{feature.text}</span>
+      </li>)}
     </ul>
-    {peek && <img className="peek" src={features[peek.index]!.shot} alt={features[peek.index]!.alt} width={2184} height={1364}
-      style={{ transform: `translate(${peek.x}px, ${peek.y}px)` }} />}
+    <div ref={peek} className="peek" data-shown={shown === null ? undefined : ''} aria-hidden="true">
+      {features.map((feature, index) => <img key={feature.key} src={feature.shot} alt={feature.alt} width={1092} height={682} data-shown={index === shown ? '' : undefined} />)}
+    </div>
   </>;
 }
 
