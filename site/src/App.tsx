@@ -30,7 +30,7 @@ export function App() {
     <main>
       <div className="intro">
       <h1>A desktop app for planning with <Agent name="Claude Code" path={claudePath} kind="claude" /> or <Agent name="Codex" path={codexPath} kind="codex" /></h1>
-      <p className="lead">Agents build fast. Coord makes them agree on the plan first.</p>
+      <p className="lead">Agents are fast, and happy to build the wrong thing. Coord makes them agree on the plan first.</p>
       <Features />
       <p className="facts">In any terminal, editor or <span className="nowrap">T3 Code</span>. Windows and Linux. Free, MIT.</p>
       <div className="downloads">
