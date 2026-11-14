@@ -16,7 +16,11 @@ type Builds = Record<Channel, Build | null> | 'loading' | 'failed';
 
 export function App() {
   const [builds, setBuilds] = useState<Builds>('loading');
-  useEffect(() => { fetchBuilds().then(setBuilds, () => setBuilds('failed')); }, []);
+  useEffect(() => {
+    // In development, /?sample shows sample releases (sample.ts) in place of GitHub's.
+    const builds = import.meta.env.DEV && new URLSearchParams(location.search).has('sample') ? import('./sample.ts').then(sample => sample.sampleBuilds()) : fetchBuilds();
+    builds.then(setBuilds, () => setBuilds('failed'));
+  }, []);
   const visitor = visitorPlatform({ userAgent: navigator.userAgent, platform: navigator.platform });
   const stable = typeof builds === 'object' ? builds.stable : null;
   const nightly = typeof builds === 'object' ? builds.nightly : null;
