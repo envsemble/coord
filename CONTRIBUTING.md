@@ -79,14 +79,15 @@ A PR description says what behaviour changes, its scope, and how it was validate
 
 CI is one Linux job, `CI` (`.github/workflows/ci.yml`), for pull requests into `dev` and `main` once they are ready for review; drafts run nothing, and a new push cancels the run for the older head. It runs formatting, types, the unit tests, the plugin suite, the builds and the diagram, package, performance and release checks (the versioned [release ZIP](docs/releases.md) must assemble reproducibly), checks that committed build output is current, and scans the Git history with Betterleaks (version- and hash-pinned). A pull request that changes only documentation (Markdown files and `docs/`, but not the plugin's skills or the end-to-end fixtures) runs only Betterleaks.
 
-Pull requests into `main`, the releases, also run the `End-to-end` workflow (`e2e.yml`) against the packaged AppImage; a pull request retargeted to `main` runs it after its next push, or after closing and reopening it. Run the end-to-end suite yourself when a change into `dev` affects the app. `CI` and, into `main`, `End-to-end` are required checks. CI keeps nothing from a passing run; a failed end-to-end run keeps its report for the organization's artifact retention. Jobs run on the runners the organization variables `CI_LINUX_RUNNER` and `CI_WINDOWS_RUNNER` name.
+Pull requests into `main`, the releases, also run the `End-to-end` workflow (`e2e.yml`) against the packaged AppImage; a pull request retargeted to `main` runs it after its next push, or after closing and reopening it. Run the end-to-end suite yourself when a change into `dev` affects the app. `CI` and, into `main`, `End-to-end` are required checks. CI keeps nothing from a passing run; a failed end-to-end run keeps its report for the organization's artifact retention. Jobs run on GitHub's own runners (`ubuntu-latest`, `windows-latest`), which cost nothing in a public repository.
 
 ## Releases
 
 Merge the release into `main`, then tag `main` with the version: `git fetch origin && git tag v0.8.0 origin/main && git push origin v0.8.0`. The release workflow (`release.yml`) makes a GitHub Release with the release ZIP, the AppImage and the Windows installer; nothing is deployed or published to a registry. [Releases](docs/releases.md) describes the ZIP, the workflow and how to recover from a failed run. Record each version in the [changelog](CHANGELOG.md).
 
-## Branding, history and source status
+## Branding, history and license
 
 - Editable branding lives in `assets/` (SVG logos); the app and viewer icon is `packages/diagrams/assets/coord-icon.svg`.
 - The app and the skills arrived from earlier repositories with rewritten history; the [repository history maps](docs/history/README.md) translate their old commit IDs.
-- Source is currently private and `UNLICENSED`: a source-use status, not an open-source license. Do not introduce a public license without the owner's decision. Dependency licenses and attributed example excerpts remain preserved; [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists them.
+- Coord is open source under the [MIT license](LICENSE). Dependency licenses and attributed example excerpts remain preserved; [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists them.
+- Outside pull requests are not taken yet; issues are welcome.

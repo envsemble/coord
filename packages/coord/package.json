@@ -8,7 +8,7 @@
     "url": "git+https://github.com/envsemble/coord.git",
     "directory": "packages/coord"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=24"

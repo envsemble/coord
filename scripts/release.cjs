@@ -21,6 +21,7 @@ const SOURCE_FILES = [
   "CONTEXT.md",
   "CONTRIBUTING.md",
   "THIRD_PARTY_NOTICES.md",
+  "LICENSE",
   "package.json",
   "package-lock.json",
 ];

@@ -11,7 +11,7 @@
   "bugs": {
     "url": "https://github.com/envsemble/coord/issues"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "engines": {
     "node": ">=24"
   },

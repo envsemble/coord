@@ -1,6 +1,6 @@
 # Local packages and versioned artifacts
 
-Coord remains `private` and `UNLICENSED`. Install the tarball locally; no public registry release is enabled. Any source-license or hosting decision is separate.
+Coord is open source under the MIT license. Its packages stay `private` in npm's sense: nothing is published to a registry, and the release ZIP's diagram tarball installs locally.
 
 From a clean committed checkout, with Node 24, npm, Git and Java 21:
 

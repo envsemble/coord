@@ -5,7 +5,7 @@
   "private": true,
   "description": "Coord desktop app: plans, models and shared understanding for agents and the people they work with",
   "author": "envsemble",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "homepage": "https://github.com/envsemble/coord",
   "repository": {
     "type": "git",

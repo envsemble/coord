@@ -50,7 +50,7 @@ if (process.argv.includes("--unlink")) {
   const linked = consumers.filter(isLink);
   if (linked.length) {
     // A clean install removes node_modules before it downloads, so the registry is checked first:
-    // without a GitHub Packages token, nothing changes.
+    // when it does not answer (offline), nothing changes.
     const { packages } = JSON.parse(
       readFileSync(resolve(coord, "package-lock.json"), "utf8"),
     );
@@ -62,7 +62,7 @@ if (process.argv.includes("--unlink")) {
     );
     if (check.status !== 0) {
       console.error(
-        `GitHub Packages did not answer for @envsemble/envui@${version}; nothing was changed. Set NODE_AUTH_TOKEN (see CONTRIBUTING.md) and try again.`,
+        `The npm registry did not answer for @envsemble/envui@${version}; nothing was changed. Try again once it does.`,
       );
       process.exit(1);
     }

@@ -1,15 +1,13 @@
 name: CI
-# One job for pull requests into dev and main once they are ready for review, on the Linux runner
-# the envsemble organization variable CI_LINUX_RUNNER names. The end-to-end suite has its own
-# workflow, for pull requests into main (e2e.yml), and releases have theirs (release.yml).
+# One job for pull requests into dev and main once they are ready for review, on GitHub's own Linux
+# runner (free for a public repository). The end-to-end suite has its own workflow, for pull
+# requests into main (e2e.yml), and releases and nightlies have theirs (release.yml).
 on:
   pull_request:
     branches: [dev, main]
     types: [opened, synchronize, reopened, ready_for_review]
 permissions:
   contents: read
-  # @envsemble/envui comes from GitHub Packages, which needs a token even to install.
-  packages: read
   # The first step lists the pull request's files.
   pull-requests: read
 defaults:
@@ -23,7 +21,7 @@ jobs:
   ci:
     name: CI
     if: ${{ !github.event.pull_request.draft }}
-    runs-on: ${{ vars.CI_LINUX_RUNNER }}
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       WRANGLER_SEND_METRICS: "false"
@@ -57,8 +55,6 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          registry-url: https://npm.pkg.github.com
-          scope: "@envsemble"
       - uses: actions/setup-java@v4
         if: ${{ steps.changes.outputs.code != 'false' }}
         with:
@@ -82,8 +78,6 @@ jobs:
           echo "COORD_TEST_POSTGRES=postgresql://coord_fixture@127.0.0.1:5432/coord_fixture" >> "$GITHUB_ENV"
       - run: npm ci
         if: ${{ steps.changes.outputs.code != 'false' }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npm run format:check && npm run lint && npm run check:types
         if: ${{ steps.changes.outputs.code != 'false' }}
       # Workspace tests: diagrams, planning (reader and ported helpers), the coord command and the app.
