@@ -1,7 +1,7 @@
 // Coord's website: one dark page. The name, one line on what Coord is, a download button for
-// Windows and one for Linux (the newest stable build, read from GitHub Releases in the visitor's
+// Windows and one for Linux under a Stable or Nightly switch (the newest build of each, read from GitHub Releases in the visitor's
 // browser by releases.ts), and a screenshot of a big run's statistics. Hovering a feature shows its screenshot by the cursor.
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import logo from '../../assets/coord-logo-dark.svg';
 import attention from './shots/attention.png';
 import dashboard from './shots/dashboard.png';
@@ -22,8 +22,8 @@ export function App() {
     builds.then(setBuilds, () => setBuilds('failed'));
   }, []);
   const visitor = visitorPlatform({ userAgent: navigator.userAgent, platform: navigator.platform });
-  const stable = typeof builds === 'object' ? builds.stable : null;
-  const nightly = typeof builds === 'object' ? builds.nightly : null;
+  const [channel, setChannel] = useState<Channel>('stable');
+  const build = typeof builds === 'object' ? builds[channel] : null;
   // The visitor's system first.
   const platforms: Platform[] = visitor === 'linux' ? ['linux', 'windows'] : ['windows', 'linux'];
   return <>
@@ -39,25 +39,17 @@ export function App() {
         <Features />
         <p className="facts">In any terminal, editor or <span className="nowrap">T3 Code</span>. Windows and Linux. Free, MIT.</p>
       </div>
+      <ChannelPicker channel={channel} onChange={setChannel} />
       <div className="downloads">
-        {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={stable} loading={builds === 'loading'} />)}
+        {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={build} loading={builds === 'loading'} />)}
       </div>
       <p className="note">
-        {stable ? <><a href={stable.page}>Version {stable.version}</a> · </> : null}
-        <a href={releasesPage}>All releases</a>
+        {channel === 'nightly' && <>Fresh off <code>dev</code> every night. Occasionally on fire.<br /></>}
+        {build ? <a href={build.page}>Version {build.version}</a> : channel === 'nightly' && builds !== 'loading' ? 'No nightly build yet' : null}
+        {(build || channel === 'nightly' && builds !== 'loading') && ' · '}<a href={releasesPage}>All releases</a>
       </p>
       <img className="screenshot" src={statistics} width={2184} height={1364}
         alt="A plan's statistics in Coord: 4 hours of agent time in 2 hours, and its timeline, where one Claude Opus session hands work to eleven Claude Haiku subagents at once, then to Opus and Fable." />
-      <section className="nightly" aria-labelledby="nightly-title">
-        <h2 id="nightly-title">Nightly</h2>
-        <p>Fresh off <code>dev</code> every night. Occasionally on fire.</p>
-        {nightly ? <>
-          <div className="downloads">
-            {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={nightly} loading={false} plain />)}
-          </div>
-          <p className="note"><a href={nightly.page}>Version {nightly.version}</a></p>
-        </> : <p className="note">{builds === 'loading' ? 'Looking for the newest nightly…' : <>No nightly build yet. Every build is on the <a href={releasesPage}>releases page</a>.</>}</p>}
-      </section>
     </main>
     <footer className="footer">© 2026 envsemble · MIT license</footer>
   </>;
@@ -117,14 +109,31 @@ function Features() {
   </>;
 }
 
+const channels: { value: Channel; label: string }[] = [{ value: 'stable', label: 'Stable' }, { value: 'nightly', label: 'Nightly' }];
+
+/** Stable or Nightly, as a segmented control above the download buttons; the arrow keys move between them. */
+function ChannelPicker({ channel, onChange }: { channel: Channel; onChange: (channel: Channel) => void }) {
+  const move = (event: KeyboardEvent) => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+    event.preventDefault();
+    const next = channel === 'stable' ? 'nightly' : 'stable';
+    onChange(next);
+    (event.currentTarget.parentElement?.querySelector(`[data-value="${next}"]`) as HTMLElement | null)?.focus();
+  };
+  return <div className="channels" role="radiogroup" aria-label="Release channel">
+    {channels.map(item => <button key={item.value} type="button" role="radio" data-value={item.value} aria-checked={item.value === channel}
+      tabIndex={item.value === channel ? 0 : -1} onClick={() => onChange(item.value)} onKeyDown={move}>{item.label}</button>)}
+  </div>;
+}
+
 const names: Record<Platform, string> = { windows: 'Windows', linux: 'Linux' };
 const details: Record<Platform, string> = { windows: 'Windows 10 and 11 · .exe', linux: 'x86_64 · AppImage' };
 
-/** A store-style download button: the system's logo, "Download for …", and what the file is; Windows's in its blue unless plain. */
-function DownloadButton({ platform, build, loading, plain = false }: { platform: Platform; build: Build | null; loading: boolean; plain?: boolean }) {
+/** A store-style download button: the system's logo, "Download for …", and what the file is; Windows's in its blue. */
+function DownloadButton({ platform, build, loading }: { platform: Platform; build: Build | null; loading: boolean }) {
   // Without a build to offer (GitHub did not answer), the button leads to the releases page.
   const href = build?.downloads[platform]?.url ?? releasesPage;
-  return <a className={'download' + (plain ? '' : ' download-' + platform)} href={href} aria-busy={loading || undefined}>
+  return <a className={'download download-' + platform} href={href} aria-busy={loading || undefined}>
     {platform === 'windows' ? <WindowsLogo /> : <LinuxLogo />}
     <span className="download-text">
       <span className="download-label">Download for {names[platform]}</span>
