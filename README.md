@@ -33,7 +33,7 @@ Atlas fixes that without changing how you work with your agent:
 
 ![A plan in Atlas: Saved payment methods, #0001 of Northwind, under the breadcrumb Plans › Northwind › #0001, Paused with 2 of 7 steps; its Outcome and Scope, and a diagram card, Checkout · captured TypeScript, Generated from code, with its elements, under the heading Current checkout. At the left the plan's files with the work folder, plan.md marked; at the right the side column: Progress (2 of 7 steps done, 5 left, the step in progress), Continues #0004 Inventory reservations at checkout, the steps, and Statistics (Claude Opus 5.5 with Claude Sonnet 4.5 and Claude Haiku 5.5, 4 h 8 min of agent time, 13.8M tokens); Search in the title bar](assets/plan.png)
 
-Atlas works with **Claude Code** and **Codex** through its plugin: tools for the planning state, three skills (`atlas`, `atlas-grill` and `atlas-implement`), and hooks that check every planning edit and measure the session as it works. You never have to tell the agent to update its plan or report its time.
+Atlas works with **Claude Code** and **Codex** through its plugin: tools for the planning state, three skills (`atlas`, `atlas-grill` and `atlas-implement`) with the delivery skills beside them (full send, full stop, babysitting and reviewing a PR), and hooks that check every planning edit and measure the session as it works. You never have to tell the agent to update its plan or report its time.
 
 ## What else it does
 

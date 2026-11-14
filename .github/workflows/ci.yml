@@ -33,7 +33,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       # A pull request that changes only documentation (Markdown files and docs/) runs only this
-      # step and Betterleaks. Markdown the product ships or tests (the plugin's skills, extras and
+      # step and Betterleaks. Markdown the product ships or tests (the plugin's skills and
       # the end-to-end fixtures) is not documentation. If listing the files fails, the checks run.
       - name: List the changed files
         id: changes
@@ -41,7 +41,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           NUMBER: ${{ github.event.pull_request.number }}
-          PRODUCT: ^(plugin|extras|app/e2e/fixtures)/
+          PRODUCT: ^(plugin|app/e2e/fixtures)/
         run: |
           # A renamed file counts by its old path too.
           files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$NUMBER/files?per_page=100" \

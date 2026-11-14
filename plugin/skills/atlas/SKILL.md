@@ -5,7 +5,7 @@ description: "Records projects and their work items in Atlas: plans, steps, glos
 
 # Atlas
 
-Atlas keeps plans in projects. A project is a planning folder, its own Git repository in the Atlas home (`~/.atlas/planning/<name>`), and the folders on this computer where its work happens. Atlas records projects and their work items, nothing else. This skill finds the project, decides when to plan, records the work and keeps it current. Two workflows build on it, each run only when the user asks for it by name: [atlas-grill](../atlas-grill/SKILL.md) questions the user in rounds until a design is settled, and [atlas-implement](../atlas-implement/SKILL.md) implements an accepted plan.
+Atlas keeps plans in projects. A project is a planning folder, its own Git repository in the Atlas home (`~/.atlas/planning/<name>`), and the folders on this computer where its work happens. Atlas records projects and their work items, nothing else. This skill finds the project, decides when to plan, records the work and keeps it current. Two workflows build on it, each run only when the user asks for it by name: [atlas-grill](../atlas-grill/SKILL.md) questions the user in rounds until a design is settled, and [atlas-implement](../atlas-implement/SKILL.md) keeps an accepted plan's work item true while it is implemented.
 
 Every planning folder has its own `AGENTS.md` (what is true, what to keep), which governs it: read it before changing anything there. Its `PLANS.md` defines the plan, registry and ledger formats; the tools write headers and ledgers and Atlas checks every edit, so consult it only when you edit a header or ledger by hand. This skill says what to do and when.
 
@@ -80,4 +80,4 @@ When the user should see something rather than read it (a visual choice to make,
 
 ## Close
 
-When the agreed completion checks pass and the outcome is in the plan (for PR delivery, the PR merged unless agreed otherwise), ask the user whether the work is finished, and close it with `work_close` only on their yes. Don't wait for them to remember: when work looks finished, say so and ask. Acceptance, implementation, PR readiness, merge and release are separate facts: state pending ones accurately. Unfinished scope stays active, or is transferred or dropped with `step` (action `remove`), telling the user why. Closing never grants merge or deployment.
+Close the work item once its outcome is reached: the agreed completion checks pass, the outcome is in the plan and, for a PR, it is merged. Ask the user first, unless they handed you the work to finish without them; then close it with `work_close` and say so. Don't wait for them to remember: when work looks finished, say so and ask. Acceptance, implementation, PR readiness, merge and release are separate facts: state pending ones accurately. Unfinished scope stays active, or is transferred or dropped with `step` (action `remove`), telling the user why. Closing never grants a merge or a deployment the user has not.

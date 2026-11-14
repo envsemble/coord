@@ -10,7 +10,6 @@ const SOURCE_FOLDERS = [
   "app",
   "packages",
   "plugin",
-  "extras",
   ".claude-plugin",
   ".agents",
   "assets",
