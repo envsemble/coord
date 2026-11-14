@@ -15,6 +15,8 @@ function fakeEngine(answer: () => Promise<{ isUpdateAvailable: boolean; updateIn
     downloadUpdate: async () => { listeners.get('download-progress')?.({ percent: 41.6 } as never); return []; },
     quitAndInstall(silent?: boolean, run?: boolean) { this.installed = [silent, run]; },
     on(event: string, listener: (value: never) => void) { listeners.set(event, listener); return this; },
+    // electron-updater's updater is an EventEmitter, with an off() of its own.
+    off() { return this; },
   };
   return engine satisfies UpdaterEngine & { installed: unknown };
 }

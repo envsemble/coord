@@ -57,12 +57,14 @@ export class Updates {
     this.options = options;
     const kept = options.setting.get();
     this.channel = kept === 'stable' || kept === 'nightly' ? kept : buildChannel(options.version);
-    if ('off' in options.engine) {
+    // The updater is an EventEmitter, whose off() method makes `'off' in` true: only a reason is a string.
+    const off = (options.engine as { off?: unknown }).off;
+    if (typeof off === 'string') {
       this.engine = null;
-      this.status = { kind: 'off', reason: options.engine.off };
+      this.status = { kind: 'off', reason: off };
       return;
     }
-    const engine = options.engine;
+    const engine = options.engine as UpdaterEngine;
     this.engine = engine;
     // Only on request: a click downloads, another restarts into it.
     engine.autoDownload = false;
@@ -82,9 +84,9 @@ export class Updates {
   start() {
     if (!this.engine) return;
     const interval = this.options.interval ?? 4 * 60 * 60 * 1000;
+    // Quitting Coord stops the timer.
     const next = (delay: number) => {
       this.timer = setTimeout(() => { void this.check().finally(() => next(interval)); }, delay);
-      this.timer.unref?.();
     };
     next(this.options.firstCheck ?? 15_000);
   }
