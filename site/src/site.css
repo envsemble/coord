@@ -176,6 +176,8 @@ h1 {
   margin-top: 3.5rem;
   border: 1px solid var(--border);
   border-radius: 0.875rem;
+  /* envUI's raised shadow in its dark theme: a contact edge and a soft fall-off below. */
+  box-shadow: 0 1px 2px oklch(from var(--background) calc(l * 0.25) c h / 0.5), 0 12px 32px -10px oklch(from var(--background) calc(l * 0.8) c h / 0.85);
 }
 
 .nightly { margin-top: 4rem; text-align: center; }
