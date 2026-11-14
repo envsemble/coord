@@ -27,9 +27,10 @@ export function App() {
       <a href={sourcePage} className="quiet">GitHub</a>
     </header>
     <main>
-      <h1>Coord is a desktop app for planning work with your coding agents.</h1>
+      <h1>A desktop app for planning bigger changes with your coding agent.</h1>
+      <p className="lead">Agents are fast. They’re also very happy to build the wrong thing. Coord gets yours to agree on a plan with you first, then lets you watch it build that plan.</p>
       <Features />
-      <p className="facts">Works with Claude Code and Codex wherever you run them, such as a terminal or T3 Code. Windows and Linux, free and open source (MIT).</p>
+      <p className="facts">Works with Claude Code and Codex wherever you run them: a terminal, your editor, T3 Code. Windows and Linux. Free and open source, MIT.</p>
       <div className="downloads">
         {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={stable} loading={builds === 'loading'} />)}
       </div>
@@ -41,7 +42,7 @@ export function App() {
         alt="A plan in Coord: its title, whose turn it is and what to do, its outcome and scope, and beside it the plan's progress, steps and statistics." />
       <section className="nightly" aria-labelledby="nightly-title">
         <h2 id="nightly-title">Nightly</h2>
-        <p>The newest changes, built every night. It can break. Switch channels in <span className="nowrap">Settings › Updates</span>.</p>
+        <p>Fresh off <code>dev</code> every night. Occasionally on fire. Switch channels in <span className="nowrap">Settings › Updates</span>.</p>
         {nightly ? <>
           <div className="downloads">
             {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={nightly} loading={false} plain />)}
@@ -55,10 +56,10 @@ export function App() {
 }
 
 const features: { text: string; shot: string; alt: string }[] = [
-  { text: 'Your agent grills you until the plan is settled.', shot: grill, alt: 'A draft plan being settled: its items marked Settled or Proposed, and its planning steps.' },
-  { text: 'It can capture your code and databases as diagrams.', shot: diagrams, alt: "An agent's proposal drawn over the captured code, with what it adds and changes marked." },
-  { text: 'It builds live dashboards inside the plan as it works.', shot: dashboard, alt: "A page inside a plan: two layouts to choose between, above the proposal's diagram." },
-  { text: 'Coord shows which plans need your attention, and why.', shot: attention, alt: 'The hub: Your turn first, saying what to do, then Waiting and Later.' },
+  { text: 'Your agent grills you, one question at a time, until you both know what you’re building.', shot: grill, alt: 'A draft plan being settled: its items marked Settled or Proposed, and its planning steps.' },
+  { text: 'It can draw your code and database as diagrams, so you see what’s about to change.', shot: diagrams, alt: "An agent's proposal drawn over the captured code, with what it adds and changes marked." },
+  { text: 'It builds little live dashboards inside the plan while it works.', shot: dashboard, alt: "A page inside a plan: two layouts to choose between, above the proposal's diagram." },
+  { text: 'Coord tells you which plans are waiting on you, and for what.', shot: attention, alt: 'The hub: Your turn first, saying what to do, then Waiting and Later.' },
 ];
 
 /** The features; with a mouse, each one's screenshot follows the cursor while it is hovered. */

@@ -50,10 +50,19 @@ h1 {
   text-wrap: balance;
 }
 
+.lead {
+  margin: 1rem 0 0;
+  max-width: 34rem;
+  color: var(--muted);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
 .features {
   margin: 1.25rem 0 0;
   padding: 0;
-  max-width: 34rem;
+  max-width: 44rem;
   list-style: none;
   text-align: left;
   color: #d4d4d8;
@@ -158,5 +167,6 @@ h1 {
 .nightly > p:first-of-type { margin: 0.75rem auto 0; max-width: 34rem; color: var(--muted); line-height: 1.6; }
 .nightly .downloads { margin-top: 1.5rem; }
 .nowrap { white-space: nowrap; }
+.nightly code { font-size: 0.9em; color: var(--text); }
 
 .footer { padding-block: 2rem 2.5rem; color: var(--muted); font-size: 0.8125rem; justify-content: center; }
