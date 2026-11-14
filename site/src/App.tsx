@@ -9,7 +9,7 @@ import diagrams from './shots/diagrams.png';
 import grill from './shots/grill.png';
 import statistics from './shots/statistics.png';
 import { linuxPath } from './linuxPath.ts';
-import { acceptedPath, claudePath, codexPath, diagramPath, draftPath, pagePath, previewPath, yourTurnPath } from './marks.ts';
+import { acceptedPath, claudePath, codexPath, diagramPath, draftPath, moonPath, pagePath, previewPath, yourTurnPath } from './marks.ts';
 import { fetchBuilds, releasesPage, sourcePage, visitorPlatform, type Build, type Channel, type Platform } from './releases.ts';
 
 type Builds = Record<Channel, Build | null> | 'loading' | 'failed';
@@ -41,10 +41,10 @@ export function App() {
       </div>
       <ChannelPicker channel={channel} onChange={setChannel} />
       <div className="downloads">
-        {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={build} loading={builds === 'loading'} />)}
+        {platforms.map(platform => <DownloadButton key={platform} platform={platform} channel={channel} build={build} loading={builds === 'loading'} />)}
       </div>
       <p className="note">
-        {channel === 'nightly' && <>Fresh off <code>dev</code> every night. Occasionally on fire.<br /></>}
+        {channel === 'stable' ? 'The tested release, for everyday use.' : 'Built every night from the newest changes. Expect rough edges.'}<br />
         {build ? <a href={build.page}>Version {build.version}</a> : channel === 'nightly' && builds !== 'loading' ? 'No nightly build yet' : null}
         {(build || channel === 'nightly' && builds !== 'loading') && ' · '}<a href={releasesPage}>All releases</a>
       </p>
@@ -122,22 +122,23 @@ function ChannelPicker({ channel, onChange }: { channel: Channel; onChange: (cha
   };
   return <div className="channels" role="radiogroup" aria-label="Release channel">
     {channels.map(item => <button key={item.value} type="button" role="radio" data-value={item.value} aria-checked={item.value === channel}
-      tabIndex={item.value === channel ? 0 : -1} onClick={() => onChange(item.value)} onKeyDown={move}>{item.label}</button>)}
+      tabIndex={item.value === channel ? 0 : -1} onClick={() => onChange(item.value)} onKeyDown={move}>{item.value === 'nightly' && <Symbol path={moonPath} />}{item.label}</button>)}
   </div>;
 }
 
 const names: Record<Platform, string> = { windows: 'Windows', linux: 'Linux' };
 const details: Record<Platform, string> = { windows: 'Windows 10 and 11 · .exe', linux: 'x86_64 · AppImage' };
+const files: Record<Platform, string> = { windows: '.exe', linux: 'AppImage' };
 
-/** A store-style download button: the system's logo, "Download for …", and what the file is; Windows's in its blue. */
-function DownloadButton({ platform, build, loading }: { platform: Platform; build: Build | null; loading: boolean }) {
+/** A store-style download button: the system's logo, "Download for …", and what the file is; Windows's in its blue, a nightly's in violet. */
+function DownloadButton({ platform, channel, build, loading }: { platform: Platform; channel: Channel; build: Build | null; loading: boolean }) {
   // Without a build to offer (GitHub did not answer), the button leads to the releases page.
   const href = build?.downloads[platform]?.url ?? releasesPage;
-  return <a className={'download download-' + platform} href={href} aria-busy={loading || undefined}>
+  return <a className={'download download-' + platform + ' download-' + channel} href={href} aria-busy={loading || undefined}>
     {platform === 'windows' ? <WindowsLogo /> : <LinuxLogo />}
     <span className="download-text">
       <span className="download-label">Download for {names[platform]}</span>
-      <span className="download-detail">{details[platform]}</span>
+      <span className="download-detail">{channel === 'nightly' ? 'Nightly · ' + files[platform] : details[platform]}</span>
     </span>
   </a>;
 }

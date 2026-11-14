@@ -151,6 +151,9 @@ h1 {
   background: var(--button);
 }
 .channels button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
   padding: 0.3125rem 0.875rem;
   border: 0;
   border-radius: 999px;
@@ -194,13 +197,19 @@ h1 {
 .download-windows { background: #0078d4; border-color: #0078d4; color: #ffffff; }
 .download-windows:hover { background: #1a86d9; border-color: #1a86d9; }
 .download-windows .download-detail { color: rgb(255 255 255 / 0.8); }
+/* A nightly's buttons in violet: Windows's filled, Linux's outlined. */
+.download-windows.download-nightly { background: #6f4fc4; border-color: #6f4fc4; }
+.download-windows.download-nightly:hover { background: #7d5fd0; border-color: #7d5fd0; }
+.download-linux.download-nightly { border-color: #8b6fd8; }
+.download-linux.download-nightly:hover { border-color: #a58ce4; }
+.channels button[aria-checked="true"][data-value="nightly"] .symbol { color: #b9a3f0; }
 .download[aria-busy] { opacity: 0.6; }
 .logo { width: 1.75rem; height: 1.75rem; flex: none; }
 .download-text { display: flex; flex-direction: column; gap: 0.125rem; }
 .download-label { font-size: 1.0625rem; font-weight: 600; line-height: 1.2; }
 .download-detail { font-size: 0.8125rem; color: var(--muted); }
 
-.note { margin: 0.875rem 0 0; text-align: center; color: var(--muted); font-size: 0.875rem; }
+.note { margin: 0.875rem 0 0; text-align: center; color: var(--muted); font-size: 0.875rem; line-height: 1.6; }
 .note a { color: var(--muted); text-underline-offset: 0.2em; }
 .note a:hover { color: var(--text); }
 
@@ -216,7 +225,6 @@ h1 {
 }
 
 .nowrap { white-space: nowrap; }
-.note code { font-size: 0.95em; color: var(--text); }
 
 .footer { padding-block: 2rem 2.5rem; color: var(--muted); font-size: 0.8125rem; justify-content: center; }
 
