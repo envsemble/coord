@@ -1,9 +1,13 @@
 // Coord's website: one dark page. The name, one line on what Coord is, a download button for
 // Windows and one for Linux (the newest stable build, read from GitHub Releases in the visitor's
-// browser by releases.ts), and a screenshot of a plan.
-import { useEffect, useState } from 'react';
+// browser by releases.ts), and a screenshot of a plan. Hovering a feature shows its screenshot by the cursor.
+import { useEffect, useState, type MouseEvent } from 'react';
 import logo from '../../assets/coord-logo-dark.svg';
 import plan from '../../assets/plan-dark.png';
+import attention from './shots/attention.png';
+import dashboard from './shots/dashboard.png';
+import diagrams from './shots/diagrams.png';
+import grill from './shots/grill.png';
 import { linuxPath } from './linuxPath.ts';
 import { fetchBuilds, releasesPage, sourcePage, visitorPlatform, type Build, type Channel, type Platform } from './releases.ts';
 
@@ -24,12 +28,7 @@ export function App() {
     </header>
     <main>
       <h1>Coord is a desktop app for planning work with your coding agents.</h1>
-      <ul className="features">
-        <li>Your agent grills you until the plan is settled.</li>
-        <li>It can capture your code and databases as diagrams.</li>
-        <li>It builds live dashboards inside the plan as it works.</li>
-        <li>Coord shows which plans need your attention, and why.</li>
-      </ul>
+      <Features />
       <p className="facts">Works with Claude Code and Codex wherever you run them, such as a terminal or T3 Code. Windows and Linux, free and open source (MIT).</p>
       <div className="downloads">
         {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={stable} loading={builds === 'loading'} />)}
@@ -52,6 +51,34 @@ export function App() {
       </section>
     </main>
     <footer className="footer">© 2026 envsemble · MIT license</footer>
+  </>;
+}
+
+const features: { text: string; shot: string; alt: string }[] = [
+  { text: 'Your agent grills you until the plan is settled.', shot: grill, alt: 'A draft plan being settled: its items marked Settled or Proposed, and its planning steps.' },
+  { text: 'It can capture your code and databases as diagrams.', shot: diagrams, alt: "An agent's proposal drawn over the captured code, with what it adds and changes marked." },
+  { text: 'It builds live dashboards inside the plan as it works.', shot: dashboard, alt: "A page inside a plan: two layouts to choose between, above the proposal's diagram." },
+  { text: 'Coord shows which plans need your attention, and why.', shot: attention, alt: 'The hub: Your turn first, saying what to do, then Waiting and Later.' },
+];
+
+/** The features; with a mouse, each one's screenshot follows the cursor while it is hovered. */
+function Features() {
+  const [peek, setPeek] = useState<{ index: number; x: number; y: number } | null>(null);
+  // Load the screenshots up front, so the first hover shows at once.
+  useEffect(() => { for (const feature of features) new Image().src = feature.shot; }, []);
+  const follow = (index: number) => (event: MouseEvent) => {
+    // Beside the cursor, flipped to the other side near the window's right and bottom edges.
+    const width = Math.min(520, window.innerWidth * 0.6), height = width * 1364 / 2184, gap = 20;
+    const x = event.clientX + gap + width > window.innerWidth ? event.clientX - gap - width : event.clientX + gap;
+    const y = Math.max(gap, Math.min(event.clientY + gap, window.innerHeight - height - gap));
+    setPeek({ index, x, y });
+  };
+  return <>
+    <ul className="features">
+      {features.map((feature, index) => <li key={feature.text} onMouseMove={follow(index)} onMouseLeave={() => setPeek(null)}>{feature.text}</li>)}
+    </ul>
+    {peek && <img className="peek" src={features[peek.index]!.shot} alt={features[peek.index]!.alt} width={2184} height={1364}
+      style={{ transform: `translate(${peek.x}px, ${peek.y}px)` }} />}
   </>;
 }
 
