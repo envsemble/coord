@@ -13,7 +13,10 @@
   background: var(--background);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+  transition: background-color 300ms;
 }
+/* Nightly picked: the page dims to black. */
+:root[data-channel="nightly"] { --background: #000000; }
 
 * { box-sizing: border-box; }
 body { margin: 0; }
@@ -197,10 +200,6 @@ h1 {
 .download-windows { background: #0078d4; border-color: #0078d4; color: #ffffff; }
 .download-windows:hover { background: #1a86d9; border-color: #1a86d9; }
 .download-windows .download-detail { color: rgb(255 255 255 / 0.8); }
-/* A nightly's buttons are plain: the stable build stays the one in colour. */
-.download-windows.download-nightly { background: var(--button); border-color: var(--border); color: var(--text); }
-.download-windows.download-nightly:hover { background: var(--button-hover); border-color: #898c91; }
-.download-windows.download-nightly .download-detail { color: var(--muted); }
 .download[aria-busy] { opacity: 0.6; }
 .logo { width: 1.75rem; height: 1.75rem; flex: none; }
 .download-text { display: flex; flex-direction: column; gap: 0.125rem; }

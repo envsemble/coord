@@ -24,6 +24,8 @@ export function App() {
   const visitor = visitorPlatform({ userAgent: navigator.userAgent, platform: navigator.platform });
   const [channel, setChannel] = useState<Channel>('stable');
   const build = typeof builds === 'object' ? builds[channel] : null;
+  // Nightly dims the page to black.
+  useEffect(() => { document.documentElement.dataset.channel = channel; }, [channel]);
   // The visitor's system first.
   const platforms: Platform[] = visitor === 'linux' ? ['linux', 'windows'] : ['windows', 'linux'];
   return <>
@@ -41,7 +43,7 @@ export function App() {
       </div>
       <ChannelPicker channel={channel} onChange={setChannel} />
       <div className="downloads">
-        {platforms.map(platform => <DownloadButton key={platform} platform={platform} channel={channel} build={build} loading={builds === 'loading'} />)}
+        {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={build} loading={builds === 'loading'} />)}
       </div>
       <p className="note">
         {channel === 'stable' ? 'The tested release, for everyday use.' : 'Built every night from the newest changes. Expect rough edges.'}<br />
@@ -129,11 +131,11 @@ function ChannelPicker({ channel, onChange }: { channel: Channel; onChange: (cha
 const names: Record<Platform, string> = { windows: 'Windows', linux: 'Linux' };
 const details: Record<Platform, string> = { windows: 'Windows 10 and 11 · .exe', linux: 'x86_64 · AppImage' };
 
-/** A store-style download button: the system's logo, "Download for …", and what the file is; a stable Windows build's in Windows blue, a nightly's plain. */
-function DownloadButton({ platform, channel, build, loading }: { platform: Platform; channel: Channel; build: Build | null; loading: boolean }) {
+/** A store-style download button: the system's logo, "Download for …", and what the file is; Windows's in its blue. */
+function DownloadButton({ platform, build, loading }: { platform: Platform; build: Build | null; loading: boolean }) {
   // Without a build to offer (GitHub did not answer), the button leads to the releases page.
   const href = build?.downloads[platform]?.url ?? releasesPage;
-  return <a className={'download download-' + platform + ' download-' + channel} href={href} aria-busy={loading || undefined}>
+  return <a className={'download download-' + platform} href={href} aria-busy={loading || undefined}>
     {platform === 'windows' ? <WindowsLogo /> : <LinuxLogo />}
     <span className="download-text">
       <span className="download-label">Download for {names[platform]}</span>
