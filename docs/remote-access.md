@@ -10,7 +10,7 @@ Remote access is off by default. It works while Coord (or `coord serve`) runs on
 
 ## Turn it on
 
-On the computer whose projects you want to reach, open **Settings › Computers** (**File › Settings…**, or **Computer settings…** in the computer menu, the computer's name in the title bar). **Devices that can reach** the computer holds remote access:
+On the computer whose projects you want to reach, open **Settings › Computers** (**Settings** in the title bar, or **Computer settings…** in the computer menu, the computer's name in the title bar). **Devices that can reach** the computer holds remote access:
 
 1. **Allow paired devices to connect to this computer** turns the network listener on or off. The change applies at once. Turning it on, or moving it to another address, asks first when it does not follow your click or key press, for example with a screen reader.
 2. **Reach this computer via** picks the address the host listens on:
@@ -46,7 +46,7 @@ On the other device, choose **Connect to Another Coord…** in **Settings › Co
 
 ## Work on another computer
 
-Each window says where it works: the **computer menu** (the computer's name in the title bar, after the back and forward arrows and the menus) and the plans its hub lists.
+Each window says where it works: the **computer menu** (the computer's name in the title bar, after back and forward, Plans, Settings and Help) and the plans its hub lists.
 
 - **The computer menu** lists this computer and every computer this one is paired with, to switch between them. Computers that do not answer are marked **Offline**. Choosing a computer works on it in this window: the hub lists its plans. **Computer settings…** opens **Settings › Computers**.
 - **Other computers**, in **Settings › Computers**, lists the computers this one is paired with. **↗** opens a computer in a new window. **Forget** forgets a paired computer here; press it again to confirm. Windows showing it close; if this window showed it, it shows this computer instead. To cut its access on that computer too, revoke the device there. **Connect to Another Coord…** pairs with one more.

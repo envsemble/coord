@@ -11,7 +11,7 @@ export type { PagePlace, Place, ProjectPlace };
 export const hubPlace = (projectId: string | null = null): PagePlace => ({ page: 'hub', projectId });
 export const statisticsPlace = (projectId: string | null): PagePlace => ({ page: 'statistics', projectId });
 /** Settings, at one of its sections: the agents on this computer, or the computers. */
-export const settingsPlace = (section: SettingsSection = 'agents'): PagePlace => ({ page: 'settings', section });
+export const settingsPlace = (section: SettingsSection = 'general'): PagePlace => ({ page: 'settings', section });
 export const isPage = (place: Place): place is PagePlace => 'page' in place;
 /** The project a place is of: its own, the hub's filter or the statistics' project; null for none. */
 export const placeProject = (place: Place): string | null => !isPage(place) ? place.projectId : place.page === 'settings' ? null : place.projectId;

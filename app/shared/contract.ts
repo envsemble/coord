@@ -115,7 +115,7 @@ export type Target =
 /** Something of a project (by its ID): a plan, a diagram or a file. */
 export interface ProjectPlace { projectId: string; target: Target }
 /** The Settings page's sections: the agents Coord connects on this computer, pairing in both directions, and Coord's updates. */
-export const settingsSections = ['agents', 'computers', 'updates'] as const;
+export const settingsSections = ['general', 'agents', 'computers', 'updates'] as const;
 export type SettingsSection = typeof settingsSections[number];
 /**
  * The window's own pages: the hub, with the plans of every project or of one (`projectId`), where

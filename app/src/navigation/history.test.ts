@@ -42,7 +42,7 @@ test("the hub's project filter, a project's statistics and Settings' sections ar
   assert.equal(samePlace(statisticsPlace(shop), statisticsPlace(harbor)), false);
   assert.equal(samePlace(statisticsPlace(shop), hubPlace(shop)), false);
   // Each section of Settings is a step of its own, on the same page, each scrolled on its own.
-  assert.equal(samePlace(settingsPlace('agents'), settingsPlace()), true);
+  assert.equal(samePlace(settingsPlace('general'), settingsPlace()), true);
   assert.equal(samePlace(settingsPlace('agents'), settingsPlace('computers')), false);
   assert.equal(placeId(settingsPlace('agents')), placeId(settingsPlace('computers')));
   assert.notEqual(scrollKey(settingsPlace('agents')), scrollKey(settingsPlace('computers')));

@@ -136,7 +136,7 @@ test('a home without projects opens on the hub, which makes one; About Coord, fr
 
   // About Coord, from the Help menu.
   const version = await app.evaluate(({ app: electronApp }) => electronApp.getVersion());
-  await chooseMenu(window, 'About Coord', 'Help');
+  await chooseMenu(window, 'About Coord');
   const about = window.getByRole('dialog', { name: 'Coord' });
   await expect(about).toContainText('Version ' + version);
   await expect(about).toContainText('Coord works offline.');
