@@ -12,6 +12,10 @@
   --env-color-fg-on-selected: var(--env-color-fg-default);
 }
 
+/* Scrollbars are thin and in the theme's border colour everywhere, not the system's arrowed ones;
+   a component that sets its own keeps it (no specificity here). */
+:where(*) { scrollbar-width: thin; scrollbar-color: var(--env-color-border-default) transparent; }
+
 html, body, #root { min-block-size: 100%; }
 body { margin: 0; }
 /* envUI's type is regular or medium: emphasis in the interface is medium, not bold. Bold in a
@@ -99,9 +103,9 @@ body { margin: 0; }
 .hub-group-heading { margin: 0; }
 /* The groups share their columns: the first group's header names them, and the later groups keep
    theirs for screen readers only, so the page reads as one list in sections. */
-/* The plans as structured text on the page, not a card per group: no fill or frame, hairlines
-   between the rows. */
-.hub-list-region:not([data-stacked]) { border-inline: 0; border-radius: 0; background: transparent; }
+/* Tables as structured text on the page (the hub's plans, the statistics), not cards: no fill or
+   side frame, hairlines between the rows. */
+.plain-table-region { border-inline: 0; border-radius: 0; background: transparent; }
 .hub-group ~ .hub-group .hub-list .env-table-head { position: absolute; inline-size: 0.0625rem; block-size: 0.0625rem; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 /* A table per group with the same columns. Plans under way get a second line with where they stand,
    muted (amber while an agent waits for the person): the status icon carries the colour. A click
@@ -205,7 +209,8 @@ body { margin: 0; }
 .computer-trigger-label { flex: 1; min-inline-size: 0; overflow: hidden; text-align: start; text-overflow: ellipsis; white-space: nowrap; }
 /* The files Coord reads for what they are, each in a colour of its own: the plan blue, its ledger
    green, its glossary amber, its diagrams purple (as the diagrams' links in a plan). */
-.explorer-tag { flex: none; }
+/* A diagram's layer, for screen readers only, kept at the row's start so it never widens the tree. */
+.explorer-layer { inset-block-start: 0; inset-inline-start: 0; }
 .explorer-special[data-file='plan'] { color: var(--env-color-fg-primary); }
 .explorer-special[data-file='ledger'] { color: var(--env-color-fg-success); }
 .explorer-special[data-file='glossary'] { color: var(--env-color-fg-warning); }
@@ -400,8 +405,12 @@ body { margin: 0; }
 .visually-hidden { position: absolute; inline-size: 0.0625rem; block-size: 0.0625rem; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* Statistics */
-.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--env-space-3); }
-.stat { display: grid; gap: var(--env-space-1); }
+/* The headline figures: one row of structured text between hairlines, each figure parted from the
+   one before it by a hairline, rather than a card each. */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); row-gap: var(--env-space-4); padding-block: var(--env-space-4); border-block: 1px solid var(--env-color-border-muted); }
+.stat { display: grid; align-content: start; gap: var(--env-space-1); padding-inline: var(--env-space-5); }
+.stat:first-child { padding-inline-start: 0; }
+.stat + .stat { border-inline-start: 1px solid var(--env-color-border-muted); }
 .stat-label, .stat-note { color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); }
 .stat-value { font-size: 1.75rem; font-weight: 500; font-variant-numeric: tabular-nums; }
 .model-cell { display: inline-flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; max-inline-size: 100%; }
@@ -566,6 +575,8 @@ body { margin: 0; }
 .settings-scope { display: inline-flex; align-items: center; gap: var(--env-space-2); color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); }
 .settings-scope svg { inline-size: 1.125rem; block-size: 1.125rem; }
 .settings-description { margin: 0; }
+/* A part within a section, such as Pair a device: the body size in medium, below the section heading. */
+.settings-subheading { margin: var(--env-space-3) 0 0; font-weight: var(--env-font-weight-medium); }
 .settings-group .section-toolbar > .settings-description { flex: 1 1 20rem; }
 /* A setting's row: its title and what it does, and its control at the end, which keeps its width
    while the text wraps beside it. */

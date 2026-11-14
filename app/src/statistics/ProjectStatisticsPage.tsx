@@ -78,7 +78,7 @@ function WorkOverTime({ statistics, scope }: { statistics: ProjectStatistics; sc
         <span><span className="work-chart-key-completed" aria-hidden="true" />plans completed</span>
       </p>
       <Disclosure title="The work over time as a table">
-        <Table.Root className="project-statistics-table" aria-label="Work over time">
+        <Table.Root className="project-statistics-table" regionClassName="plain-table-region" aria-label="Work over time">
           <Table.Head><Table.Row><Table.HeaderCell>{statistics.unit === 'day' ? 'Day' : 'Week'}</Table.HeaderCell><Table.HeaderCell numeric>Agent time</Table.HeaderCell><Table.HeaderCell numeric>At least one working</Table.HeaderCell><Table.HeaderCell>Plans completed</Table.HeaderCell></Table.Row></Table.Head>
           <Table.Body>{bars.map(item => <Table.Row key={item.start}>
             <Table.Cell>{bucketName(item.start, statistics.unit)}</Table.Cell><Table.Cell numeric>{duration(item.total)}</Table.Cell><Table.Cell numeric>{duration(item.activeMs)}</Table.Cell>
@@ -97,7 +97,7 @@ function ModelsAndEffort({ statistics }: { statistics: ProjectStatistics }) {
   const colour = modelPalette(models);
   return <section className="project-statistics-section" aria-label="Models and effort">
     <Text render={<h2 />} variant="title">Models and effort</Text>
-    {statistics.models.length ? <Table.Root className="project-statistics-table" aria-label="Agent time and tokens by model and effort">
+    {statistics.models.length ? <Table.Root className="project-statistics-table" regionClassName="plain-table-region" aria-label="Agent time and tokens by model and effort">
       <Table.Head><Table.Row><Table.HeaderCell>Model and effort</Table.HeaderCell><Table.HeaderCell numeric>Agent time</Table.HeaderCell><Table.HeaderCell numeric>Share</Table.HeaderCell><Table.HeaderCell numeric>Tokens</Table.HeaderCell></Table.Row></Table.Head>
       <Table.Body>{models.map(item => <Table.Row key={modelKey(item.model, item.effort)}>
         <Table.Cell><ModelKey model={item.model} effort={item.effort} colour={colour(item.model, item.effort)} items={models} /></Table.Cell>

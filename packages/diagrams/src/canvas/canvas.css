@@ -263,7 +263,15 @@ svg.has-focus .diagram-element.highlighted {
     animation: none;
   }
 }
-/* Reviewing a proposal: what it leaves unchanged fades into context. */
-.fade-unchanged .diagram-base [data-change="unchanged"] {
-  opacity: 0.55;
+/* Reviewing a proposal: what it leaves unchanged fades into context. Its
+   boxes and lines fade most; its names and members stay legible, since a
+   change is understood through what surrounds it. */
+.fade-unchanged
+  .diagram-base
+  [data-change="unchanged"]
+  :is(rect, path, line, polyline, polygon) {
+  opacity: 0.4;
+}
+.fade-unchanged .diagram-base [data-change="unchanged"] text {
+  opacity: 0.72;
 }

@@ -1,8 +1,8 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { Alert, Text } from '@envsemble/envui';
+import { Alert, Button, Text } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
 import { stepCounts } from '@envsemble/coord/planning/ledger';
-import { AttentionDot } from '../ui/AttentionDot';
+import { PageIcon } from '../ui/icons';
 import type { Document, LedgerStep, ProjectWork, Snapshot, Target, Work, WorkSession } from '../types';
 import { defaultDocument, planDocument, stepPhase } from './work';
 import { pageTarget, workStatisticsTarget, workTarget } from '../navigation/targets';
@@ -15,7 +15,7 @@ import { continuation, handoffs } from './handoffs';
 import { ContinuedIn, HandoffEntries, type OpenHandoff } from './HandoffLinks';
 import { WorkStatisticsSummary } from '../statistics/WorkStatisticsSummary';
 import { SessionsList, StateNote, useWorkSessions } from './WorkSessions';
-import { TargetLink, useWindow } from '../window/windowContext';
+import { TargetLink, useWindow, useWindowActions } from '../window/windowContext';
 import { Trail } from '../ui/Trail';
 import { Page } from '../ui/Page';
 import { TagList } from './TagList';
@@ -127,6 +127,7 @@ function StatusLine({ work, status }: { work: Work; status: StatusLook }) {
  */
 export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Snapshot; target: WorkTarget }) {
   const { listed } = useWindow();
+  const { open } = useWindowActions();
   const plan = planDocument(work);
   const reading: Document | undefined = defaultDocument(work);
   const status = statusOf(work);
@@ -143,9 +144,9 @@ export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Sna
         {(listing?.tags?.length || asking.length > 0) && <div className="work-header">
           {listing && <TagList tags={listing.tags ?? []} className="work-tags" />}
           {asking.length > 0 && <ul className="page-attention" aria-label="Pages that need you">
+            {/* The way to what is asked: a button that opens the page, with what it asks beside it. */}
             {asking.map(([page, text]) => <li key={page}>
-              <AttentionDot text={text} />
-              <TargetLink target={pageTarget(page)} className="page-link">{page.slice(page.lastIndexOf('/') + 1)}</TargetLink>
+              <Button size="sm" variant="secondary" startIcon={<PageIcon />} onClick={() => open(pageTarget(page))}>Open {page.slice(page.lastIndexOf('/') + 1)}</Button>
               <span className="page-attention-text">{text}</span>
             </li>)}
           </ul>}

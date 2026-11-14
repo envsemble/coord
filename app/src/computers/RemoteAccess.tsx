@@ -124,7 +124,7 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
       </p>}
 
       <section className="access-section" aria-label="Pair a device">
-        <Text render={<h3 />} variant="title">Pair a device</Text>
+        <Text render={<h3 />} variant="body" className="settings-subheading">Pair a device</Text>
         {link && remaining > 0 ? <div className="pairing">
           {link.qrSvg && <span className="pairing-qr"><Graphic src={'data:image/svg+xml;utf8,' + encodeURIComponent(link.qrSvg)} alt="QR code of the pairing link" size="fill" aspect={1} fit="contain" /></span>}
           <div className="pairing-text">
@@ -159,7 +159,7 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
       </section>
 
       <section className="access-section" aria-label="Paired devices">
-        <Text render={<h3 />} variant="title">Paired devices</Text>
+        <Text render={<h3 />} variant="body" className="settings-subheading">Paired devices</Text>
         {devices === null ? <Spinner label="Loading paired devices" /> : devices.length ? <List.Root className="text-rows device-list" aria-label="Paired devices">{devices.map(device => <List.Item key={device.deviceId}
           label={<span className="row-title"><strong>{device.name}</strong>{device.scopes.includes('access:manage') && <Badge tone="primary">Manage access</Badge>}{device.connected && <Badge tone="success">Connected</Badge>}</span>}
           description={`${platforms[device.platform] ?? device.platform} · paired ${absoluteDate(device.pairedAt)}${device.lastSeenAt && !device.connected ? ' · last seen ' + relativeDate(device.lastSeenAt) : ''}`}

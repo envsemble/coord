@@ -1,12 +1,14 @@
-// The pieces the statistics pages share: a headline figure's card, and a model at an effort with its
-// colour.
+// The pieces the statistics pages share: a headline figure, and a model at an effort with its colour.
 import type { ReactNode } from 'react';
-import { Surface } from '@envsemble/envui';
 import { shownEffort } from './modelColours';
 import { ModelName } from './ModelName';
 
+/**
+ * A headline figure: its label, the figure and a note, as structured text in the row of figures
+ * (`.stats-grid`), parted from its neighbours by a hairline rather than framed in a card.
+ */
 export function StatsCard({ label, value, note }: { label: string; value: ReactNode; note?: ReactNode }) {
-  return <Surface className="stat" padding={4}><span className="stat-label">{label}</span><strong className="stat-value">{value}</strong>{note != null && <small className="stat-note">{note}</small>}</Surface>;
+  return <div className="stat"><span className="stat-label">{label}</span><strong className="stat-value">{value}</strong>{note != null && <small className="stat-note">{note}</small>}</div>;
 }
 
 /** A model at an effort's colour, from the palette of the models shown with it (`modelPalette`). */

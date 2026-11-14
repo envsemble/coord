@@ -67,7 +67,7 @@ export function UpdatesSection() {
       <UpdateStatusRow state={state} />
       <List.Item className="settings-row" label={<span id={id + '-title'}>Channel</span>}
         description={<span id={id + '-detail'}>{leavingNightly ? 'This is a nightly build: Coord moves to stable with the next stable release newer than it, never back to an older one.' : channel.description}</span>}
-        end={<Select className="settings-row-select" aria-labelledby={id + '-title'} aria-describedby={id + '-detail'} value={state.channel}
+        end={<Select className="settings-row-select" aria-labelledby={id + '-title'} aria-describedby={id + '-detail'} value={state.channel} disabled={state.status.kind === 'off'}
           onValueChange={value => { if (value) void api.setUpdateChannel(value as UpdateChannel).catch(() => {}); }}
           items={channels} />} />
     </List.Root>

@@ -5,7 +5,7 @@
 // window; folders open and close in place. Ctrl+Shift+E brings the keyboard to it. Its end edge
 // resizes it (envUI's resizable drawer, on the page's background), and the width is kept.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Badge, Menu, NavigationDrawer, Text, Tree, type NavigationDrawerDestination, type TreeItem } from '@envsemble/envui';
+import { Menu, NavigationDrawer, Text, Tree, type NavigationDrawerDestination, type TreeItem } from '@envsemble/envui';
 import { DiagramIcon, GlossaryIcon, LedgerIcon, PageIcon, PlanIcon } from '../ui/icons';
 import { AttentionDot } from '../ui/AttentionDot';
 import type { Document, Snapshot, Target, Work } from '../types';
@@ -183,6 +183,8 @@ function treeItem(row: ExplorerRow, workPath: string, tag: string | undefined, a
     : isDiagramFile(row.path!) && row.file?.workId ? <DiagramIcon className="explorer-special" data-file="diagram" />
     : <></>;
   // Its whole name; its title, when it has one of its own, on hover.
-  // A diagram's layer (Captured, Proposal) as a badge at the row's end, which keeps its width while the name ellipsizes.
-  return { ...base, label: row.name, icon, ...tag ? { end: <Badge tone="neutral" className="explorer-tag">{tag}</Badge> } : {}, tooltip: row.file && row.file.title !== row.file.name ? row.file.title + ' \u00b7 ' + row.path : row.path };
+  // A diagram's layer (Captured, Proposal) shows by its place, a proposal under its capture, so the
+  // narrow pane keeps the whole name for the file; screen readers and the tooltip say the layer.
+  const where = row.file && row.file.title !== row.file.name ? row.file.title + ' \u00b7 ' + row.path : row.path;
+  return { ...base, label: tag ? <>{row.name}<span className="visually-hidden explorer-layer"> {tag}</span></> : row.name, icon, tooltip: tag ? tag + ' \u00b7 ' + where : where };
 }
