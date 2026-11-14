@@ -23,10 +23,10 @@ export function App() {
       <a href={sourcePage} className="quiet">GitHub</a>
     </header>
     <main>
-      <h1>Coord is a desktop app for planning work with Claude Code and Codex.</h1>
+      <h1>Coord is a desktop app for planning work with your coding agents.</h1>
       <p className="lead">You and your agent write the plan together: what to build, the steps and the decisions. The agent then implements it step by step, and Coord shows the plan, its progress and what the agent is waiting on you for.</p>
       <ul className="facts">
-        <li>Connects to Claude Code and Codex through a plugin.</li>
+        <li>Connects to Claude Code and Codex through a plugin, wherever you run them: a terminal, an editor or an app like T3 Code.</li>
         <li>Plans are Markdown files in a Git folder on your computer.</li>
         <li>Windows and Linux. Free and open source (MIT).</li>
       </ul>
