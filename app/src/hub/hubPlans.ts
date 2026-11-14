@@ -111,8 +111,9 @@ export function hubRowFacts(work: ProjectWork, status = hubStatus(work)): HubRow
   const all = steps && { done: steps.done, doing: doing ? 1 : 0, total: steps.total, planning: { done: steps.planning.done, doing: doing === 'planning' ? 1 : 0 }, text: steps.done + ' of ' + steps.total };
   if (all && size === 'large') progress = all;
   else if (steps && size === 'standard') {
-    // A draft is still being planned: its planning steps say how far, when it has them.
-    const planned = steps.planning.total > 0 ? steps.planning : null;
+    // A draft is still being planned: its planning steps say how far, when it has them. Work under
+    // way that says nobody's turn shows all its steps, as work on its turn does.
+    const planned = status.key === 'draft' && steps.planning.total > 0 ? steps.planning : null;
     const early = doing === 'planning' ? 1 : 0;
     progress = planned ? { done: planned.done, doing: early, total: planned.total, planning: { done: planned.done, doing: early }, text: planned.done + ' of ' + planned.total + ' planning' } : all;
   }

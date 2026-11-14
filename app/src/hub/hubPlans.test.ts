@@ -121,6 +121,8 @@ test('drafts and other open work show their planning progress, and model, time a
   assert.deepEqual([draft.step, draft.subagents, draft.tokens], [null, null, null]);
   assert.deepEqual(draft.time, { total: '3 h 20 min', planning: null, implementation: null });
   assert.equal(draft.model!.others, 0);
+  // Work under way that says nobody's turn shows all its steps, not its planning ones.
+  assert.equal(hubRowFacts(work('work-0026', 'implementing', { steps: { done: 9, total: 10, planning: { done: 4, total: 4 } } })).progress!.text, '9 of 10');
   // Without planning steps, all its steps.
   assert.equal(hubRowFacts(work('work-0025', 'other', { steps: { done: 0, total: 2, planning: { done: 0, total: 0 } } })).progress!.text, '0 of 2');
 });
