@@ -70,7 +70,7 @@ export interface HubRowFacts {
   size: HubRowSize;
   /**
    * Steps done and in progress (the step worked on, as the project list names one) of all of them, the
-   * planning steps among them; on a draft or other open work only the planning steps, when it has some.
+   * planning steps among them; on a draft only the planning steps, when it has some.
    */
   progress: { done: number; doing: number; total: number; planning: { done: number; doing: number }; text: string } | null;
   /** The step being worked on (Now) or next to do (Next), on a large row whose state says nothing more. */
@@ -111,8 +111,9 @@ export function hubRowFacts(work: ProjectWork, status = hubStatus(work)): HubRow
   const all = steps && { done: steps.done, doing: doing ? 1 : 0, total: steps.total, planning: { done: steps.planning.done, doing: doing === 'planning' ? 1 : 0 }, text: steps.done + ' of ' + steps.total };
   if (all && size === 'large') progress = all;
   else if (steps && size === 'standard') {
-    // A draft is still being planned: its planning steps say how far, when it has them.
-    const planned = steps.planning.total > 0 ? steps.planning : null;
+    // A draft is still being planned: its planning steps say how far, when it has them. Work under
+    // way that says nobody's turn shows all its steps, as work on its turn does.
+    const planned = status.key === 'draft' && steps.planning.total > 0 ? steps.planning : null;
     const early = doing === 'planning' ? 1 : 0;
     progress = planned ? { done: planned.done, doing: early, total: planned.total, planning: { done: planned.done, doing: early }, text: planned.done + ' of ' + planned.total + ' planning' } : all;
   }

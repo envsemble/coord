@@ -113,7 +113,7 @@ test('work without steps or statistics (as the host gives it before it has them)
   assert.equal(hubRowFacts(work('work-0023', 'implementing', { steps: { done: 0, total: 0, planning: { done: 0, total: 0 } } })).progress, null);
 });
 
-test('drafts and other open work show their planning progress, and model, time and tokens when recorded', () => {
+test('drafts show their planning progress, other open work all its steps, and model, time and tokens when recorded', () => {
   const draft = hubRowFacts(work('work-0024', 'draft', { steps: { done: 1, total: 4, planning: { done: 1, total: 4 } }, step: { title: 'Settle the design', status: 'doing', phase: 'planning' }, statistics: statistics({ otherModels: 0, tokens: null }) }));
   assert.equal(draft.size, 'standard');
   assert.deepEqual(draft.progress, { done: 1, doing: 1, total: 4, planning: { done: 1, doing: 1 }, text: '1 of 4 planning' });
@@ -121,8 +121,10 @@ test('drafts and other open work show their planning progress, and model, time a
   assert.deepEqual([draft.step, draft.subagents, draft.tokens], [null, null, null]);
   assert.deepEqual(draft.time, { total: '3 h 20 min', planning: null, implementation: null });
   assert.equal(draft.model!.others, 0);
-  // Without planning steps, all its steps.
-  assert.equal(hubRowFacts(work('work-0025', 'other', { steps: { done: 0, total: 2, planning: { done: 0, total: 0 } } })).progress!.text, '0 of 2');
+  // Work under way that says nobody's turn shows all its steps, not its planning ones.
+  assert.equal(hubRowFacts(work('work-0026', 'implementing', { steps: { done: 9, total: 10, planning: { done: 4, total: 4 } } })).progress!.text, '9 of 10');
+  // A draft without planning steps shows all its steps.
+  assert.equal(hubRowFacts(work('work-0025', 'draft', { steps: { done: 0, total: 2, planning: { done: 0, total: 0 } } })).progress!.text, '0 of 2');
 });
 
 test('closed work shows how it ended, when, and its totals', () => {
