@@ -87,6 +87,6 @@ Merge the release into `main`, then tag `main` with the version: `git fetch orig
 
 ## Branding, history and source status
 
-- Editable branding lives in `assets/` (SVG logos); the app and viewer icon is `packages/diagrams/assets/coord-icon.svg`.
+- The logos in `assets/`, the app's icons in `app/build/` and the viewer's icon `packages/diagrams/assets/icon.svg` are copies of the generated files in the brand repository, envsemble/brand-assets. Change them there: its `npm run update-apps` opens a pull request here with the new files.
 - The app and the skills arrived from earlier repositories with rewritten history; the [repository history maps](docs/history/README.md) translate their old commit IDs.
 - Source is currently private and `UNLICENSED`: a source-use status, not an open-source license. Do not introduce a public license without the owner's decision. Dependency licenses and attributed example excerpts remain preserved; [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists them.

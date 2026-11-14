@@ -36,7 +36,10 @@ win:
   target:
     - target: nsis
       arch: [x64]
-  icon: build/icon.png
+  icon: build/app.ico
+# No macOS package is built yet; a macOS build takes this icon.
+mac:
+  icon: build/app.icns
 nsis:
   oneClick: false
   perMachine: false
@@ -52,7 +55,7 @@ linux:
     - target: AppImage
       arch: [x64]
   executableName: coord-desktop
-  icon: build/icon.png
+  icon: build/app-1024.png
   category: Development
   synopsis: Plans, models and shared understanding
   artifactName: Coord-${version}-${arch}.${ext}
