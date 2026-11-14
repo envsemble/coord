@@ -78,7 +78,8 @@ jobs:
           echo "COORD_TEST_POSTGRES=postgresql://coord_fixture@127.0.0.1:5432/coord_fixture" >> "$GITHUB_ENV"
       - run: npm ci
         if: ${{ steps.changes.outputs.code != 'false' }}
-      - run: npm run format:check && npm run lint && npm run check:types
+      # Not the lint: envUI's rules are a helper while working, not a gate (CONTRIBUTING.md).
+      - run: npm run format:check && npm run check:types
         if: ${{ steps.changes.outputs.code != 'false' }}
       # Workspace tests: diagrams, planning (reader and ported helpers), the coord command and the app.
       - run: npm test

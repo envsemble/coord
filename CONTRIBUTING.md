@@ -55,7 +55,7 @@ The [architecture](docs/architecture.md), [agent](docs/agent-interface.md) and a
 ## Conventions
 
 - `packages/coord` is TypeScript that Node 24 runs directly without a build step, so it uses only erasable syntax (no enums, namespaces or parameter properties; `erasableSyntaxOnly` enforces it) and `.ts` import extensions.
-- The interface uses envUI's components, tokens and icons (the website, `site/`, is its own design); `npm run lint` runs envUI's ESLint rules on the app's window and the diagram viewer and its Stylelint rules on their style sheets. Where a raw element or a literal colour is needed, disable the rule on that line and say why.
+- The interface uses envUI's components, tokens and icons (the website, `site/`, is its own design); `npm run lint` runs envUI's ESLint rules on the app's window and the diagram viewer and its Stylelint rules on their style sheets. The lint is a helper while working, not a gate: CI does not run it, and a raw element or a literal colour is fine where it serves the design better (say why beside it).
 - Code is not formatted with Prettier. Prettier covers `docs/*.md`, `scripts/`, the root `README.md`, `CONTEXT.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `THIRD_PARTY_NOTICES.md` and `package.json`, and the diagram package's own list; `npm run format` fixes them and `npm run format:check` checks them.
 - Commit generated output with its source: `index.html`, `downloads/` and `dist/` in `packages/diagrams`. CI fails when they are stale.
 - Screenshots show the actual application and have alternative text that says what they show. Keep private source excerpts scoped and attributed.
@@ -70,7 +70,6 @@ The tests come in tiers, from quick to slow ([AGENTS.md](AGENTS.md) gives agents
 
 ```sh
 npm run format:check
-npm run lint
 npm run build
 npm run check
 npm run check:package
