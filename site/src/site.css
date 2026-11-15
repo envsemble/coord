@@ -7,6 +7,8 @@
   --text: #e8eaee;
   --muted: #bdbfc3;
   --border: #5d6166;
+  /* The screenshots' edge: a faint hairline, as the footer's, not the controls' lighter border. */
+  --frame: rgb(232 234 238 / 0.08);
   --button: #28292b;
   --button-hover: #383a3d;
   font-family: Inter, "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -101,7 +103,7 @@ h1 {
   width: min(40rem, 60vw);
   aspect-ratio: 8 / 5;
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 1px solid var(--frame);
   border-radius: 0.625rem;
   background: var(--background);
   box-shadow: 0 1.25rem 3rem rgb(0 0 0 / 0.6);
@@ -217,7 +219,7 @@ h1 {
 .screenshot {
   display: grid;
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 1px solid var(--frame);
   border-radius: 0.875rem;
   /* envUI's raised shadow in its dark theme: a contact edge and a soft fall-off below. */
   box-shadow: 0 1px 2px oklch(from var(--background) calc(l * 0.25) c h / 0.5), 0 12px 32px -10px oklch(from var(--background) calc(l * 0.8) c h / 0.85);
@@ -285,7 +287,7 @@ h1 {
   gap: 0.75rem 1.5rem;
   margin-top: 1rem;
   padding-block: 1.5rem 2.5rem;
-  border-top: 1px solid rgb(232 234 238 / 0.08);
+  border-top: 1px solid var(--frame);
   color: var(--muted);
   font-size: 0.8125rem;
 }
