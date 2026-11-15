@@ -102,6 +102,9 @@ body { margin: 0; }
 .hub-row { cursor: pointer; }
 .hub-row-title { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; }
 .hub-row-link { overflow: hidden; color: inherit; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+/* The title is the row's link, not a control of its own: the row reacts to hover and presses, the
+   title keeps its colour, with no underline or pressed fill of its own. */
+.hub-row-link:is(:hover, :active) { background: none; color: inherit; text-decoration: none; }
 .hub-row-link:focus-visible { outline: 0.125rem solid var(--env-color-border-focus); outline-offset: 0.125rem; border-radius: 0.25rem; }
 .hub-row-large .hub-row-link { font-weight: 500; }
 .hub-row-number, .hub-row-project, .hub-row-updated { color: var(--env-color-fg-muted); font-variant-numeric: tabular-nums; }

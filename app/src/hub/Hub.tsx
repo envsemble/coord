@@ -85,7 +85,7 @@ const HubRow = memo(function HubRow({ item, go, showProject }: { item: HubItem; 
     <Table.Cell>
       <span className="hub-row-title">
         <StatusIcon status={status} />
-        <Link href="#" underline={false} className="hub-row-link" draggable={false} title={work.summary ?? undefined} onClick={open}>{work.title}</Link>
+        <Link href="#" underline={false} className="hub-row-link" data-row-target draggable={false} title={work.summary ?? undefined} onClick={open}>{work.title}</Link>
         <span className="hub-row-number">{workNumber(work.id)}</span>
         {parts && <span className="hub-row-parts" data-kind={parts.kind}>{parts.kind === 'part' ? 'Part ' + parts.index + ' of ' + workNumber(parts.group) : plural(parts.count, 'part') + (parts.closed ? ' · ' + parts.closed + ' closed' : '')}</span>}
       </span>
