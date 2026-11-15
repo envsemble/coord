@@ -47,8 +47,9 @@ main {
   padding-block: 3.5rem 4rem;
 }
 
-/* Everything above the screenshot, in one column with one left edge. */
-.intro { width: fit-content; max-width: 100%; }
+/* Everything above the screenshot, centred; only the features keep a left edge, as one block in
+   the middle, so their marks line up. */
+.intro { width: fit-content; max-width: 100%; text-align: center; }
 
 h1 {
   margin: 0;
@@ -67,7 +68,10 @@ h1 {
 }
 
 .features {
-  margin: 1.75rem 0 0;
+  width: fit-content;
+  max-width: 100%;
+  margin: 1.75rem auto 0;
+  text-align: left;
   padding: 0;
   list-style: none;
   color: var(--text);
