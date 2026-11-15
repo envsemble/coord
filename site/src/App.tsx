@@ -83,11 +83,11 @@ const screenshots: { key: string; label: string; text: ReactNode; shot: string; 
   { key: 'turn', label: 'Shows which plans are Your turn', text: <>Shows which plans are <State kind="turn">Your turn</State></>,
     shot: hub, focus: '0%', alt: "Coord's own plans: Your turn first, each saying what to do, then Waiting and Later, with the models that worked on them." },
   { key: 'plan', label: 'Grills you until the plan goes Draft to Accepted', text: <>Grills you until the plan goes <span className="nowrap"><State kind="draft">Draft</State> → <State kind="accepted">Accepted</State></span></>,
-    shot: plan, focus: '38%', alt: "One of Coord's own plans: its summary and outcome, what was asked for, and its steps, the last one in progress." },
+    shot: plan, focus: '38%', alt: "One of Coord's own plans, complete: what the user asked for in their own words, and its steps from understanding the request to accepted and done." },
   { key: 'diagram', label: 'Captures your code and database as a class diagram', text: <>Captures your code and database as a <Ref kind="diagram">class diagram</Ref></>,
     shot: diagram, focus: '67%', alt: "Coord's own home database captured as a diagram: projects, sessions and the agents' reports, with their columns and relations." },
   { key: 'statistics', label: "Counts every model's agent time and tokens", text: <>Counts every model's agent time and tokens</>,
-    shot: statistics, focus: '38%', alt: "The statistics of one plan's work: agent time, tokens and sessions, and a timeline of each model working." },
+    shot: statistics, focus: '38%', alt: "The statistics of one plan's work: agent time, tokens and sessions, and a timeline of the main agent and its subagents working." },
 ];
 const screenshotTime = 6000;
 
