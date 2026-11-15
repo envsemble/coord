@@ -123,15 +123,19 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   // so the steps and documents of closed plans go below those of open ones.
   const plans = useMemo(() => new Map(entries.filter(entry => entry.kind === 'work' && entry.key).map(entry => [entry.key!, entry])), [entries]);
   const { kinds, prefix, words } = narrowing(text);
+  const tagged = text.toLowerCase().startsWith('tag:') ? text.slice(4).trim().split(/\s+/)[0] || null : null;
   const results = useMemo(() => {
-    if (!words && !text.toLowerCase().startsWith('tag:')) return [];
-    const local = (kinds ? entries.filter(entry => kinds.includes(localKinds[entry.kind])) : entries);
+    if (!words && !tagged) return [];
+    // A tag: search is the host's alone: the window does not know which plans a tag's words match.
+    const local = tagged ? [] : kinds ? entries.filter(entry => kinds.includes(localKinds[entry.kind])) : entries;
     const ranked = rankItems(local, words).map(({ icon: _icon, penalty: _penalty, state: _state, ...entry }) => ({ ...entry, kind: localKinds[entry.kind] }));
-    const answered = words && found?.query === searched(text) ? found : null;
+    const answered = asked && found?.query === asked ? found : null;
     const host = answered ? hostEntries(answered.results, projects).filter(entry => !kinds || kinds.includes(entry.kind)) : [];
     const listed = listEntries(ranked, host, answered?.below)
-      // A plan the host found reads as the window lists it: its project and number.
-      .map(entry => entry.kind === 'plan' && entry.key && plans.get(entry.key) ? { ...entry, detail: plans.get(entry.key)!.detail } : entry);
+      // A plan the host found reads as the window lists it: its project and number; a tag: search's
+      // plans are headed by the tag.
+      .map(entry => entry.kind === 'plan' && entry.key && plans.get(entry.key) ? { ...entry, detail: plans.get(entry.key)!.detail } : entry)
+      .map(entry => tagged && entry.kind === 'plan' ? { ...entry, group: 'Plans tagged ' + tagged } : entry);
     const closed = (entry: SearchEntry) => Boolean(entry.plan && plans.get(entry.plan)?.penalty);
     const inTitle = (entry: SearchEntry) => hasWords(entry.label, words);
     const whole = (entry: SearchEntry) => hasWords([entry.label, entry.detail, entry.snippet].filter(Boolean).join(' '), words);
@@ -148,14 +152,15 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
     });
     // Narrowed to a kind, its results all show; otherwise a few of each, so every kind found is in view,
     // and a group cut short ends with a row that narrows the search to its kind.
-    const cap = kinds ? 50 : groups.length > 1 ? 4 : 8;
+    // A tag's plans all show; a group is folded only when that hides more than one result.
+    const cap = kinds || tagged ? 50 : groups.length > 1 ? 4 : 8;
     return groups.flatMap(({ group, members }) => {
-      const shown = members.slice(0, cap);
+      const shown = members.length <= cap + 1 ? members : members.slice(0, cap);
       const more = members.length - shown.length;
       const kind = members[0]!.kind;
       return more > 0 && kindPrefixes[kind] ? [...shown, { id: 'more:' + kindPrefixes[kind], kind, label: 'Show all ' + members.length + ' ' + kindNames[kind], detail: '', snippet: null, destination: shown[0]!.destination, key: null, group, more: true }] : shown;
     });
-  }, [entries, words, kinds, text, found, projects, plans]);
+  }, [entries, words, kinds, tagged, asked, found, projects, plans]);
   const byId = useMemo(() => new Map(results.map(entry => [entry.id, entry])), [results]);
   const item = (entry: { id: string; label: string; detail: string; snippet?: string | null; group: string; icon: ReactNode; state?: string | null }): CommandPaletteItem => ({
     id: entry.id, label: marked(entry.label, words), textValue: [entry.label, entry.state, entry.detail, entry.snippet].filter(Boolean).join(', '), icon: entry.icon, group: entry.group,
@@ -165,11 +170,10 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
     end: entry.state ? <span className="search-state">{entry.state}</span> : undefined,
   });
   const goTo = pages.filter(page => words && !kinds && rankItems([{ id: page.id, kind: 'work', label: page.label, detail: 'Go to' }], words).length);
-  const tagged = text.toLowerCase().startsWith('tag:') ? text.slice(4).trim().split(/\s+/)[0] : null;
   const items: CommandPaletteItem[] = [
     ...results.map(entry => 'more' in entry
       ? { id: entry.id, label: entry.label, textValue: entry.label, icon: <MoreIcon />, group: entry.group, className: 'search-more' }
-      : item({ ...entry, group: tagged && entry.kind === 'plan' ? 'Plans tagged ' + tagged : entry.group,
+      : item({ ...entry,
         icon: icons.get(entry.id) ?? (entry.key && plans.get(entry.key)?.icon) ?? kindIcons[entry.kind], state: entry.kind === 'plan' && entry.key ? plans.get(entry.key)?.state : null })),
     ...goTo.map(page => ({ id: page.id, label: page.label, textValue: 'Go to ' + page.label, icon: page.icon, group: 'Go to' })),
   ];
@@ -190,7 +194,7 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
     return [
       tag && { query: 'tag:' + tag[0], finds: 'Plans tagged ' + tag[0] + ', ' + plural(tag[1], 'plan') },
       numbered && { query: workNumber(numbered.work.id), finds: 'A plan by its number: ' + numbered.work.title },
-      word && { query: 'step: ' + word, finds: 'Only steps, those about ' + word + '; doc:, diagram: and term: narrow too' },
+      word && { query: 'step: ' + word, finds: 'Steps about ' + word },
       project && { query: project.name, finds: 'A project, to see its plans' },
     ].filter((example): example is { query: string; finds: string } => Boolean(example));
   }, [projects]);
@@ -222,7 +226,7 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   return <CommandPalette open onOpenChange={value => { if (!value) onClose(); }} className="search-popup" aria-label="Search" closeOnAction={false}
     inputValue={query} onInputValueChange={setQuery} items={items} suggestedItems={suggestions} placeholder="Search everything, or narrow with tag:, step:, doc:…"
     hints={[{ keys: ['Enter'], label: 'Open' }, { keys: ['Esc'], label: 'Close' }]} emptyLabel={text ? 'No matches' : 'No plans yet'}
-    footer={<span className="search-tip"><code className="search-try">tag:</code>, <code className="search-try">step:</code>, <code className="search-try">doc:</code>, <code className="search-try">diagram:</code> and <code className="search-try">term:</code> narrow the search; <code className="search-try">#0031</code> finds a plan by its number</span>}
+    footer={<span className="search-tip">Narrow with <code className="search-try">tag:</code> <code className="search-try">step:</code> <code className="search-try">doc:</code> <code className="search-try">diagram:</code> <code className="search-try">term:</code> <code className="search-try">project:</code> · <code className="search-try">#0031</code> opens a plan</span>}
     onAction={chosen => {
       // A search to try is typed into the field, and a group's Show all narrows the search to its kind;
       // the search stays open on what they find.
