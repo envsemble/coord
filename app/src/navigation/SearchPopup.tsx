@@ -25,7 +25,7 @@ function highlightMoved() {
 const searchDelay = 150;
 
 /**
- * The search (Ctrl+P, the title bar's search, the hub's search field): the host's search of every
+ * The search (Ctrl+K or Ctrl+P, the title bar's search): the host's search of every
  * active project of the window's computer, grouped by kind, and what the window finds itself: every
  * plan of the active projects (from the project list), and the diagrams and documents of the open
  * plan's project unless it is archived (`open`, with its snapshot; diagrams are listed as they arrive). The window keeps

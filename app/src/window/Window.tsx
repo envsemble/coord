@@ -44,7 +44,8 @@ const loadingPage = <div className="page-state" aria-busy="true"><Spinner size="
 const toastTones = { info: 'neutral', warning: 'info', danger: 'danger' } as const;
 
 /** Keys handled in the window; the same shortcuts in the application menu are the fallback. */
-const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+shift+e': 'focusFiles', 'ctrl+,': 'settings' };
+// Ctrl+K opens the search, and Ctrl+P too, as editors have it.
+const shortcuts: Record<string, MenuCommand> = { 'ctrl+k': 'quickOpen', 'ctrl+p': 'quickOpen', 'ctrl+shift+e': 'focusFiles', 'ctrl+,': 'settings' };
 /** Where the back and forward keys stay: fields, and open menus, lists and dialogs. */
 const keepsHistoryKeys = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"], [role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
 /** What the mouse's back and forward buttons only close: open menus, lists and dialogs. */
