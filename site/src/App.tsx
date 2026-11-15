@@ -28,10 +28,10 @@ export function App() {
     </header>
     <Page />
     <footer className="footer">
-      {/* Coord is made by envsemble: its lockup, linking to the company's site, beside the copyright. */}
+      {/* Coord is made by envsemble: the copyright, with the company's lockup as its name, linking to its site. */}
       <div className="maker">
+        <span>© 2026</span>
         <a href="https://envsemble.com" className="maker-logo"><img src={envsembleLogo} alt="envsemble" width={303} height={63} /></a>
-        <span>© 2026 envsemble</span>
       </div>
       <nav aria-label="Site">
         <a href={releasesPage}>Releases</a>

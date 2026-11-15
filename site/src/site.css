@@ -237,10 +237,10 @@ h1 {
 .footer nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; }
 .footer a { color: var(--muted); text-decoration: none; }
 .footer a:hover { color: var(--text); }
-.maker { display: flex; align-items: center; gap: 1rem; }
-/* envsemble's lockup as its brand guide asks: the on-dark file unchanged, at least 24 px tall, with
-   half the mark's height of clear space around it (the gap and the footer's padding give it). */
-.maker-logo img { display: block; height: 1.75rem; width: auto; }
+.maker { display: flex; align-items: center; gap: 0.75rem; }
+/* envsemble's lockup as its brand guide asks: the on-dark file unchanged, at its smallest allowed
+   height (24 px), with half the mark's height (12 px) of clear space around it. */
+.maker-logo img { display: block; height: 24px; width: auto; }
 
 /* The privacy and terms pages: one readable column. */
 .legal { align-items: stretch; max-width: 42rem; line-height: 1.65; }
