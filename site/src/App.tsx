@@ -1,7 +1,7 @@
 // Coord's website: one dark page, with its privacy and terms pages (legal.tsx). The name, one line on what Coord is, a download button for
 // Windows and one for Linux under a Stable or Nightly switch (the newest build of each, read from GitHub Releases in the visitor's
-// browser by releases.ts), and a screenshot of a plan. Hovering a feature shows its screenshot by the cursor.
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+// browser by releases.ts), and the app's screenshots in turn. Hovering a feature shows its screenshot by the cursor.
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import logo from '../../assets/coord-horizontal-on-dark.svg';
 import envsembleLogo from '../../assets/envsemble-horizontal-on-dark.svg';
 import attention from './shots/attention.png';
@@ -9,6 +9,9 @@ import dashboard from './shots/dashboard.png';
 import diagrams from './shots/diagrams.png';
 import grill from './shots/grill.png';
 import plan from './shots/plan.png';
+import hub from '../../assets/hub.png';
+import comparison from '../../assets/comparison-dark.png';
+import statistics from '../../assets/statistics.png';
 import { Privacy, Terms } from './legal.tsx';
 import { Sky } from './Sky.tsx';
 import { linuxPath } from './linuxPath.ts';
@@ -52,6 +55,8 @@ function Home() {
   }, []);
   const visitor = visitorPlatform({ userAgent: navigator.userAgent, platform: navigator.platform });
   const [channel, setChannel] = useState<Channel>('stable');
+  // Stable keeps the gray page; Nightly darkens it to black behind its stars (site.css).
+  useEffect(() => { document.documentElement.dataset.channel = channel; }, [channel]);
   const build = typeof builds === 'object' ? builds[channel] : null;
   // The visitor's system first.
   const platforms: Platform[] = visitor === 'linux' ? ['linux', 'windows'] : ['windows', 'linux'];
@@ -74,9 +79,55 @@ function Home() {
         {build ? <a href={build.page}>Version {build.version}</a> : channel === 'nightly' && builds !== 'loading' ? 'No nightly build yet' : null}
         {(build || channel === 'nightly' && builds !== 'loading') && ' · '}<a href={releasesPage}>All releases</a>
       </p>
-      <img className="screenshot" src={plan} width={2184} height={1364}
-        alt="A plan in Coord: its title, whose turn it is and what to do, its outcome and scope, and beside it the plan's progress, steps and statistics." />
+      <Screenshots />
     </main>;
+}
+
+// focus: the part a phone's cropped frame keeps, across the screenshot's width (site.css).
+const screenshots: { key: string; label: string; shot: string; focus: string; alt: string }[] = [
+  { key: 'plan', label: 'A plan', shot: plan, focus: '25%', alt: "A plan in Coord: its title, whose turn it is and what to do, its outcome and scope, and beside it the plan's progress, steps and statistics." },
+  { key: 'hub', label: 'Your plans', shot: hub, focus: '4%', alt: 'The hub: every open plan of a project, grouped as Your turn, Waiting and Later, each saying what it waits on and which models worked on it.' },
+  { key: 'proposal', label: 'A proposal', shot: comparison, focus: '97%', alt: "An agent's proposal in the change view: new and changed classes and relations marked on the diagram, unchanged ones faded, and the list of changes beside it." },
+  { key: 'statistics', label: 'Statistics', shot: statistics, focus: '4%', alt: "A project's statistics: agent time, plans completed, time waited on you, and the work over time by model." },
+];
+const screenshotTime = 6000;
+
+/**
+ * The app's screenshots in turn, one every six seconds, fading into each other, with timed dots as on
+ * Apple's product pages, kept as small as the site's other controls. A dot shows its screenshot;
+ * pausing holds the shown one.
+ * With reduced motion they start paused. All stay in the page, so the change is a fade, not a load.
+ */
+function Screenshots() {
+  const [shown, setShown] = useState(0);
+  const [playing, setPlaying] = useState(() => !matchMedia('(prefers-reduced-motion: reduce)').matches);
+  useEffect(() => {
+    if (!playing) return;
+    const timer = setTimeout(() => setShown(index => (index + 1) % screenshots.length), screenshotTime);
+    return () => clearTimeout(timer);
+  }, [shown, playing]);
+  return <section className="screenshots" aria-label="Screenshots" aria-roledescription="carousel">
+    <div className="screenshot">
+      {screenshots.map((item, index) => <img key={item.key} src={item.shot} alt={item.alt} width={2184} height={1364}
+        decoding="async" style={{ '--focus': item.focus } as CSSProperties} data-shown={index === shown ? '' : undefined} aria-hidden={index === shown ? undefined : true} />)}
+    </div>
+    {/* One small capsule, like the Stable and Nightly switch: the shown one's name, a dot for each (the
+        shown one a bar that fills with its time) and a pause button. */}
+    <div className="screenshot-controls">
+      <span className="screenshot-caption" aria-live={playing ? 'off' : 'polite'}>{screenshots[shown].label}</span>
+      <div className="screenshot-dots" role="group" aria-label="Show a screenshot">
+        {screenshots.map((item, index) => <button key={item.key} type="button" className="screenshot-dot" aria-label={item.label}
+          aria-current={index === shown ? 'true' : undefined} onClick={() => setShown(index)}>
+          {index === shown && <span className="screenshot-fill" data-paused={playing ? undefined : ''} />}
+        </button>)}
+      </div>
+      <button type="button" className="screenshot-play" aria-label={playing ? 'Pause' : 'Play'} onClick={() => setPlaying(value => !value)}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          {playing ? <path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /> : <path fill="currentColor" d="M8 5.5v13l10.5-6.5z" />}
+        </svg>
+      </button>
+    </div>
+  </section>;
 }
 
 /** A Material Symbol from envUI, on its 960-unit grid. */
