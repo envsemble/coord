@@ -148,6 +148,20 @@ h1 {
 .download-windows { background: #0078d4; border-color: #0078d4; color: #ffffff; }
 .download-windows:hover { background: #1a86d9; border-color: #1a86d9; }
 .download-windows .download-detail { color: rgb(255 255 255 / 0.8); }
+/* Nightly picked: a night-blue glow comes in from each button's right edge; an overlay, so it fades. */
+.download { position: relative; overflow: hidden; isolation: isolate; }
+.download::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(270deg, rgb(110 125 245 / 0.32), rgb(110 125 245 / 0) 75%);
+  opacity: 0;
+  transition: opacity 400ms ease;
+  pointer-events: none;
+}
+.download-windows::after { background: linear-gradient(270deg, #3b3fb8, rgb(59 63 184 / 0) 80%); }
+.downloads[data-channel="nightly"] .download::after { opacity: 1; }
 .download[aria-busy] { opacity: 0.6; }
 .logo { width: 1.75rem; height: 1.75rem; flex: none; }
 .download-text { display: flex; flex-direction: column; gap: 0.125rem; }

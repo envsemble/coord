@@ -62,7 +62,7 @@ function Home() {
         <p className="facts">In any terminal, editor or <span className="nowrap">T3 Code</span>. Windows and Linux. Free, MIT.</p>
       </div>
       <ChannelPicker channel={channel} onChange={setChannel} />
-      <div className="downloads">
+      <div className="downloads" data-channel={channel}>
         {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={build} loading={builds === 'loading'} />)}
       </div>
       <p className="note">
