@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CommandPalette, type CommandPaletteItem } from '@envsemble/envui';
-import { DiagramIcon, FileIcon, FolderIcon, LedgerIcon, PlanIcon, SearchIcon } from '../ui/icons';
+import { DiagramIcon, FileIcon, FolderIcon, LedgerIcon, PageIcon, PlanIcon, SearchIcon } from '../ui/icons';
 import type { DiagramIndexEntry, Project, SearchKind, SearchResult, Snapshot, Target } from '../types';
 import { api } from '../api';
 import { rankItems, type QuickItem } from './quickMatch';
@@ -14,7 +14,7 @@ import { TagList } from '../plan/TagList';
 interface Entry extends QuickItem, Omit<SearchEntry, 'kind'> { icon: ReactNode }
 const localKinds: Record<QuickItem['kind'], SearchKind> = { work: 'plan', diagram: 'diagram', file: 'document' };
 const kindIcons: Record<SearchKind, ReactNode> = {
-  plan: <PlanIcon />, step: <LedgerIcon />, document: <FileIcon />, heading: <FileIcon />, diagram: <DiagramIcon />, element: <DiagramIcon />, term: <SearchIcon />, project: <FolderIcon />,
+  plan: <PlanIcon />, step: <LedgerIcon />, document: <FileIcon />, heading: <FileIcon />, diagram: <DiagramIcon />, page: <PageIcon />, element: <DiagramIcon />, term: <SearchIcon />, project: <FolderIcon />,
 };
 /** Whether the user moved the highlight off the first result (by key or pointer). */
 function highlightMoved() {
@@ -93,12 +93,12 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   // The name read out includes where it is, so many plan.md files stay apart.
   const items: CommandPaletteItem[] = results.map(entry => ({
     id: entry.id, label: entry.label, textValue: [entry.label, entry.detail, entry.snippet, ...entry.tags ?? []].filter(Boolean).join(', '), icon: icons.get(entry.id) ?? kindIcons[entry.kind], group: entry.group,
-    detail: entry.snippet || entry.tags?.length ? <><span className="search-where">{entry.detail}</span>{entry.snippet && <span className="search-snippet">{entry.snippet}</span>}{entry.tags && <TagList tags={entry.tags} className="search-tags" />}</> : entry.detail,
+    description: entry.snippet || entry.tags?.length ? <><span className="search-where">{entry.detail}</span>{entry.snippet && <span className="search-snippet">{entry.snippet}</span>}{entry.tags && <TagList tags={entry.tags} className="search-tags" />}</> : entry.detail,
   }));
 
   return <CommandPalette open onOpenChange={value => { if (!value) onClose(); }} className="search-popup" aria-label="Search"
-    query={query} onQueryChange={setQuery} items={items} placeholder="Search plans, documents, diagrams and projects" emptyLabel={text ? 'No matches' : 'No plans yet'}
-    onSelect={item => {
+    inputValue={query} onInputValueChange={setQuery} items={items} placeholder="Search plans, documents, diagrams and projects" emptyLabel={text ? 'No matches' : 'No plans yet'}
+    onAction={item => {
       const entry = byId.get(item.id);
       if (!entry) return;
       onClose();

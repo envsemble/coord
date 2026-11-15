@@ -1,6 +1,7 @@
-# Packages the desktop app: an unsigned NSIS installer on Windows and an AppImage on Linux.
-appId: dev.envsemble.atlas
-productName: Atlas
+# Packages the desktop app: an unsigned NSIS installer on Windows and an AppImage on Linux, each with
+# the update file the installed app updates from.
+appId: dev.envsemble.coord
+productName: Coord
 copyright: Copyright © 2026 envsemble
 directories:
   output: release
@@ -10,13 +11,26 @@ files:
   - "!out/**/*.map"
   - package.json
   # Only the diagram package's runtime files (its development pages and tooling are not needed).
-  - "!node_modules/@envsemble/atlas-diagrams/{development,downloads,scripts,examples,tests,index.html,vite.config.mjs,tsconfig.contracts.json}"
+  - "!node_modules/@envsemble/coord-diagrams/{development,downloads,scripts,examples,tests,index.html,vite.config.mjs,tsconfig.contracts.json}"
 # No asar archive: diagram preparation runs esbuild (a native binary) over the diagram package's
 # own sources, which it cannot read from inside an archive. The integrity fuses below need an
 # archive, and only add protection to signed builds; these builds are unsigned (ADR 0001).
 asar: false
 npmRebuild: false
-publish: null
+# Where the installed app looks for its updates (app-update.yml, read by electron-updater): the
+# GitHub Releases of envsemble/coord. Packaging also writes the channel's update file beside the
+# installer: latest.yml and latest-linux.yml for a stable release. The release workflow builds a
+# nightly with `-c.publish.channel=nightly`, which writes
+# nightly.yml and nightly-linux.yml instead. Nothing is uploaded from here (--publish never): the
+# workflow attaches the files to the release.
+publish:
+  provider: github
+  owner: envsemble
+  repo: coord
+  releaseType: release
+# Prunes the app's node_modules and assembles resources/agent: the coord command, the Node.js it
+# runs on and the plugin, which the app copies into the Coord home (scripts/agent-payload.cjs,
+# main/agent/agentFolder.ts).
 afterPack: scripts/after-pack.cjs
 electronFuses:
   runAsNode: false
@@ -33,7 +47,10 @@ win:
   target:
     - target: nsis
       arch: [x64]
-  icon: build/icon.png
+  icon: build/app.ico
+# No macOS package is built yet; a macOS build takes this icon.
+mac:
+  icon: build/app.icns
 nsis:
   oneClick: false
   perMachine: false
@@ -42,18 +59,18 @@ nsis:
   # Forces the per-user install mode (build/installer.nsh), so all-users cannot be chosen.
   include: build/installer.nsh
   deleteAppDataOnUninstall: false
-  artifactName: Atlas-Setup-${version}.${ext}
-  shortcutName: Atlas
+  artifactName: Coord-Setup-${version}.${ext}
+  shortcutName: Coord
 linux:
   target:
     - target: AppImage
       arch: [x64]
-  executableName: atlas-desktop
-  icon: build/icon.png
+  executableName: coord-desktop
+  icon: build/app-1024.png
   category: Development
   synopsis: Plans, models and shared understanding
-  artifactName: Atlas-${version}-${arch}.${ext}
+  artifactName: Coord-${version}-${arch}.${ext}
 appImage:
-  # electron-builder's default desktop entry starts AppImages with --no-sandbox; Atlas keeps the
+  # electron-builder's default desktop entry starts AppImages with --no-sandbox; Coord keeps the
   # sandbox and refuses to start without it (see the app README, "Linux sandbox").
   executableArgs: []

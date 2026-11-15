@@ -1,16 +1,16 @@
 {
-  "name": "@envsemble/atlas-diagrams",
-  "version": "0.8.0",
+  "name": "@envsemble/coord-diagrams",
+  "version": "0.9.0",
   "private": true,
-  "description": "Internal Atlas diagram package: Atlas's PlantUML subset, captures from code and databases, layout, the React viewer and offline export",
+  "description": "Internal Coord diagram package: Coord's PlantUML subset, captures from code and databases, layout, the React viewer and offline export",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/envsemble/atlas.git",
+    "url": "git+https://github.com/envsemble/coord.git",
     "directory": "packages/diagrams"
   },
-  "homepage": "https://github.com/envsemble/atlas",
+  "homepage": "https://github.com/envsemble/coord",
   "bugs": {
-    "url": "https://github.com/envsemble/atlas/issues"
+    "url": "https://github.com/envsemble/coord/issues"
   },
   "scripts": {
     "dev": "vite",
@@ -31,7 +31,7 @@
     "node": ">=22.12.0"
   },
   "devDependencies": {
-    "@envsemble/envui": "0.7.0",
+    "@envsemble/envui": "1.0.0",
     "@types/react": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
     "peggy": "5.1.0",
@@ -51,10 +51,9 @@
     "esbuild": "0.28.2",
     "fflate": "0.8.3",
     "pg": "8.23.1",
-    "shiki": "4.5.0",
     "typescript-compiler": "npm:typescript@6.0.3"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "main": "./lib/index.cjs",
   "types": "./lib/index.d.ts",
   "exports": {
@@ -68,7 +67,7 @@
       "default": "./dist/react.mjs"
     },
     "./mark": {
-      "types": "./src/ui/AtlasMark.d.ts",
+      "types": "./src/ui/CoordMark.d.ts",
       "default": "./dist/mark.mjs"
     },
     "./viewer.css": "./src/viewer/viewer.css",

@@ -69,7 +69,7 @@ function captureDetail(snapshot) {
 
 /**
  * Describes whether a model was generated from a source, proposed by an agent
- * or authored by an agent. Accepts an Atlas document or a viewer model's
+ * or authored by an agent. Accepts a Coord document or a viewer model's
  * `document` metadata.
  */
 export function describeProvenance(document) {
@@ -87,7 +87,7 @@ export function describeProvenance(document) {
       kind: "generated",
       label,
       detail: captureDetail(baselineSnapshot(document)),
-      tone: "accent",
+      tone: "primary",
     };
   } else if (document.state === "proposal") {
     const date = formatCaptureDate(
@@ -97,7 +97,7 @@ export function describeProvenance(document) {
       kind: "proposal",
       label: "Agent proposal",
       detail: date ? `Changes to source captured ${date}` : "",
-      tone: "done",
+      tone: "accent",
     };
   } else if (document.state === "authored") {
     result = {

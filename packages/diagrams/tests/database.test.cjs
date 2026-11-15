@@ -36,10 +36,10 @@ test("a source configuration that cannot be met writes no capture", async (t) =>
         adapter: "postgresql",
         identity: "missing",
         schemas: ["public"],
-        connectionEnv: "ATLAS_UNSET_FIXTURE_CONNECTION_20261008",
+        connectionEnv: "COORD_UNSET_FIXTURE_CONNECTION_20261008",
       }),
     ),
-    /CAPTURE_PREREQUISITE: set ATLAS_UNSET_FIXTURE_CONNECTION_20261008/,
+    /CAPTURE_PREREQUISITE: set COORD_UNSET_FIXTURE_CONNECTION_20261008/,
   );
   await assert.rejects(
     captureFromConfig(
@@ -92,7 +92,7 @@ test("SQLite captures write tables, keys and exact counts as an entity diagram, 
   const text = await captureSQLite({ file, identity: "fixture" });
   const d = read(text);
   assert.equal(d.title, "fixture schema");
-  assert.equal(d.capture.adapter.id, "atlas-sqlite");
+  assert.equal(d.capture.adapter.id, "coord-sqlite");
   assert.equal(d.capture.source.kind, "sqlite");
   assert.equal(d.capture.consistency.kind, "read-transaction");
   assert.equal(d.capture.coverage.status, "partial");
@@ -138,13 +138,12 @@ test("SQLite captures write tables, keys and exact counts as an entity diagram, 
     undated(await captureSQLite({ file, identity: "fixture" })),
     undated(text),
   );
-  // The viewer draws it, its tables' SQL highlighted as their source.
+  // The viewer draws it.
   const { prepared } = await prepareDiagrams({
     files: [{ path: "schema.puml", text }],
   });
   const { payload } = prepared.get("schema.puml");
   assert.equal(payload.model.document.profile, "database");
-  assert.equal(payload.snippets["source:badge"].language, "sql");
   assert(payload.views[0].diagram.edges.length === 2);
   const scoped = read(
     await captureSQLite({
@@ -190,7 +189,7 @@ test("SQLite comparison semantics, identifier case and subset keys cannot create
   db.close();
   const d = read(await captureSQLite({ file, identity: "comparisons" }));
   assert(table(d, "sqliteXuser"));
-  // Counts Atlas cannot establish are drawn as loosely as a crow's foot
+  // Counts Coord cannot establish are drawn as loosely as a crow's foot
   // allows, and the diagnostics say why.
   assert.deepEqual(keys(d), [
     ["numericParent", "textChild", "id", "1", "0..*"],

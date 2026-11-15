@@ -4,7 +4,7 @@
 // unmeasured planning session, a Claude Code implementation session measured with a subagent, and a
 // measured Codex one from before stages were recorded.
 import { expect, test, type Page } from '@playwright/test';
-import { addProject, close, filterHub, goHome, launch, launchProject, openPlan, openProjectStatistics, pageScroll, projectHome, removeDirectory, settledScroll, type Launched } from './app';
+import { addProject, close, expectHub, goHome, launch, launchProject, openPlan, openProjectStatistics, pageScroll, projectHome, removeDirectory, settledScroll, type Launched } from './app';
 
 let launched: Launched | undefined;
 /** Numbers as the window formats them, whatever the system locale. */
@@ -12,48 +12,43 @@ const compact = (window: import('@playwright/test').Page, value: number) => wind
 const whole = (window: import('@playwright/test').Page, value: number) => window.evaluate(number => number.toLocaleString(), value);
 const homes: string[] = [];
 test.afterEach(async () => { await close(launched); launched = undefined; for (const home of homes.splice(0)) removeDirectory(home); });
-/** A project's statistics, from its row on the Projects page, over all its time (the fixture's reports are of a fixed date). */
+/** A project's statistics, from the hub filtered to it, over all its time (the fixture's reports are of a fixed date). */
 async function openStatistics(window: Page, project = 'Northwind') {
   await openProjectStatistics(window, project);
   await window.getByRole('radiogroup', { name: 'Period' }).getByRole('radio', { name: 'All time' }).click();
   await expect(window.getByRole('table', { name: 'Agent time and tokens by model and effort' })).toBeVisible();
 }
 
-test('each project has its statistics, from its row on the Projects page or the hub filtered to it, under a breadcrumb back to them; a wheel over a table scrolls the page', async () => {
+test('each project has its statistics, from the hub filtered to it, under a breadcrumb back to its plans; a wheel over a table scrolls the page', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
-  addProject(home.dataDirectory, 'coord', 'Coord');
+  addProject(home.dataDirectory, 'harbor', 'Harbor');
   launched = await launch({ dataDirectory: home.dataDirectory });
   const { window, app } = launched;
-  // No Statistics section: Plans and Projects.
-  await expect(window.getByRole('navigation', { name: 'Sections' }).locator('[data-section]')).toHaveCount(2);
   await openStatistics(window, 'Northwind');
-  // Another project's, from its row; Back returns to Northwind's.
-  await openStatistics(window, 'Coord');
+  // Another project's: its breadcrumb leads back to its plans, and Back returns to its statistics.
+  await openStatistics(window, 'Harbor');
+  await window.locator('.statistics-page .breadcrumb').getByRole('button', { name: 'Harbor', exact: true }).click();
+  await expectHub(window, 'Harbor');
   await window.getByRole('button', { name: 'Back', exact: true }).click();
-  await window.getByRole('button', { name: 'Back', exact: true }).click();
-  await expect(window.locator('.statistics-page .breadcrumb')).toContainText('Northwind');
-  // The hub filtered to Coord leads to Coord's.
-  await goHome(window);
-  await filterHub(window, 'Coord');
-  await window.locator('.hub').getByRole('button', { name: 'Statistics', exact: true }).click();
-  await expect(window.locator('.statistics-page .breadcrumb')).toContainText('Coord');
+  await expect(window.locator('.statistics-page .breadcrumb')).toContainText('Harbor');
   // The hub of every project leads to all plans'.
   await goHome(window);
   await window.locator('.hub').getByRole('button', { name: 'Statistics', exact: true }).click();
-  await expect(window.locator('.statistics-page .breadcrumb')).toHaveText(/Plans.*Statistics/);
+  await expect(window.locator('.statistics-page .breadcrumb')).toHaveText(/^Plans.*Statistics$/);
+  await window.getByRole('radiogroup', { name: 'Period' }).getByRole('radio', { name: 'All time' }).click();
   await expect(window.locator('.statistics-page .stat').first()).toContainText('Agent time');
 
   // A wheel over a table scrolls the page.
   await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.unmaximize(); win.setContentSize(1200, 520); });
-  await openStatistics(window, 'Coord');
+  await openStatistics(window, 'Harbor');
   const table = window.getByRole('table', { name: 'Agent time and tokens by model and effort' });
   await expect(table.getByRole('row').nth(1)).toBeVisible();
   await table.evaluate(element => element.scrollIntoView({ block: 'center' }));
   const before = await settledScroll(window);
   const delta = before > 300 ? -250 : 250;
   // As far as the page can scroll that way, up to the wheel's step.
-  const room = Math.min(100, await window.evaluate(down => { const element = document.querySelector('.env-window-frame-content')!; return down ? element.scrollHeight - element.clientHeight - element.scrollTop : element.scrollTop; }, delta > 0));
+  const room = Math.min(100, await window.evaluate(down => { const element = document.querySelector('.env-scaffold-body')!; return down ? element.scrollHeight - element.clientHeight - element.scrollTop : element.scrollTop; }, delta > 0));
   expect(room).toBeGreaterThan(20);
   // A point over the table, within the window.
   const box = (await table.boundingBox())!;
@@ -118,5 +113,5 @@ test("a project's statistics look back on its work: its figures against the peri
   await expect(window.getByRole('table', { name: 'Agent time and tokens by model and effort' })).toContainText('Claude Opus 5.5');
   await expect(window.getByRole('table', { name: 'Agent time and tokens by stage' })).toHaveCount(0);
   await window.getByRole('button', { name: 'Back', exact: true }).click();
-  await expect(window.locator('.work-header h1')).toHaveText('Saved payment methods');
+  await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
 });

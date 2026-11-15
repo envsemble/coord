@@ -16,6 +16,39 @@ const markerColor = (state, normal) =>
 
 // A domain-independent renderer. The input is ordinary graph/geometry data;
 // this component has no knowledge of R5, model evidence, or application panels.
+/**
+ * A diagram’s packages: quiet regions behind their elements, each named in
+ * its top left corner, so a group reads as one without boxing it in.
+ */
+function UMLPackages({ packages }) {
+  if (!packages?.length) return null;
+  return (
+    <g className="package-layer" aria-hidden="true">
+      {packages.map((p) => (
+        <g key={p.name} transform={`translate(${p.x} ${p.y})`}>
+          <rect
+            width={p.width}
+            height={p.height}
+            rx="10"
+            fill="var(--diagram-package,rgba(130,140,155,0.07))"
+            stroke="var(--diagram-package-border,rgba(130,140,155,0.3))"
+            vectorEffect="non-scaling-stroke"
+          />
+          <text
+            x="14"
+            y="21"
+            fill="var(--diagram-muted,#59636e)"
+            fontSize="12.5"
+            fontWeight="600"
+          >
+            {p.name}
+          </text>
+        </g>
+      ))}
+    </g>
+  );
+}
+
 export const UMLDiagram = memo(function UMLDiagram({
   diagram,
   active = null,
@@ -175,6 +208,7 @@ export const UMLDiagram = memo(function UMLDiagram({
             </marker>
           ))}
         </defs>
+        <UMLPackages packages={diagram.packages} />
         <g className="relation-routes">
           {(diagram.generalizationGroups || []).map((group) => (
             <UMLGeneralizationGroup
@@ -279,6 +313,7 @@ export const UMLDiagram = memo(function UMLDiagram({
       style={{ width: diagram.width, height: diagram.height }}
     >
       {interactive && backgroundURL && (
+        // eslint-disable-next-line envui/no-raw-graphics -- the diagram's own bitmap backdrop, at the diagram's pixel size under its SVG geometry, not a picture at one of envUI's sizes
         <img
           className={`diagram-background${bitmap ? " ready" : ""}`}
           src={backgroundURL}

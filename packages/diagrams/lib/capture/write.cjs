@@ -1,5 +1,5 @@
 // Captures as diagram files: what an adapter read from code or a database,
-// written in Atlas's PlantUML subset with its capture header. Source names
+// written in Coord's PlantUML subset with its capture header. Source names
 // become PlantUML names that stay the same from one capture to the next, so a
 // later capture, and a proposal copied from a capture, compare with it element
 // by element. Text PlantUML would read as formatting is broken up, and every
@@ -299,7 +299,7 @@ function codeDiagram({
  * `evidence` and `snippet`. A foreign key runs from the referencing table
  * (`sourceId`, with its `columns`) to the referenced one (`targetId`);
  * `targetMultiplicity` counts the referenced rows per referencing row and
- * `sourceMultiplicity` the referencing rows per referenced row. A count Atlas
+ * `sourceMultiplicity` the referencing rows per referenced row. A count Coord
  * could not establish (`?`) is drawn as the loosest a crow's foot allows.
  */
 function entityDiagram({ title, capture, tables, foreignKeys }) {

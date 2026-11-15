@@ -1,4 +1,4 @@
-// A small rotating log in the Atlas data folder (<data>/logs/atlas.log, then atlas.1.log …; the host
+// A small rotating log in the Coord data folder (<data>/logs/coord.log, then coord.1.log …; the host
 // writes host.log beside it).
 // It records lifecycle events and failures for diagnosis; nothing leaves the machine.
 import { appendFileSync, mkdirSync, renameSync, rmSync, statSync } from 'node:fs';
@@ -15,8 +15,8 @@ export class RotatingLog {
 
   private readonly name: string;
 
-  /** `name` is the file's base name: atlas.log for the app, host.log for its host. */
-  constructor(directory: string, { maxBytes = 1024 * 1024, keep = 3, name = 'atlas' } = {}) {
+  /** `name` is the file's base name: coord.log for the app, host.log for its host. */
+  constructor(directory: string, { maxBytes = 1024 * 1024, keep = 3, name = 'coord' } = {}) {
     this.directory = directory;
     this.name = name;
     this.file = path.join(directory, name + '.log');
@@ -35,7 +35,7 @@ export class RotatingLog {
       appendFileSync(this.file, line);
       this.size += Buffer.byteLength(line);
     } catch { /* Logging never stops the app. */ }
-    if (process.env.ATLAS_LOG_STDOUT === '1') process.stdout.write(line);
+    if (process.env.COORD_LOG_STDOUT === '1') process.stdout.write(line);
   }
   info(message: string, detail?: unknown) { this.write('info', message, detail); }
   warn(message: string, detail?: unknown) { this.write('warn', message, detail); }

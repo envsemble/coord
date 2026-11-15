@@ -6,7 +6,7 @@ const { unzipSync } = require("fflate"),
   { assemble, hash } = require("./release.cjs");
 const { execFileSync } = require("node:child_process");
 async function check() {
-  const stage = fs.mkdtempSync(path.join(os.tmpdir(), "atlas-release-check-"));
+  const stage = fs.mkdtempSync(path.join(os.tmpdir(), "coord-release-check-"));
   try {
     const first = await assemble({
         outputDirectory: path.join(stage, "first"),
@@ -34,11 +34,11 @@ async function check() {
     const files = unzipSync(first.archive);
     for (const file of first.manifest.files)
       assert.equal(hash(files[file.name]), file.sha256, file.name);
-    assert.equal(first.manifest.format, "atlas/release");
+    assert.equal(first.manifest.format, "coord/release");
     // The enrollment example carries its scenarios; the shop's, its changes.
     const embedded = (name) => {
       const html = Buffer.from(files[name]).toString("utf8");
-      assert(html.includes('<script id="atlas-diagram"'), name);
+      assert(html.includes('<script id="coord-diagram"'), name);
       const data = html.match(/^\s*(const MODEL=.*)\r?$/m)[1];
       return new (require("node:vm").Script)(
         `${data}\n;({SCENARIOS,COMPARISON})`,
@@ -48,24 +48,24 @@ async function check() {
     assert(embedded("shop.html").COMPARISON.changes.changes.length);
     assert(
       Object.keys(files).some((name) =>
-        /^envsemble-atlas-diagrams-.+\.tgz$/.test(name),
+        /^envsemble-coord-diagrams-.+\.tgz$/.test(name),
       ),
       "Missing packed diagram package",
     );
-    assert(files["packages/diagrams/assets/atlas-icon.svg"]);
+    assert(files["packages/diagrams/assets/icon.svg"]);
     assert(files["packages/diagrams/schemas/code-source-schema.json"]);
     assert(files["packages/diagrams/examples/shop/diagrams/checkout.puml"]);
     assert(files["app/package.json"]);
     assert(files["app/src/App.tsx"]);
-    assert(files["packages/atlas/src/planning/reading/planningIndex.ts"]);
-    assert(files["packages/atlas/src/planning/check/check.ts"]);
-    assert(files["packages/atlas/package.json"]);
-    assert(files["packages/atlas/bin/atlas.js"]);
+    assert(files["packages/coord/src/planning/reading/planningIndex.ts"]);
+    assert(files["packages/coord/src/planning/check/check.ts"]);
+    assert(files["packages/coord/package.json"]);
+    assert(files["packages/coord/bin/coord.js"]);
     assert(
       !Object.keys(files).some((name) =>
         /(?:^|\/)(?:check_planning|log_consultation)\.py$/.test(name),
       ),
-      "Atlas ships no Python helpers",
+      "Coord ships no Python helpers",
     );
     assert(files["assets/hub.png"]);
     assert(
@@ -82,20 +82,20 @@ async function check() {
     );
     assert(
       !Object.keys(files).some((name) => /work[t]rail/i.test(name)),
-      "Release files use Atlas names only",
+      "Release files use Coord names only",
     );
     assert(
       !Object.keys(files).some((name) => name.startsWith("app/vendor/")),
       "The app uses the workspace diagram package",
     );
-    assert(files["plugin/skills/atlas/SKILL.md"]);
-    assert(files["plugin/skills/atlas-grill/SKILL.md"]);
-    assert(files["plugin/skills/atlas-implement/SKILL.md"]);
+    assert(files["plugin/skills/coord/SKILL.md"]);
+    assert(files["plugin/skills/coord-grill/SKILL.md"]);
+    assert(files["plugin/skills/coord-implement/SKILL.md"]);
     assert(files["plugin/.claude-plugin/plugin.json"]);
     assert(files[".claude-plugin/marketplace.json"]);
     assert(files[".agents/plugins/marketplace.json"]);
-    assert(files["extras/babysit-pr/SKILL.md"]);
-    assert(files["assets/atlas-banner-dark.svg"]);
+    assert(files["plugin/skills/babysit-pr/SKILL.md"]);
+    assert(files["assets/coord-horizontal-on-dark.svg"]);
     assert(files["docs/history/skills-commit-map.txt"]);
     assert(files["docs/history/atlas-import-commit-map.txt"]);
     assert(files["CHANGELOG.md"]);
@@ -105,7 +105,7 @@ async function check() {
       "Installed dependencies leaked into the release",
     );
     console.log(
-      "Passed: versioned nonpublishing Atlas release, repeatable archive, hashes, packed diagram package, app, planning reader, atlas command, plugin and skills, branding/docs/schemas and the example viewers with their diagrams; no local planning data.",
+      "Passed: versioned nonpublishing Coord release, repeatable archive, hashes, packed diagram package, app, planning reader, coord command, plugin and skills, branding/docs/schemas and the example viewers with their diagrams; no local planning data.",
     );
   } finally {
     if (!path.resolve(stage).startsWith(path.resolve(os.tmpdir()) + path.sep))

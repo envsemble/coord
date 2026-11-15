@@ -1,6 +1,6 @@
-// What a project's row on the Projects page shows at a glance: its avatar (the initials of its name on
-// a square in its own colour) and its facts from the listing (its open plans, how many agents work on them or wait
-// for the person, when it last changed). Pure, so it is unit-tested.
+// What a project shows at a glance, in the hub's project menu: its avatar (the initials of its name on
+// a square in its own colour) and its facts from the listing (its open plans, how many agents work on
+// them or wait for the person, when it last changed). Pure, so it is unit-tested.
 import type { Project } from '../types';
 
 /** Up to two initials: of its first two words, else of its one word. */
@@ -19,14 +19,14 @@ export function projectHue(projectId: string): number {
   return hues[hash % hues.length];
 }
 
-/** What the listing says of a project: its open plans, those agents work on and those waiting for the person, and when it changed. */
+/** What the listing says of a project: its open plans, those its agents work on and those that are the person's turn, as the plans declare, and when it changed. */
 export function projectFacts(project: Pick<Project, 'summary'>): { open: number; working: number; waiting: number; updated: string | null } | null {
   const summary = project.summary;
   if (!summary) return null;
   return {
     open: summary.active.filter(work => work.state !== 'closed').length,
-    working: summary.activity.filter(item => item.state === 'working').length,
-    waiting: summary.activity.filter(item => item.state === 'waiting').length,
+    working: summary.active.filter(work => work.turn?.kind === 'working' || work.turn?.kind === 'planning').length,
+    waiting: summary.active.filter(work => work.turn?.kind === 'your_turn').length,
     updated: summary.updated,
   };
 }

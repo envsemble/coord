@@ -28,7 +28,7 @@ test("native panel consumes lean payloads and CSS cannot restyle its host", asyn
   );
   // The host's theme reaches the panel root, the panel's envUI Theme.
   const panel = html.slice(0, html.indexOf(">"));
-  assert.match(panel, /^<div [^>]*class="(?:[^"]* )?atlas-panel[ "]/);
+  assert.match(panel, /^<div [^>]*class="(?:[^"]* )?coord-panel[ "]/);
   assert.match(panel, / data-theme="light"/);
   assert(html.includes('aria-label="Account"'));
   assert(!html.includes("Models ZIP"));
@@ -45,7 +45,7 @@ test("native panel consumes lean payloads and CSS cannot restyle its host", asyn
     rules++;
     selectors((tree) =>
       tree.each((selector) => {
-        // Every rule starts inside an Atlas-owned root (the panel, or Atlas
+        // Every rule starts inside a Coord-owned root (the panel, or Coord
         // content portalled by envUI), so it cannot restyle the host page.
         assert.equal(selector.first.type, "class", rule.selector);
         assert(SCOPES.includes(selector.first.value), rule.selector);
@@ -68,7 +68,7 @@ test("an empty diagram prepares and exports a readable viewer", async () => {
     ).includes("No entities"),
   );
   const exported = await buildViewer({ prepared, file });
-  assert(exported.html.includes('<script id="atlas-diagram"'));
+  assert(exported.html.includes('<script id="coord-diagram"'));
 });
 
 test("A proposal opens its change view in both viewers, with the focus and the review it was given", () => {
@@ -102,6 +102,9 @@ test("A proposal opens its change view in both viewers, with the focus and the r
   assert.equal(shown.review.comparison, comparison);
   assert.equal(shown.review.baselineDate, "Oct 8, 2026");
   assert.equal(shown.provenanceDocument, document);
+  // Shown plainly, it is the proposal itself.
+  assert.equal(shown.plain.model, payload.model);
+  assert.equal(shown.plain.comparison, undefined);
   // A comparison has one review, also when its payload arrives spread into a
   // viewer's props, as new objects on every render.
   assert.equal(reviewedPayload(payload).review, shown.review);
@@ -123,11 +126,14 @@ test("A proposal opens its change view in both viewers, with the focus and the r
   assert.equal(viewer.props.focus, target);
   assert.equal(viewer.props.provenanceDocument, document);
   assert.equal(viewer.props.review, panel.props.review);
+  assert.equal(panel.props.plain.model, payload.model);
+  assert.equal(viewer.props.plain.model, payload.model);
   // A capture shows itself.
   const capture = { model: { id: "capture", document }, views: [] };
   assert.deepEqual(reviewedPayload(capture), {
     payload: capture,
     review: null,
+    plain: null,
     provenanceDocument: document,
   });
 });
@@ -141,7 +147,7 @@ test("Focus on a member or a removed element of a proposal resolves in its chang
       },
       {
         path: "proposal.puml",
-        text: "@startuml\n' atlas proposal base.puml\nclass A\n@enduml\n",
+        text: "@startuml\n' coord proposal base.puml\nclass A\n@enduml\n",
       },
     ],
   });
@@ -187,7 +193,6 @@ test("a standalone viewer offers its diagram's exports", async () => {
   const labels = exportChoices({
     exports: prepared.payload.exports,
     viewKey: prepared.payload.views[0].key,
-    fields: false,
     theme: "light",
   }).map((choice) => choice.label);
   assert.deepEqual(labels, ["SVG image", "PlantUML", "Models ZIP"]);

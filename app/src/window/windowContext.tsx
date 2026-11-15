@@ -23,7 +23,7 @@ export interface WindowActions {
   open(target: Target, options?: OpenOptions): void;
   /** Show any place: the hub, a page, or something of a project. */
   go(place: Place): void;
-  /** The project of the window's computer in a sibling folder of this one's in the Atlas home, by the folder's name (its project ID), if one is listed. */
+  /** The project of the window's computer in a sibling folder of this one's in the Coord home, by the folder's name (its project ID), if one is listed. */
   sibling(folder: string): string | null;
   /** Open a document, work folder or diagram of another project by its path there, once that project is read. */
   openPath(project: string, path: string, anchor: string | null): void;
@@ -32,11 +32,6 @@ export interface WindowActions {
   notify: Notify;
   /** Set when the project is on another computer: its files are not on this one. */
   remote: { hostId: string; hostName: string } | null;
-  /** The width the reader gave a diagram's details, kept with the window's layout; null for the default. */
-  inspectorWidth: number | null;
-  setInspectorWidth(width: number): void;
-  /** Export a work item's plan to a file. */
-  exportPlan(work: string): void;
 }
 /** What changes of a project as its folder is read again and the projects are listed again. */
 export interface WindowReading {
@@ -70,13 +65,12 @@ export function useWindowActions(): WindowActions {
   return value;
 }
 
-/** A link to a target; `rowTarget` makes it cover its interactive row (envUI), without being dragged away as a link. */
-export function TargetLink({ target, children, className, title, id, underline = false, rowTarget = false }: { target: Target; children: ReactNode; className?: string; title?: string; id?: string; underline?: boolean; rowTarget?: boolean }) {
+/** A link to a target. */
+export function TargetLink({ target, children, className, title, id, underline = false }: { target: Target; children: ReactNode; className?: string; title?: string; id?: string; underline?: boolean }) {
   const { open } = useWindowActions();
   const activate = (event: MouseEvent) => {
     event.preventDefault();
     open(target);
   };
-  return <Link id={id} href="#" underline={underline} className={className} title={title} onClick={activate}
-    {...(rowTarget && { 'data-row-target': '', draggable: false })}>{children}</Link>;
+  return <Link id={id} href="#" underline={underline} className={className} title={title} onClick={activate}>{children}</Link>;
 }

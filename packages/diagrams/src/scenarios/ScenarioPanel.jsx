@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import {
+  Alert,
   Badge,
   Button,
-  DisclosureNote,
-  Notice,
-  Stack,
+  Column,
+  Disclosure,
   Text,
 } from "@envsemble/envui";
 
@@ -22,38 +22,43 @@ function verdict(scenario) {
 function Examples({ examples, model, names, onInspect }) {
   const classNames = new Map(model.classes.map((c) => [c.id, c.name]));
   return (
-    <Stack gap={5}>
+    <Column gap={5}>
       {examples.map((scenario) => {
         const { tone, text } = verdict(scenario);
         const labels = new Map(
           scenario.instances.map((i) => [i.id, i.label || i.id]),
         );
         return (
-          <Stack gap={2} key={scenario.id} className="example">
+          <Column gap={2} key={scenario.id} className="example">
             <div className="example-head">
-              <Text as="h3" variant="section-heading">
+              <Text
+                render={<h3 />}
+                variant="title"
+                className="coord-section-heading"
+              >
                 {scenario.title}
               </Text>
               <Badge tone={tone}>{text}</Badge>
             </div>
             {scenario.description && <Text>{scenario.description}</Text>}
             {scenario.result.issues.map((issue, i) => (
-              <Notice key={i} tone="warning">
+              <Alert key={i} tone="warning">
                 {issue.message}
                 {issue.elementId && names.has(issue.elementId) && (
                   <>
                     {" "}
                     <Button
                       variant="text"
+                      className="inline-action"
                       onClick={() => onInspect(issue.elementId)}
                     >
                       {names.get(issue.elementId)}
                     </Button>
                   </>
                 )}
-              </Notice>
+              </Alert>
             ))}
-            <DisclosureNote
+            <Disclosure
               title={`${scenario.instances.length} instances · ${scenario.links.length} links`}
             >
               <ul className="example-list">
@@ -79,15 +84,15 @@ function Examples({ examples, model, names, onInspect }) {
                 </ul>
               )}
               {scenario.result.unassessed.map((u, i) => (
-                <Text tone="muted" key={i}>
+                <Text emphasis="muted" key={i}>
                   {u.message}
                 </Text>
               ))}
-            </DisclosureNote>
-          </Stack>
+            </Disclosure>
+          </Column>
         );
       })}
-    </Stack>
+    </Column>
   );
 }
 
@@ -108,9 +113,13 @@ export function ScenarioPanel({ model, scenarios = null, onInspect }) {
   const examples = scenarios?.scenarios || [];
   if (!examples.length) return null;
   return (
-    <Stack gap={6} className="scenario-panel">
-      <Stack as="section" gap={3} aria-label="Examples">
-        <Text as="h3" variant="caption" className="detail-section-title">
+    <Column gap={6} className="scenario-panel">
+      <Column render={<section />} gap={3} aria-label="Examples">
+        <Text
+          render={<h3 />}
+          variant="body-sm"
+          className="detail-section-title"
+        >
           Examples
         </Text>
         <Examples
@@ -119,7 +128,7 @@ export function ScenarioPanel({ model, scenarios = null, onInspect }) {
           names={elementNames}
           onInspect={onInspect}
         />
-      </Stack>
-    </Stack>
+      </Column>
+    </Column>
   );
 }

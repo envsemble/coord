@@ -7,8 +7,8 @@ import react from "@vitejs/plugin-react";
 import modelTools from "./scripts/vite-model-plugin.cjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-// envUI's stylesheet loads its Inter font from the installed package, which may
-// be hoisted or a linked local checkout outside this directory.
+// envUI's component styles load its Geist font from the installed package,
+// which may be hoisted or a linked local checkout outside this directory.
 const envUI = fs.realpathSync(
   path.dirname(
     createRequire(import.meta.url).resolve("@envsemble/envui/package.json"),

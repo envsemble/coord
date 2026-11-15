@@ -1,169 +1,188 @@
-# Atlas desktop app
+# Coord desktop app
 
-![The Atlas hub on the computer Workstation: seven open plans of the projects Northwind, Platform and Field app, grouped as Working (one plan an agent is on now, with its model, agent time and tokens), Blocked with their reasons, Paused and Drafts, each with its project, steps done and when it changed](../assets/hub.png)
+![The Coord hub on the computer Workstation: three open plans of the project Northwind, grouped as Your turn (Saved payment methods, with what the agent waits on you for: choose how a customer picks a saved card, on the card picker page; Claude Opus 5.5 and two other models, its agent time and tokens), Waiting (Customer order notifications, with why it is blocked) and Later (Order fulfilment model), each with its project, steps done and when it changed; the title bar holds the Coord mark, Plans, Settings and Help and the computer menu, and the heading line the search, the project menu and the Open, Closed and All filter](../assets/hub.png)
 
-Atlas is a desktop app for your Atlas projects and their plans. Every window opens on the hub, one list of every plan of the computer's projects, and shows one place at a time: the hub, a plan, its statistics, a diagram, a file, the Projects page or statistics. Discuss changes with your agent in chat; the agent edits the records, and Atlas shows them as they change.
+Coord is a desktop app for your Coord projects and their plans. Every window opens on the hub, one list of every plan of the computer's projects, and shows one place at a time: the hub, a plan, its statistics, a diagram, a file, statistics or Settings. Discuss changes with your agent in chat; the agent edits the records, and Coord shows them as they change.
 
 ## Install
 
-Atlas is built for Windows and Linux. Builds are unsigned, by decision for a single user; a newer version installs over an older one, and there is no auto-update. Each [GitHub Release](../docs/releases.md#github-releases) carries both; `npm run package` in a checkout builds the one for its system into `app/release/`.
+Coord is built for Windows and Linux. Builds are unsigned for now; a newer version installs over an older one, and the installed app updates itself (see [Updates](#updates)). Each [GitHub Release](../docs/releases.md#github-releases) carries both; `npm run package` in a checkout builds the one for its system into `app/release/`.
 
-- **Windows:** run `Atlas-Setup-<version>.exe`. SmartScreen warns about an unsigned app the first time: choose **More info › Run anyway**. It installs for the current user only, without administrator rights (you can pick the folder), and adds Atlas to the Start menu. Uninstall it from **Settings › Apps**; your Atlas home is kept.
-- **Linux:** make `Atlas-<version>-x86_64.AppImage` executable (`chmod +x`) and run it.
+- **Windows:** run `Coord-Setup-<version>.exe`. SmartScreen warns about an unsigned app the first time: choose **More info › Run anyway**. It installs for the current user only, without administrator rights (you can pick the folder), and adds Coord to the Start menu. Uninstall it from **Settings › Apps**; your Coord home is kept.
+- **Linux:** make `Coord-<version>-x86_64.AppImage` executable (`chmod +x`) and run it.
+
+The app carries the [`coord` command](../docs/command.md) and the Coord plugin for agents. Each start of a new version copies them to `agent/` in the Coord home, and the first start puts the command on your PATH without asking, as VS Code does with `code`: the user `Path` on Windows, a link at `~/.local/bin/coord` on Linux (an existing file there is left alone). The command runs on a Node.js the app ships with it, copied there too, so nothing else needs installing. The copy of the plugin calls the command by its full path, so an agent started before the PATH changed runs it too. Then the onboarding connects your agents (see [Settings](#settings)); after an update, Coord refreshes the plugin in the agents it connected. Uninstalling on Windows (not updating) disconnects Claude Code and Codex where Coord connected them, since their plugin calls the command, and takes the command off the PATH.
+
+### Updates
+
+The installed app updates itself from the [GitHub Releases](../docs/releases.md#github-releases) of envsemble/coord, on one of two channels: **stable**, the releases, or **nightly**, a build of `dev` each night. A build follows its own channel until **Settings › Updates** chooses the other. Coord checks the channel when it starts and every four hours. A newer build shows as **Update** in the title bar and in Settings › Updates: a click downloads it, and **Restart to update** installs it and starts it again (on Windows the installer runs without its pages, into the same folder; on Linux the AppImage replaces itself). Nothing downloads or installs on its own.
+
+Coord never moves to an older build, whose code may not read the home this one wrote: a nightly switched to stable stays until a stable release newer than it is out. Updates are off in a development build (`npm run dev`), in the end-to-end build, on Linux when Coord does not run as its AppImage, and with `COORD_NO_UPDATES=1`; Settings › Updates then says why. The builds are not code-signed, so an update's integrity rests on HTTPS and the SHA-512 in the channel's update file (`latest.yml` or `nightly.yml`).
 
 ### Linux sandbox
 
-Atlas keeps Chromium's sandbox on and never disables it. An AppImage cannot use Chromium's setuid sandbox helper, so it needs unprivileged user namespaces. Ubuntu 23.10 and later restrict those through AppArmor; there the AppImage launcher would start Atlas with `--no-sandbox`, and Atlas refuses to run that way: it shows "Atlas does not run without its sandbox" and quits (the log records it too). Allow the namespaces instead, either:
+Coord keeps Chromium's sandbox on and never disables it. An AppImage cannot use Chromium's setuid sandbox helper, so it needs unprivileged user namespaces. Ubuntu 23.10 and later restrict those through AppArmor; there the AppImage launcher would start Coord with `--no-sandbox`, and Coord refuses to run that way: it shows "Coord does not run without its sandbox" and quits (the log records it too). Allow the namespaces instead, either:
 
 - allow them until the next reboot: `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` (add `kernel.apparmor_restrict_unprivileged_userns=0` to a file in `/etc/sysctl.d/` to keep it), or
-- give the AppImage its own AppArmor profile, `/etc/apparmor.d/atlas-desktop`, then run `sudo apparmor_parser -r /etc/apparmor.d/atlas-desktop`:
+- give the AppImage its own AppArmor profile, `/etc/apparmor.d/coord-desktop`, then run `sudo apparmor_parser -r /etc/apparmor.d/coord-desktop`:
 
       abi <abi/4.0>,
       include <tunables/global>
-      profile atlas-desktop /home/*/Applications/Atlas-*.AppImage flags=(unconfined) {
+      profile coord-desktop /home/*/Applications/Coord-*.AppImage flags=(unconfined) {
         userns,
-        include if exists <local/atlas-desktop>
+        include if exists <local/coord-desktop>
       }
 
   Adjust the path to where you keep the AppImage.
 
-Atlas also refuses `--no-sandbox` and `ELECTRON_DISABLE_SANDBOX` given any other way, and its desktop entry never adds them.
+Coord also refuses `--no-sandbox` and `ELECTRON_DISABLE_SANDBOX` given any other way, and its desktop entry never adds them.
 
 ## The window
 
-A window has two rows at the top, GitHub style.
+A window has one row at the top, its title bar, from the left:
 
-**The title bar**, from the left:
+- the Coord mark, then the **back** and **forward** arrows;
+- **Plans**, a button that opens the hub with every plan (the hub leads on to each project's plans and the statistics);
+- **Settings**, a button that opens [Settings](#settings) (Ctrl+,);
+- **Help**: **Open Logs** and **About Coord**;
+- the **computer menu**, the name of the computer the window works on: this computer and the paired ones (choosing one shows its plans in this window), and **Computer settings…**, which opens **Settings › Computers** (see [Remote computers](#remote-computers));
+- **Update**, beside the computer, while a newer Coord is on offer, downloading or ready (see [Updates](#updates));
+- at the right: **Search** (Ctrl+P; on the hub its own **Search every project** takes its place), record-health notes when the shown project has any, and the system's window buttons.
 
-- the Atlas mark, then the **back** and **forward** arrows;
-- **File**: **New Window** (Ctrl+Shift+N), **New Project…**, **Import Plan…**, **Export Plan…** (while a plan is open), **Open in Editor** (Ctrl+O, while the window shows a file of this computer) and **Exit**;
-- **View**: **Zoom In** (Ctrl++), **Zoom Out** (Ctrl+-), **Actual Size** (Ctrl+0) and **Full Screen** (F11), with **Reload** and **Developer Tools** in development builds;
-- **Help**: **Open Logs** and **About Atlas**;
-- the **computer menu**, the name of the computer the window works on: this computer and the paired ones (choosing one shows its plans in this window), **Connect to Another Atlas…**, **Manage Computers…** and **Remote Access…** (see [Remote computers](#remote-computers));
-- at the right: **Open in** (a split button that opens the file the window shows, such as a plan's `plan.md` or a diagram's source, in the editor you choose: VS Code, VS Code Insiders, Cursor, Windsurf, Zed, or the system's file manager), **Search** (Ctrl+P; on the hub its own search field takes its place), record-health notes when the shown project has any, the theme menu (**Match the system**, **Light** or **Dark**, for every window) and the system's window buttons.
+The window's other commands (New Window, zoom, full screen) keep their shortcuts, Ctrl+Shift+N, Ctrl++, Ctrl+-, Ctrl+0 and F11. Empty space in the title bar moves the window, and a double click maximizes it.
 
-Alt opens the menus from the keyboard (Alt+F, Alt+V, Alt+H). Empty space in the title bar moves the window, and a double click maximizes it.
+**The breadcrumbs** of each page lead back the way you came: **Plans** (every plan), the project (its plans), then the plan, as in Plans › Northwind › #0001; a part has its group before it (Plans › Northwind › #0005 › #0006).
 
-**The sections**, below the title bar: **Plans**, with the number of open plans (the hub, every plan and its pages, and all plans' statistics), and **Projects**, with the number of active projects (the Projects page and each project's statistics).
-
-**Back and forward** step through what the window showed: the hub with its project filter, plans at their headings, their statistics, diagrams and files, the Projects page and statistics. Use the arrows, Alt+← and Alt+→, or the mouse's back and forward buttons. A place shown again is where it was left. With a menu or dialog open, the mouse's buttons only close it, and fields keep Alt+← and Alt+→.
+**Back and forward** step through what the window showed: the hub with its project filter, plans at their headings, their statistics, diagrams and files, statistics and the sections of Settings. Use the arrows, Alt+← and Alt+→, or the mouse's back and forward buttons. A place shown again is where it was left. With a menu or dialog open, the mouse's buttons only close it, and fields keep Alt+← and Alt+→.
 
 **New Window** opens another window on the same computer; Ctrl+Shift+W closes one. Windows open at quit come back at the next start, each with its size, position and place; so does the last window closed. A window whose paired computer does not answer at the start shows the hub at once and its place when the computer answers.
 
-**The search** (Ctrl+P, **Search**, or the hub's search field) searches every active project of the computer: plans, ledger steps, documents with their headings and text, diagrams and their elements, glossary terms and projects. A plan's tags match as words, and `tag:0.8.0` keeps only the plans tagged `0.8.0` (with words, those that also match them); plans show their tags. Results come grouped by kind, each with its project and plan, and open where they are: a plan, a document at its heading, a diagram at its element, a project's plans in the hub.
+**The search** (Ctrl+P, **Search**, or the hub's **Search every project**) searches every active project of the computer: plans, ledger steps, documents with their headings and text, diagrams and their elements, glossary terms and projects. A plan's tags match as words, and `tag:0.8.0` keeps only the plans tagged `0.8.0` (with words, those that also match them); plans show their tags. Results come grouped by kind, each with its project and plan, and open where they are: a plan, a document at its heading, a diagram at its element, a project's plans in the hub.
 
-| Shortcut                 | Action                                   |
-| ------------------------ | ---------------------------------------- |
-| Alt+← / Alt+→            | Back / forward                           |
-| Ctrl+P                   | Search                                   |
-| Ctrl+O                   | Open the shown file in the chosen editor |
-| Ctrl+Shift+E             | Bring the keyboard to the plan's Files   |
-| Ctrl+Shift+N             | New window                               |
-| Ctrl+Shift+W             | Close the window                         |
-| Ctrl++ / Ctrl+- / Ctrl+0 | Zoom in / out / actual size              |
-| F11                      | Full screen                              |
+| Shortcut                 | Action                                 |
+| ------------------------ | -------------------------------------- |
+| Alt+← / Alt+→            | Back / forward                         |
+| Ctrl+P                   | Search                                 |
+| Ctrl+Shift+E             | Bring the keyboard to the plan's Files |
+| Ctrl+,                   | Settings                               |
+| Ctrl+Shift+N             | New window                             |
+| Ctrl+Shift+W             | Close the window                       |
+| Ctrl++ / Ctrl+- / Ctrl+0 | Zoom in / out / actual size            |
+| F11                      | Full screen                            |
 
 ## The hub
 
-The hub lists every plan of the computer's active projects, grouped by status, in this order: **Needs you** (an agent asked for you: a question, a decision or work to review), **Working** (an agent is on it: in a turn, or waiting on something else, such as CI), **Blocked**, **Paused** (implementation started, nobody on it), **Drafts**, **Ready** (accepted, not started) and, when asked for, **Closed**. Each group lists the latest change first; only groups with plans show.
+The hub lists every plan of the computer's active projects, grouped by whose turn its agents say it is, in this order: **Your turn** (what you are to do: merge a PR, try something, answer questions; the longest waiting first), **Working** (agents planning or implementing it), **Waiting** (on a PR's checks or reviews or something else, or blocked), **Later** (ready to start, drafts nobody is on, and work under way that says nothing, marked **No state**) and, when asked for, **Closed**. The other groups list the latest change first; only groups with plans show. Coord never guesses a status from what sessions do: agents declare it, and the session start points them at what no longer adds up.
 
-Its heading line holds the title (**Plans**, or the project's name when filtered), **Statistics** (all plans', or the project's), the search field, which opens the search with what you type and never filters the list, the project filter (**All projects**, or one active project) and the state filter (**Open**, **Closed** or **All**, each with its count). The project filter is part of the place, so back and forward and a plan's breadcrumb set it.
+Its heading line holds the title (**Plans**, or the project's name when filtered), **Statistics** (all plans', or the project's), **Search every project**, the title bar's search in the same style, which opens the search and never filters the list, the project menu (**All projects**, or one active project; see [Projects](#projects)) and the state filter (**Open**, **Closed** or **All**, each with its count). The project chosen is part of the place, so back and forward and a plan's breadcrumb set it.
 
 Every plan is a row; a click anywhere on it opens the plan. A row shows:
 
-- **Plan:** its status icon, title and number; its summary on hover. Work under way (Needs you, Working, Blocked, Paused) has a taller row with the step being worked on (**Now:**) or next (**Next:**), in its phase's colour, how long an agent has waited for you, or, for blocked work, why it is blocked.
+- **Plan:** its status icon, title and number; its summary on hover. A part says **Part 2 of #0005**; a work item made of parts says how many it has and how many are closed. Work under way (Your turn, Working, Planning, Waiting, Blocked) has a taller row with what its state is for (what you are to do, in amber; what it waits on), else the step being worked on (**Now:**) or next (**Next:**) in its phase's colour, or, for blocked work, why it is blocked.
 - **Project:** the project's name.
-- **Steps:** a bar with the steps done, the planning steps in their own colour and the step in progress pulsing while agents work, and "N of M"; a draft shows its planning steps. Closed work shows how it ended (**Complete**, **Partially done**, **Superseded** or **Abandoned**), when, and where it was continued.
-- **Agents:** the main model and its reasoning effort (and how many others), agent time (counting up while agents work, by stage on hover), tokens and, on taller rows, subagents.
+- **Steps:** a bar with the steps done, the planning steps in their own colour, and "N of M"; a draft shows its planning steps. Closed work shows how it ended (**Complete**, **Partially done**, **Superseded** or **Abandoned**), when, and where it was continued.
+- **Agents:** the main model and its reasoning effort (and how many others), agent time as reported (by stage on hover), tokens and, on taller rows, subagents.
 - **Changed:** when it last changed, the date on hover.
 
 ## A plan
 
-![A plan in Atlas: Saved payment methods, #0001 of Northwind, Working with 2 of 7 steps and Export Plan… beside its breadcrumb; its Outcome and Scope, and a diagram card, Checkout · captured TypeScript, Generated from code, with its elements, under the heading Current checkout. Beside it the side column: Progress (2 of 7 steps done, 5 left, planning steps done in their own colour, the step in progress), Continues #0004 Inventory reservations at checkout, the session working on it, and Statistics (Claude Opus 5.5 with Claude Sonnet 4.5 and Claude Haiku 5.5, 4 h 33 min 3 s of agent time, 13.8M tokens). At the right the Files card with the work folder, plan.md marked; Open in VS Code in the title bar](../assets/plan.png)
+![A plan in Coord: Saved payment methods, #0001 of Northwind, under the breadcrumb Plans › Northwind › #0001, marked Your turn with what to do: choose how a customer picks a saved card, on the card picker page, which is linked below the title; its Outcome and Scope, and the current checkout with links into its captured TypeScript model. At the left the plan's files, plan.md marked and the pages folder with a dot for the page that needs you; at the right the side column: Progress (2 of 7 steps done, 5 left), Continues #0004 Inventory reservations at checkout, the steps, and Statistics (Claude Opus 5.5 with Claude Sonnet 4.5 and Claude Haiku 5.5, 4 h 8 min of agent time, 13.8M tokens); Search in the title bar](../assets/plan.png)
 
 A plan's page shows:
 
-- **The breadcrumb**, the project (leading to its plans in the hub) and the plan's number, with **Export Plan…** beside it.
-- **The title and one status line**, with the plan's tags under it: its status (Working, Needs you, Blocked, Paused, Draft, Ready, Complete, Partially done, Superseded or Abandoned) and one fact, such as the steps done, why it is blocked, the planning step of a draft, or when closed work ended; "archived" when it is.
-- **Why it needs you**, when an agent waits: the waiting session's last message, with its harness, model and how long it has waited.
+- **The breadcrumb**: Plans, the project (leading to its plans in the hub), the group it is a part of, and the plan's number.
+- **The title and one status line**, with the plan's tags under it: its status (Your turn, Working, Planning, Waiting, Blocked, Draft, Ready, No state, Complete, Partially done, Superseded or Abandoned) with what its state is for (what you are to do, in amber, its references linked: a PR shows its live state) and since when, or else one fact, such as the steps done, the planning step of a draft, or when closed work ended; "archived" when it is.
 - **The summary**, a few sentences on what the work is and where it stands.
-- **Now**, while the plan is implemented: what each session on it is doing, by its latest message and its last five actions, newest first (files edited, commands run, the ones that failed marked, Atlas tools used, helpers started); with none on it, where the work stopped. It is read from the sessions' logs as they work, and nothing of it is kept.
-- **The plan** itself, folded under **Plan** while the plan is implemented. A section headed **Request** (or **Request (…)**), where the plan keeps the user's words, shows folded; its heading opens it. A heading whose text links to a diagram has the diagram's card under it (see [Diagrams](#diagrams)). What the plan references opens from it: other plans and documents in the window, PRs with their state (open, draft, merged or closed, and failing or running checks), commits and files.
+- **Pages that need you**: each of the work item's pages whose agent asked for you (a decision, a review), by its name with what it waits on; a click opens it.
+- **The plan** itself. A section headed **Request** (or **Request (…)**), where the plan keeps the user's words, shows folded; its heading opens it. A link to a diagram shows as the diagram's, with a purple diagram icon (see [Diagrams](#diagrams)); tables keep columns wide enough to read, and scroll sideways when they have more than fit. What the plan references opens from it: other plans and documents in the window, PRs with their state (open, draft, merged or closed, and failing or running checks), commits and files.
 - **The side column**, which scrolls on its own: **Progress** (a bar with the steps done and left, then the steps themselves, planning steps in their own colour before the implementation steps, the one in progress pulsing while agents work), any blocker, **handoffs** (the work it continues above the steps, the work that continues it below them), **Sessions** (the agent sessions that worked on it by their titles, the latest first, marked while one works) and **Statistics** (the main model and effort with the others, agent time counting up while agents work, tokens, and **All statistics and the timeline**).
-- **Files**, a card at the top right of a plan and its pages, with the plan's own work folder as a tree, the file shown marked. It keeps its place as the page scrolls, or goes below the page in a narrow window. A click opens a file in the window, a diagram file as its diagram; its context menu offers **Open** (**Open Diagram**), **Open as Text**, **Show in Folder** and **Collapse All Folders**. Arrow keys, Home and End, type-ahead and Enter work in the tree; Ctrl+Shift+E brings the keyboard to it.
+- **Files**, at the left of a plan and its pages, with the plan's own work folder as a tree, the file shown marked. It stays in view as the page scrolls and scrolls on its own. A click opens a file in the window, a diagram file as its diagram; its context menu offers **Open** (**Open Diagram**), **Open as Text**, **Show in Folder** and **Collapse All Folders**. Arrow keys, Home and End, type-ahead and Enter work in the tree; Ctrl+Shift+E brings the keyboard to it. Drag its right edge (or use the arrow keys on it) to make it wider or narrower; a double click returns it to its width, and the width is kept. A narrow window leaves it out.
+- **Parts**, a rail at the right of a plan made of parts and of each of its parts: the group, then its parts in their order, numbered, each with its status and its steps done, the one shown marked. A click opens one.
+
+**Work in parts.** Some work is better thought of as several pieces, each planned and done on its own, in an order. A work item can then be made of **parts**: other work items of the same project, listed in order in its plan (`parts`), each with its own plan, steps and statistics. Agents set them up with the plugin's tools ([agent interface](../docs/agent-interface.md)). This is not a handoff: continuing work says where work went next, parts say what one piece of work is made of.
 
 **A plan's statistics**, from **All statistics and the timeline**, show its figures (agent time, the time at least one agent worked, tokens and sessions), its **Timeline** (a lane per session and subagent with its working stretches and its waits for you; **All**, **Last week** or **Last day**, zoom with Shift and the wheel or the arrow keys, drag to move along; also as a table, folded) and its agent time and tokens **By model and effort**.
 
-**Export Plan…** saves the plan as one self-contained HTML file that opens offline in any browser. **Import Plan…**, in **File**, imports such a file into the project shown (a plan of it, its statistics, or the hub filtered to it; with a single project, that one): it previews the file (its title, origin, the new number and folder, files and diagrams) and only then adds it as new work, without committing. A file that is not a valid export is refused before anything is written. See [plan export](../docs/plan-export.md).
-
 ## Projects
 
-![The Projects page on the computer Workstation: three projects, Northwind (one plan working, 3 open plans, changed just now, folders shop and shop-admin), Platform (2 open plans, folders platform-api, platform-web and billing) and Field app (2 open plans, folder field-app), each with its initials avatar, its folders as badges, a statistics button and a ⋯ menu, and New project at the top right](../assets/projects.png)
+A **project** is a planning folder in the [Coord home](../docs/command.md#the-coord-home), named by the `name` in its `planning.json`, with the **folders** it covers on its computer, such as your repositories. An agent working in one of them, or in a folder inside one, plans in that project.
 
-A **project** is a planning folder in the [Atlas home](../docs/command.md#the-atlas-home), named by the `name` in its `planning.json`, with the **folders** it covers on its computer, such as your repositories. An agent working in one of them, or in a folder inside one, plans in that project.
-
-The **Projects** page lists every project of the computer, one row each: its avatar (its initials in a colour of its own), its name (which shows its plans in the hub), what agents do on it (how many need you or are working), its open plans and when it changed; at the right its folders as badges by their names (the path on hover), a **Statistics** button and the **⋯** menu:
+Projects are made and managed in the hub's **project menu**, beside the search. It lists **All projects** and every active project, each with its avatar (its initials in a colour of its own), what agents do on it (how many need you or are working), its open plans and when it changed; choosing one shows its plans. For the project chosen it offers:
 
 - **Folders…** shows its planning folder and the folders it covers, and adds (chosen in the file manager) or removes them;
 - **Show in Folder** and **Copy Path**, for its planning folder;
 - **Rename…** writes the new name into its `planning.json`, where agents read it too;
-- **Archive** takes it and its plans out of the hub and the search; **Restore** brings it back.
+- **Archive** takes it and its plans out of the hub and the search.
 
-Archived projects are shown only here, folded under **Archived**. Atlas never deletes a project; to drop one, remove its folder from the home.
+**Archived projects** lists the archived ones; choosing one restores it. Coord never deletes a project; to drop one, remove its folder from the home.
 
-**New project** (or **File › New Project…**) asks for a name and the project's folders, each chosen in the file manager (the first one names the project until you type a name); a project may have none yet. Atlas creates the planning folder in the home from the bundled templates, as a Git repository with a first commit. Agents can create projects too.
+**New Project…** (in the hub's project menu) asks for a name and the project's folders, each chosen in the file manager (the first one names the project until you type a name); a project may have none yet. Coord creates the planning folder in the home from the bundled templates, as a Git repository with a first commit. Agents can create projects too.
 
 ## Statistics
 
-Statistics open from a project's row on the Projects page and from the hub (all plans', or the project's when the hub is filtered to it). The period is the **Last 4 weeks** (by day), the **Last 3 months** or **All time** (by week). [Progress and statistics](../docs/progress-and-statistics.md) explains what agents report and how Atlas counts it.
+Statistics open from the hub (all plans', or the project's when the hub shows one project) and from **Plans › Statistics**. The period is the **Last 4 weeks** (by day), the **Last 3 months** or **All time** (by week). [Progress and statistics](../docs/progress-and-statistics.md) explains what agents report and how Coord counts it.
 
 - **The figures** of the period, each with its change against the period before: agent time (every agent's added up), plans completed, the median time to complete (from acceptance to completion) and the time work waited on you.
-- **Work over time:** agent time per day or week, stacked by model and effort (each in a colour of its own, the same wherever Atlas shows it), with the time at least one agent worked as a line and the plans completed marked; a bar says on hover what it holds, and the same figures are in a table, folded.
+- **Work over time:** agent time per day or week, stacked by model and effort (each in a colour of its own, the same wherever Coord shows it), with the time at least one agent worked as a line and the plans completed marked; a bar says on hover what it holds, and the same figures are in a table, folded.
 - **Models and effort:** agent time and tokens by model and reasoning effort, with each one's share.
 
-The Atlas plugin's hooks record what agent sessions do on a work item: the model and its effort, agent time (subagents included), tokens, and whether the work was being planned or implemented. The reports go into the home database under the project, so they follow the work item when it is archived.
+The Coord plugin's hooks record what agent sessions do on a work item: the model and its effort, agent time (subagents included), tokens, and whether the work was being planned or implemented. The reports go into the home database under the project, so they follow the work item when it is archived.
 
 ## Diagrams
 
-Diagrams belong to their plan: PlantUML (`.puml`) files in its work folder, usually under `diagrams/`, which the agent writes like any file and Atlas only reads. [Diagrams](../docs/diagrams.md) describes the subset Atlas reads.
+Diagrams belong to their plan: PlantUML (`.puml`) files in its work folder, usually under `diagrams/`, which the agent writes like any file and Coord only reads. [Diagrams](../docs/diagrams.md) describes the subset Coord reads.
 
-A plan shows a diagram card under each heading whose text links to a diagram with an ordinary Markdown link (`[Order model](diagrams/orders.puml)`); a fragment (`diagrams/orders.puml#Order`) names an element. A card shows the diagram's title, its provenance (**Generated from code**, **Generated from database**, **Agent proposal** or **Agent-authored**) and its elements, and opens the diagram, at an element when you choose one. Diagrams also open from links, from Files and from the search.
+A plan links a diagram with an ordinary Markdown link in its text (`[Order model](diagrams/orders.puml)`); a fragment (`diagrams/orders.puml#Order`) names an element. The link shows inline as the diagram's, in purple with a diagram icon; its tooltip gives the diagram's title and provenance (**Generated from code**, **Generated from database**, **Agent proposal** or **Agent-authored**), and it opens the diagram, at the element it names. Diagrams also open from links, from Files and from the search.
 
-A diagram fills the window below the title bar, with its controls over the canvas: a link back to the plan, the tools, the diagram picker, the views and a proposal's changes. The picker lists the plan's diagrams: each capture with the proposals over it and the later captures compared with it, then the other diagrams, then **With problems**. A proposal, or a capture compared with an earlier one, opens in its change view, with its list of changes beside it. **Understand the model** opens a class diagram's scenarios beside it. Diagrams built on one capture are laid out together, so switching between them moves nothing. When a file changes, the view updates and keeps its camera and selection; a diagram with problems lists them by line and column instead.
+A diagram fills the window below the title bar, with its controls over the canvas: its name, the tools, the views and a proposal's changes. Another diagram opens from the Files tree, the plan's links or Search. A capture, the proposals over it and the later captures compared with it are one diagram with layers, laid out together so switching layers moves nothing: the Files tree lists its layers under its first file, the one shown marked, and `[` and `]` step between them. The plan's breadcrumb stays above the diagram. A proposal, or a capture compared with an earlier one, opens in its change view, with its list of changes beside it. **Understand the model** opens a class diagram's scenarios beside it. Drag an element to arrange the diagram; the arrangement is kept beside it, for all its layers, and **Reset layout** lays it out again. When a file changes, the view updates and keeps its camera and selection; a diagram with problems lists them by line and column instead.
+
+## Pages
+
+A plan's agent can make pages: views in its work folder's `pages/`, such as a choice between layouts or a dashboard of measurements, written in React on envUI. A page opens in place, like a diagram, from the plan's link (shown with the page icon, in teal), from Files (its folder, whose chevron lists its files) or from the search, and fills the window beside Files under the plan's breadcrumb. It updates as the agent changes it. What you choose on a page is saved beside it, and the agent hears of it with your next message. A page that needs you (its agent says so in the page's `page.json`) has an amber dot in Files, on its link and on the folders above it while they are folded, and is listed under the plan's title until the agent clears it. A page that fails shows why in its place. [Pages](../docs/pages.md) says how pages run.
+
+## Settings
+
+**Settings** in the title bar (Ctrl+,) opens Settings in the window at **General**; back and forward step through its sections like other places.
+
+- **General**: the theme, **Match the system**, **Light** or **Dark**, for every window.
+- **Agents**, this computer's: **Claude Code** and **Codex**, each with its status (**Connected** with the version of the Coord plugin it has, **Not connected**, or **Not found on this computer** with a link to install it) and **Connect** or **Disconnect**. Coord finds an agent as a program, on the PATH as your terminals have it (read again at start); for one it does not find, **Choose program…** picks its program (`claude`, `codex`; `.exe` or Codex's `.cmd` on Windows), which Coord uses until you **Clear** it. Connecting installs the Coord plugin into the agent with the agent's own commands, which can take a minute; the row shows it, and says why if it fails, with **Try again**. A connected agent's row then says whether it runs Coord: **Ready** with its last session, **Waiting for a first session**, or a warning: **Hooks not trusted** (type `/hooks` in Codex and trust them) or **Coord's hooks aren't running** (a session used Coord's tools, but no hook ran; in Codex, `/hooks` trusts them again). A session that ran the hooks makes it Ready, whatever Codex's configuration says. The hub shows this computer's warnings too, until they are resolved. **Connect by hand**, under each agent, lists the commands that install the plugin, to copy (Connect also grants the agent Coord's home). In a window on another computer, Agents is still this computer's: connecting installs the plugin here.
+- **Computers**, both ways of pairing: **Other computers**, the computers this one is paired with, and **Devices that can reach** the window's computer (see [Remote computers](#remote-computers)).
+
+Until it is finished, Coord starts with a short onboarding instead of the window: what Coord is, the agents on this computer (those found are ticked; untick the ones to leave alone, or all of them), connecting them, and how to start: a new session in one of your repositories, asking "What is Coord and how do I use it?", with the warnings above for an agent connected. **Finish** ends it; Settings › Agents connects agents any time.
 
 ## Remote computers
 
-**Remote Access…**, in the computer menu, lets your other devices work on this computer: choose the address (Tailscale, a local network or only this machine) and the port, then create a five-minute, one-time pairing link with a QR code. A link may grant **Manage access** (pairing and revoking devices). Revoke devices there too. In a window on another computer, the dialog manages that computer's pairings, when this device has Manage access there.
+**Devices that can reach** this computer, in **Settings › Computers**, lets your other devices work on this computer: choose the address (Tailscale, a local network or only this machine) and the port, then create a five-minute, one-time pairing link with a QR code. A link may grant **Manage access** (pairing and revoking devices). Revoke devices there too. In a window on another computer, the section manages that computer's pairings, when this device has Manage access there.
 
-**Connect to Another Atlas…** pairs with another computer from its link. Then choose it in the computer menu to work on its projects in this window, or open it in a new window from **Manage Computers…**, which also forgets a paired computer. On another computer you can create projects (a name only: their folders are chosen in Atlas on that computer), rename them, archive and restore them (the archive state is this device's), and export and import plans. Show in Folder and Open in Editor work only on this computer's files. See [remote access](../docs/remote-access.md).
+**Connect to Another Coord…**, under **Other computers** in **Settings › Computers**, pairs with another computer from its link. Then choose it in the computer menu to work on its projects in this window, or open it in a new window from **Other computers**, which also forgets a paired computer. On another computer you can create projects (a name only: their folders are chosen in Coord on that computer), rename them, and archive and restore them (the archive state is this device's). Show in Folder works only on this computer's files. See [remote access](../docs/remote-access.md).
 
 ## Staying current
 
-Atlas watches the planning folders it shows instead of polling. Changes are collected for a moment and applied together, so an editor's save, a Git checkout or a commit each cause one refresh.
+Coord watches the planning folders it shows instead of polling. Changes are collected for a moment and applied together, so an editor's save, a Git checkout or a commit each cause one refresh.
 
 - A **`planning.json` that breaks** keeps the last good view, with the error above it, until the file is readable again.
 - A **project whose folder is moved or deleted**, or that cannot be read, says so in place of its page, and shows again when it can.
-- A folder that **cannot be watched** (Linux's inotify watch limit, say) is checked every 10 seconds instead, and Atlas says so above the page.
-- A **window that crashes** reloads, showing what it showed. If it crashes three times within a minute, Atlas asks whether to reload it again or close it.
+- A folder that **cannot be watched** (Linux's inotify watch limit, say) is checked every 10 seconds instead, and Coord says so above the page.
+- A **window that crashes** reloads, showing what it showed. If it crashes three times within a minute, Coord asks whether to reload it again or close it.
 
 ## Security and privacy
 
 The app follows Electron's security checklist:
 
-- The window runs with context isolation and Chromium's sandbox, without Node.js integration, `remote` or `<webview>`, under a strict content security policy: no inline or remote scripts, no `eval`, no network connections.
-- It talks to the main process only through `window.atlas`, a fixed list of messages whose every argument is checked (`shared/validate.ts`). Each window has its own session, whose `atlas:` protocol serves the app and only the planning folders of that window's projects.
+- The window runs with context isolation and Chromium's sandbox, without Node.js integration, `remote` or `<webview>`, under a strict content security policy: no inline or remote scripts, no `eval`, no network connections. A work item's page runs in a frame on an origin of its own (`coord://page`), which may query the network and reaches Coord only through its window (see [Pages](../docs/pages.md)).
+- It talks to the main process only through `window.coord`, a fixed list of messages whose every argument is checked (`shared/validate.ts`). Each window has its own session, whose `coord:` protocol serves the app and only the planning folders of that window's projects.
 - Navigation away from the app and new windows are blocked; web links open in the system browser.
-- Commands a page could misuse wait for you. Right after your click, key press or tap in the window, which a page cannot fake, Atlas runs one: exiting, opening a window or the logs, turning remote access on or moving it, pairing with another computer, opening a web address in the browser, a link in its application, or a file in your editor. Otherwise it first asks in a system dialog the page cannot answer. Creating a pairing link always asks first.
-- Electron fuses turn off running as Node.js and `NODE_OPTIONS`. The installer and AppImage also turn off `--inspect`, and refuse to start with `--remote-debugging-port`, `--remote-debugging-pipe` or `--inspect`, which would let other programs control the window.
-- Planning folders are read by the Atlas host in a separate process, which the main process reaches over loopback with a token made at each start; windows never reach it directly.
-- No data leaves the computer unless you turn on remote access; then the devices you paired can work on its projects. There is no telemetry, update check or crash upload.
+- Commands a page could misuse wait for you. Right after your click, key press or tap in the window, which a page cannot fake, Coord runs one: exiting, opening a window or the logs, turning remote access on or moving it, pairing with another computer, opening a web address in the browser, a link in its application, or a file in your editor. Otherwise it first asks in a system dialog the page cannot answer. Creating a pairing link always asks first.
+- Electron fuses turn off running as Node.js and `NODE_OPTIONS`; the `coord` command runs on its own Node.js, which the app ships and copies to the Coord home. The installer and AppImage also turn off `--inspect`, and refuse to start with `--remote-debugging-port`, `--remote-debugging-pipe` or `--inspect`, which would let other programs control the window.
+- Planning folders are read by the Coord host in a separate process, which the main process reaches over loopback with a token made at each start; windows never reach it directly.
+- No data leaves the computer unless you turn on remote access; then the devices you paired can work on its projects. The one request Coord makes on its own is the update check, which reads the release list and update file of envsemble/coord on GitHub and sends nothing of yours. There is no telemetry or crash upload.
 
 ## Diagnostics
 
-**Help › Open Logs** opens `logs/` in the Atlas home: `atlas.log` (the app: start-up, windows and connections) and `host.log` (the Atlas host: folders, the watcher, remote access and pairings), each up to 1 MB with up to three older files. **Help › About Atlas** shows the version, the Electron, Chromium and Node.js versions, the system and the Atlas home; **Copy Details** copies what a bug report needs, without the home's path.
+**Help › Open Logs** opens `logs/` in the Coord home: `coord.log` (the app: start-up, windows and connections) and `host.log` (the Coord host: folders, the watcher, remote access and pairings), each up to 1 MB with up to three older files. **Help › About Coord** shows the version, the Electron, Chromium and Node.js versions, the system and the Coord home; **Copy Details** copies what a bug report needs, without the home's path.
 
-Atlas keeps its own data in the Atlas home, `~/.atlas` (or `ATLAS_HOME`), shared with the `atlas` command: the planning folders in `planning/`, and the projects' order and state, the windows and their places, the theme, the editor, remote access and pairings, and statistics in the home database, `atlas.db`. Electron's own files stay in its per-user folder (`%APPDATA%\Atlas` on Windows, `~/.config/Atlas` on Linux). Atlas writes into a planning folder only when you import a plan, create or rename a project, or change its folders.
+Coord keeps its own data in the Coord home, `~/.coord` (or `COORD_HOME`), shared with the `coord` command: the planning folders in `planning/`, and the projects' order and state, the windows and their places, the theme, remote access and pairings, and statistics in the home database, `coord.db`. Electron's own files stay in its per-user folder (`%APPDATA%\Coord` on Windows, `~/.config/Coord` on Linux). Coord writes into a planning folder only when you create or rename a project, or change its folders.
 
 ## Develop
 
-From the repository root, `npm ci`, then `npm run dev` starts the app with hot reload (give it a home of its own: `ATLAS_HOME=~/.atlas-dev npm run dev`, or `npm run dev:home`). `npm run package` builds the installer or AppImage, and `npm run test:e2e` drives it. [Contributing](../CONTRIBUTING.md) covers set-up, the repository layout, the tests and the checks.
+From the repository root, `npm ci`, then `npm run dev` starts Coord Dev: the app with hot reload, beside your installed Coord, on a copy of your Coord data, with a `dev-` plugin of its own in your agents ([Coord Dev](../CONTRIBUTING.md#coord-dev)); `npm run dev:home` starts it on a demo home instead. `npm run package` builds the installer or AppImage, and `npm run test:e2e` drives it. [Contributing](../CONTRIBUTING.md) covers set-up, the repository layout, the tests and the checks.

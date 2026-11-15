@@ -12,6 +12,9 @@ completed_at: null
 supersedes: []
 superseded_by: null
 continues: [work-0004]
+state: your_turn
+state_note: "Choose how a customer picks a saved card, on the card picker page"
+state_since: "2026-09-30T16:00:00Z"
 ---
 
 # Saved payment methods
@@ -47,6 +50,8 @@ Checkout authorises a one-off `CardSession` created by the acquirer's hosted fie
 - `PaymentMethodVault` is our port to the acquirer's vault. `PaymentGateway.authoriseWithToken` charges a token.
 
 The [proposed payment methods](diagrams/checkout-proposal.puml#SavedPaymentMethod) show [the token](diagrams/checkout-proposal.puml#PaymentToken), [the brand](diagrams/checkout-proposal.puml#CardBrand) and [the vault](diagrams/checkout-proposal.puml#PaymentMethodVault); the [alternative](diagrams/checkout-alternative.puml#Customer) keeps the methods on the customer.
+
+How a customer picks a saved card is chosen on [the card picker](pages/card-picker).
 
 ## Checkout flow
 

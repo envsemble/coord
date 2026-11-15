@@ -6,7 +6,6 @@ const { layoutDiagram } = require("../layout/layoutDiagram.cjs");
 const { renderSVG } = require("../render/renderSVG.cjs");
 const { validateDiagram } = require("../layout/validateDiagram.cjs");
 const { prepareViews } = require("../layout/prepareViews.cjs");
-const { highlightSnippets } = require("./highlightSnippets.cjs");
 const rootPath = path.resolve(__dirname, "../..");
 const SLUG = /^[A-Za-z0-9_-]+$/;
 /**
@@ -24,7 +23,6 @@ function prepareEntry(entry, { slug = "model", includeArtifacts = true } = {}) {
   return prepareModel({
     model: entry.model,
     settings: entry.views.length ? entry.views : undefined,
-    excerpts: entry.snippets,
     scenarios: entry.scenarios,
     source: entry.source,
     slug,
@@ -37,7 +35,6 @@ function prepareEntry(entry, { slug = "model", includeArtifacts = true } = {}) {
 async function prepareModel({
   model,
   settings,
-  excerpts = {},
   scenarios = null,
   source = null,
   slug,
@@ -46,10 +43,6 @@ async function prepareModel({
 }) {
   const report = model.validation;
   const sources = model.sources;
-  const snippets = await highlightSnippets(
-    sources.filter((s) => excerpts[s.id]),
-    excerpts,
-  );
   const classes = new Map(model.classes.map((c) => [c.id, c]));
   const views = prepareViews(model, settings);
   const artifacts = new Map();
@@ -62,25 +55,22 @@ async function prepareModel({
   for (const view of views) {
     const edges = view.edges;
     const generalizations = view.generalizations;
-    for (const fields of [false, true]) {
-      const rendered = await diagramProvider(
-        view,
-        classes,
-        edges,
-        generalizations,
-        fields,
-      );
-      const svg = includeArtifacts ? renderSVG(rendered.diagram) : undefined;
-      view[fields ? "diagramFields" : "diagram"] = rendered.diagram;
-      view[fields ? "svgFields" : "svg"] = svg;
-      report.diagrams.push({
-        view: view.key,
-        fields,
-        ...rendered.check,
-        ...validateDiagram(rendered.diagram, model),
-      });
-      artifacts.set(`${slug}-${view.key}${fields ? "-fields" : ""}.svg`, svg);
-    }
+    // Each view is drawn once, with its elements' attributes and methods.
+    const rendered = await diagramProvider(
+      view,
+      classes,
+      edges,
+      generalizations,
+    );
+    const svg = includeArtifacts ? renderSVG(rendered.diagram) : undefined;
+    view.diagram = rendered.diagram;
+    view.svg = svg;
+    report.diagrams.push({
+      view: view.key,
+      ...rendered.check,
+      ...validateDiagram(rendered.diagram, model),
+    });
+    artifacts.set(`${slug}-${view.key}.svg`, svg);
   }
   if (!includeArtifacts)
     return {
@@ -90,18 +80,14 @@ async function prepareModel({
       views,
       payload: {
         model,
-        views: views.map(
-          ({ key, label, title, nodeIds, diagram, diagramFields }) => ({
-            key,
-            label,
-            title,
-            nodeIds,
-            diagram,
-            diagramFields,
-          }),
-        ),
+        views: views.map(({ key, label, title, nodeIds, diagram }) => ({
+          key,
+          label,
+          title,
+          nodeIds,
+          diagram,
+        })),
         exports: { slug, bundle: "" },
-        snippets,
         ...(scenarios ? { scenarios } : {}),
       },
     };
@@ -147,16 +133,13 @@ async function prepareModel({
     slug,
     bundle: bundle.toString("base64"),
   };
-  const clientViews = views.map(
-    ({ key, label, title, nodeIds, diagram, diagramFields }) => ({
-      key,
-      label,
-      title,
-      nodeIds,
-      diagram,
-      diagramFields,
-    }),
-  );
+  const clientViews = views.map(({ key, label, title, nodeIds, diagram }) => ({
+    key,
+    label,
+    title,
+    nodeIds,
+    diagram,
+  }));
   artifacts.set(`${slug}-models.zip`, bundle);
   return {
     artifacts,
@@ -167,23 +150,26 @@ async function prepareModel({
       model,
       views: clientViews,
       exports,
-      snippets,
       ...(scenarios ? { scenarios } : {}),
     },
   };
 }
 // The standalone viewer's stored theme preference; src/main.jsx uses the same
 // key, so envUI's startup script themes the page before the first paint.
-const THEME_STORAGE_KEY = "atlas-theme";
+const THEME_STORAGE_KEY = "coord-theme";
 const packageDirectory = (name) =>
   path.dirname(require.resolve(`${name}/package.json`, { paths: [rootPath] }));
-// The offline file has no host: it carries envUI's styles (with the Inter
+// The offline file has no host: it carries the styles of the envUI components
+// the viewer uses (each component's module imports its own, with the Geist
 // font as a data URL), the viewer styles, envUI's theme startup script in the
 // head, the app script and envUI's notices.
 async function bundleClient() {
   const app = await bundleJavaScript({
     absWorkingDir: rootPath,
     entryPoints: ["src/main.jsx"],
+    // Not written: the output path only names the script and the style sheet
+    // that envUI's component modules bring.
+    outdir: "viewer",
     bundle: true,
     format: "iife",
     platform: "browser",
@@ -195,20 +181,19 @@ async function bundleClient() {
       react: packageDirectory("react"),
       "react-dom": packageDirectory("react-dom"),
     },
+    loader: { ".woff2": "dataurl" },
     minify: true,
     charset: "utf8",
     legalComments: "inline",
     logLevel: "silent",
     write: false,
   });
+  const output = (extension) =>
+    app.outputFiles.find((file) => file.path.endsWith(extension))?.text || "";
   const styles = await bundleJavaScript({
     absWorkingDir: rootPath,
     stdin: {
-      contents: [
-        "@envsemble/envui/styles.css",
-        "./src/viewer/viewer.css",
-        "./src/canvas/canvas.css",
-      ]
+      contents: ["./src/viewer/viewer.css", "./src/canvas/canvas.css"]
         .map((file) => `@import "${file}";`)
         .join("\n"),
       resolveDir: rootPath,
@@ -216,7 +201,6 @@ async function bundleClient() {
       loader: "css",
     },
     bundle: true,
-    loader: { ".woff2": "dataurl" },
     minify: true,
     charset: "utf8",
     legalComments: "none",
@@ -225,9 +209,10 @@ async function bundleClient() {
   });
   const envUI = packageDirectory("@envsemble/envui");
   const notices = [
+    ["envUI", "LICENSE"],
     ["envUI runtime dependencies", "licenses/Runtime-Dependencies-LICENSE.txt"],
     ["Material Symbols", "licenses/Material-Symbols-LICENSE.txt"],
-    ["Inter font", "licenses/Inter-LICENSE.txt"],
+    ["Geist font", "licenses/Geist-LICENSE.txt"],
   ]
     .map(
       ([title, file]) =>
@@ -238,8 +223,9 @@ async function bundleClient() {
   const { createThemeBootstrapScript } =
     await import("@envsemble/envui/theme-bootstrap");
   return {
-    app: app.outputFiles[0].text,
-    styles: styles.outputFiles[0].text,
+    app: output(".js"),
+    // envUI's styles first; its cascade layers rank below the viewer's own.
+    styles: output(".css") + styles.outputFiles[0].text,
     notices,
     themeBootstrap: createThemeBootstrapScript({
       storageKey: THEME_STORAGE_KEY,
@@ -257,10 +243,10 @@ async function buildViewer({ prepared, file } = {}) {
       "VIEWER_INPUT: provide a viewer prepared by prepareDiagrams",
     );
   const { model } = prepared;
-  const { views: clientViews, exports, snippets } = prepared.payload;
+  const { views: clientViews, exports } = prepared.payload;
   const inline = (value) => JSON.stringify(value).replaceAll("<", "\\u003c");
   const carried = file
-    ? `<script id="atlas-diagram" type="application/json">${inline(file)}</script>`
+    ? `<script id="coord-diagram" type="application/json">${inline(file)}</script>`
     : "";
   const template = fs.readFileSync(
     path.join(rootPath, "src/viewer.html"),
@@ -279,12 +265,12 @@ async function buildViewer({ prepared, file } = {}) {
     .replace(
       "<!--APP_ICON-->",
       () =>
-        `<link rel="icon" href="data:image/svg+xml,${encodeURIComponent(fs.readFileSync(path.join(rootPath, "assets/atlas-icon.svg"), "utf8"))}">`,
+        `<link rel="icon" href="data:image/svg+xml,${encodeURIComponent(fs.readFileSync(path.join(rootPath, "assets/icon.svg"), "utf8"))}">`,
     )
     .replace(
       /<title>.*?<\/title>/,
       () =>
-        `<title>${model.title.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")} | Atlas</title>`,
+        `<title>${model.title.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")} | Coord</title>`,
     )
     .replace("/*APP_STYLES*/", () => styles.replace(/<\/style/gi, "<\\/style"))
     // In the head, so a stored theme applies before the model data is parsed
@@ -295,7 +281,7 @@ async function buildViewer({ prepared, file } = {}) {
     .replace(
       "/*MODEL_DATA*/",
       () =>
-        `const MODEL=${inline(model)};const VIEWS=${inline(clientViews)};const EXPORTS=${inline(exports)};const SNIPPETS=${inline(snippets)};const COMPARISON=${inline(prepared.payload.comparison || null)};const SCENARIOS=${inline(prepared.payload.scenarios || null)};`,
+        `const MODEL=${inline(model)};const VIEWS=${inline(clientViews)};const EXPORTS=${inline(exports)};const COMPARISON=${inline(prepared.payload.comparison || null)};const SCENARIOS=${inline(prepared.payload.scenarios || null)};`,
     )
     .replace("/*APP_SCRIPT*/", () =>
       script.replace(/<\/script/gi, "<\\/script"),

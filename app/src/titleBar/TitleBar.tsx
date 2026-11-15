@@ -1,33 +1,40 @@
-// The window's two rows at the top, GitHub style. The title bar: the logo, back and forward, the
-// File, View and Help menus and the computer the window works on (with pairing and remote access)
-// at its start. Below it, the sections: Plans (the hub, and every plan, ledger and diagram opened
-// from it) and Projects (with each project's statistics), with their counts. The shortcuts shown in
-// the menus are taken by the window and main's application menu (on macOS, the system's menu bar).
-import type { ReactNode } from 'react';
-import { Counter, IconButton, Menubar, MenubarMenu, MenuItem, MenuSeparator, NavigationItem, Tooltip } from '@envsemble/envui';
-import { ArrowBack } from '@envsemble/envui/icons/ArrowBack';
-import { ArrowForward } from '@envsemble/envui/icons/ArrowForward';
-import { AtlasMark } from '@envsemble/atlas-diagrams/mark';
+// The start of the window's title bar, one row: the logo, back and forward, Plans, Settings and
+// Help, the computer the window works on (with the computers to switch to) and Coord's update when
+// there is one. Plans goes to every plan; the hub leads on to a project's plans and the statistics.
+// The window's other commands keep their shortcuts, taken by the window and main's application menu
+// (on macOS, the system's menu bar).
+import { Button, IconButton, Menu, Tooltip } from '@envsemble/envui';
+import { IconArrowBack as ArrowBack } from '@envsemble/envui/icons/ArrowBack';
+import { IconArrowForward as ArrowForward } from '@envsemble/envui/icons/ArrowForward';
+import { CoordMark } from '@envsemble/coord-diagrams/mark';
 import type { AppCommand } from '../../shared/contract';
-import type { WindowInfo } from '../types';
-import { api, AtlasError } from '../api';
+import type { SettingsSection, WindowInfo } from '../types';
+import { api, CoordError } from '../api';
 import { ComputerMenu } from '../computers/ComputerMenu';
 import { useAppActions } from '../appActions';
-import { FolderIcon, WorkIcon } from '../ui/icons';
+import { BuildBadge } from './BuildBadge';
+import { UpdateButton } from '../settings/Updates';
 
-/** What the window adds to the title bar: back and forward, a new project, importing a plan and exporting the one open. */
+/** What the window adds to the title bar: back and forward, Plans and Settings. */
 export interface WindowMenus {
   goBack(): void;
   goForward(): void;
   canGoBack: boolean;
   canGoForward: boolean;
-  newProject(): void;
-  importPlan(): void;
-  /** Export the plan open; null when none is. */
-  exportPlan: (() => void) | null;
-  /** Open the shown file in the chosen editor, as the title bar's Open in does; null when the window shows none. */
-  openInEditor: (() => void) | null;
+  /** Whether the window shows the hub, for Plans to mark. */
+  showsPlans: boolean;
+  /** Whether the window shows Settings, for Settings to mark. */
+  showsSettings: boolean;
+  /** Show the hub: every plan, or one project's. */
+  plans(projectId: string | null): void;
+  /** Show Settings, at a section. */
+  settings(section?: SettingsSection): void;
 }
+
+/** Ask main to run a command; a failure other than a cancelled question is shown. */
+const runCommand = (command: AppCommand, onError: (message: string) => void) => {
+  api.command(command).catch(error => { if ((error as CoordError).code !== 'cancelled') onError((error as Error).message); });
+};
 
 /** The modifier shortcuts use: ⌘ on macOS, Ctrl elsewhere. */
 export const modifierKey = (platform: string) => platform === 'darwin' ? '⌘' : 'Ctrl';
@@ -37,51 +44,38 @@ const historyKeys = (platform: string) => platform === 'darwin'
   : { back: 'Alt+←', forward: 'Alt+→', backKeys: 'Alt+ArrowLeft BrowserBack', forwardKeys: 'Alt+ArrowRight BrowserForward' };
 
 /**
- * The window's menus: File (windows, projects and plans), View (zoom and full screen, and the
- * developer's tools where offered) and Help. Alt and their letter open them, except on macOS.
- * Other computers and remote access are in the computer menu.
+ * The title bar's commands: Plans (the hub with every plan) and Settings, each a plain button, and the
+ * Help menu (the logs and About Coord). The rest of the app's commands are on the page or behind
+ * their shortcuts.
  */
-export function AppMenus({ info, menus, onError }: { info: WindowInfo; menus: WindowMenus; onError(message: string): void }) {
+export function AppMenus({ menus, onError }: { menus: WindowMenus; onError(message: string): void }) {
   const actions = useAppActions();
-  const mod = modifierKey(info.platform);
-  const run = (command: AppCommand) => () => { api.command(command).catch(error => { if ((error as AtlasError).code !== 'cancelled') onError((error as Error).message); }); };
-  return <Menubar aria-label="Application menu" accessKeys={info.platform !== 'darwin'} className="app-menubar">
-    <MenubarMenu label="File" accessKey="F">
-      <MenuItem shortcut={mod + '+Shift+N'} onClick={run('newWindow')}>New Window</MenuItem>
-      <MenuItem onClick={menus.newProject}>New Project…</MenuItem>
-      <MenuSeparator />
-      <MenuItem onClick={menus.importPlan}>Import Plan…</MenuItem>
-      {menus.exportPlan && <MenuItem onClick={menus.exportPlan}>Export Plan…</MenuItem>}
-      {menus.openInEditor && <MenuItem shortcut={mod + '+O'} onClick={menus.openInEditor}>Open in Editor</MenuItem>}
-      <MenuSeparator />
-      <MenuItem onClick={run('quit')}>Exit</MenuItem>
-    </MenubarMenu>
-    <MenubarMenu label="View" accessKey="V">
-      <MenuItem shortcut={mod + '++'} onClick={run('zoomIn')}>Zoom In</MenuItem>
-      <MenuItem shortcut={mod + '+-'} onClick={run('zoomOut')}>Zoom Out</MenuItem>
-      <MenuItem shortcut={mod + '+0'} onClick={run('resetZoom')}>Actual Size</MenuItem>
-      <MenuItem shortcut={info.platform === 'darwin' ? 'Ctrl+⌘+F' : 'F11'} onClick={run('toggleFullScreen')}>Full Screen</MenuItem>
-      {info.devTools && <>
-        <MenuSeparator />
-        <MenuItem shortcut={mod + '+R'} onClick={run('reload')}>Reload</MenuItem>
-        <MenuItem shortcut={info.platform === 'darwin' ? 'Alt+⌘+I' : mod + '+Shift+I'} onClick={run('toggleDevTools')}>Developer Tools</MenuItem>
-      </>}
-    </MenubarMenu>
-    <MenubarMenu label="Help" accessKey="H">
-      <MenuItem onClick={run('openLogs')}>Open Logs</MenuItem>
-      <MenuItem onClick={actions.about}>About Atlas</MenuItem>
-    </MenubarMenu>
-  </Menubar>;
+  const run = (command: AppCommand) => () => { api.command(command).catch(error => { if ((error as CoordError).code !== 'cancelled') onError((error as Error).message); }); };
+  return <div className="title-bar-commands">
+    <Button variant="ghost" size="sm" aria-current={menus.showsPlans ? 'page' : undefined} onClick={() => menus.plans(null)}>Plans</Button>
+    <Button variant="ghost" size="sm" aria-current={menus.showsSettings ? 'page' : undefined} onClick={() => menus.settings()}>Settings</Button>
+    <Menu.Root aria-label="Help" align="start" trigger={<Button variant="ghost" size="sm">Help</Button>}>
+      <Menu.Item onClick={run('openLogs')}>Open Logs</Menu.Item>
+      <Menu.Item onClick={actions.about}>About Coord</Menu.Item>
+    </Menu.Root>
+  </div>;
 }
 
-/** The start of the title bar: the logo, back and forward, the menus, and the computer. */
+/** The start of the title bar: the logo, back and forward, the commands, the computer and the update. */
 export function TitleBarStart({ info, menus, onError }: { info: WindowInfo; menus: WindowMenus; onError(message: string): void }) {
   return <div className="title-bar-start">
-    <span className="title-bar-logo" aria-hidden="true"><AtlasMark size={20} label="" /></span>
+    <CoordLogo />
+    <BuildBadge info={info} run={command => runCommand(command, onError)} />
     <HistoryButtons platform={info.platform} menus={menus} />
-    <AppMenus info={info} menus={menus} onError={onError} />
-    <ComputerMenu current={info.computer} onError={onError} />
+    <AppMenus menus={menus} onError={onError} />
+    <ComputerMenu current={info.computer} onError={onError} onSettings={() => menus.settings('computers')} />
+    <UpdateButton />
   </div>;
+}
+
+/** Coord's mark at the start of the title bar: only a picture, as Plans goes to every plan. */
+export function CoordLogo() {
+  return <span className="title-bar-logo" aria-hidden="true"><CoordMark size={20} label="" /></span>;
 }
 
 /** The title bar's quiet back and forward arrows. */
@@ -89,26 +83,10 @@ function HistoryButtons({ platform, menus }: { platform: string; menus: WindowMe
   const keys = historyKeys(platform);
   return <div className="history-buttons">
     <Tooltip content={'Back (' + keys.back + ')'} side="bottom">
-      <IconButton variant="text" icon={<ArrowBack />} aria-label="Back" aria-keyshortcuts={keys.backKeys} aria-disabled={!menus.canGoBack || undefined} onClick={() => { if (menus.canGoBack) menus.goBack(); }} />
+      <IconButton variant="ghost" size="sm" icon={<ArrowBack />} aria-label="Back" aria-keyshortcuts={keys.backKeys} aria-disabled={!menus.canGoBack || undefined} onClick={() => { if (menus.canGoBack) menus.goBack(); }} />
     </Tooltip>
     <Tooltip content={'Forward (' + keys.forward + ')'} side="bottom">
-      <IconButton variant="text" icon={<ArrowForward />} aria-label="Forward" aria-keyshortcuts={keys.forwardKeys} aria-disabled={!menus.canGoForward || undefined} onClick={() => { if (menus.canGoForward) menus.goForward(); }} />
+      <IconButton variant="ghost" size="sm" icon={<ArrowForward />} aria-label="Forward" aria-keyshortcuts={keys.forwardKeys} aria-disabled={!menus.canGoForward || undefined} onClick={() => { if (menus.canGoForward) menus.goForward(); }} />
     </Tooltip>
   </div>;
-}
-
-export type Section = 'plans' | 'projects';
-
-/**
- * The second row: the window's sections, the one shown underlined as on GitHub, with the open plans
- * and the active projects counted (once listed).
- */
-export function SectionBar({ section, counts, go }: { section: Section; counts: { plans: number; projects: number } | null; go(section: Section): void }) {
-  const item = (id: Section, label: string, icon: ReactNode, count?: number, countLabel?: string) => <NavigationItem size="compact" className="section-item" data-section={id}
-    aria-current={section === id ? 'page' : undefined} icon={icon} onClick={() => go(id)}
-    trailing={count === undefined ? undefined : <Counter value={count} aria-label={countLabel} />}>{label}</NavigationItem>;
-  return <nav className="section-bar" aria-label="Sections">
-    {item('plans', 'Plans', <WorkIcon />, counts?.plans, counts ? counts.plans + ' open' : undefined)}
-    {item('projects', 'Projects', <FolderIcon />, counts?.projects, counts ? counts.projects + ' active' : undefined)}
-  </nav>;
 }

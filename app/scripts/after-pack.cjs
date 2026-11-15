@@ -1,10 +1,13 @@
 // electron-builder afterPack hook: drop the diagram package's dependencies that only its command-line
-// features use (PostgreSQL and TypeScript capture). The desktop app reads, lays out and renders
-// diagrams and runs plan export/import; it never loads these.
+// features use (PostgreSQL and TypeScript capture), which the desktop app never loads; and assemble
+// resources/agent, the coord command (which keeps them), the Node.js it runs on and the plugin
+// (agent-payload.cjs).
 const fs = require('node:fs');
 const path = require('node:path');
+const { Arch } = require('electron-builder');
+const { assemble, nodeRuntime } = require('./agent-payload.cjs');
 
-/** Dependencies of @envsemble/atlas-diagrams the app never loads, with everything only they need. */
+/** Dependencies of @envsemble/coord-diagrams the app never loads, with everything only they need. */
 const unused = new Set(['pg', 'typescript-compiler']);
 
 /** Every installed package the app can load, by walking the lockfile from the app's dependencies. */
@@ -51,6 +54,10 @@ exports.default = async function afterPack(context) {
   const resources = context.electronPlatformName === 'darwin' ? path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`, 'Contents', 'Resources') : path.join(context.appOutDir, 'resources');
   const app = path.join(resources, 'app');
   const kept = runtimePackages(repository);
+  // electron-builder lays node_modules out on its own: a package nested in the lockfile (such as
+  // electron-updater's own builder-util-runtime) can land at the top. A package is kept wherever it
+  // lands when the app loads one of that name.
+  const keptNames = new Set([...kept].map(location => location.slice(location.lastIndexOf('node_modules/') + 'node_modules/'.length)));
   let removed = 0, bytes = 0;
   const prune = (directory, prefix) => {
     if (!fs.existsSync(directory)) return;
@@ -59,7 +66,7 @@ exports.default = async function afterPack(context) {
       if (entry.name.startsWith('@')) { prune(path.join(directory, entry.name), prefix + entry.name + '/'); continue; }
       const location = prefix + entry.name;
       const full = path.join(directory, entry.name);
-      if (kept.has(location)) { prune(path.join(full, 'node_modules'), location + '/node_modules/'); continue; }
+      if (kept.has(location) || keptNames.has(prefix.slice(prefix.lastIndexOf('node_modules/') + 'node_modules/'.length) + entry.name)) { prune(path.join(full, 'node_modules'), location + '/node_modules/'); continue; }
       bytes += size(full);
       fs.rmSync(full, { recursive: true, force: true });
       removed++;
@@ -67,4 +74,7 @@ exports.default = async function afterPack(context) {
   };
   prune(path.join(app, 'node_modules'), 'node_modules/');
   console.log(`  • pruned ${removed} packages the app never loads (${(bytes / 1048576).toFixed(1)} MB)`);
+  const runtime = await nodeRuntime(repository, context.electronPlatformName, Arch[context.arch]);
+  const agent = assemble(repository, path.join(resources, 'agent'), context.packager.appInfo.version, runtime);
+  console.log(`  • assembled the coord command on Node.js ${runtime.version} and the plugin, build ${agent.build} (${agent.files} files, ${(agent.bytes / 1048576).toFixed(1)} MB)`);
 };

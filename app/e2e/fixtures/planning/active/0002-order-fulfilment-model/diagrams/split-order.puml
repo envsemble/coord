@@ -1,6 +1,6 @@
 @startuml
 title Order 1042 split across Berlin and Leeds
-' atlas scenario fulfilment.puml expected valid
+' coord scenario fulfilment.puml expected valid
 
 object "order1042 : PartiallyShipped" as order1042 {
   number = "1042"

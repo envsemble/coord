@@ -3,45 +3,42 @@ import { ToolButton } from "./ToolButton";
 import { CloseIcon } from "./icons";
 
 /**
- * A floating pane beside the canvas, such as the inspector. Its header holds
- * the title or a `toolbar` (such as change navigation) and the close button;
- * `resizer` (a separator on its inner edge) stays put while the content
- * scrolls. `ref` reaches the scrolling content.
+ * A floating pane beside the canvas. Its header holds the title, a `toolbar`
+ * (such as change navigation) after it, and the close button; the content
+ * scrolls below it.
  */
 export function Panel({
-  ref,
   open,
   onClose,
-  label = "Diagram details",
+  label,
   title = label,
   toolbar = null,
-  closeLabel = "Close details",
-  resizer = null,
+  closeLabel = "Close",
   children,
   id = "panel",
   className = "",
   ...props
 }) {
-  const compact = !title && !toolbar;
   return (
     <Surface
-      as="aside"
-      tone="pane"
+      render={<aside />}
+      background="default"
       padding={0}
       id={id}
       className={`panel${open ? " open" : ""}${className ? ` ${className}` : ""}`}
       aria-label={label}
       {...props}
     >
-      {resizer}
-      <div className="panel-scroll" ref={ref}>
-        <div className={`panel-header${compact ? " compact" : ""}`}>
+      <div className="panel-scroll">
+        <div className="panel-header">
+          <Text
+            render={<h2 />}
+            variant="title"
+            className="coord-section-heading panel-title"
+          >
+            {title}
+          </Text>
           {toolbar}
-          {!toolbar && title && (
-            <Text as="h2" variant="section-heading" className="panel-title">
-              {title}
-            </Text>
-          )}
           {onClose && (
             <ToolButton
               className="panel-close"

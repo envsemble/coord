@@ -50,7 +50,7 @@ async function smoke() {
   const prepared = viewers.get("order.puml")!;
   const built = await buildViewer({ prepared, file: files[0] });
   const provenance: Provenance = describeProvenance(prepared.model.document);
-  const tone: "accent" | "done" | "success" | "neutral" = provenance.tone;
+  const tone: "primary" | "accent" | "success" | "neutral" = provenance.tone;
   void tone;
   describeProvenance(undefined);
   return (
@@ -60,8 +60,6 @@ async function smoke() {
         payload={prepared.payload}
         theme="dark"
         leading={<select aria-label="Diagram" />}
-        fullscreen={false}
-        onFullscreenChange={(next: boolean) => void next}
       />
       <ProvenanceBadge document={prepared.model.document} />
       <UMLDiagram diagram={built.views[0].diagram} />

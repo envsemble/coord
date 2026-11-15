@@ -170,7 +170,7 @@ function peg$parse(input, options) {
   const peg$c0 = "@startuml";
   const peg$c1 = "@enduml";
   const peg$c2 = "'";
-  const peg$c3 = "atlas";
+  const peg$c3 = "coord";
   const peg$c4 = "title";
   const peg$c5 = "package";
   const peg$c6 = "{";
@@ -225,7 +225,7 @@ function peg$parse(input, options) {
   const peg$e1 = peg$anyExpectation();
   const peg$e2 = peg$literalExpectation("@enduml", false);
   const peg$e3 = peg$literalExpectation("'", false);
-  const peg$e4 = peg$literalExpectation("atlas", false);
+  const peg$e4 = peg$literalExpectation("coord", false);
   const peg$e5 = peg$literalExpectation("title", false);
   const peg$e6 = peg$literalExpectation("package", false);
   const peg$e7 = peg$literalExpectation("{", false);
@@ -281,7 +281,7 @@ function peg$parse(input, options) {
   function peg$f3(text) {    return text.trim() ? { type: "outside", ...at(), text: text.trim() } : null;  }
   function peg$f4() {    return null;  }
   function peg$f5() {    return { type: "blank" };  }
-  function peg$f6(text) {    return { type: "atlas", ...at(), text: (text || "").trim() };  }
+  function peg$f6(text) {    return { type: "coord", ...at(), text: (text || "").trim() };  }
   function peg$f7() {    return { type: "comment" };  }
   function peg$f8(text) {    return { type: "title", ...at(), text: text.trim() };  }
   function peg$f9(name, extra, body, closed) {    return closed ? { type: "package", ...at(), name, extra, body } : { type: "unclosed", ...at(), what: "package", name };  }
@@ -913,7 +913,7 @@ function peg$parse(input, options) {
 
     s0 = peg$parseBlank();
     if (s0 === peg$FAILED) {
-      s0 = peg$parseAtlasComment();
+      s0 = peg$parseCoordComment();
       if (s0 === peg$FAILED) {
         s0 = peg$parseComment();
         if (s0 === peg$FAILED) {
@@ -957,7 +957,7 @@ function peg$parse(input, options) {
     return s0;
   }
 
-  function peg$parseAtlasComment() {
+  function peg$parseCoordComment() {
     let s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11;
 
     s0 = peg$currPos;
@@ -1976,7 +1976,7 @@ function peg$parse(input, options) {
 
     s0 = peg$parseBlank();
     if (s0 === peg$FAILED) {
-      s0 = peg$parseAtlasComment();
+      s0 = peg$parseCoordComment();
       if (s0 === peg$FAILED) {
         s0 = peg$parseComment();
         if (s0 === peg$FAILED) {

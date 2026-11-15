@@ -1,26 +1,26 @@
 // The renderer's view of the main process: typed calls over the preload bridge. Failures arrive as
-// structured values and are rethrown here as AtlasError (app/shared/errors.ts), so components can check `code`.
-import { withWorkDocuments } from '@envsemble/atlas/host/contract';
-import type { AtlasBridge, Result, Snapshot } from '../shared/contract';
-import { AtlasError } from '../shared/errors';
+// structured values and are rethrown here as CoordError (app/shared/errors.ts), so components can check `code`.
+import { withWorkDocuments } from '@envsemble/coord/host/contract';
+import type { CoordBridge, Result, Snapshot } from '../shared/contract';
+import { CoordError } from '../shared/errors';
 
-export { AtlasError };
+export { CoordError };
 
 declare global {
-  interface Window { atlas: AtlasBridge }
+  interface Window { coord: CoordBridge }
 }
 
 async function unwrap<T>(pending: Promise<Result<T>>): Promise<T> {
   const result = await pending;
   if (result.ok) return result.value;
-  throw new AtlasError(result.error.code, result.error.message);
+  throw new CoordError(result.error.code, result.error.message);
 }
 
 type Unwrapped = {
-  [K in keyof AtlasBridge]: AtlasBridge[K] extends (...args: infer A) => Promise<Result<infer R>> ? (...args: A) => Promise<R> : AtlasBridge[K];
+  [K in keyof CoordBridge]: CoordBridge[K] extends (...args: infer A) => Promise<Result<infer R>> ? (...args: A) => Promise<R> : CoordBridge[K];
 };
 
-const bridge = (): AtlasBridge => window.atlas;
+const bridge = (): CoordBridge => window.coord;
 
 /** The snapshot arrives with each document once; the work items get theirs again here. */
 export const api: Omit<Unwrapped, 'snapshot'> & { snapshot(projectId: string): Promise<Snapshot> } = {
@@ -37,8 +37,14 @@ export const api: Omit<Unwrapped, 'snapshot'> & { snapshot(projectId: string): P
   document: (projectId, path) => unwrap(bridge().document(projectId, path)),
   diagrams: (projectId, work) => unwrap(bridge().diagrams(projectId, work)),
   diagram: (projectId, work, path) => unwrap(bridge().diagram(projectId, work, path)),
+  arrangement: (projectId, work, path) => unwrap(bridge().arrangement(projectId, work, path)),
+  arrange: (projectId, work, path, positions) => unwrap(bridge().arrange(projectId, work, path, positions)),
   references: (projectId, work, path) => unwrap(bridge().references(projectId, work, path)),
   diagramIndex: projectId => unwrap(bridge().diagramIndex(projectId)),
+  page: (projectId, path) => unwrap(bridge().page(projectId, path)),
+  readText: (projectId, path) => unwrap(bridge().readText(projectId, path)),
+  writeFile: (projectId, path, content) => unwrap(bridge().writeFile(projectId, path, content)),
+  tool: (projectId, name, input) => unwrap(bridge().tool(projectId, name, input)),
   projectStatistics: (projectId, from, to, unit) => unwrap(bridge().projectStatistics(projectId, from, to, unit)),
   allStatistics: (from, to, unit) => unwrap(bridge().allStatistics(from, to, unit)),
   loadUi: () => unwrap(bridge().loadUi()),
@@ -49,18 +55,11 @@ export const api: Omit<Unwrapped, 'snapshot'> & { snapshot(projectId: string): P
   reveal: (projectId, path) => unwrap(bridge().reveal(projectId, path)),
   openExternal: url => unwrap(bridge().openExternal(url)),
   openReference: (projectId, reference) => unwrap(bridge().openReference(projectId, reference)),
-  openShown: (place, path) => unwrap(bridge().openShown(place, path)),
-  editor: () => unwrap(bridge().editor()),
-  setEditor: editor => unwrap(bridge().setEditor(editor)),
   copy: text => unwrap(bridge().copy(text)),
   command: command => unwrap(bridge().command(command)),
   theme: () => unwrap(bridge().theme()),
   setTheme: preference => unwrap(bridge().setTheme(preference)),
   about: () => unwrap(bridge().about()),
-  exportPlan: (projectId, work) => unwrap(bridge().exportPlan(projectId, work)),
-  chooseImport: projectId => unwrap(bridge().chooseImport(projectId)),
-  confirmImport: token => unwrap(bridge().confirmImport(token)),
-  cancelImport: token => unwrap(bridge().cancelImport(token)),
   computers: () => unwrap(bridge().computers()),
   switchComputer: (hostId, newWindow) => unwrap(bridge().switchComputer(hostId, newWindow)),
   pairComputer: (link, code) => unwrap(bridge().pairComputer(link, code)),
@@ -71,13 +70,28 @@ export const api: Omit<Unwrapped, 'snapshot'> & { snapshot(projectId: string): P
   revokePairing: (hostId, code) => unwrap(bridge().revokePairing(hostId, code)),
   devices: hostId => unwrap(bridge().devices(hostId)),
   revokeDevice: (hostId, deviceId) => unwrap(bridge().revokeDevice(hostId, deviceId)),
+  agents: () => unwrap(bridge().agents()),
+  agentChecks: () => unwrap(bridge().agentChecks()),
+  chooseAgentProgram: id => unwrap(bridge().chooseAgentProgram(id)),
+  clearAgentProgram: id => unwrap(bridge().clearAgentProgram(id)),
+  agentFolder: () => unwrap(bridge().agentFolder()),
+  connectAgent: id => unwrap(bridge().connectAgent(id)),
+  disconnectAgent: id => unwrap(bridge().disconnectAgent(id)),
+  onboarding: () => unwrap(bridge().onboarding()),
+  finishOnboarding: () => unwrap(bridge().finishOnboarding()),
+  updates: () => unwrap(bridge().updates()),
+  checkForUpdates: () => unwrap(bridge().checkForUpdates()),
+  downloadUpdate: () => unwrap(bridge().downloadUpdate()),
+  installUpdate: () => unwrap(bridge().installUpdate()),
+  setUpdateChannel: channel => unwrap(bridge().setUpdateChannel(channel)),
   onChanged: listener => bridge().onChanged(listener),
   onProjectsChanged: listener => bridge().onProjectsChanged(listener),
   onMenu: listener => bridge().onMenu(listener),
   onAccessChanged: listener => bridge().onAccessChanged(listener),
+  onUpdatesChanged: listener => bridge().onUpdatesChanged(listener),
 };
 
-/** A file inside a project's planning folder, served by the window's own `atlas:` protocol. */
+/** A file inside a project's planning folder, served by the window's own `coord:` protocol. */
 export function fileUrl(projectId: string, path: string) {
-  return 'atlas://planning/' + projectId + '/' + path.split('/').map(encodeURIComponent).join('/');
+  return 'coord://planning/' + projectId + '/' + path.split('/').map(encodeURIComponent).join('/');
 }

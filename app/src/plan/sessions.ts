@@ -32,20 +32,7 @@ export function timelineLine(timeline: WorkTimeline | null, work: Pick<Work, 'cr
   return parts.length ? parts.join(' · ') : null;
 }
 
-/** The session waiting for the person with its message, the latest when several wait. */
-export function waitingSession(sessions: WorkSession[]): WorkSession | null {
-  return sessions.filter(session => session.state === 'waiting' && session.message?.trim()).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen))[0] ?? null;
-}
 
-/**
- * The beginning of a message, as Markdown: its first paragraph whole (so its formatting stays intact;
- * the page clamps a long one to a few lines), and whether there is more to show.
- */
-export function excerpt(message: string, limit = 280): { text: string; more: boolean } {
-  const whole = message.trim();
-  const first = whole.split(/\n\s*\n/)[0].trim();
-  return { text: first, more: first.length < whole.length || first.length > limit };
-}
 
 /**
  * The span a timeline shows: from its first stretch (or the zoom's start) to its last, or to now while

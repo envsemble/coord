@@ -1,0 +1,6 @@
+interface:
+  display_name: "Coord Grill"
+  short_description: "Interview in rounds until a design is settled"
+  default_prompt: "Use $coord-grill to settle this design and record the plan."
+policy:
+  allow_implicit_invocation: true

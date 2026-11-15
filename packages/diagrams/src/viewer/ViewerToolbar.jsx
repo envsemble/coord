@@ -1,40 +1,33 @@
-import { forwardRef, useMemo } from "react";
+import { forwardRef } from "react";
 import { Text, ThemeToggle } from "@envsemble/envui";
 import { ToolButton } from "../ui/ToolButton";
 import { CameraControls } from "./CameraControls";
-import { ConceptSearch } from "./ConceptSearch";
 import { ExportMenu, downloadData, downloadURL } from "../ui/ExportMenu";
 import { Island, IslandDivider } from "../ui/Island";
 import { ViewSwitcher } from "../ui/ViewSwitcher";
-import { AtlasMark } from "../ui/AtlasMark";
+import { CoordMark } from "../ui/CoordMark";
 import { ProvenanceLabel } from "./ProvenanceBadge";
 import { describeProvenance } from "./provenance";
 import {
   AboutIcon,
   ArchiveIcon,
   CodeIcon,
-  FieldsIcon,
-  HideDetailsIcon,
   ImageIcon,
   ScenariosIcon,
-  ShowDetailsIcon,
 } from "../ui/icons";
 
 /** The standalone viewer's downloads, for its export menu. */
-export function exportChoices({ exports, viewKey, fields, theme, diagramURL }) {
+export function exportChoices({ exports, viewKey, theme, diagramURL }) {
   const sourceFile = `${exports.slug}.puml`;
   return [
     {
       key: "svg-download",
       label: "SVG image",
-      description: `This view${fields ? " with attributes" : ""}, ${theme} theme`,
+      description: `This view, ${theme} theme`,
       icon: <ImageIcon />,
       onSelect: () =>
         diagramURL &&
-        downloadURL(
-          diagramURL,
-          `${exports.slug}-${viewKey}${fields ? "-fields" : ""}-${theme}.svg`,
-        ),
+        downloadURL(diagramURL, `${exports.slug}-${viewKey}-${theme}.svg`),
     },
     {
       key: "source-download",
@@ -68,12 +61,9 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
     views,
     exports,
     viewKey,
-    fields,
     theme,
     zoomStore,
     diagramURL,
-    detailsHidden,
-    detailsOpen,
     scenariosOpen,
     aboutOpen,
     reviewControls,
@@ -81,10 +71,7 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
     hasScenarios = false,
     density = 0,
     themeToggle = false,
-    onDetails,
     onView,
-    onFields,
-    onChoose,
     onAbout,
     onScenarios,
     onZoom,
@@ -93,24 +80,20 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
   },
   ref,
 ) {
-  const searchClasses = useMemo(() => {
-    const visibleIds = new Set(views.flatMap((view) => view.nodeIds));
-    return model.classes.filter((concept) => visibleIds.has(concept.id));
-  }, [model.classes, views]);
   const origin = describeProvenance(provenance);
   return (
     <header
-      className={`atlas-overlay-top viewer-toolbar${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`}
+      className={`coord-overlay-top viewer-toolbar${density > 1 ? " tight" : ""}${density > 2 ? " tighter" : ""}`}
       ref={ref}
     >
       <Island label="Diagram navigation" className="island-start">
         <span className="brand-mark">
-          <AtlasMark label="" />
+          <CoordMark label="" />
         </span>
         <Text
-          as="span"
-          variant="section-heading"
-          className="island-title"
+          render={<span />}
+          variant="title"
+          className="coord-section-heading island-title"
           title={model.title}
         >
           {model.title}
@@ -136,44 +119,29 @@ export const ViewerToolbar = forwardRef(function ViewerToolbar(
         {reviewControls}
       </Island>
       <Island label="Diagram tools" className="island-end">
-        <ConceptSearch classes={searchClasses} onChoose={onChoose} />
-        <ToolButton
-          id="fields"
-          label="Fields"
-          tooltip={fields ? "Hide attributes" : "Show attributes"}
-          pressed={fields}
-          icon={<FieldsIcon />}
-          onClick={onFields}
-        />
         <CameraControls
           {...{ zoomStore, onZoom, onReset, onFit }}
           compact={density > 2}
         />
         <IslandDivider />
         {hasScenarios && (
-          <ToolButton
-            id="scenarios-toggle"
-            label="Understand the model"
-            pressed={scenariosOpen && detailsOpen}
-            icon={<ScenariosIcon />}
-            onClick={onScenarios}
-          />
+          <>
+            <ToolButton
+              id="scenarios-toggle"
+              label="Understand the model"
+              pressed={scenariosOpen}
+              aria-controls="side-panel"
+              icon={<ScenariosIcon />}
+              onClick={onScenarios}
+            />
+            <IslandDivider />
+          </>
         )}
-        <ToolButton
-          id="details-toggle"
-          label={detailsHidden ? "Show details" : "Hide details"}
-          aria-controls="inspector"
-          aria-expanded={detailsOpen}
-          icon={detailsHidden ? <ShowDetailsIcon /> : <HideDetailsIcon />}
-          onClick={onDetails}
-        />
-        <IslandDivider />
         {themeToggle && <ThemeToggle id="theme-toggle" />}
         <ExportMenu
           items={exportChoices({
             exports,
             viewKey,
-            fields,
             theme,
             diagramURL,
           })}

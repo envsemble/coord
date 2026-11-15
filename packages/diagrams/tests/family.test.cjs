@@ -2,7 +2,7 @@
 // every member draws its classes and routes where the others do.
 const { test } = require("node:test"),
   assert = require("node:assert/strict");
-const atlas = require("../lib/index.cjs");
+const coord = require("../lib/index.cjs");
 const { validateDiagram } = require("../lib/layout/validateDiagram.cjs");
 
 const CAPTURE = {
@@ -25,12 +25,12 @@ Customer "1" -- "0..*" Checkout : buys`;
 // saved methods, with a count of the payment relation changed in place; B,
 // the customer holding its methods, without the gateway.
 function family() {
-  const { diagram } = atlas.parseDiagram(
+  const { diagram } = coord.parseDiagram(
     `@startuml\ntitle Checkout\n${CHECKOUT}\n@enduml\n`,
   );
-  const capture = atlas.formatDiagram({ ...diagram, capture: CAPTURE });
+  const capture = coord.formatDiagram({ ...diagram, capture: CAPTURE });
   const proposal = (title, body) =>
-    `@startuml\ntitle ${title}\n' atlas proposal capture.puml\n${body}\n@enduml\n`;
+    `@startuml\ntitle ${title}\n' coord proposal capture.puml\n${body}\n@enduml\n`;
   return [
     { path: "capture.puml", text: capture },
     {
@@ -63,13 +63,12 @@ Checkout "1" -- "0..*" Vault : uses`,
 }
 // What each member shows: a proposal's change view, or the capture itself.
 const shown = (payload) => payload.comparison?.changeView || payload;
-function placements(payloads, fields = false) {
+function placements(payloads) {
   const seen = new Map();
   let compared = 0;
   for (const payload of payloads)
     for (const view of shown(payload).views) {
-      const scene = view[fields ? "diagramFields" : "diagram"];
-      for (const n of scene.nodes) {
+      for (const n of view.diagram.nodes) {
         const box = [view.key, n.x, n.y, n.width, n.height].join();
         const key = `${view.key}:${n.id}`;
         if (seen.has(key)) {
@@ -81,7 +80,7 @@ function placements(payloads, fields = false) {
   return compared;
 }
 async function prepared(files, paths) {
-  const { prepared } = await atlas.prepareDiagrams({ files, paths });
+  const { prepared } = await coord.prepareDiagrams({ files, paths });
   return (paths || files.map((f) => f.path)).map(
     (p) => prepared.get(p).payload,
   );
@@ -94,10 +93,9 @@ test("A capture and its proposals share one layout and keep their own review dat
     payloads.map((p) => p.family),
     ["capture.puml", "capture.puml", "capture.puml"],
   );
-  // Every class every member shows sits in one place, with or without fields,
-  // and every member's scene has the same size.
+  // Every class every member shows sits in one place, and every member's
+  // scene has the same size.
   assert(placements(payloads) >= 8);
-  assert(placements(payloads, true) >= 8);
   const sizes = payloads.map((p) =>
     shown(p).views.map((v) => [v.key, v.diagram.width, v.diagram.height]),
   );

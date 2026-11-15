@@ -2,7 +2,7 @@
 // hooks do after every edit, and laying it out and exporting it as the viewer
 // does.
 const assert = require("node:assert/strict");
-const atlas = require("../lib/index.cjs");
+const coord = require("../lib/index.cjs");
 
 async function main() {
   const text = [
@@ -21,13 +21,13 @@ async function main() {
   ].join("\n");
   const file = { path: "performance.puml", text };
   // Warm the parser and the layout engine once.
-  atlas.checkDiagram(text);
-  await atlas.prepareDiagrams({
+  coord.checkDiagram(text);
+  await coord.prepareDiagrams({
     files: [{ path: "warm.puml", text: "@startuml\nclass A\n@enduml\n" }],
   });
   const started = performance.now();
-  const { diagram } = atlas.parseDiagram(text);
-  const problems = atlas.checkDiagram(text, { path: file.path });
+  const { diagram } = coord.parseDiagram(text);
+  const problems = coord.checkDiagram(text, { path: file.path });
   const checkMs = performance.now() - started;
   assert.equal(diagram.elements.length, 100);
   assert.deepEqual(problems, []);
@@ -36,11 +36,11 @@ async function main() {
     `100-class warm parse and check took ${checkMs.toFixed(1)} ms`,
   );
   const layoutStarted = performance.now();
-  const { prepared } = await atlas.prepareDiagrams({
+  const { prepared } = await coord.prepareDiagrams({
     files: [file],
     includeArtifacts: true,
   });
-  const built = await atlas.buildViewer({
+  const built = await coord.buildViewer({
     prepared: prepared.get(file.path),
     file,
   });

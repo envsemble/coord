@@ -61,7 +61,7 @@ function finish(engine, options, model, diagnostics, source, consistency) {
   const capture = {
     capturedAt: new Date().toISOString(),
     adapter: {
-      id: `atlas-${engine}`,
+      id: `coord-${engine}`,
       version: "1.0.0",
       configuration: {
         schemas: options.schemas || ["main"],

@@ -1,7 +1,7 @@
-import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Button, Counter, DisclosureNote, Stack, Text } from "@envsemble/envui";
+import { memo, useState } from "react";
+import { Badge, Column, Disclosure, Text } from "@envsemble/envui";
 import { ToolButton } from "../ui/ToolButton";
-import { BackIcon, NextIcon, PreviousIcon } from "../ui/icons";
+import { NextIcon, PreviousIcon } from "../ui/icons";
 import { CHANGE_LABELS, changeGlyph } from "./changes";
 import { ChangeMark } from "./ChangeMark";
 
@@ -69,6 +69,7 @@ function ChangeRow({ row, active, onSelect, onHover }) {
     );
   return (
     <li>
+      {/* eslint-disable-next-line envui/no-html-elements -- a change row: its name is the whole summary (mark, name, kind, changed members), and the list's arrow keys move between rows; List.Item names its target by the label alone */}
       <button
         type="button"
         className="change-row"
@@ -105,11 +106,9 @@ function RowList({ rows, label, active, onSelect, onHover }) {
 
 // Relations mostly follow from the types that changed: a long list of them
 // stays folded unless the change being reviewed is one of them.
-function RelationRows({ group, active, returning, onSelect, onHover }) {
+function RelationRows({ group, active, onSelect, onHover }) {
   const rows = group.relations;
-  const [open, setOpen] = useState(() =>
-    rows.some((r) => r.key === active || r.key === returning),
-  );
+  const [open, setOpen] = useState(() => rows.some((r) => r.key === active));
   const list = (
     <RowList
       rows={rows}
@@ -122,21 +121,21 @@ function RelationRows({ group, active, returning, onSelect, onHover }) {
   if (rows.length <= 3)
     return (
       <>
-        <Text as="h4" variant="caption" className="change-subheading">
+        <Text render={<h4 />} variant="body-sm" className="change-subheading">
           Relations
         </Text>
         {list}
       </>
     );
   return (
-    <DisclosureNote
+    <Disclosure
       className="change-relations"
       title={`Relations · ${rows.length}`}
       open={open}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
+      onOpenChange={setOpen}
     >
       {list}
-    </DisclosureNote>
+    </Disclosure>
   );
 }
 
@@ -173,30 +172,17 @@ function moveFocus(event) {
 /**
  * Every change in a proposal, one row per changed element: new, changed and
  * removed types with their members summarized, then the relations. Choosing
- * a row selects the element on the canvas and opens its details. Memoized, so
- * a hover elsewhere in the viewer does not re-render the list.
+ * a row selects the element on the canvas and frames it. Memoized, so a hover
+ * elsewhere in the viewer does not re-render the list.
  */
 export const ChangesOverview = memo(function ChangesOverview({
   rollup,
   baselineDate,
   profile,
   active,
-  handoff,
   onSelect,
   onHover,
 }) {
-  const list = useRef(null);
-  // Back from a change's details, focus returns to that change in the list
-  // (after the inspector has scrolled its new content to the top).
-  useEffect(() => {
-    const request = handoff?.current;
-    if (request?.to !== "overview") return;
-    handoff.current = null;
-    const rows = [
-      ...(list.current?.querySelectorAll("button.change-row") || []),
-    ];
-    (rows.find((row) => row.dataset.key === request.key) || rows[0])?.focus();
-  }, [handoff]);
   const source =
     profile === "code"
       ? "the code"
@@ -204,8 +190,8 @@ export const ChangesOverview = memo(function ChangesOverview({
         ? "the database"
         : "the model";
   return (
-    <Stack gap={4} className="changes-overview">
-      <Text variant="supporting">
+    <Column gap={4} className="changes-overview">
+      <Text variant="body-sm">
         {rollup.total
           ? `Compared with ${source}${baselineDate ? ` captured ${baselineDate}` : ""}.`
           : `No changes to ${source}${baselineDate ? ` captured ${baselineDate}` : ""}.`}
@@ -213,24 +199,24 @@ export const ChangesOverview = memo(function ChangesOverview({
       {rollup.conflicts.length > 0 && (
         <section className="change-group" data-change="conflict">
           <Text
-            as="h3"
-            variant="section-heading"
-            className="change-group-heading"
+            render={<h3 />}
+            variant="title"
+            className="coord-section-heading change-group-heading"
           >
             Conflicts
-            <Counter value={rollup.conflicts.length} />
+            <Badge count={rollup.conflicts.length} />
           </Text>
           {rollup.conflicts.map((conflict) => (
-            <DisclosureNote
+            <Disclosure
               key={conflict.id}
               title={conflict.path.join(" / ") || "References"}
             >
-              <Text tone="muted">{conflict.reason}</Text>
-            </DisclosureNote>
+              <Text emphasis="muted">{conflict.reason}</Text>
+            </Disclosure>
           ))}
         </section>
       )}
-      <div ref={list} className="change-groups" onKeyDown={moveFocus}>
+      <div className="change-groups" onKeyDown={moveFocus}>
         {rollup.groups.map((group) => (
           <section
             key={group.status}
@@ -239,13 +225,13 @@ export const ChangesOverview = memo(function ChangesOverview({
             aria-label={`${group.label}, ${group.elements.length + group.relations.length}`}
           >
             <Text
-              as="h3"
-              variant="section-heading"
-              className="change-group-heading"
+              render={<h3 />}
+              variant="title"
+              className="coord-section-heading change-group-heading"
             >
               <ChangeMark status={group.status} />
               {group.label}
-              <Counter value={group.elements.length + group.relations.length} />
+              <Badge count={group.elements.length + group.relations.length} />
             </Text>
             {group.elements.length > 0 && (
               <RowList
@@ -260,7 +246,6 @@ export const ChangesOverview = memo(function ChangesOverview({
               <RelationRows
                 group={group}
                 active={active}
-                returning={handoff?.current?.key}
                 onSelect={onSelect}
                 onHover={onHover}
               />
@@ -268,70 +253,39 @@ export const ChangesOverview = memo(function ChangesOverview({
           </section>
         ))}
       </div>
-    </Stack>
+    </Column>
   );
 });
 
 /**
- * Above a changed element's details: back to every change, and the previous
- * and next change in the list's order. At either end a step button stays
+ * In the Changes panel's header: the previous and next change in the list's
+ * order, and which one is selected. At either end a step button stays
  * focusable, marked unavailable, so keyboard focus is not lost.
  */
-export function ChangeNavigation({
-  position,
-  total,
-  name,
-  handoff,
-  onBack,
-  onStep,
-}) {
-  const back = useRef(null);
-  // Opened from the overview, keyboard focus lands on the way back.
-  useLayoutEffect(() => {
-    if (handoff?.current?.to !== "details") return;
-    handoff.current = null;
-    back.current?.focus();
-  }, [handoff]);
+export function ChangeNavigation({ position, total, name, onStep }) {
+  if (!total) return null;
   return (
-    <div className="change-navigation">
-      <Button
-        ref={back}
-        variant="text"
-        className="change-back"
-        aria-label="All changes"
-        startIcon={<BackIcon />}
-        onClick={onBack}
-      >
-        <span className="change-back-label">All changes</span>
-      </Button>
-      {total > 0 && (
-        <span className="change-stepper" role="group" aria-label="Changes">
-          <ToolButton
-            label="Previous change"
-            icon={<PreviousIcon />}
-            aria-disabled={position === 0 || undefined}
-            onClick={() => onStep(-1)}
-          />
-          <span
-            className="change-position"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            {position >= 0
-              ? `${position + 1} of ${total}`
-              : `${total} ${total === 1 ? "change" : "changes"}`}
-            {position >= 0 && name && (
-              <span className="visually-hidden">: {name}</span>
-            )}
-          </span>
-          <ToolButton
-            label="Next change"
-            icon={<NextIcon />}
-            aria-disabled={position === total - 1 || undefined}
-            onClick={() => onStep(1)}
-          />
-        </span>
-      )}
-    </div>
+    <span className="change-stepper" role="group" aria-label="Changes">
+      <ToolButton
+        label="Previous change"
+        icon={<PreviousIcon />}
+        aria-disabled={position === 0 || undefined}
+        onClick={() => onStep(-1)}
+      />
+      <span className="change-position" aria-live="polite" aria-atomic="true">
+        {position >= 0
+          ? `${position + 1} of ${total}`
+          : `${total} ${total === 1 ? "change" : "changes"}`}
+        {position >= 0 && name && (
+          <span className="visually-hidden">: {name}</span>
+        )}
+      </span>
+      <ToolButton
+        label="Next change"
+        icon={<NextIcon />}
+        aria-disabled={position === total - 1 || undefined}
+        onClick={() => onStep(1)}
+      />
+    </span>
   );
 }

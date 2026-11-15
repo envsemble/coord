@@ -38,11 +38,10 @@ export function ProvenanceBadge({ document, className = "" }) {
   if (provenance.kind === "unknown") return null;
   return (
     <Surface
-      tone="pane"
-      corners="pill"
+      background="default"
+      radius="full"
       padding={1}
-      density="compact"
-      className={`atlas-provenance${className ? ` ${className}` : ""}`}
+      className={`coord-provenance${className ? ` ${className}` : ""}`}
       title={
         provenance.detail
           ? `${provenance.label} · ${provenance.detail}`
@@ -51,7 +50,7 @@ export function ProvenanceBadge({ document, className = "" }) {
     >
       <ProvenanceLabel document={document} />
       {provenance.detail && (
-        <Text as="span" variant="supporting" className="provenance-detail">
+        <Text render={<span />} variant="body-sm" className="provenance-detail">
           {provenance.detail}
         </Text>
       )}

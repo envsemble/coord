@@ -1,32 +1,32 @@
-// An Atlas window: it shows the projects of one computer, this one or another computer this app
+// A Coord window: it shows the projects of one computer, this one or another computer this app
 // paired with, one place at a time (the hub, or something of one project), and follows each project
-// on that computer's Atlas host as its pages need it. Each window has its own in-memory session, so
-// its `atlas:` file protocol can only ever see the projects it follows.
+// on that computer's Coord host as its pages need it. Each window has its own in-memory session, so
+// its `coord:` file protocol can only ever see the projects it follows.
 import { BrowserWindow, dialog, nativeTheme, screen, session as electronSession, shell, type Session } from 'electron';
-import type { HostClient, Project } from '@envsemble/atlas/host';
-import type { EventChannel, Place, ProjectChangeRequest, WindowInfo } from '../../shared/contract.ts';
-import { AtlasError } from '../errors.ts';
+import type { HostClient, Project } from '@envsemble/coord/host';
+import type { EventChannel, ProjectChangeRequest, WindowInfo } from '../../shared/contract.ts';
+import { CoordError } from '../errors.ts';
 import { ProjectView } from '../computers/projectView.ts';
-import { createProtocolHandler, isEntry, originOf, rendererOrigin, scheme } from './protocol.ts';
+import { createProtocolHandler, isEntry, isPageFrameUrl, originOf, rendererOrigin, scheme } from './protocol.ts';
 import { defaultSize, type Bounds, type WindowRow } from '../appState.ts';
 import type { WindowManager } from './windowManager.ts';
 
 /** envUI's canvas colour in the window's theme, shown until the page paints. */
-const windowBackground = () => nativeTheme.shouldUseDarkColors ? '#1f1f1f' : '#ffffff';
+// envUI 1.0's page colour (--env-color-bg-page), which shows before the page paints.
+const windowBackground = () => nativeTheme.shouldUseDarkColors ? '#1e1f21' : '#eaeaec';
 
-/** The height of the title bar the window draws itself, with its line, at 100% zoom. */
+/** The height of the title bar the window draws itself, at 100% zoom. */
 const titleBarHeight = 40;
 /**
- * The system's window buttons over the title bar the page draws: on the canvas colour, in its text
- * colour, and as tall as the bar above its line. envUI's title bar takes their height (the window
- * controls overlay's environment variables) and draws its line below them, so the line runs under
- * them too; scaled by 150%, the system's buttons reach one device pixel lower, which an odd height
- * leaves clear. Zoomed in, they grow with the bar; zoomed out, the bar keeps its height and so do
- * they.
+ * The system's window buttons over the title bar the page draws: on the bar's colour (envUI's
+ * TopBar, --env-color-bg-default), in its text colour (--env-color-fg-default), as tall as the bar,
+ * which takes their height (the window controls overlay's environment variables). Scaled by 150%,
+ * the system's buttons reach one device pixel lower, which an odd height leaves clear. Zoomed in,
+ * they grow with the bar; zoomed out, the bar keeps its height and so do they.
  */
 const titleBarOverlay = (zoom = 1) => {
   const height = Math.round((titleBarHeight - 1) * Math.max(1, zoom));
-  return nativeTheme.shouldUseDarkColors ? { color: '#1f1f1f', symbolColor: '#e8eaed', height } : { color: '#ffffff', symbolColor: '#202124', height };
+  return nativeTheme.shouldUseDarkColors ? { color: '#28292b', symbolColor: '#e8eaee', height } : { color: '#f4f4f6', symbolColor: '#1f1f22', height };
 };
 /**
  * Where a person's press starts, which a page cannot fake: a mouse button, a key (one raw or cooked
@@ -50,7 +50,7 @@ export function externalUrl(value: string): string | null {
 
 let partitions = 0;
 
-export class AtlasWindow {
+export class CoordWindow {
   readonly win: BrowserWindow;
   readonly session: Session;
   /** The window's row in the home database. */
@@ -59,8 +59,6 @@ export class AtlasWindow {
   computer: string | null;
   /** The projects the window follows, by their IDs. */
   readonly views = new Map<string, ProjectView>();
-  /** The place the page last said it shows (ui:save); Open in opens only a file of it. */
-  shown: Place | null = null;
   /** Projects still being followed: a request for one waits for it. */
   private readonly opening = new Map<string, Promise<void>>();
   /** The projects of the window's computer as last listed, with their rows in the home database. */
@@ -82,11 +80,11 @@ export class AtlasWindow {
     this.rowId = row.id;
     this.computer = computer;
     const context = manager.context;
-    this.session = electronSession.fromPartition('atlas-window-' + ++partitions, { cache: false });
+    this.session = electronSession.fromPartition('coord-window-' + ++partitions, { cache: false });
     this.harden();
     this.win = new BrowserWindow({
       ...defaultSize, ...visibleBounds(row.bounds),
-      minWidth: 640, minHeight: 420, show: false, backgroundColor: windowBackground(), title: 'Atlas',
+      minWidth: 640, minHeight: 420, show: false, backgroundColor: windowBackground(), title: 'Coord',
       icon: context.icon, ...titleBar(),
       webPreferences: {
         preload: context.preload, session: this.session,
@@ -139,10 +137,12 @@ export class AtlasWindow {
     const dev = context.devUrl ? new URL(context.devUrl) : null;
     session.webRequest.onBeforeRequest((details, callback) => {
       const url = new URL(details.url);
-      const local = ['atlas:', 'data:', 'blob:', 'devtools:'].includes(url.protocol);
+      const local = ['coord:', 'data:', 'blob:', 'devtools:'].includes(url.protocol);
       const devServer = dev && (url.protocol === 'http:' || url.protocol === 'ws:') && url.host === dev.host;
-      if (!local && !devServer) context.log.warn('Blocked a request', { url: url.protocol + '//' + url.host });
-      callback({ cancel: !local && !devServer });
+      // A page, in its frame, reaches what its agent made it for: no guards (work-0036).
+      const page = Boolean(details.frame?.parent) && isPageFrameUrl(details.frame!.url, context.devUrl);
+      if (!local && !devServer && !page) context.log.warn('Blocked a request', { url: url.protocol + '//' + url.host });
+      callback({ cancel: !local && !devServer && !page });
     });
     session.on('will-download', (event, item) => {
       // Only files the viewer generates itself (SVG/JSON exports) may be saved; the user picks where.
@@ -163,6 +163,14 @@ export class AtlasWindow {
       if (external) void this.openExternal(external).catch(() => undefined);
     });
     contents.on('will-redirect', (event, url) => { if (!own(url)) event.preventDefault(); });
+    // A page's frame stays on its page; a link it follows opens in the browser.
+    contents.on('will-frame-navigate', event => {
+      if (event.isMainFrame) return;
+      if (isPageFrameUrl(event.url, this.manager.context.devUrl ?? null)) return;
+      event.preventDefault();
+      const external = externalUrl(event.url);
+      if (external) void this.openExternal(external).catch(() => undefined);
+    });
     contents.on('will-attach-webview', event => event.preventDefault());
     contents.setWindowOpenHandler(({ url }) => {
       const external = externalUrl(url);
@@ -216,7 +224,7 @@ export class AtlasWindow {
   async projectRow(projectId: string): Promise<number> {
     if (!this.listed.has(projectId)) await this.projects();
     const entry = this.listed.get(projectId);
-    if (!entry) throw new AtlasError('not-found', `This project is not on ${this.computerName}.`);
+    if (!entry) throw new CoordError('not-found', `This project is not on ${this.computerName}.`);
     return entry.rowId;
   }
   /** A project's row among the projects last listed, without listing them again; null when it is not among them. */
@@ -250,7 +258,7 @@ export class AtlasWindow {
       this.manager.projectsChanged(this.computer);
     }
     const project = (await this.projects()).find(entry => entry.id === projectId);
-    if (!project) throw new AtlasError('not-found', `This project is not on ${this.computerName}.`);
+    if (!project) throw new CoordError('not-found', `This project is not on ${this.computerName}.`);
     return project;
   }
 
@@ -289,7 +297,7 @@ export class AtlasWindow {
   /** A project for a request: followed, and its planning folder readable. */
   async readable(projectId: string): Promise<ProjectView> {
     const view = await this.open(projectId);
-    if (view.status === 'missing' || (view.status === 'invalid' && view.error)) throw new AtlasError(view.status === 'missing' ? 'folder-missing' : 'folder-invalid', view.error ?? 'This project cannot be read.');
+    if (view.status === 'missing' || (view.status === 'invalid' && view.error)) throw new CoordError(view.status === 'missing' ? 'folder-missing' : 'folder-invalid', view.error ?? 'This project cannot be read.');
     return view;
   }
   /** Let every project go (the window shows another computer, or closes); other windows keep those they follow. */
@@ -336,7 +344,7 @@ export class AtlasWindow {
   /**
    * Commands a page could misuse (quitting, opening windows, remote access, leaving for the browser)
    * run at once right after a person's press. Without one (a compromised page, but also a screen
-   * reader's click, which makes no input event), Atlas asks in a system dialog the page cannot
+   * reader's click, which makes no input event), Coord asks in a system dialog the page cannot
    * answer. One question or dialog at a time.
    */
   async confirm(message: string, action: string, detail?: string): Promise<boolean> {
@@ -349,10 +357,10 @@ export class AtlasWindow {
    */
   async ask(message: string, action: string, detail?: string): Promise<boolean> {
     if (this.win.isDestroyed()) return false;
-    if (this.asking) throw new AtlasError('unavailable', 'Finish the dialog that is open first.');
+    if (this.asking) throw new CoordError('unavailable', 'Finish the dialog that is open first.');
     this.asking = true;
     try {
-      const { response } = await dialog.showMessageBox(this.win, { type: 'question', title: 'Atlas', message, detail, buttons: [action, 'Cancel'], defaultId: 0, cancelId: 1, noLink: true });
+      const { response } = await dialog.showMessageBox(this.win, { type: 'question', title: 'Coord', message, detail, buttons: [action, 'Cancel'], defaultId: 0, cancelId: 1, noLink: true });
       return response === 0 && !this.win.isDestroyed();
     } finally { this.asking = false; }
   }
@@ -364,18 +372,18 @@ export class AtlasWindow {
 
   /** Dialogs a page opens (choosing a file) come one at a time, so a page cannot pile them up. */
   async oneDialog<T>(open: () => Promise<T>): Promise<T> {
-    if (this.asking) throw new AtlasError('unavailable', 'Finish the dialog that is open first.');
+    if (this.asking) throw new CoordError('unavailable', 'Finish the dialog that is open first.');
     this.asking = true;
     try { return await open(); } finally { this.asking = false; }
   }
 
   updateTitle() {
     if (this.win.isDestroyed()) return;
-    this.win.setTitle(this.computer === null ? 'Atlas' : this.computerName + ' — Atlas');
+    this.win.setTitle(this.computer === null ? 'Coord' : this.computerName + ' — Coord');
   }
 
   info(): WindowInfo {
-    return { computer: { hostId: this.computer, name: this.computerName }, version: this.manager.context.version, platform: process.platform, devTools: this.manager.context.devTools };
+    return { computer: { hostId: this.computer, name: this.computerName }, version: this.manager.context.version, platform: process.platform, devTools: this.manager.context.devTools, dev: this.manager.context.dev };
   }
 
   send(channel: EventChannel, payload: unknown) {
@@ -407,8 +415,8 @@ export class AtlasWindow {
     this.crashes = [...this.crashes.filter(time => now - time < 60000), now];
     if (this.crashes.length <= 3) { this.load(); return; }
     void dialog.showMessageBox(this.win, {
-      type: 'error', title: 'Atlas', message: 'This window keeps closing unexpectedly.',
-      detail: 'Atlas reloaded it three times in the last minute. Details are in the log (Open Logs, in the menu).',
+      type: 'error', title: 'Coord', message: 'This window keeps closing unexpectedly.',
+      detail: 'Coord reloaded it three times in the last minute. Details are in the log (Open Logs, in the menu).',
       buttons: ['Reload', 'Close Window'], defaultId: 0, cancelId: 1,
     }).then(({ response }) => {
       if (this.win.isDestroyed()) return;

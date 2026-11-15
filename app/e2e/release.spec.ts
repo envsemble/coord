@@ -1,5 +1,5 @@
 // The release build itself (the unpacked app the installer and AppImage contain, with the
-// inspector fuse off), the AppImage, and (opt-in, because it installs Atlas for the current
+// inspector fuse off), the AppImage, and (opt-in, because it installs Coord for the current
 // user) the Windows installer. Playwright cannot attach to these builds, so the tests start them
 // as a user would and read the app's log.
 import { execFileSync, spawn } from 'node:child_process';
@@ -18,14 +18,14 @@ test.afterEach(() => { for (const directory of cleanup.splice(0)) removeDirector
 /** Start an executable, wait until its log has every expected line, run a check, then stop it (and all its processes). */
 async function runUntilLogged(executable: string, args: readonly string[], expected: string | string[], whileRunning: () => Promise<void> = async () => undefined) {
   const lines = typeof expected === 'string' ? [expected] : expected;
-  const data = temporaryDirectory('atlas-release-data-');
+  const data = temporaryDirectory('coord-release-data-');
   cleanup.push(data);
   const child = spawn(executable, args, { env: environment(data), detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   let output = '';
   child.stdout.on('data', chunk => { output += chunk; });
   child.stderr.on('data', chunk => { output += chunk; });
-  // The app logs to atlas.log and the Atlas host it runs (which reads the folders) to host.log.
-  const logs = ['atlas.log', 'host.log'].map(name => path.join(data, 'logs', name));
+  // The app logs to coord.log and the Coord host it runs (which reads the folders) to host.log.
+  const logs = ['coord.log', 'host.log'].map(name => path.join(data, 'logs', name));
   const read = () => logs.filter(file => existsSync(file)).map(file => readFileSync(file, 'utf8')).join('\n');
   const logged = () => lines.every(line => read().includes(line));
   try {
@@ -54,7 +54,7 @@ function release() {
   return executable;
 }
 
-test('the release build opens a window and starts its Atlas host', async () => {
+test('the release build opens a window and starts its Coord host', async () => {
   const result = await runUntilLogged(release(), [], ['Window ready', 'Host started']);
   expect(result.log).not.toContain('Refused');
 });
@@ -91,7 +91,7 @@ test('the AppImage keeps the sandbox in its desktop entry and starts', async () 
   test.skip(process.platform !== 'linux', 'Linux only');
   const image = packagedInstaller();
   test.skip(!image, 'Build the AppImage first with npm run package.');
-  const extracted = temporaryDirectory('atlas-appimage-');
+  const extracted = temporaryDirectory('coord-appimage-');
   cleanup.push(extracted);
   execFileSync(image!, ['--appimage-extract', '*.desktop'], { cwd: extracted, stdio: 'ignore' });
   const root = path.join(extracted, 'squashfs-root');
@@ -106,16 +106,21 @@ test('the AppImage keeps the sandbox in its desktop entry and starts', async () 
 
 test('the Windows installer installs per user, starts and uninstalls', async () => {
   test.skip(process.platform !== 'win32', 'Windows only');
-  test.skip(process.env.ATLAS_E2E_INSTALLER !== '1', 'Installs Atlas for the current user; set ATLAS_E2E_INSTALLER=1.');
+  test.skip(process.env.COORD_E2E_INSTALLER !== '1', 'Installs Coord for the current user; set COORD_E2E_INSTALLER=1.');
   const installer = packagedInstaller();
   test.skip(!installer, 'Build the installer first with npm run package.');
-  const target = path.join(temporaryDirectory('atlas-install-'), 'Atlas');
+  const target = path.join(temporaryDirectory('coord-install-'), 'Coord');
   cleanup.push(path.dirname(target));
   execFileSync(installer!, ['/S', '/currentuser', '/D=' + target], { windowsHide: true });
   try {
-    expect(existsSync(path.join(target, 'Atlas.exe'))).toBe(true);
-    await runUntilLogged(path.join(target, 'Atlas.exe'), [], ['Window ready', 'Host started']);
+    expect(existsSync(path.join(target, 'Coord.exe'))).toBe(true);
+    await runUntilLogged(path.join(target, 'Coord.exe'), [], ['Window ready', 'Host started']);
   } finally {
-    execFileSync(path.join(target, 'Uninstall Atlas.exe'), ['/S', '/currentuser'], { windowsHide: true });
+    // The uninstaller disconnects agents connected to the home's agent folder and takes its command off
+    // the PATH: here those of a profile of its own, never the runner's.
+    const profile = temporaryDirectory('coord-uninstall-profile-');
+    cleanup.push(profile);
+    const own = { USERPROFILE: profile, CLAUDE_CONFIG_DIR: path.join(profile, '.claude'), CODEX_HOME: path.join(profile, '.codex') };
+    execFileSync(path.join(target, 'Uninstall Coord.exe'), ['/S', '/currentuser'], { windowsHide: true, env: { ...process.env, ...own } });
   }
 });

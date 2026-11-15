@@ -3,29 +3,26 @@
 // name for assistive technology. The steps a plan proposes while it is designed follow the planning
 // steps, dimmed under a "Proposed" label, outside the progress. While an agent works on the plan, the step in progress pulses, in
 // the list and in the bar; while one waits for the person, it turns amber.
-// The plan export viewer draws the same markup (packages/atlas/viewer/ui.tsx), without activity.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { stepCounts, stepSummary } from '@envsemble/atlas/planning/ledger';
-import type { LedgerStep, LedgerStepStatus, StepCounts } from '@envsemble/atlas/planning/types';
+import { stepCounts, stepSummary } from '@envsemble/coord/planning/ledger';
+import type { LedgerStep, LedgerStepStatus, StepCounts } from '@envsemble/coord/planning/types';
 import { CompleteIcon, InProgressIcon, OpenIcon } from '../ui/icons';
 import { stepPhase, type StepPhase } from './work';
-import type { ActivityState } from './status';
 
 const statusLabels: Record<LedgerStepStatus, string> = { done: 'Done', doing: 'In progress', todo: 'To do' };
 const phaseNames: Record<StepPhase, string> = { planning: 'Planning', proposed: 'Proposed', implementation: 'Implementation' };
 
 /**
  * A bar split into done and in-progress steps, over the steps still to do; the planning steps among
- * them (`planning`, a part of `counts`) in their own colour; the steps in progress pulse while an
- * agent works (`live`). Only drawn when there are steps.
+ * them (`planning`, a part of `counts`) in their own colour. Only drawn when there are steps.
  */
-export function StepBar({ counts, planning, compact = false, live = null }: { counts: StepCounts; planning?: { done: number; doing: number }; compact?: boolean; live?: ActivityState }) {
+export function StepBar({ counts, planning, compact = false }: { counts: StepCounts; planning?: { done: number; doing: number }; compact?: boolean }) {
   if (!counts.total) return null;
   const share = (count: number) => count / counts.total * 100 + '%';
   const early = planning ?? { done: 0, doing: 0 };
   // The compact bar sits next to its "2/7" and the row's title, so it is decoration there.
   const semantics = compact ? { 'aria-hidden': true } : { role: 'progressbar', 'aria-label': 'Ledger progress', 'aria-valuetext': stepSummary(counts), 'aria-valuemin': 0, 'aria-valuemax': counts.total, 'aria-valuenow': counts.done };
-  return <span className={'step-bar' + (compact ? ' step-bar-compact' : '')} data-live={live ?? undefined} {...semantics}>
+  return <span className={'step-bar' + (compact ? ' step-bar-compact' : '')} {...semantics}>
     {early.done > 0 && <span className="step-bar-planning-done" style={{ width: share(early.done) }} />}
     <span className="step-bar-done" style={{ width: share(counts.done - early.done) }} />
     {early.doing > 0 && <span className="step-bar-planning-doing" style={{ width: share(early.doing) }} />}
@@ -44,10 +41,10 @@ const foundFor = 2500;
 /**
  * The progress bar and count over every step, planning and implementation, then the steps in one list.
  * A step the search found (`found`, by its title) is scrolled into view and marked for a moment. The
- * step in progress shows what agents do on the plan (`live`). The list opens with the work the plan
+ * list opens with the work the plan
  * continues (`before`) and ends with the work that continues it (`after`): list items, not steps.
  */
-export function LedgerSteps({ steps, found = null, live = null, before = null, after = null }: { steps: LedgerStep[]; found?: string | null; live?: ActivityState; before?: ReactNode; after?: ReactNode }) {
+export function LedgerSteps({ steps, found = null, before = null, after = null }: { steps: LedgerStep[]; found?: string | null; before?: ReactNode; after?: ReactNode }) {
   const list = useRef<HTMLOListElement>(null);
   const [marked, setMarked] = useState<string | null>(null);
   const shown = Boolean(found && steps.some(step => step.title === found));
@@ -62,12 +59,11 @@ export function LedgerSteps({ steps, found = null, live = null, before = null, a
   const counts = stepCounts(steps);
   const planning = stepCounts(steps.filter(step => stepPhase(step) === 'planning'));
   return <div className="ledger-progress">
-    <StepBar counts={counts} planning={planning} live={live} />
+    <StepBar counts={counts} planning={planning} />
     <p className="ledger-progress-summary">{stepSummary(counts)}</p>
     {(steps.length > 0 || before || after) && <ol ref={list} className="ledger-steps">{before}{steps.map((step, index) => {
       const phase = stepPhase(step);
       const item = <li key={step.title} className={'ledger-step ledger-step-' + step.status} data-phase={phase} data-step={step.title} data-found={marked === step.title ? '' : undefined}
-        data-live={step.status === 'doing' && live ? live : undefined}
         title={phaseNames[phase] + ' step: ' + step.title + ', ' + statusLabels[step.status].toLowerCase()}>
         <StepIcon status={step.status} phase={phase} /><span>{step.title}</span>
       </li>;

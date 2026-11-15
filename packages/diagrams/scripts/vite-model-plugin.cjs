@@ -1,5 +1,5 @@
 const path = require("node:path");
-const virtualId = "virtual:atlas/model";
+const virtualId = "virtual:coord/model";
 const resolvedId = `\0${virtualId}`;
 
 function createPayloadCache(build) {
@@ -56,7 +56,9 @@ function modelPlugin({ root, buildPayload } = {}) {
         const { prepareExample } = require(
           path.join(root, "scripts/build.cjs"),
         );
-        return (await prepareExample("shop", false)).prepared.payload;
+        // With its exports: the viewer reads each view's SVG and the
+        // downloads from them.
+        return (await prepareExample("shop")).prepared.payload;
       }),
   );
   let server,
@@ -72,7 +74,7 @@ function modelPlugin({ root, buildPayload } = {}) {
       server.ws.send({ type: "update", updates: [] });
       server.ws.send({
         type: "custom",
-        event: "atlas:model-update",
+        event: "coord:model-update",
         data: payload,
       });
     } catch (error) {
@@ -83,7 +85,7 @@ function modelPlugin({ root, buildPayload } = {}) {
         err: {
           message: error.message,
           stack: error.stack || "",
-          plugin: "atlas-model",
+          plugin: "coord-model",
         },
       });
     }
@@ -95,7 +97,7 @@ function modelPlugin({ root, buildPayload } = {}) {
     timer = setTimeout(refresh, 80);
   }
   return {
-    name: "atlas-model",
+    name: "coord-model",
     apply: "serve",
     resolveId(id) {
       if (id === virtualId) return resolvedId;

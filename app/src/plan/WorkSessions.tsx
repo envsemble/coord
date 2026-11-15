@@ -2,20 +2,18 @@
 // model and effort, its state, when it was last active and its agent time; and, while the plan needs
 // the person, the waiting session's message. Read from the host as the plan's activity changes.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Button } from '@envsemble/envui';
-import { Markdown } from '@envsemble/envui/content';
+import { Button, Link } from '@envsemble/envui';
+import { Markdown } from '@envsemble/envui/markdown';
 import type { WorkCommit, WorkSession, WorkTimeline } from '../types';
 import { api } from '../api';
-import { ModelName } from '../ui/ModelName';
-import { absoluteDate, relativeDate } from '../ui/format';
+import { absoluteDate } from '../ui/format';
 import { statuses } from './status';
 import { StatusIcon } from '../ui/badges';
-import { ErrorIcon } from '../ui/icons';
 import { useWindow } from '../window/windowContext';
 import { ReferenceLink, ReferencesContext, useCollectedReferences, useResolvedReferences } from '../reader/ReferenceLink';
 import { rehypeReferences, wholeReference, type Found } from '../reader/references';
 import type { Plugins } from '../reader/Reader';
-import { excerpt, harnessNames } from './sessions';
+import { harnessNames } from './sessions';
 import type { LiveActivity } from './agentTime';
 
 /** What changes when the plan's activity does: the sessions' states and since when. */
@@ -47,10 +45,6 @@ export function useWorkTimeline(work: string, key: string) {
   return value?.work === work ? value.timeline : null;
 }
 
-/** A session's harness, then its model with its provider's mark and effort: "Claude Code · Claude Opus 5.5 · high". */
-function SessionLabel({ session }: { session: Pick<WorkSession, 'harness' | 'model' | 'effort'> }) {
-  return <>{harnessNames[session.harness]}{session.model && <> · <ModelName model={session.model} effort={session.effort} /></>}</>;
-}
 /** A session's name: its own title, else its harness and when it started. */
 export const sessionTitle = (session: Pick<WorkSession, 'title' | 'harness' | 'startedAt'>) => session.title?.trim() || harnessNames[session.harness] + ' session, ' + absoluteDate(session.startedAt);
 
@@ -88,77 +82,20 @@ const messageComponents = {
 };
 function MessageWebLink({ href, children }: { href: string; children?: ReactNode }) {
   const { notify } = useWindow();
-  return <a href="#" title={href} onClick={event => { event.preventDefault(); api.openExternal(href).catch(error => { if ((error as { code?: string }).code !== 'cancelled') notify((error as Error).message, 'warning'); }); }}>{children}</a>;
+  return <Link href={href} title={href} onClick={event => { event.preventDefault(); api.openExternal(href).catch(error => { if ((error as { code?: string }).code !== 'cancelled') notify((error as Error).message, 'warning'); }); }}>{children}</Link>;
 }
 
 /**
- * Why the plan needs the person: the waiting session's last message, rendered as the Markdown it is,
- * its beginning first. What it references links as in the reader.
+ * What a work item's state says it is for, as one line of Markdown under its title: what the user is
+ * to do, what it waits on, why it is blocked. What it references links as in the reader, a PR with
+ * its live state.
  */
-/** A session's latest message, as Markdown with its references linked: its beginning, with Show all for the rest. */
-function SessionMessage({ message, className }: { message: string; className: string }) {
-  const [whole, setWhole] = useState(false);
-  const start = excerpt(message);
+export function StateNote({ note }: { note: string }) {
   const { collected, inputs } = useCollectedReferences();
   const plugins = useMemo((): Plugins => [[rehypeReferences, { collected, addresses: 'all' }]], [collected]);
   const resolved = useResolvedReferences(inputs);
   const scope = useMemo(() => ({ resolved }), [resolved]);
-  return <>
-    <div className={className} data-clamped={!whole && start.more ? '' : undefined}><ReferencesContext.Provider value={scope}><Markdown rehypePlugins={plugins} components={messageComponents}>{whole ? message.trim() : start.text}</Markdown></ReferencesContext.Provider></div>
-    {start.more && <Button variant="text" className="now-more" onClick={() => setWhole(!whole)} aria-expanded={whole}>{whole ? 'Show less' : 'Show all'}</Button>}
-  </>;
+  return <span className="state-note"><ReferencesContext.Provider value={scope}><Markdown rehypePlugins={plugins} components={noteComponents}>{note}</Markdown></ReferencesContext.Provider></span>;
 }
-
-/**
- * Now, while the plan is implemented: what each session on it is doing, by its latest message and
- * its last few actions, newest first (a session that waits for the person says why in Needs you,
- * so only its actions show here); with none on it, where the work stopped. Nothing is kept: it is
- * read from the sessions' logs as they change.
- */
-/** Whether a session's Now says anything: a message or an action. */
-const saysSomething = (session: WorkSession) => Boolean(session.now && (session.now.message || session.now.actions.length));
-/** What Now shows: the sessions on the plan that say something, else the latest that does (where the work stopped); none when nothing does. */
-export function nowSessions(sessions: WorkSession[]): WorkSession[] {
-  const on = sessions.filter(session => session.state !== 'ended' && saysSomething(session));
-  return on.length ? on : sessions.filter(saysSomething).slice(0, 1);
-}
-
-export function NowSection({ sessions }: { sessions: WorkSession[] }) {
-  const on = sessions.filter(session => session.state !== 'ended' && saysSomething(session));
-  const shownSessions = nowSessions(sessions);
-  if (!shownSessions.length) return null;
-  return <section className="now" aria-label="Now">
-    {!on.length && <p className="now-stopped muted">Nobody is on it now. Where the work stopped:</p>}
-    {shownSessions.map(session => <div key={session.session} className="now-session">
-      <div className="now-head">
-        {session.state === 'working' && <StatusIcon status={statuses.working} decorative />}
-        <span className="now-title">{sessionTitle(session)}</span>
-        <span className="muted"> · {session.state === 'working' ? 'working' : session.state === 'waiting' ? 'needs you' : session.state === 'idle' ? 'idle, waiting on something else' : 'ended'} · <span title={absoluteDate(session.lastSeen)}>{relativeDate(session.lastSeen)}</span></span>
-      </div>
-      {session.now!.message && session.state !== 'waiting' && <SessionMessage message={session.now!.message} className="now-message" />}
-      {session.now!.actions.length > 0 && <ul className="now-actions" aria-label="Its last actions, newest first">
-        {session.now!.actions.map((action, index) => <li key={index} data-kind={action.kind} data-failed={action.failed ? '' : undefined}>
-          {action.failed && <ErrorIcon className="now-failed" label="Failed" />}{action.text}
-        </li>)}
-      </ul>}
-    </div>)}
-  </section>;
-}
-
-export function NeedsYou({ work, session }: { work: string; session: WorkSession }) {
-  const [whole, setWhole] = useState(false);
-  const message = session.message ?? '';
-  const start = excerpt(message);
-  // What the message references, as it renders: also a link's address naming a reference.
-  const { collected, inputs } = useCollectedReferences();
-  const plugins = useMemo((): Plugins => [[rehypeReferences, { collected, addresses: 'all' }]], [collected]);
-  const resolved = useResolvedReferences(inputs);
-  const scope = useMemo(() => ({ resolved }), [resolved]);
-  return <section className="needs-you" aria-label="Why it needs you">
-    <div className="needs-you-message" data-clamped={!whole && start.more ? '' : undefined}><ReferencesContext.Provider value={scope}><Markdown rehypePlugins={plugins} components={messageComponents}>{whole ? message.trim() : start.text}</Markdown></ReferencesContext.Provider></div>
-    <div className="needs-you-actions">
-      {start.more && <Button variant="text" onClick={() => setWhole(!whole)} aria-expanded={whole}>{whole ? 'Show less' : 'Show all'}</Button>}
-      <span className="muted"><SessionLabel session={session} /> · waiting since <span title={absoluteDate(session.lastSeen)}>{relativeDate(session.lastSeen)}</span></span>
-    </div>
-  </section>;
-}
+/** The note is one line: its paragraph stays inline. */
+const noteComponents = { ...messageComponents, p: ({ children }: { children?: ReactNode }) => <>{children}</> };

@@ -2,13 +2,13 @@
 // the home database, so they open again at the next start; the manager creates and restores them,
 // and passes each host's events to the windows they concern.
 import { BrowserWindow, screen } from 'electron';
-import type { HomeDatabase } from '@envsemble/atlas/planning';
-import type { AccessState, ClientStatus, OpenProjectState, HostClient, Project } from '@envsemble/atlas/host';
-import type { MenuCommand } from '../../shared/contract.ts';
+import type { HomeDatabase } from '@envsemble/coord/planning';
+import type { AccessState, ClientStatus, OpenProjectState, HostClient, Project } from '@envsemble/coord/host';
+import type { MenuCommand, UpdateState } from '../../shared/contract.ts';
 import type { Computers } from '../computers/computers.ts';
 import type { RotatingLog } from '../log.ts';
 import { defaultSize, type AppState, type WindowRow } from '../appState.ts';
-import { AtlasWindow } from './window.ts';
+import { CoordWindow } from './window.ts';
 
 /**
  * What the windows work with: the home database and the app's state in it, the log, the computers,
@@ -22,15 +22,17 @@ interface WindowContext {
   version: string;
   preload: string;
   icon?: string;
-  /** Development renderer URL (electron-vite dev server); production uses atlas://app. */
+  /** Development renderer URL (electron-vite dev server); production uses coord://app. */
   devUrl: string | null;
   rendererDirectory: string;
   devTools: boolean;
+  /** Coord Dev (main/dev.ts). */
+  dev: boolean;
 }
 
 export class WindowManager {
   readonly context: WindowContext;
-  private readonly windows = new Map<number, AtlasWindow>();
+  private readonly windows = new Map<number, CoordWindow>();
   private quitting = false;
 
   constructor(context: WindowContext) { this.context = context; }
@@ -51,14 +53,14 @@ export class WindowManager {
       const id = state.addWindow(hostId === null ? null : computers.idOf(hostId), bounds);
       return state.windows().find(window => window.id === id)!;
     })();
-    const window = new AtlasWindow(this, row, hostId);
+    const window = new CoordWindow(this, row, hostId);
     this.windows.set(window.id, window);
     if (hostId !== null) { try { computers.client(hostId); } catch { /* Forgotten meanwhile: the window says so. */ } }
     window.load();
     return window;
   }
 
-  /** The windows saved in the database (those open when Atlas quit), or one new window. */
+  /** The windows saved in the database (those open when Coord quit), or one new window. */
   restore() {
     const { computers } = this.context;
     for (const row of this.context.state.windows()) {
@@ -69,7 +71,7 @@ export class WindowManager {
   }
 
   /** Show another computer's projects in this window, or in a new one. */
-  switchComputer(window: AtlasWindow, hostId: string | null, newWindow: boolean) {
+  switchComputer(window: CoordWindow, hostId: string | null, newWindow: boolean) {
     if (newWindow) return this.create(hostId);
     if (window.computer === hostId) return window;
     const left = window.computer;
@@ -117,6 +119,10 @@ export class WindowManager {
   accessChanged(hostId: string | null, state: AccessState) {
     for (const window of this.all()) window.send('access:changed', { hostId, state });
   }
+  /** Coord's update moved on: every window shows it. */
+  updatesChanged(state: UpdateState) {
+    for (const window of this.all()) window.send('updates:changed', state);
+  }
 
   sendMenu(command: MenuCommand, focusedOnly = false) {
     const focused = BrowserWindow.getFocusedWindow();
@@ -134,7 +140,7 @@ export class WindowManager {
     this.context.computers.forget(hostId);
   }
 
-  closed(window: AtlasWindow) {
+  closed(window: CoordWindow) {
     const left = window.computer;
     window.close();
     this.windows.delete(window.id);

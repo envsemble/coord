@@ -19,16 +19,17 @@ export type InspectionTarget = {
 export const DiagramViewer: ComponentType<ViewerPayload>;
 /**
  * The embeddable viewer. Its root is an envUI `Theme` driven by `theme`
- * (default "dark"); hosts load `@envsemble/envui/styles.css` and
- * `@envsemble/atlas-diagrams/embedded.css`. Giving it another payload of the
+ * (default "dark"); the envUI components it uses bring their own
+ * styles through the host's bundler, and hosts load
+ * `@envsemble/coord-diagrams/embedded.css`. Giving it another payload of the
  * same `family` (members laid out together by `prepareDiagrams`) switches
- * in place: the camera, the view, the selection and the details stay.
+ * in place: the camera, the view and the selection stay.
  */
 export const DiagramPanel: ComponentType<{
   payload: ViewerPayload;
   theme?: "dark" | "light";
   focus?: InspectionTarget | { kind: "view"; id: string };
-  /** Host content rendered at the start of the floating top-left toolbar island (e.g. a diagram picker). */
+  /** Host content rendered at the start of the floating top-left toolbar island (e.g. a family's layer marker). */
   leading?: ReactNode;
   /**
    * The host's own navigation (such as a work item's sections), shown first
@@ -36,24 +37,26 @@ export const DiagramPanel: ComponentType<{
    * island moves to a row below it.
    */
   sections?: ReactNode;
-  /** Whether the host currently shows the panel fullscreen. */
-  fullscreen?: boolean;
-  /** When provided, a fullscreen toggle button appears in the top-right island. */
-  onFullscreenChange?(next: boolean): void;
   /**
-   * The details' width in pixels that the reader chose, kept by the host;
-   * null or absent for the default. Clamped to what the panel's width allows.
+   * How the reader arranged the diagram, kept by the host: each element's
+   * top-left corner by its id; null or absent for the automatic layout. An
+   * element without a place goes beside the elements it relates to.
    */
-  inspectorWidth?: number | null;
-  /** Called with the width once the reader has resized the details (by pointer or keyboard). */
-  onInspectorWidthChange?(width: number): void;
+  arrangement?: Record<string, [number, number]> | null;
+  /**
+   * When provided, elements can be dragged, and this is called with the
+   * whole arrangement as shown when one is let go, or with null when the
+   * reader resets the layout; the host keeps it and gives it back as
+   * `arrangement`.
+   */
+  onArrange?(positions: Record<string, [number, number]> | null): void;
 }>;
 /** How many changes a proposal's payload lists, as its Changes button counts them; null for other payloads. */
 export function changeCount(
   payload: ViewerPayload | null | undefined,
 ): number | null;
-/** The Atlas mark: the connected A on its dark tile, in fixed colours. Pass `label=""` when adjacent text already names Atlas. */
-export const AtlasMark: ComponentType<{ size?: number; label?: string }>;
+/** The Coord mark: the connected A on its dark tile, in fixed colours. Pass `label=""` when adjacent text already names Coord. */
+export const CoordMark: ComponentType<{ size?: number; label?: string }>;
 /** The fields of a viewer model's `document` that tell where it came from. */
 export type ProvenanceSource = Partial<
   Pick<
@@ -69,8 +72,8 @@ export interface Provenance {
   label: string;
   /** Human-readable source, capture date and coverage, e.g. "TypeScript · shop · captured Oct 8, 2026 · complete coverage". */
   detail: string;
-  /** envUI Badge tone: generated "accent", proposal "done", authored "success", unknown "neutral". */
-  tone: "accent" | "done" | "success" | "neutral";
+  /** envUI Badge tone: generated "primary", proposal "accent", authored "success", unknown "neutral". */
+  tone: "primary" | "accent" | "success" | "neutral";
 }
 /** Accepts a viewer model's `document` metadata. */
 export function describeProvenance(

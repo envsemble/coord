@@ -1,19 +1,20 @@
 {
   "hooks": {
-    "SessionStart": [{ "hooks": [{ "type": "command", "command": "atlas hook SessionStart", "timeout": 30 }] }],
-    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "atlas hook UserPromptSubmit", "timeout": 30, "async": true }] }],
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "coord hook SessionStart", "timeout": 30 }] }],
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "coord hook UserPromptSubmit", "timeout": 30, "async": true }] },
+      { "hooks": [{ "type": "command", "command": "coord hook PageChoices", "timeout": 10 }] }
+    ],
     "PostToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit|NotebookEdit|apply_patch|mcp__.*atlas.*",
-        "hooks": [{ "type": "command", "command": "atlas hook PostToolUse", "timeout": 30 }]
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|apply_patch|mcp__.*coord.*",
+        "hooks": [{ "type": "command", "command": "coord hook PostToolUse", "timeout": 30 }]
       },
-      { "hooks": [{ "type": "command", "command": "atlas hook ToolUse", "timeout": 30, "async": true }] }
+      { "hooks": [{ "type": "command", "command": "coord hook ToolUse", "timeout": 30, "async": true }] }
     ],
-    "PermissionRequest": [{ "hooks": [{ "type": "command", "command": "atlas hook PermissionRequest", "timeout": 30, "async": true }] }],
-    "Stop": [{ "hooks": [{ "type": "command", "command": "atlas hook Stop", "timeout": 60 }] }],
-    "Interrupt": [{ "hooks": [{ "type": "command", "command": "atlas hook Interrupt", "timeout": 3 }] }],
-    "SubagentStart": [{ "hooks": [{ "type": "command", "command": "atlas hook SubagentStart", "timeout": 30, "async": true }] }],
-    "SubagentStop": [{ "hooks": [{ "type": "command", "command": "atlas hook SubagentStop", "timeout": 60 }] }],
-    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "atlas hook SessionEnd", "timeout": 3 }] }]
+    "Stop": [{ "hooks": [{ "type": "command", "command": "coord hook Stop", "timeout": 60 }] }],
+    "Interrupt": [{ "hooks": [{ "type": "command", "command": "coord hook Interrupt", "timeout": 3 }] }],
+    "SubagentStop": [{ "hooks": [{ "type": "command", "command": "coord hook SubagentStop", "timeout": 60 }] }],
+    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "coord hook SessionEnd", "timeout": 3 }] }]
   }
 }

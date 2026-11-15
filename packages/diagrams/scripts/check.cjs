@@ -1,6 +1,6 @@
 // The committed showcase (index.html and downloads/) is what the build writes
 // from the examples, and works offline: no remote resources, its diagram and
-// payload embedded, source previews intact and the ZIP holding every export.
+// payload embedded and the ZIP holding every export.
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
@@ -69,7 +69,7 @@ async function check() {
   );
   assert(!/url\(\s*['"]?https?:/i.test(html), "Remote CSS dependency");
   const data = html.match(
-    /<script id="atlas-diagram" type="application\/json">([\s\S]*?)<\/script>/,
+    /<script id="coord-diagram" type="application\/json">([\s\S]*?)<\/script>/,
   );
   assert(data, "Missing the diagram the page shows");
   const carried = JSON.parse(data[1]);
@@ -96,28 +96,12 @@ async function check() {
   const dataLine = application.match(/^\s*(const MODEL=.*)\r?$/m)?.[1];
   assert(dataLine, "Missing embedded model and export data");
   const embedded = new vm.Script(
-    `${dataLine}\n;({MODEL,VIEWS,EXPORTS,SNIPPETS,COMPARISON})`,
+    `${dataLine}\n;({MODEL,VIEWS,EXPORTS,COMPARISON})`,
   ).runInNewContext({});
   assert(
     embedded.COMPARISON?.changes.changes.length,
     "Missing the proposal's changes",
   );
-  const snippets = Object.entries(embedded.SNIPPETS);
-  assert(snippets.length, "Missing offline source previews");
-  for (const [id, snippet] of snippets) {
-    assert(
-      embedded.MODEL.sources.some((s) => s.id === id),
-      `A preview without its source: ${id}`,
-    );
-    assert.equal(
-      snippet.lines
-        .map((line) => line.map((token) => token.content).join(""))
-        .join("\n"),
-      snippet.code,
-      `Highlighted code changed: ${id}`,
-    );
-    assert.equal(snippet.endLine - snippet.startLine + 1, snippet.lines.length);
-  }
   assert.equal(
     JSON.stringify(embedded.MODEL, null, 2),
     built.artifacts.get("shop-model-evidence.json"),
@@ -128,7 +112,6 @@ async function check() {
   );
   for (const view of embedded.VIEWS) {
     validateDiagram(view.diagram, embedded.MODEL);
-    validateDiagram(view.diagramFields, embedded.MODEL);
   }
   for (const [, href] of html.matchAll(/\bhref="([^"$]+)"/g)) {
     if (href.startsWith("downloads/"))
@@ -150,7 +133,7 @@ async function check() {
   for (const name of Object.keys(zip))
     assert(built.artifacts.has(name), `ZIP holds an unknown file: ${name}`);
   console.log(
-    "Passed: valid example diagrams, reproducible outputs, inline script syntax, offline runtime and source previews, embedded diagram and export payloads, local links, orthogonal layout geometry, and ZIP exports.",
+    "Passed: valid example diagrams, reproducible outputs, inline script syntax, offline runtime, embedded diagram and export payloads, local links, orthogonal layout geometry, and ZIP exports.",
   );
 }
 check().catch((error) => {

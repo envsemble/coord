@@ -30,12 +30,12 @@ test(
     fs.writeFileSync(
       config,
       JSON.stringify({
-        name: "atlas-d1-fixture",
+        name: "coord-d1-fixture",
         compatibility_date: "2026-10-08",
         d1_databases: [
           {
             binding: "DB",
-            database_name: "atlas-fixture",
+            database_name: "coord-fixture",
             database_id: "00000000-0000-0000-0000-000000000001",
           },
         ],
@@ -101,17 +101,17 @@ test(
 test(
   "PostgreSQL 17 actual catalogs preserve cross-schema keys, MATCH FULL, metadata and repeatability",
   {
-    skip: process.env.ATLAS_TEST_POSTGRES
+    skip: process.env.COORD_TEST_POSTGRES
       ? false
-      : "set ATLAS_TEST_POSTGRES to a disposable PostgreSQL 17 fixture; CI provides one on Linux only",
+      : "set COORD_TEST_POSTGRES to a disposable PostgreSQL 17 fixture; CI provides one on Linux only",
   },
   async (t) => {
     const { Client } = require("pg"),
       client = new Client({
-        connectionString: process.env.ATLAS_TEST_POSTGRES,
+        connectionString: process.env.COORD_TEST_POSTGRES,
       });
     await client.connect();
-    const schema = "atlas_fixture_" + process.pid,
+    const schema = "coord_fixture_" + process.pid,
       outside = schema + "_external";
     t.after(async () => {
       await client.query(
@@ -129,7 +129,7 @@ test(
     const options = {
       identity: "fixture",
       schemas: [schema],
-      connectionString: process.env.ATLAS_TEST_POSTGRES,
+      connectionString: process.env.COORD_TEST_POSTGRES,
     };
     const text = await capturePostgres(options);
     const d = read(text);
@@ -147,7 +147,7 @@ test(
     assert.match(table(d, "badge").snippet.code, /MATCH FULL/);
     assert.equal(d.capture.consistency.kind, "repeatable-read-read-only");
     assert.equal(d.capture.coverage.status, "partial");
-    assert(!text.includes(process.env.ATLAS_TEST_POSTGRES));
+    assert(!text.includes(process.env.COORD_TEST_POSTGRES));
     assert.equal(undated(await capturePostgres(options)), undated(text));
     const both = read(
       await capturePostgres({ ...options, schemas: [schema, outside] }),
@@ -178,13 +178,13 @@ test(
 );
 
 // PlantUML itself accepts the captures. Opt in with the path of a PlantUML
-// jar: ATLAS_TEST_PLANTUML_JAR=/path/to/plantuml.jar.
+// jar: COORD_TEST_PLANTUML_JAR=/path/to/plantuml.jar.
 test(
   "PlantUML renders database captures",
   {
     skip:
-      !process.env.ATLAS_TEST_PLANTUML_JAR &&
-      "set ATLAS_TEST_PLANTUML_JAR to a PlantUML jar",
+      !process.env.COORD_TEST_PLANTUML_JAR &&
+      "set COORD_TEST_PLANTUML_JAR to a PlantUML jar",
   },
   async (t) => {
     const root = fixture(t),
@@ -210,7 +210,7 @@ test(
       [
         "-Djava.awt.headless=true",
         "-jar",
-        process.env.ATLAS_TEST_PLANTUML_JAR,
+        process.env.COORD_TEST_PLANTUML_JAR,
         "-checkonly",
         ...diagrams.map(([, identity]) => path.join(root, `${identity}.puml`)),
       ],

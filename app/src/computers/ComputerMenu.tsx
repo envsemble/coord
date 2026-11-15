@@ -1,14 +1,14 @@
-// Choosing where to work: the computer menu in the title bar (this computer and the paired ones,
-// with pairing and this computer's remote access), and the list of computers behind it. Choosing in
-// the menu shows that computer's projects in this window; the list also opens a computer in a new
-// window, and forgets computers.
+// Choosing where to work: the computer menu in the title bar (this computer and the paired ones, and
+// Computer settings…), and Settings' list of the other computers behind it. Choosing in the menu shows
+// that computer's projects in this window; the list also opens a computer in a new window, pairs with
+// another computer and forgets computers.
 import { useEffect, useRef, useState } from 'react';
-import { Badge, Button, ConfirmButton, Dialog, GroupedRows, IconButton, Menu, MenuGroup, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, Row, Spinner, Tooltip, useToast } from '@envsemble/envui';
-import { UnfoldMore } from '@envsemble/envui/icons/UnfoldMore';
-import { AddIcon, ComputerIcon, DevicesIcon, NewWindowIcon, RemoteAccessIcon } from '../ui/icons';
+import { Alert, Badge, Button, ConfirmButton, IconButton, List, Menu, Spinner, Text, Tooltip } from '@envsemble/envui';
+import { IconUnfoldMore as UnfoldMore } from '@envsemble/envui/icons/UnfoldMore';
+import { AddIcon, ComputerIcon, NewWindowIcon, SettingsIcon } from '../ui/icons';
 import type { Computer, ComputerRef } from '../types';
 import { api } from '../api';
-import { useAppActions } from '../appActions';
+import { ConnectDialog } from './ConnectDialog';
 
 const statusLabels: Record<Computer['status'], string | null> = { online: null, connecting: 'Connecting', offline: 'Offline', revoked: 'Not paired', mismatch: 'Not the same computer', incompatible: 'Needs an update' };
 const describe = (computer: Computer) => computer.hostId === null ? 'This computer' : computer.origin?.replace(/^https?:\/\//, '') ?? '';
@@ -33,80 +33,79 @@ function switchTo(computer: Computer, current: ComputerRef, newWindow: boolean, 
   api.switchComputer(computer.hostId, newWindow).catch(failure => { if ((failure as { code?: string }).code !== 'cancelled') onError((failure as Error).message); });
 }
 
-/** The computer this window works on, in the window's title bar. */
-export function ComputerMenu({ current, onError }: { current: ComputerRef; onError(message: string): void }) {
+/** The computer this window works on, in the window's title bar: the computers to switch to, and their settings. */
+export function ComputerMenu({ current, onError, onSettings }: { current: ComputerRef; onError(message: string): void; onSettings(): void }) {
   const [open, setOpen] = useState(false);
   const { computers } = useComputers(open, onError);
-  const actions = useAppActions();
-  return <Menu aria-label={'Computer: ' + current.name} align="start" density="compact" open={open} onOpenChange={setOpen}
-    trigger={<Button variant="secondary" className="computer-trigger" startIcon={<ComputerIcon />} endIcon={<UnfoldMore />} aria-label={'Computer: ' + current.name}><span className="computer-trigger-label">{current.name}</span></Button>}>
-    <MenuGroup label="Computers">
-      {computers === null ? <MenuItem disabled icon={<Spinner size="small" label="" />}>Checking computers…</MenuItem>
-        : <MenuRadioGroup value={current.hostId ?? 'local'} onValueChange={value => {
+  return <Menu.Root aria-label={'Computer: ' + current.name} align="start" open={open} onOpenChange={setOpen}
+    trigger={<Button variant="ghost" className="computer-trigger" startIcon={<ComputerIcon />} endIcon={<UnfoldMore />} aria-label={'Computer: ' + current.name}><span className="computer-trigger-label">{current.name}</span></Button>}>
+    <Menu.Group label="Computers">
+      {computers === null ? <Menu.Item disabled icon={<Spinner size="sm" label="" />}>Checking computers…</Menu.Item>
+        : <Menu.RadioGroup value={current.hostId ?? 'local'} onValueChange={value => {
           const computer = computers.find(item => (item.hostId ?? 'local') === value);
           if (computer) switchTo(computer, current, false, onError);
         }}>
-          {computers.map(computer => <MenuRadioItem key={computer.hostId ?? 'local'} value={computer.hostId ?? 'local'} disabled={computer.status !== 'online'}
-            description={[statusLabels[computer.status], describe(computer)].filter(Boolean).join(' · ')}>{computer.name}</MenuRadioItem>)}
-        </MenuRadioGroup>}
-    </MenuGroup>
-    <MenuSeparator />
-    <MenuItem icon={<AddIcon />} onClick={actions.connect}>Connect to Another Atlas…</MenuItem>
-    <MenuItem icon={<DevicesIcon />} onClick={actions.manageComputers}>Manage Computers…</MenuItem>
-    <MenuSeparator />
-    <MenuItem icon={<RemoteAccessIcon />} onClick={actions.remoteAccess}>Remote Access…</MenuItem>
-  </Menu>;
+          {computers.map(computer => <Menu.RadioItem key={computer.hostId ?? 'local'} value={computer.hostId ?? 'local'} disabled={computer.status !== 'online'}
+            description={[statusLabels[computer.status], describe(computer)].filter(Boolean).join(' · ')}>{computer.name}</Menu.RadioItem>)}
+        </Menu.RadioGroup>}
+    </Menu.Group>
+    <Menu.Separator />
+    <Menu.Item icon={<SettingsIcon />} onClick={onSettings}>Computer settings…</Menu.Item>
+  </Menu.Root>;
 }
 
-/** Computer menu › Manage computers…: open one in a new window, or forget a paired one. */
-export function ComputersDialog({ current, onClose }: { current: ComputerRef; onClose(): void }) {
+/**
+ * Settings › Computers › Other computers: the computers this one is paired with, each opened in a new
+ * window or forgotten, and Connect to Another Coord… to pair with one more.
+ */
+export function OtherComputers({ current }: { current: ComputerRef }) {
   const [error, setError] = useState('');
   const { computers, reload } = useComputers(true, setError);
-  const actions = useAppActions();
-  const toast = useToast();
+  const [connecting, setConnecting] = useState(false);
   const rows = useRef<HTMLUListElement>(null);
   const refocus = useRef(false);
   // The computer being forgotten, whose row stays until the list reloads.
   const [forgetting, setForgetting] = useState<string | null>(null);
-  // Forgetting the computer this window shows turns the window to this computer's projects, so the
-  // list closes; otherwise it shows the computers that are left, and focus, which was on the
-  // forgotten row, moves to the first action left in the list.
+  // Forgetting the computer this window shows turns the window to this computer's projects;
+  // otherwise the list shows the computers that are left, and focus, which was on the forgotten row,
+  // moves to the first action left in the list (or the section's button).
   const forget = (computer: Computer) => {
     setForgetting(computer.hostId);
     api.forgetComputer(computer.hostId!).then(() => {
-      if (computer.hostId === current.hostId) onClose();
-      else { refocus.current = true; reload(); }
+      if (computer.hostId !== current.hostId) { refocus.current = true; reload(); }
     }, failure => { setForgetting(null); setError((failure as Error).message); });
   };
   useEffect(() => {
-    const list = rows.current;
-    if (!refocus.current || !list) return;
+    if (!refocus.current || computers === null) return;
     refocus.current = false;
     setForgetting(null);
-    // Unless the reader moved on, focus fell to the page or the dialog itself with the row.
-    const focused = list.ownerDocument.activeElement;
-    if (!focused?.matches('button:not(:disabled), a[href], input')) list.querySelector<HTMLElement>('button:not(:disabled)')?.focus();
+    // Unless the reader moved on, focus fell to the page with the row.
+    const focused = document.activeElement;
+    if (!focused || focused === document.body) (rows.current?.querySelector<HTMLElement>('button:not(:disabled)') ?? document.querySelector<HTMLElement>('.other-computers-connect'))?.focus();
   }, [computers]);
-  // After the dialog closed, failures appear as a notice in the window.
-  const report = (message: string) => toast.show({ message, variant: 'error' });
-  return <Dialog open onOpenChange={open => { if (!open) onClose(); }} size="wide" title="Computers"
-    description="This computer and the computers it is paired with. Choose one in the computer menu to work on it in this window."
-    closeLabel="Done" actions={<Button variant="secondary" startIcon={<AddIcon />} onClick={() => { onClose(); actions.connect(); }}>Connect to Another Atlas…</Button>}>
-    {computers === null ? <Spinner label="Checking computers" />
-      : <GroupedRows ref={rows} className="computer-rows" aria-label="Computers">{computers.map(computer => {
+  const paired = computers?.filter(computer => computer.hostId !== null) ?? null;
+  return <>
+    <div className="section-toolbar">
+      <Text emphasis="muted" className="settings-description">The computers this one is paired with. Choose one in the computer menu to work on it in this window.</Text>
+      <Button variant="secondary" className="other-computers-connect" startIcon={<AddIcon />} onClick={() => setConnecting(true)}>Connect to Another Coord…</Button>
+    </div>
+    {paired === null ? <Spinner label="Checking computers" />
+      : !paired.length ? <Text emphasis="muted">Not paired with another computer yet.</Text>
+      : <List.Root ref={rows} className="computer-rows" aria-label="Other computers">{paired.map(computer => {
         const status = statusLabels[computer.status];
         const pending = forgetting !== null && computer.hostId === forgetting;
         const usable = computer.status === 'online' && !pending;
         const here = computer.hostId === current.hostId;
-        return <Row key={computer.hostId ?? 'local'} className="computer-row"
-          title={<span className="row-title"><span className="row-link-title">{computer.name}</span>{status && <Badge tone={computer.status === 'connecting' ? 'neutral' : 'warning'}>{status}</Badge>}{here && <Badge tone="accent">This window</Badge>}</span>}
-          detail={computer.detail ?? describe(computer)}
-          action={<span className="row-actions">
-            <Tooltip content="Open in a new window"><IconButton variant="text" icon={<NewWindowIcon />} aria-label={'Open ' + computer.name + ' in a new window'} disabled={!usable} onClick={() => { onClose(); switchTo(computer, current, true, report); }} /></Tooltip>
-            {computer.hostId !== null && <ConfirmButton variant="text" disabled={pending} confirmLabel={'Forget ' + computer.name} onConfirm={() => forget(computer)}>Forget</ConfirmButton>}
+        return <List.Item key={computer.hostId} className="computer-row"
+          label={<span className="row-title"><span className="row-link-title">{computer.name}</span>{status && <Badge tone={computer.status === 'connecting' ? 'neutral' : 'warning'}>{status}</Badge>}{here && <Badge tone="primary">This window</Badge>}</span>}
+          description={computer.detail ?? describe(computer)}
+          end={<span className="row-actions">
+            <Tooltip content="Open in a new window"><IconButton variant="text" icon={<NewWindowIcon />} aria-label={'Open ' + computer.name + ' in a new window'} disabled={!usable} onClick={() => switchTo(computer, current, true, setError)} /></Tooltip>
+            <ConfirmButton variant="text" disabled={pending} confirmLabel={'Forget ' + computer.name} onConfirm={() => forget(computer)}>Forget</ConfirmButton>
           </span>} />;
-      })}</GroupedRows>}
-    <p className="dialog-note">Windows that show a forgotten computer show this one instead. This computer must pair again to reach it.</p>
-    {error && <p className="dialog-error" role="alert">{error}</p>}
-  </Dialog>;
+      })}</List.Root>}
+    {paired !== null && paired.length > 0 && <p className="dialog-note">Windows that show a forgotten computer show this one instead. This computer must pair again to reach it.</p>}
+    {error && <Alert tone="danger" announce className="dialog-error">{error}</Alert>}
+    {connecting && <ConnectDialog onClose={() => { setConnecting(false); reload(); }} />}
+  </>;
 }

@@ -27,7 +27,7 @@ test('a second launch brings the running app forward, and windows open again sho
   const second = await newWindow(app);
   await expectHub(second);
   await openPlan(second, 'Saved payment methods');
-  // Starting Atlas again only brings it forward (single instance).
+  // Starting Coord again only brings it forward (single instance).
   expect(secondInstance(home.dataDirectory, [])).toBe(0);
   await new Promise(resolve => setTimeout(resolve, 1000));
   expect((await windowTitles(app)).length).toBe(2);
@@ -37,10 +37,10 @@ test('a second launch brings the running app forward, and windows open again sho
 
   launched = await launch({ dataDirectory: home.dataDirectory });
   await expect.poll(() => windowTitles(launched!.app).then(titles => titles.length)).toBe(2);
-  const shown = async () => (await Promise.all(launched!.app.windows().map(page => page.locator('.hub h1, .work-header h1').first().textContent()))).sort();
+  const shown = async () => (await Promise.all(launched!.app.windows().map(page => page.locator('.hub h1, .work-page h1').first().textContent()))).sort();
   await expect.poll(shown).toEqual(['Plans', 'Saved payment methods']);
 
-  // The newer window closes by hand; the one left keeps its place when Atlas quits, and opens alone next time.
+  // The newer window closes by hand; the one left keeps its place when Coord quits, and opens alone next time.
   const again = launched.app;
   await again.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows().sort((a, b) => b.id - a.id)[0].close(); });
   await expect.poll(() => windowTitles(again).then(titles => titles.length)).toBe(1);
@@ -53,35 +53,35 @@ test('a second launch brings the running app forward, and windows open again sho
   await again.waitForEvent('close').catch(() => undefined);
   launched = await launch({ dataDirectory: home.dataDirectory });
   await expect.poll(() => windowTitles(launched!.app).then(titles => titles.length)).toBe(1);
-  await expect(launched.window.locator('.work-header h1')).toHaveText('Order fulfilment model');
+  await expect(launched.window.locator('.work-page h1')).toHaveText('Order fulfilment model');
 });
 
 test('a plan of a project whose folder is not a planning folder at the start shows again when it is', async () => {
   const home = projectHome();
   homes.push(home.dataDirectory);
-  const coord = addProject(home.dataDirectory, 'coord', 'Coord');
+  const harbor = addProject(home.dataDirectory, 'harbor', 'Harbor');
   launched = await launchProject(home);
-  await filterHub(launched.window, 'Coord');
+  await filterHub(launched.window, 'Harbor');
   await openPlan(launched.window, 'Customer order notifications');
   await launched.window.waitForTimeout(600);
   await close(launched);
-  // Coord's planning.json is briefly away: it is not listed, and the window shows the hub meanwhile.
-  renameSync(path.join(coord, 'planning.json'), path.join(coord, 'planning.json.away'));
+  // Harbor's planning.json is briefly away: it is not listed, and the window shows the hub meanwhile.
+  renameSync(path.join(harbor, 'planning.json'), path.join(harbor, 'planning.json.away'));
   launched = await launch({ dataDirectory: home.dataDirectory });
   await expectHub(launched.window);
   await launched.window.waitForTimeout(600);
   await close(launched);
-  renameSync(path.join(coord, 'planning.json.away'), path.join(coord, 'planning.json'));
+  renameSync(path.join(harbor, 'planning.json.away'), path.join(harbor, 'planning.json'));
   launched = await launch({ dataDirectory: home.dataDirectory });
-  await expect(launched.window.locator('.work-header h1')).toHaveText('Customer order notifications');
-  await expect(launched.window.locator('.work-main .breadcrumb')).toContainText('Coord');
+  await expect(launched.window.locator('.work-page h1')).toHaveText('Customer order notifications');
+  await expect(launched.window.locator('.work-page .breadcrumb')).toContainText('Harbor');
 });
 
 /** Open a plan of the project Shop from the hub, and see it read from its folder. */
 async function openShopPlan(window: Page, title: string) {
   if (!await window.locator('.hub h1', { hasText: 'Shop' }).count()) await filterHub(window, 'Shop');
   await openPlan(window, title);
-  await expect(window.locator('.work-main .breadcrumb')).toContainText('Shop');
+  await expect(window.locator('.work-page .breadcrumb')).toContainText('Shop');
   await expect(window.locator('.reader .prose')).toContainText('Outcome');
 }
 
@@ -97,32 +97,56 @@ test('a closed window leaves a project it showed open in the others', async () =
   await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows().sort((a, b) => b.id - a.id)[0].close(); });
   await expect.poll(() => windowTitles(app).then(titles => titles.length)).toBe(1);
   await expect(window.locator('.reader .prose')).toContainText('Current checkout');
-  await expect(window.locator('.work-main .breadcrumb')).toContainText('Shop');
+  await expect(window.locator('.work-page .breadcrumb')).toContainText('Shop');
 });
 
-test('a home without projects opens on the hub, which points to the Projects page to make one; About Atlas, from the menu, shows the version in the window and copies the details', async () => {
+test('a new home starts with the onboarding until it is finished, with no agent connected if none is chosen; the window shows after it, and at the next launch', async () => {
+  const home = projectHome();
+  homes.push(home.dataDirectory);
+  launched = await launch({ dataDirectory: home.dataDirectory, onboarding: true });
+  const { window } = launched;
+  await expect(window.getByRole('heading', { name: 'Welcome to Coord' })).toBeVisible();
+  await window.getByRole('button', { name: 'Next', exact: true }).click();
+  // The agents on this computer, checked there (nothing is connected without Connect).
+  await expect(window.getByRole('heading', { name: 'Connect your agents' })).toBeFocused();
+  await expect(window.getByRole('list', { name: 'Agents on this computer' }).locator('.agent-row')).toHaveCount(2);
+  // There is no Skip: the agents found start ticked, and with none ticked Next leads past Connect to the Start step.
+  await expect(window.getByRole('button', { name: 'Skip' })).toHaveCount(0);
+  for (const box of await window.getByRole('checkbox', { name: /^Connect / }).all()) if (await box.isChecked()) await box.click();
+  await window.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(window.getByRole('heading', { name: 'Start a session' })).toBeFocused();
+  await window.getByRole('button', { name: 'Finish', exact: true }).click();
+  await expectHub(window);
+  await window.waitForTimeout(600);
+  await close(launched);
+  launched = await launch({ dataDirectory: home.dataDirectory, onboarding: true });
+  await expectHub(launched.window);
+  await expect(launched.window.getByRole('heading', { name: 'Welcome to Coord' })).toHaveCount(0);
+});
+
+test('a home without projects opens on the hub, which makes one; About Coord, from the menu, shows the version in the window and copies the details', async () => {
   launched = await launch();
   const { app, window } = launched;
   await expect(window.getByRole('heading', { name: 'No projects yet' })).toBeVisible();
-  await expect(window.locator('.hub')).toContainText('Projects › New project');
-  await window.locator('.hub').getByRole('button', { name: 'Projects' }).click();
-  await expect(window.locator('.projects-page h1')).toHaveText('Projects');
-  await expect(window.locator('.projects-page')).toContainText('No projects yet');
-  await expect(window.getByRole('button', { name: 'New project', exact: true })).toBeVisible();
+  await window.locator('.hub').getByRole('button', { name: 'New project', exact: true }).click();
+  const create = window.getByRole('dialog', { name: 'Create project' });
+  await expect(create).toBeVisible();
+  await window.keyboard.press('Escape');
+  await expect(create).toHaveCount(0);
 
-  // About Atlas, from the File menu.
+  // About Coord, from the Help menu.
   const version = await app.evaluate(({ app: electronApp }) => electronApp.getVersion());
-  await chooseMenu(window, 'About Atlas', 'Help');
-  const about = window.getByRole('dialog', { name: 'Atlas' });
+  await chooseMenu(window, 'About Coord');
+  const about = window.getByRole('dialog', { name: 'Coord' });
   await expect(about).toContainText('Version ' + version);
-  await expect(about).toContainText('Atlas works offline.');
-  await expect(about.locator('dt')).toHaveText(['Electron', 'Chromium', 'Node.js', 'System', 'Atlas home']);
+  await expect(about).toContainText('Coord works offline.');
+  await expect(about.locator('dt')).toHaveText(['Electron', 'Chromium', 'Node.js', 'System', 'Coord home']);
   await expect(about.locator('dd').last()).toHaveText(launched.dataDirectory);
   // The details a bug report needs, without the home's path.
   await about.getByRole('button', { name: 'Copy Details' }).click();
   await expect(about.getByRole('button', { name: 'Copied' })).toBeVisible();
   const copied = await app.evaluate(({ clipboard }) => clipboard.readText());
-  expect(copied.split('\n')[0]).toBe('Atlas ' + version);
+  expect(copied.split('\n')[0]).toBe('Coord ' + version);
   expect(copied).toMatch(/^Electron \S+$/m);
   expect(copied).not.toContain(launched.dataDirectory);
   await about.getByRole('button', { name: 'Close' }).click();
@@ -130,10 +154,10 @@ test('a home without projects opens on the hub, which points to the Projects pag
 
   // The application menu's About opens the same dialog in the window in front; no system dialog opens.
   const help = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.find(entry => entry.label === '&Help')!.submenu!.items.map(item => item.label));
-  expect(help).toEqual(['Open &Logs', '', '&About Atlas']);
+  expect(help).toEqual(['Open &Logs', '', '&About Coord']);
   await app.evaluate(({ dialog, Menu }) => {
     dialog.showMessageBox = (async () => { throw new Error('A system dialog opened.'); }) as typeof dialog.showMessageBox;
-    Menu.getApplicationMenu()!.items.find(entry => entry.label === '&Help')!.submenu!.items.find(item => item.label === '&About Atlas')!.click();
+    Menu.getApplicationMenu()!.items.find(entry => entry.label === '&Help')!.submenu!.items.find(item => item.label === '&About Coord')!.click();
   });
   await expect(about).toContainText('Version ' + version);
   await window.keyboard.press('Escape');

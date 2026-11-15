@@ -1,19 +1,19 @@
-# Atlas diagrams
+# Coord diagrams
 
-Atlas draws the diagrams that explain a plan. This glossary covers the diagram package (`packages/diagrams`) and [diagrams](docs/diagrams.md); the planning vocabulary lives in the planning contract the `atlas` skill installs.
+Coord draws the diagrams that explain a plan. This glossary covers the diagram package (`packages/diagrams`) and [diagrams](docs/diagrams.md); the planning vocabulary lives in the planning contract the `coord` skill installs.
 
 ## Language
 
 **Diagram**:
-A file in a work item, written in Atlas's subset of PlantUML: a class, entity or object diagram that Atlas renders with its own viewer.
+A file in a work item, written in Coord's subset of PlantUML: a class, entity or object diagram that Coord renders with its own viewer.
 _Avoid_: Model document, diagram script
 
 **Subset**:
-The PlantUML that Atlas accepts: class, entity and object diagrams without layout, styling, notes or the preprocessor. Anything outside it is an error at its line.
+The PlantUML that Coord accepts: class, entity and object diagrams without layout, styling, notes or the preprocessor. Anything outside it is an error at its line.
 _Avoid_: Dialect, PlantUML profile
 
 **Capture**:
-A diagram Atlas generates from code (through the compiler) or from a database's catalog at a stated date, with its source, coverage and fingerprint in its header. Frozen once written.
+A diagram Coord generates from code (through the compiler) or from a database's catalog at a stated date, with its source, coverage and fingerprint in its header. Frozen once written.
 _Avoid_: Snapshot, import
 
 **Proposal**:
@@ -33,11 +33,11 @@ What a comparison matches by: an element's PlantUML name, a member's `Element.na
 _Avoid_: ID, handle
 
 **Evidence**:
-Where an element, member or relation is declared, and a short excerpt of its source, written as `' atlas evidence` and `' atlas snippet` lines above it.
+Where an element, member or relation is declared, and a short excerpt of its source, written as `' coord evidence` and `' coord snippet` lines above it.
 _Avoid_: Proof, source record
 
 **Description**:
-One short sentence of what an element or member is for, written as an `' atlas description` line above it. The viewer shows it in the details and as the element's tooltip; the rationale stays in the plan.
+One short sentence of what an element or member is for, written as an `' coord description` line above it. The viewer shows it as the element's tooltip; the rationale stays in the plan.
 _Avoid_: Note, comment
 
 **Coverage**:
@@ -45,7 +45,7 @@ Whether a capture read everything in its scope (`complete`) or left something ou
 _Avoid_: Accuracy, validation
 
 **Diagram scene**:
-The positions, orthogonal routes and labels Atlas lays out to display a diagram.
+The positions, orthogonal routes and labels Coord lays out to display a diagram.
 _Avoid_: Semantic model, layout hints
 
 **Change view**:

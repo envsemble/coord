@@ -12,7 +12,7 @@ export function useOverlayInsets(viewerRef, topRef) {
     if (!viewer || !top || typeof ResizeObserver !== "function") return;
     const update = () =>
       viewer.style.setProperty(
-        "--atlas-top-inset",
+        "--coord-top-inset",
         `${Math.round(top.offsetTop + top.offsetHeight + GAP)}px`,
       );
     update();
@@ -29,8 +29,8 @@ export function useOverlayInsets(viewerRef, topRef) {
       const box = viewer.getBoundingClientRect();
       const edge = (selector) =>
         viewer.querySelector(selector)?.getBoundingClientRect();
-      const top = edge(":scope > .atlas-overlay-top");
-      const inspector = edge(":scope > .inspector.open");
+      const top = edge(":scope > .coord-overlay-top");
+      const inspector = edge(":scope > .side-panel.open");
       return {
         top: top ? Math.max(0, top.bottom - box.top) : 0,
         bottom: 0,

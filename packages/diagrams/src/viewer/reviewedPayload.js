@@ -11,12 +11,15 @@ const reviews = new WeakMap();
  * switching between a capture and its proposals stays mounted. A comparison
  * has one `review`, however its payload arrives (as one object, or spread
  * into a viewer's props), so what the viewer derives from it is kept.
+ * `plain` is the proposal as itself, without its changes, for a reader who
+ * turns them off (null for other payloads); a family shares one layout, so
+ * nothing moves between the two.
  */
 export function reviewedPayload(payload) {
   const comparison = payload.comparison;
   const document = payload.model.document;
   if (!comparison)
-    return { payload, review: null, provenanceDocument: document };
+    return { payload, review: null, plain: null, provenanceDocument: document };
   let review = reviews.get(comparison);
   if (!review) {
     const capturedAt = document?.snapshots?.find(
@@ -32,6 +35,7 @@ export function reviewedPayload(payload) {
       comparison: undefined,
     },
     review,
+    plain: { ...payload, comparison: undefined },
     provenanceDocument: document,
   };
 }

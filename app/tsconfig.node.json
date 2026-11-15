@@ -11,5 +11,7 @@
     "allowImportingTsExtensions": true,
     "types": ["node", "electron-vite/node"]
   },
-  "include": ["main", "preload", "shared", "e2e", "electron.vite.config.ts", "playwright.config.ts"]
+  "include": ["main", "preload", "shared", "e2e", "electron.vite.config.ts", "playwright.config.ts"],
+  // The fixture planning folder's pages are an agent's code, which Coord builds as a page, not part of the app.
+  "exclude": ["e2e/fixtures"]
 }

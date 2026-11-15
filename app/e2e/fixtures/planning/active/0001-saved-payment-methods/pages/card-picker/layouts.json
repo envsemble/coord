@@ -1,0 +1,4 @@
+[
+  { "key": "list", "title": "List", "summary": "Saved cards in a list above the card form, the default first." },
+  { "key": "tiles", "title": "Tiles", "summary": "Each saved card as a tile, with Add a card as the last tile." }
+]

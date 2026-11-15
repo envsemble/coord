@@ -1,16 +1,18 @@
 import { Surface } from "@envsemble/envui";
 
-/** A floating toolbar over the diagram canvas: an envUI pane holding compact controls. */
+/**
+ * A floating toolbar over the diagram canvas: an envUI pane holding small
+ * controls (its stylesheet sets the container's control height to sm).
+ */
 export function Island({ label, className = "", children, ...props }) {
   return (
     <Surface
-      tone="pane"
-      corners="pill"
+      background="default"
+      radius="full"
       padding={1}
-      density="compact"
       role="group"
       aria-label={label}
-      className={`atlas-island${className ? ` ${className}` : ""}`}
+      className={`coord-island${className ? ` ${className}` : ""}`}
       {...props}
     >
       {children}

@@ -1,5 +1,5 @@
 import { Component } from "react";
-import { Button, EmptyState } from "@envsemble/envui";
+import { Alert, Button } from "@envsemble/envui";
 export class ViewerErrorBoundary extends Component {
   state = { failed: false };
   static getDerivedStateFromError() {
@@ -10,20 +10,22 @@ export class ViewerErrorBoundary extends Component {
       this.setState({ failed: false });
   }
   render() {
+    // A failure to load is a danger alert in the room the viewer takes.
     if (this.state.failed)
       return (
         <main className="viewer-error">
-          <EmptyState
-            tone="error"
-            headingLevel={1}
+          <Alert
+            tone="danger"
+            announce
             title="The model could not be displayed"
-            description="Rebuild the viewer from the model and check its validation report."
-            action={
+            actions={
               <Button variant="secondary" onClick={() => location.reload()}>
                 Reload
               </Button>
             }
-          />
+          >
+            Rebuild the viewer from the model and check its validation report.
+          </Alert>
         </main>
       );
     return this.props.children;

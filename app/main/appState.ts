@@ -1,10 +1,10 @@
 // The app's own state in the home database (never in a planning folder): each window with its
 // bounds, the computer it shows and the place it shows there (a row of the place table: something of
 // one project, or the hub or statistics of one project), and the settings every window shares: the
-// theme, the editor files open in and the width the reader gave a diagram's details. Windows stay in the database when Atlas
+// theme and the width the reader gave a diagram's details. Windows stay in the database when Coord
 // quits, and open again at the next start; a window closed by hand is removed with its places.
-import type { HomeDatabase } from '@envsemble/atlas/planning';
-import { editors, limits, type Editor, type Place, type ThemePreference } from '../shared/contract.ts';
+import type { HomeDatabase } from '@envsemble/coord/planning';
+import { type Place, type ThemePreference } from '../shared/contract.ts';
 import { target as savedTarget } from '../shared/validate.ts';
 
 export interface Bounds { x: number; y: number; width: number; height: number }
@@ -39,7 +39,8 @@ export function placeRow(place: Place): { projectId: string; kind: PlaceKind; ta
     const { step: _found, ...kept } = rest as typeof rest & { step?: string | null };
     return { projectId: place.projectId, kind, target: JSON.stringify(kept) };
   }
-  if (place.page === 'projects' || !place.projectId) return null;
+  // The Projects and Settings pages are no project's: after a restart the window opens on the hub.
+  if ((place.page !== 'hub' && place.page !== 'statistics') || !place.projectId) return null;
   return { projectId: place.projectId, kind: 'project', target: place.page === 'statistics' ? JSON.stringify({ page: 'statistics' }) : null };
 }
 
@@ -59,21 +60,7 @@ export class AppState {
   }
   setTheme(theme: ThemePreference) { this.database.setSetting('theme', theme === 'system' ? null : theme); }
 
-  /** The editor files open in; VS Code unless another was chosen. */
-  get editor(): Editor {
-    const value = this.database.setting('editor');
-    return (editors as readonly string[]).includes(value ?? '') ? value as Editor : 'vscode';
-  }
-  setEditor(editor: Editor) { this.database.setSetting('editor', editor === 'vscode' ? null : editor); }
-
-  /** The width the reader gave a diagram's details, or null for the default. */
-  get inspectorWidth(): number | null {
-    const value = Number(this.database.setting('ui.inspectorWidth'));
-    return Number.isInteger(value) && value >= limits.inspectorMin && value <= limits.inspectorMax ? value : null;
-  }
-  setInspectorWidth(width: number | null) { this.database.setSetting('ui.inspectorWidth', width === null ? null : String(width)); }
-
-  /** The windows to open: those open when Atlas quit, and any opened since. */
+  /** The windows to open: those open when Coord quit, and any opened since. */
   windows(): WindowRow[] {
     return (this.database.db.prepare('SELECT * FROM "window" ORDER BY id').all() as Row[]).map(row => ({
       id: Number(row.id), computerId: (row.computer_id as string | null) ?? null, maximized: Boolean(row.maximized),

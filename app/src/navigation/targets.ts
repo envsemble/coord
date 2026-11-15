@@ -1,19 +1,22 @@
-// What a window shows: one place at a time. A place is one of the window's own pages (the hub, the
-// Projects page, a project's statistics) or something of one project (a plan, a plan's statistics, a
+// What a window shows: one place at a time. A place is one of the window's own pages (the hub, a
+// project's statistics, a section of Settings) or something of one project (a plan, a plan's statistics, a
 // diagram or a file).
 // A work item's diagrams share one place, which switches between them in place.
-import type { Document, PagePlace, Place, ProjectPlace, Target, Work } from '../types';
-import { workRelative } from '@envsemble/atlas/platform/paths';
+import type { Document, PagePlace, Place, ProjectPlace, SettingsSection, Target, Work } from '../types';
+import { workRelative } from '@envsemble/coord/platform/paths';
 
 export type { PagePlace, Place, ProjectPlace };
 
 /** The hub: every plan, or one project's. */
 export const hubPlace = (projectId: string | null = null): PagePlace => ({ page: 'hub', projectId });
-export const projectsPlace = (): PagePlace => ({ page: 'projects' });
 export const statisticsPlace = (projectId: string | null): PagePlace => ({ page: 'statistics', projectId });
+/** Settings, at one of its sections (General by default). */
+export const settingsPlace = (section: SettingsSection = 'general'): PagePlace => ({ page: 'settings', section });
 export const isPage = (place: Place): place is PagePlace => 'page' in place;
 /** The project a place is of: its own, the hub's filter or the statistics' project; null for none. */
-export const placeProject = (place: Place): string | null => !isPage(place) ? place.projectId : place.page === 'projects' ? null : place.projectId;
+export const placeProject = (place: Place): string | null => !isPage(place) ? place.projectId : place.page === 'settings' ? null : place.projectId;
+/** Where on a page the place is: the project of the hub or the statistics, or the section of Settings. */
+export const pagePart = (place: PagePlace): string => place.page === 'settings' ? place.section : placeProject(place) ?? '';
 
 export const workTarget = (work: string, anchor: string | null = null): Target => ({ kind: 'work', work, anchor });
 /** A work item's statistics: its time and tokens by session, model and stage, and its timeline. */
@@ -27,6 +30,19 @@ export const diagramTarget = (work: string, path: string | null = null, element:
 export const fileTarget = (path: string, anchor: string | null = null): Target => ({ kind: 'file', path, anchor });
 
 export const isDiagramFile = (path: string) => /\.puml$/i.test(path);
+
+/**
+ * A work item's pages are folders of its `pages/` folder, each opened as the page it holds. A page
+ * opens as a file target naming its folder.
+ */
+export const pageTarget = (folder: string): Target => fileTarget(folder);
+/** The page folder a work item has at `path`, if `path` is one (`<work>/pages/<name>`, not a file there). */
+export function pageAt(path: string, snapshot: { work: readonly Work[]; documents: readonly Document[] }): { folder: string; name: string; work: Work } | null {
+  const match = /^(.+)\/pages\/([^/]+)$/.exec(path.replace(/\/+$/, ''));
+  const owner = match ? snapshot.work.find(item => item.path === match[1]) : undefined;
+  if (!match || !owner || snapshot.documents.some(document => document.path === match[0])) return null;
+  return { folder: match[0], name: match[2], work: owner };
+}
 
 /**
  * Where a link to a document goes: a work item's plan opens as the work item, its diagram files as
@@ -51,7 +67,7 @@ export function placeId(place: Place): string {
 
 /** What a place's scroll position belongs to: a page of a project, a work item's plan, a diagram, or a file. */
 export function scrollKey(place: Place): string {
-  if (isPage(place)) return place.page + ':' + (placeProject(place) ?? '');
+  if (isPage(place)) return place.page + ':' + pagePart(place);
   const { target } = place;
   return placeId(place) + (target.kind === 'diagram' ? ':' + (target.path ?? '') : '');
 }

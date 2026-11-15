@@ -6,7 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { checkDiagram, parseDiagram } = require("../lib/index.cjs");
 function fixture(t) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "atlas-database-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "coord-database-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   return root;
 }
@@ -21,7 +21,7 @@ function read(text) {
 const undated = (text) =>
   text
     .replace(/"capturedAt":"[^"]*"/, "")
-    .replace(/' atlas fingerprint \w+/, "");
+    .replace(/' coord fingerprint \w+/, "");
 const table = (diagram, id) => diagram.elements.find((e) => e.id === id);
 const column = (diagram, id, name) =>
   table(diagram, id).attributes.find((a) => a.name === name);

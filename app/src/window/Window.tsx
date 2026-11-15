@@ -1,54 +1,54 @@
-// A window: envUI's window frame with two rows at the top, the title bar (the logo, back and forward,
-// File, the computer, search, record health, the theme and the window buttons) and the sections
-// (Plans, Projects), above one place at a time: the hub, where it starts and returns when nothing else
-// is open, a plan, a diagram or a file of a project, the Projects page or a project's statistics.
-// A plan and its pages have the plan's own files in a card beside them.
+// A window: envUI's Scaffold with one row at the top, the title bar (the logo, back and forward,
+// Plans, Settings and Help, the computer, Coord's update, search, record health and the window
+// buttons), above one place at a time: the hub, where it starts and returns when nothing else is
+// open and where projects are made and managed, a plan, a diagram or a file of a project, a
+// project's statistics or Settings. A plan and its pages have the plan's own files at their left,
+// and the parts of the work it belongs to in a rail at their right.
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { Breadcrumbs, Button, EmptyState, Kbd, Notice, Popover, Spinner, Text, TitleBar, useToast, WindowFrame } from '@envsemble/envui';
-import { ThemeMenu } from '../titleBar/ThemeMenu';
-import { ErrorIcon, FolderOpenIcon, SearchIcon, WarningIcon } from '../ui/icons';
-import type { ImportPreview, MenuCommand } from '../../shared/contract';
-import type { Issue, LoadedUi, OpenProjectChange, Project, ProjectChangeRequest, Snapshot, SnapshotWork, Target, WindowInfo } from '../types';
-import { api, AtlasError } from '../api';
-import { documentTarget, hubPlace, isPage, placeId, placeProject, projectsPlace, scrollKey, statisticsPlace, workTarget, type Place, type ProjectPlace } from '../navigation/targets';
+import { Alert, Breadcrumbs, Button, Panes, Popover, Scaffold, Spinner, TopBar, useToast } from '@envsemble/envui';
+import { EmptyState } from '../ui/EmptyState';
+import { ErrorIcon, WarningIcon } from '../ui/icons';
+import type { MenuCommand } from '../../shared/contract';
+import type { Issue, LoadedUi, OpenProjectChange, Project, ProjectChangeRequest, SettingsSection, Snapshot, SnapshotWork, Target, Work, WindowInfo } from '../types';
+import { api } from '../api';
+import { documentTarget, hubPlace, isPage, pageAt, pageTarget, placeId, placeProject, scrollKey, settingsPlace, statisticsPlace, workTarget, type Place, type ProjectPlace } from '../navigation/targets';
 import { samePath, siblingProject } from '../reader/links';
 import { canGoBack, canGoForward, currentEntry, keyStep, record, samePlace, startHistory, step } from '../navigation/history';
 import { workNumber } from '../ui/format';
 import { FilesContext, focusPlanFiles, nodeForTarget, placeWork, PlanFiles, type FilesState } from '../files/Explorer';
 import { SearchPopup } from '../navigation/SearchPopup';
+import { SearchButton } from '../navigation/SearchButton';
 import type { SearchDestination } from '../navigation/search';
-import { ImportDialog } from '../imports/ImportDialog';
 import { PlanPage } from '../plan/PlanPage';
+import { PartsRail, partsGroup } from '../plan/PartsRail';
 import { FilePage } from '../reader/FilePage';
 import { Hub, type HubFilters } from '../hub/Hub';
-import { NewProjectDialog, ProjectsPage, type ProjectActions } from '../projects/ProjectsPage';
-import { hubItems, inState } from '../hub/hubPlans';
+import { NewProjectDialog, type ProjectActions } from '../projects/ProjectDialogs';
 import { Gone, Page } from '../ui/Page';
-import { modifierKey, SectionBar, TitleBarStart, type Section, type WindowMenus } from '../titleBar/TitleBar';
+import { TitleBarStart, type WindowMenus } from '../titleBar/TitleBar';
 import { revealIds } from '../files/explorerModel';
 import { ReadingContext, WindowContext, type Notify, type OpenOptions, type WindowActions, type WindowReading } from './windowContext';
 import { arrived, liveActivity } from '../plan/agentTime';
-import { EditorButton, useEditor } from '../titleBar/EditorButton';
-import { shownFile } from './shownFile';
+import { SettingsPage } from '../settings/SettingsPage';
 
 // The diagrams and the statistics pages load when they are first shown, so a window starts lighter.
 const DiagramsView = lazy(() => import('../diagrams/DiagramsView').then(module => ({ default: module.DiagramsView })));
+const PageView = lazy(() => import('../page/PageView').then(module => ({ default: module.PageView })));
 const WorkStatisticsPage = lazy(() => import('../statistics/WorkStatisticsPage').then(module => ({ default: module.WorkStatisticsPage })));
 const ProjectStatisticsPage = lazy(() => import('../statistics/ProjectStatisticsPage').then(module => ({ default: module.ProjectStatisticsPage })));
 const AllStatisticsPage = lazy(() => import('../statistics/ProjectStatisticsPage').then(module => ({ default: module.AllStatisticsPage })));
 /** What shows while a page that loads when first shown arrives. */
-const loadingPage = <div className="page-state" aria-busy="true"><Spinner size="large" label="Loading" /></div>;
+const loadingPage = <div className="page-state" aria-busy="true"><Spinner size="lg" label="Loading" /></div>;
 
-const toastVariants = { info: 'neutral', warning: 'info', danger: 'error' } as const;
+const toastTones = { info: 'neutral', warning: 'info', danger: 'danger' } as const;
 
 /** Keys handled in the window; the same shortcuts in the application menu are the fallback. */
-const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+o': 'openInEditor', 'ctrl+shift+e': 'toggleFiles' };
+const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+shift+e': 'focusFiles', 'ctrl+,': 'settings' };
 /** Where the back and forward keys stay: fields, and open menus, lists and dialogs. */
 const keepsHistoryKeys = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"], [role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
 /** What the mouse's back and forward buttons only close: open menus, lists and dialogs. */
 const keepsHistoryButtons = '[role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
 /** Whether the hub's search field has focus. */
-const inSearchField = () => Boolean(document.activeElement?.closest('.hub-search'));
 const popupOpen = () => Boolean(document.activeElement?.closest(keepsHistoryButtons)) || [...document.querySelectorAll(keepsHistoryButtons)].some(element => element.checkVisibility());
 
 /**
@@ -77,9 +77,9 @@ function withWork(snapshot: Snapshot, work: SnapshotWork[]): Snapshot {
   return changed ? { ...snapshot, work: next } : snapshot;
 }
 
-export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: LoadedUi }) {
+export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: LoadedUi }) {
   const toast = useToast();
-  const notify = useCallback<Notify>((message, tone = 'info') => { toast.show({ message, variant: toastVariants[tone] }); }, [toast]);
+  const notify = useCallback<Notify>((message, tone = 'info') => { toast.show({ message, tone: toastTones[tone] }); }, [toast]);
   const warn = useCallback((message: string) => notify(message, 'warning'), [notify]);
 
   // ---- The computer's projects, and the folders the window follows ------------------------------
@@ -183,7 +183,6 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
       setWindowState(current => current.history.entries.length > 1 || samePlace(current.ui.place, loaded.place) ? current : { ui: { ...current.ui, place: loaded.place }, history: startHistory(loaded.place) });
     }, () => undefined);
   }, [projects]);
-  const setInspectorWidth = useCallback((width: number) => setWindowState(current => current.ui.inspectorWidth === width ? current : { ...current, ui: { ...current.ui, inspectorWidth: width } }), []);
 
   /** The project whose folder the window reads: that of a plan, diagram or file, or of the statistics. */
   const reading = isPage(place) ? (place.page === 'statistics' ? place.projectId : null) : place.projectId;
@@ -246,87 +245,40 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   }, [projectPlace?.projectId, node?.id]);
 
   // ---- Commands -----------------------------------------------------------------------------------
-  // The search popup and its query, which the hub's search field shows and types into too.
+  // The search popup and its query.
   const [search, setSearch] = useState<string | null>(null);
-  // Focus the hub's field gets back, as the search closes or the window comes forward again, does not
-  // open the search; focus moved into it by the user does. Leaving the field ends that.
-  const searchQuiet = useRef(false);
-  // Whether the search opened from the hub's field, where focus returns as it closes.
-  const searchOpen = useRef<{ fromField: boolean } | null>(null);
-  /** Open the search, with a query typed (none keeps what it has); `focused`: the hub's field took focus. */
-  const openSearch = useCallback((query?: string, focused = false) => {
-    if (focused && searchQuiet.current) return;
-    searchOpen.current ??= { fromField: inSearchField() };
-    setSearch(current => query ?? current ?? '');
-  }, []);
-  const closeSearch = useCallback(() => { searchQuiet.current = searchOpen.current?.fromField ?? false; searchOpen.current = null; setSearch(null); }, []);
-  /** The hub's field lost focus: to the user moving on, not to the window going to the background. */
-  const windowAway = useRef(false);
-  const searchFieldLeft = useCallback(() => { if (document.hasFocus() && !windowAway.current) searchQuiet.current = false; }, []);
-  // Away from the hub, its field is gone: shown again, focus moved into it opens the search.
-  useEffect(() => { if (!hubShown) searchQuiet.current = false; }, [hubShown]);
-  useEffect(() => {
-    const away = () => { windowAway.current = true; if (inSearchField()) searchQuiet.current = true; };
-    const back = () => { windowAway.current = false; };
-    window.addEventListener('blur', away);
-    window.addEventListener('focus', back);
-    return () => { window.removeEventListener('blur', away); window.removeEventListener('focus', back); };
-  }, []);
+  const openSearch = useCallback(() => setSearch(current => current ?? ''), []);
+  const closeSearch = useCallback(() => setSearch(null), []);
   const [creatingProject, setCreatingProject] = useState(false);
-  const [importing, setImporting] = useState<{ preview: ImportPreview; projectId: string } | null>(null);
   const [hubFilters, setHubFilters] = useState<HubFilters>({ state: 'open' });
   const projectOf = useCallback((projectId: string | null) => projects?.find(project => project.id === projectId), [projects]);
 
-  const exportWork = useCallback(async (projectId: string, work: string) => {
-    try {
-      const result = await api.exportPlan(projectId, work);
-      if (result) notify(`Exported ${workNumber(work)} to ${result.path}` + (result.warnings.length ? ' — ' + result.warnings.join(' ') : ''), result.warnings.length ? 'warning' : 'info');
-    } catch (error) { notify((error as Error).message, (error as AtlasError).code === 'unavailable' ? 'warning' : 'danger'); }
-  }, [notify]);
-  /** Import a plan into the project the window shows (a plan of it, its statistics, or the hub filtered to it), or the only one. */
-  const startImport = useCallback(async () => {
-    const active = (projects ?? []).filter(project => project.state === 'active');
-    const projectId = placeProject(place) ?? (active.length === 1 ? active[0].id : null);
-    if (!projectId) { notify('Choose the project to import into first: open one of its plans, or choose it in the hub’s project filter.', 'warning'); return; }
-    try {
-      const preview = await api.chooseImport(projectId);
-      if (preview) setImporting({ preview, projectId });
-    } catch (error) {
-      if ((error as AtlasError).code === 'cancelled') return;
-      notify((error as Error).message, (error as AtlasError).code === 'unavailable' ? 'warning' : 'danger');
-    }
-  }, [projects, place, notify]);
   /** Statistics, from the menu: all plans'. */
   const showStatistics = useCallback(() => go(statisticsPlace(null)), [go]);
+  /** Settings, at a section; without one, at the section shown, or General. */
+  const showSettings = useCallback((section?: SettingsSection) => setWindowState(current => {
+    const shown = current.ui.place;
+    const next = section ? settingsPlace(section) : isPage(shown) && shown.page === 'settings' ? shown : settingsPlace();
+    return { ui: { ...current.ui, place: next }, history: record(current.history, next) };
+  }), []);
   const filesState = useMemo<FilesState>(() => ({
     expanded: projectPlace ? expanded[projectPlace.projectId] ?? [] : [], selected: node?.id ?? null,
     setExpanded: next => { if (projectPlace) setExpanded(current => ({ ...current, [projectPlace.projectId]: next })); },
   }), [expanded, projectPlace?.projectId, node?.id]);
 
-  // The file the window shows, which Open in opens in the editor: a plan's document, a diagram's source, a file; this computer's only.
-  const [editor, chooseEditor, readEditor] = useEditor();
-  const editorFile = projectPlace && readSnapshot && info.computer.hostId === null ? shownFile(projectPlace.target, readSnapshot) : null;
-  // Main opens only the file of the place the window last saved as shown, so the place is saved first.
-  const openInEditor = useCallback(() => {
-    if (!editorFile || !projectPlace) return;
-    api.saveUi({ ...ui, place: projectPlace }).then(() => api.openShown(projectPlace, editorFile))
-      .catch(error => { if ((error as AtlasError).code !== 'cancelled') notify((error as Error).message, 'warning'); });
-  }, [editorFile, projectPlace, ui, notify]);
-
   const runCommand = useCallback((command: MenuCommand) => {
     switch (command) {
-      case 'openInEditor': openInEditor(); break;
-      // The plan's Files card takes the keyboard.
-      case 'toggleFiles': focusPlanFiles(); break;
+      // The plan's files take the keyboard.
+      case 'focusFiles': focusPlanFiles(); break;
       case 'quickOpen': openSearch(); break;
       case 'newProject': setCreatingProject(true); break;
-      case 'projects': go(projectsPlace()); break;
+      case 'plans': go(hubPlace()); break;
       case 'statistics': showStatistics(); break;
-      case 'importPlan': void startImport(); break;
+      case 'settings': showSettings(); break;
       case 'goBack': navigate(-1); break;
       case 'goForward': navigate(1); break;
     }
-  }, [go, showStatistics, startImport, navigate, openSearch, openInEditor]);
+  }, [go, showStatistics, showSettings, navigate, openSearch]);
 
   // Menu commands from main; ignore one that repeats a key this window just took, or left to a field.
   const lastShortcut = useRef<{ command: MenuCommand; time: number } | null>(null);
@@ -354,6 +306,9 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
         return;
       }
       const name = [(event.ctrlKey || event.metaKey) && 'ctrl', event.shiftKey && 'shift', event.altKey && 'alt', event.key.toLowerCase()].filter(Boolean).join('+');
+      // Zoom In is Ctrl and the + key, which most keyboards type with Shift on =: the menu takes
+      // Ctrl+Shift+= and Ctrl+Plus, the window Ctrl+= without Shift, as browsers do.
+      if (name === 'ctrl+=') { event.preventDefault(); api.command('zoomIn').catch(() => undefined); return; }
       const command = shortcuts[name];
       if (!command) return;
       event.preventDefault();
@@ -420,7 +375,7 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
 
   // ---- What shows ---------------------------------------------------------------------------------
   const page = useRef<HTMLDivElement>(null);
-  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
+  const [scroller, setScroller] = useState<HTMLElement | null>(null);
   const scrollPositions = useRef(new Map<string, number>());
   const entryPositions = useRef(new Map<number, number>());
   const revisit = entryPositions.current.has(currentEntry(history));
@@ -449,7 +404,8 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
       const snapshot = known ?? await api.snapshot(projectId);
       const file = snapshot.documents.find(document => samePath(document.path, path, snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths));
       const work = snapshot.work.find(item => samePath(item.path, path.replace(/\/$/, ''), snapshot.caseSensitivePaths, snapshot.normalizationInsensitivePaths));
-      const target = file ? documentTarget(file, snapshot.work.find(item => item.id === file.workId), anchor) : work ? workTarget(work.id, anchor) : null;
+      const page = pageAt(path, snapshot);
+      const target = file ? documentTarget(file, snapshot.work.find(item => item.id === file.workId), anchor) : page ? pageTarget(page.folder) : work ? workTarget(work.id, anchor) : null;
       if (!target) { release(); notify('This document is not in ' + (projectOf(projectId)?.name ?? 'that project') + ': ' + path, 'warning'); return; }
       go({ projectId, target });
     } catch (error) { release(); notify((error as Error).message, 'warning'); }
@@ -471,9 +427,8 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
       sibling: folder => siblingProject(projectsRef.current ?? [], reading, folder),
       openPath: (other, path, anchor) => { void openPathRef.current(other, path, anchor); },
       notify, remote: info.computer.hostId === null ? null : { hostId: info.computer.hostId, hostName: info.computer.name },
-      inspectorWidth: ui.inspectorWidth ?? null, setInspectorWidth, exportPlan: work => { void exportWork(reading, work); },
     };
-  }, [reading, projectName, go, notify, info.computer, ui.inspectorWidth, setInspectorWidth, exportWork]);
+  }, [reading, projectName, go, notify, info.computer]);
   const summary = owner?.summary;
   const read = useMemo<WindowReading | null>(() => readSnapshot && {
     snapshot: readSnapshot, revision: readFolder?.change?.revision ?? 0, files: readFolder?.files ?? 0,
@@ -481,71 +436,61 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
     activity: work => liveActivity(summary, work),
   }, [readSnapshot, readFolder?.change?.revision, readFolder?.files, summary]);
 
-  // A plan is open: its page or its diagrams.
-  const planOpen = projectPlace && (projectPlace.target.kind === 'work' || projectPlace.target.kind === 'diagram') ? { projectId: projectPlace.projectId, work: projectPlace.target.work } : null;
   const back = canGoBack(history), forward = canGoForward(history);
-  const exportProject = planOpen?.projectId ?? null, exportItem = planOpen?.work ?? null;
+  const showsPlans = isPage(place) && place.page === 'hub' && !place.projectId;
+  const showsSettings = isPage(place) && place.page === 'settings';
   const menus = useMemo<WindowMenus>(() => ({
     goBack: () => navigate(-1),
     goForward: () => navigate(1),
     canGoBack: back,
     canGoForward: forward,
-    newProject: () => runCommand('newProject'),
-    importPlan: () => runCommand('importPlan'),
-    exportPlan: exportProject && exportItem ? () => { void exportWork(exportProject, exportItem); } : null,
-    openInEditor: editorFile ? openInEditor : null,
-  }), [navigate, back, forward, runCommand, exportProject, exportItem, exportWork, editorFile, openInEditor]);
-  // The sections: a plan, its ledger and its diagrams belong to Plans, with the hub.
-  // A project's statistics belong to Projects.
-  // All plans' statistics belong to Plans, a project's to Projects.
-  const section: Section = isPage(place) && (place.page === 'projects' || (place.page === 'statistics' && place.projectId !== null)) ? 'projects' : 'plans';
-  const goSection = (next: Section) => next === 'plans' ? go(hubPlace()) : runCommand(next);
+    showsPlans,
+    showsSettings,
+    plans: projectId => go(hubPlace(projectId)),
+    settings: showSettings,
+  }), [navigate, back, forward, showsPlans, showsSettings, go, showSettings]);
   // All plans' statistics are read again when the listing's statistics or projects change, not with every listing.
   const statisticsMark = useMemo(() => JSON.stringify(projects?.map(project => [project.id, project.state, project.summary && [...project.summary.active, ...project.summary.closed].map(work => work.statistics)])), [projects]);
-  const counts = useMemo(() => projects && { plans: hubItems(projects, null).filter(item => inState(item, 'open')).length, projects: projects.filter(project => project.state === 'active').length }, [projects]);
   /** Open what the search found: a place, or a file of a project at a heading or a diagram's element. */
   const choose = useCallback((destination: SearchDestination) => {
     if ('place' in destination) go(destination.place);
     else void openPath(destination.projectId, destination.path, destination.anchor);
   }, [go, openPath]);
-  const fills = projectPlace?.target.kind === 'diagram' && Boolean(readSnapshot);
+  // A diagram or a page fills the body.
+  const fills = Boolean(readSnapshot) && (projectPlace?.target.kind === 'diagram' || (projectPlace?.target.kind === 'file' && pageAt(projectPlace.target.path, readSnapshot!) !== null));
   /** The project the search lists the documents and diagrams of: the one a plan, diagram or file of shows. */
   const searchScope = useMemo(() => projectPlace && reading && readSnapshot ? { projectId: reading, snapshot: readSnapshot } : null, [Boolean(projectPlace), reading, readSnapshot]);
 
   let content;
-  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.projectId} filters={hubFilters} setFilters={setHubFilters} go={go} query={search ?? ''} search={openSearch} left={searchFieldLeft} platform={info.platform} />;
-  else if (isPage(placed) && placed.page === 'projects') content = <ProjectsPage projects={projects} error={projectsError} computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} />;
+  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.projectId} filters={hubFilters} setFilters={setHubFilters} go={go} search={openSearch} platform={info.platform}
+    computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} newProject={() => setCreatingProject(true)} />;
+  else if (isPage(placed) && placed.page === 'settings') content = <SettingsPage section={placed.section} computer={info.computer} go={showSettings} />;
   // All plans' statistics: every active project together.
   else if (isPage(placed) && !placed.projectId) content = <Suspense fallback={loadingPage}><AllStatisticsPage revision={statisticsMark} trail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: 'Statistics' }]} />} /></Suspense>;
-  else content = <ProjectContent place={placed} folder={readFolder} project={owner} scope={scope} read={read} files={filesWork && <FilesContext.Provider value={filesState}><PlanFiles work={filesWork} /></FilesContext.Provider>}
-    statisticsTrail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Projects', onClick: () => go(projectsPlace()) }, { label: projectOf(reading)?.name ?? 'Project', onClick: projectOf(reading)?.state === 'archived' ? undefined : () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
+  else content = <ProjectContent place={placed} folder={readFolder} project={owner} scope={scope} read={read}
+    statisticsTrail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: projectOf(reading)?.name ?? 'Project', onClick: projectOf(reading)?.state === 'archived' ? undefined : () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
 
-  return <WindowFrame className="atlas-window" scrollRef={setScroller} titleBar={<div className="window-top"><TitleBar className="window-title-bar"
-    start={<TitleBarStart info={info} menus={menus} onError={warn} />}
-    end={<>
-      {editorFile && <EditorButton platform={info.platform} editor={editor} choose={chooseEditor} read={readEditor} open={openInEditor} />}
-      {/* On the hub, its own search field is the search. */}
-      {!hubShown && <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />}
-      {scope && read && <Health issues={read.snapshot.issues} open={work => go({ projectId: scope.projectId, target: workTarget(work) })} />}
-      <ThemeMenu />
-    </>} />
-    <SectionBar section={section} counts={counts} go={goSection} />
-  </div>}>
+  // The plan's files, in the Scaffold's navigation region at the left from a medium width up, while a
+  // plan, its pages or one of its files show.
+  const files = filesWork && scope && read ? <WindowContext.Provider value={scope}><ReadingContext.Provider value={read}>
+    <FilesContext.Provider value={filesState}><PlanFiles work={filesWork} /></FilesContext.Provider>
+  </ReadingContext.Provider></WindowContext.Provider> : null;
+  return <Scaffold className="coord-window" scroll="body" topBarSpan="full" bodyRef={setScroller}
+    navigation={files ? { drawer: files } : undefined} navigationForms={files ? { compact: 'none', medium: 'drawer', expanded: 'drawer', large: 'drawer' } : { compact: 'none', medium: 'none', expanded: 'none', large: 'none' }}
+    topBar={<TopBar titleBar className="window-title-bar"
+      start={<TitleBarStart info={info} menus={menus} onError={warn} />}
+      actions={<>
+        {/* On the hub, its own search button is the search. */}
+        {!hubShown && <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />}
+        {scope && read && <Health issues={read.snapshot.issues} open={work => go({ projectId: scope.projectId, target: workTarget(work) })} />}
+      </>} />}>
     <div className={'window-body' + (fills ? ' is-filled' : '')}>
       <div ref={page} className="window-page">{content}</div>
       <ScrollMemory scroller={scroller} scrollKey={scrollKey(placed)} shown={placeId(placed)} anchored={anchored} entry={currentEntry(history)} content={page} positions={scrollPositions} entryPositions={entryPositions} />
     </div>
     {search !== null && projects && <SearchPopup projects={projects} open={searchScope} query={search} setQuery={setSearch} onChoose={choose} onClose={closeSearch} />}
     {creatingProject && <NewProjectDialog computer={info.computer.name} local={info.computer.hostId === null} onClose={() => setCreatingProject(false)} onCreated={projectActions.created} />}
-    {importing && <ImportDialog preview={importing.preview} project={projectOf(importing.projectId)?.name ?? 'this project'}
-      onCancel={() => { void api.cancelImport(importing.preview.token).catch(() => undefined); setImporting(null); }}
-      onConfirm={async () => {
-        const result = await api.confirmImport(importing.preview.token);
-        setImporting(null);
-        notify(`Imported as ${workNumber(result.workId)} in ${result.path}. ${result.notes.join(' ')}`.trim());
-        go({ projectId: importing.projectId, target: workTarget(result.workId) });
-      }} />}
-  </WindowFrame>;
+  </Scaffold>;
 }
 
 /**
@@ -557,7 +502,7 @@ export function AtlasWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
  * scrolls, below the title bar.
  */
 function ScrollMemory({ scroller: element, shown, scrollKey: key, anchored, entry, content: contentRef, positions, entryPositions }: {
-  scroller: HTMLDivElement | null; shown: string; scrollKey: string; anchored: boolean; entry: number; content: RefObject<HTMLDivElement | null>;
+  scroller: HTMLElement | null; shown: string; scrollKey: string; anchored: boolean; entry: number; content: RefObject<HTMLDivElement | null>;
   positions: RefObject<Map<string, number>>; entryPositions: RefObject<Map<number, number>>;
 }) {
   useLayoutEffect(() => {
@@ -605,18 +550,17 @@ function ScrollMemory({ scroller: element, shown, scrollKey: key, anchored, entr
 }
 
 /** What the window shows of a project, in its scope: a plan, a diagram, a file or its statistics; or why it cannot. */
-/** `files`: the open plan's Files card, for a plan and its pages, at the top right beside each of them. */
-function ProjectContent({ place, folder, project, scope, read, statisticsTrail, files }: {
-  place: Place; folder: Folder | undefined; project: Project | undefined; scope: WindowActions | null; read: WindowReading | null; statisticsTrail: ReactNode; files: ReactNode;
+function ProjectContent({ place, folder, project, scope, read, statisticsTrail }: {
+  place: Place; folder: Folder | undefined; project: Project | undefined; scope: WindowActions | null; read: WindowReading | null; statisticsTrail: ReactNode;
 }) {
   const change = folder?.change;
   // A project's statistics keep their breadcrumb and heading above why they show nothing yet.
-  const frame = (state: ReactNode) => isPage(place) ? <Page className="statistics-page" heading={<div className="page-heading-stack">{statisticsTrail}<Text as="h1" variant="page-heading">Statistics</Text></div>}>{state}</Page> : state;
+  const frame = (state: ReactNode) => isPage(place) ? <Page className="statistics-page" title="Statistics" breadcrumbs={statisticsTrail}>{state}</Page> : state;
   if (change?.status === 'missing' || (!folder?.snapshot && (change?.status === 'invalid' || folder?.failure))) {
     return frame(<EmptyState className="page-empty" icon={<ErrorIcon />} title={change?.status === 'missing' ? 'This project’s folder was moved or deleted' : 'This project can’t be read'}
-      description={<>{(project?.path ?? folder?.snapshot?.root) && <bdi className="folder-problem-path">{project?.path ?? folder?.snapshot?.root}</bdi>} {change?.error ?? folder?.failure} Atlas reads it again as soon as it can.</>} />);
+      description={<>{(project?.path ?? folder?.snapshot?.root) && <bdi className="folder-problem-path">{project?.path ?? folder?.snapshot?.root}</bdi>} {change?.error ?? folder?.failure} Coord reads it again as soon as it can.</>} />);
   }
-  if (!scope || !read || !folder?.snapshot) return frame(<div className="page-state" aria-busy="true"><Spinner size="large" label={'Reading ' + (project?.name ?? 'the project')} /></div>);
+  if (!scope || !read || !folder?.snapshot) return frame(<div className="page-state" aria-busy="true"><Spinner size="lg" label={'Reading ' + (project?.name ?? 'the project')} /></div>);
   const snapshot = folder.snapshot;
   let content;
   if (isPage(place)) content = <Suspense fallback={loadingPage}><ProjectStatisticsPage trail={statisticsTrail} /></Suspense>;
@@ -624,35 +568,49 @@ function ProjectContent({ place, folder, project, scope, read, statisticsTrail, 
     const { target } = place as ProjectPlace;
     if (target.kind === 'work' || target.kind === 'diagram') {
       const item = snapshot.work.find(entry => entry.id === target.work);
-      content = !item ? <div className="page-state" aria-busy="true"><Spinner size="large" label="Reading the plan" /></div>
-        : <PlanFrame files={files} filled={target.kind === 'diagram'}>{target.kind === 'diagram' ? <div className="work-page is-diagrams"><Suspense fallback={loadingPage}><DiagramsView key={item.id} work={item} target={target} /></Suspense></div>
-          : target.view === 'statistics' ? <Suspense fallback={loadingPage}><WorkStatisticsPage work={item} /></Suspense> : <PlanPage work={item} snapshot={snapshot} target={target} />}</PlanFrame>;
+      content = !item ? <div className="page-state" aria-busy="true"><Spinner size="lg" label="Reading the plan" /></div>
+        : target.kind === 'diagram' ? <div className="work-page is-diagrams"><Suspense fallback={loadingPage}><DiagramsView key={item.id} work={item} target={target} /></Suspense></div>
+        : <PlanFrame work={item} snapshot={snapshot}>{target.view === 'statistics' ? <Suspense fallback={loadingPage}><WorkStatisticsPage work={item} /></Suspense> : <PlanPage work={item} snapshot={snapshot} target={target} />}</PlanFrame>;
+    } else if (pageAt(target.path, snapshot)) {
+      // A work item's page fills the window beside Files, as a diagram does.
+      const page = pageAt(target.path, snapshot)!;
+      content = !snapshot.documents.some(document => document.path.startsWith(page.folder + '/')) ? <PlanFrame work={page.work} snapshot={snapshot}><Gone title="This page no longer exists" detail={target.path} /></PlanFrame>
+        : <div className="work-page is-page"><Suspense fallback={loadingPage}><PageView key={page.folder} work={page.work} folder={page.folder} name={page.name} /></Suspense></div>;
     } else {
       const file = snapshot.documents.find(document => document.path === target.path);
-      const page = !file ? <Gone title="This file no longer exists" detail={target.path} /> : <FilePage file={file} snapshot={snapshot} anchor={target.anchor ?? null} />;
-      content = files ? <PlanFrame files={files}>{page}</PlanFrame> : page;
+      // A plan's plan.md and ledger.md are the plan page, as Coord shows them, however they are opened.
+      const planned = file && snapshot.work.find(entry => entry.id === file.workId && (entry.currentPlan === file.path || file.category === 'ledger'));
+      const page = !file ? <Gone title="This file no longer exists" detail={target.path} />
+        : planned ? <PlanPage work={planned} snapshot={snapshot} target={{ kind: 'work', work: planned.id, anchor: target.anchor ?? null }} />
+        : <FilePage file={file} snapshot={snapshot} anchor={target.anchor ?? null} />;
+      content = <PlanFrame work={planned ?? placeWork(target, snapshot)} snapshot={snapshot}>{page}</PlanFrame>;
     }
   }
   return <WindowContext.Provider value={scope}><ReadingContext.Provider value={read}>
-    {change?.error && <Notice className="folder-error" tone="warning" announce title={scope.remote ? `Atlas can’t read this project on ${scope.remote.hostName} right now.` : 'This project can’t be read right now.'}>
-      {change.error} {scope.remote ? 'Showing the last view.' : 'Showing the last good view. Atlas reloads when the folder is readable again.'}
-    </Notice>}
-    {change?.notice && <Notice className="folder-error" tone="info">{change.notice}</Notice>}
+    {change?.error && <Alert className="folder-error" tone="warning" announce title={scope.remote ? `Coord can’t read this project on ${scope.remote.hostName} right now.` : 'This project can’t be read right now.'}>
+      {change.error} {scope.remote ? 'Showing the last view.' : 'Showing the last good view. Coord reloads when the folder is readable again.'}
+    </Alert>}
+    {change?.notice && <Alert className="folder-error" tone="info">{change.notice}</Alert>}
     {content}
   </ReadingContext.Provider></WindowContext.Provider>;
 }
 
-/** A page of a plan (the plan, its statistics, a diagram, a file) with the plan's Files card at its top right. */
-function PlanFrame({ files, filled = false, children }: { files: ReactNode; filled?: boolean; children: ReactNode }) {
-  if (!files) return children;
-  return <div className={'plan-frame' + (filled ? ' is-filled' : '')}><div className="plan-frame-page">{children}</div><div className="plan-frame-files">{files}</div></div>;
-}
-
-/** The title bar's search: plans, documents, diagrams and projects (away from the hub, whose search field opens the same). */
-function SearchButton({ platform, onClick }: { platform: string; onClick(): void }) {
-  return <Button variant="secondary" className="search-button" startIcon={<SearchIcon />} onClick={onClick} aria-label="Search" aria-keyshortcuts={platform === 'darwin' ? 'Meta+P' : 'Control+P'}>
-    <span className="search-button-label">Search</span><span className="search-button-keys"><Kbd keys={[modifierKey(platform), 'P']} /></span>
-  </Button>;
+/**
+ * A page of a plan (the plan, its statistics, a file): with the parts rail beside it, in envUI's
+ * supporting pane, when the work item is made of parts or is one of them. In a narrow window the rail
+ * is a sheet that Parts opens. A diagram fills the window instead.
+ */
+function PlanFrame({ work, snapshot, children }: { work: Work | null; snapshot: Snapshot; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const group = partsGroup(work, snapshot);
+  if (!group || !work) return children;
+  return <Panes.Root behavior="supporting" open={open} onOpenChange={setOpen} defaultWidth={18} className="plan-frame">
+    <Panes.Main label={work.title} className="plan-frame-page">
+      <Panes.Trigger variant="secondary" size="sm" className="parts-trigger">Parts</Panes.Trigger>
+      {children}
+    </Panes.Main>
+    <Panes.Supporting label={'Parts of ' + workNumber(group.id)} className="plan-frame-parts"><PartsRail group={group} shown={work.id} /></Panes.Supporting>
+  </Panes.Root>;
 }
 
 /** Record health of the shown project: problems in its planning records, each linking to its work item. */
@@ -660,8 +618,8 @@ function Health({ issues, open }: { issues: Issue[]; open(work: string): void })
   if (!issues.length) return null;
   const errors = issues.some(issue => issue.level === 'error');
   const label = issues.length + ' record health ' + (issues.length === 1 ? 'note' : 'notes');
-  return <Popover aria-label="Record health" title="Record health" width="wide"
-    trigger={<Button variant="text" className={'health-button' + (errors ? ' has-errors' : '')} startIcon={<WarningIcon />} aria-label={label}>{issues.length}</Button>}>
+  return <Popover aria-label="Record health" title="Record health" width="lg"
+    trigger={<Button variant="ghost" className={'health-button' + (errors ? ' has-errors' : '')} startIcon={<WarningIcon />} aria-label={label}>{issues.length}</Button>}>
     {close => <ul className="health-list">{issues.map((issue, index) => <li key={index} data-level={issue.level}>
       <WarningIcon className="health-icon" />
       <span>{issue.workId && <><Button variant="text" underline className="health-link" onClick={() => { close(); open(issue.workId!); }}>{workNumber(issue.workId)}</Button>{' '}</>}{issue.message}</span>

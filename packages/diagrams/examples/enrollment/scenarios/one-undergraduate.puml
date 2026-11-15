@@ -1,6 +1,6 @@
 @startuml
 title One undergraduate enrollment
-' atlas scenario ../enrollment.puml expected valid
+' coord scenario ../enrollment.puml expected valid
 object "ada : Person" as ada {
   name = "Ada"
 }

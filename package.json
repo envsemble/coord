@@ -1,49 +1,58 @@
 {
-  "name": "atlas",
-  "version": "0.8.0",
+  "name": "coord",
+  "version": "0.9.0",
   "private": true,
   "description": "Plans, models and shared understanding for agents and the people they work with",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/envsemble/atlas.git"
+    "url": "git+https://github.com/envsemble/coord.git"
   },
-  "homepage": "https://github.com/envsemble/atlas",
+  "homepage": "https://github.com/envsemble/coord",
   "bugs": {
-    "url": "https://github.com/envsemble/atlas/issues"
+    "url": "https://github.com/envsemble/coord/issues"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "engines": {
     "node": ">=24"
   },
   "workspaces": [
     "packages/*",
-    "app"
+    "app",
+    "site"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace @envsemble/atlas-app",
+    "dev": "npm run dev --workspace @envsemble/coord-app",
     "dev:home": "node scripts/dev-home.mjs",
-    "dev:diagrams": "npm run dev --workspace @envsemble/atlas-diagrams",
+    "dev:diagrams": "npm run dev --workspace @envsemble/coord-diagrams",
     "dev:envui": "node scripts/dev-envui.mjs",
     "envui:unlink": "node scripts/dev-envui.mjs --unlink",
-    "preview": "npm run preview --workspace @envsemble/atlas-diagrams",
+    "preview": "npm run preview --workspace @envsemble/coord-diagrams",
     "build": "npm run build --workspaces --if-present",
-    "package": "npm run package --workspace @envsemble/atlas-app",
+    "package": "npm run package --workspace @envsemble/coord-app",
     "test": "npm test --workspaces --if-present",
     "test:quick": "npm run test:quick --workspaces --if-present",
     "test:skills": "node --test --test-timeout=120000 --test-force-exit \"plugin/tests/*.test.mjs\"",
-    "test:e2e": "npm run test:e2e --workspace @envsemble/atlas-app",
-    "format": "npm run format --workspace @envsemble/atlas-diagrams && prettier --write \"docs/*.md\" scripts README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json",
-    "format:check": "npm run format:check --workspace @envsemble/atlas-diagrams && prettier --check \"docs/*.md\" scripts README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json",
+    "test:e2e": "npm run test:e2e --workspace @envsemble/coord-app",
+    "format": "npm run format --workspace @envsemble/coord-diagrams && prettier --write \"docs/*.md\" scripts README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json",
+    "format:check": "npm run format:check --workspace @envsemble/coord-diagrams && prettier --check \"docs/*.md\" scripts README.md CONTEXT.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_NOTICES.md package.json",
+    "lint": "eslint app/src packages/diagrams/src packages/diagrams/development && stylelint \"app/src/**/*.css\" \"packages/diagrams/src/**/*.css\"",
     "check:types": "npm run check:types --workspaces --if-present",
-    "check": "npm run check --workspace @envsemble/atlas-diagrams",
-    "check:package": "npm run check:package --workspace @envsemble/atlas-diagrams",
-    "check:performance": "npm run check:performance --workspace @envsemble/atlas-diagrams",
+    "check": "npm run check --workspace @envsemble/coord-diagrams",
+    "check:package": "npm run check:package --workspace @envsemble/coord-diagrams",
+    "check:performance": "npm run check:performance --workspace @envsemble/coord-diagrams",
     "release:assemble": "node scripts/release.cjs",
-    "check:release": "node scripts/check-release.cjs"
+    "check:release": "node scripts/check-release.cjs",
+    "dev:site": "npm run dev --workspace @envsemble/coord-site"
   },
   "devDependencies": {
+    "@babel/core": "8.1.2",
+    "@babel/eslint-parser": "8.1.2",
+    "@envsemble/eslint-plugin-envui": "1.0.0",
+    "@envsemble/stylelint-config-envui": "1.0.0",
+    "eslint": "10.14.0",
     "fflate": "0.8.3",
-    "prettier": "3.8.0"
+    "prettier": "3.8.0",
+    "stylelint": "17.16.0"
   },
   "overrides": {
     "global-agent": "4.1.3",

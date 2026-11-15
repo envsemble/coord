@@ -109,9 +109,9 @@ const reportOf = (problems) => {
   }));
   return {
     valid: !issues.some((i) => i.severity === "error"),
-    schema: "atlas/plantuml",
+    schema: "coord/plantuml",
     engines: [
-      { name: "Atlas PlantUML subset", version: "1", layer: "diagram" },
+      { name: "Coord PlantUML subset", version: "1", layer: "diagram" },
     ],
     issues,
     counts: Object.fromEntries(
@@ -121,7 +121,7 @@ const reportOf = (problems) => {
       ]),
     ),
     limitations: [
-      "Checks cover Atlas's PlantUML subset and its model rules; they do not establish that the model is accurate.",
+      "Checks cover Coord's PlantUML subset and its model rules; they do not establish that the model is accurate.",
     ],
   };
 };
@@ -192,7 +192,7 @@ async function prepareDiagrams({
   const entryOf = (summary) => {
     if (entries.has(summary.path)) return entries.get(summary.path);
     const text = texts.get(summary.path);
-    const { model, snippets } = convert(parsed.get(summary.path), {
+    const { model } = convert(parsed.get(summary.path), {
       id: summary.path,
       title: summary.title,
     });
@@ -228,7 +228,6 @@ async function prepareDiagrams({
       model,
       semantic: semanticOf(model),
       views: [],
-      snippets,
       scenarios: exemplified.length
         ? {
             scenarios: exemplified.map((scenario) => ({

@@ -1,30 +1,30 @@
 /**
- * Diagrams are files in Atlas's subset of PlantUML: class, object and entity
+ * Diagrams are files in Coord's subset of PlantUML: class, object and entity
  * diagrams that PlantUML itself also renders. Anything outside the subset is a
- * problem with its line and column, never skipped. Atlas lays diagrams out and
+ * problem with its line and column, never skipped. Coord lays diagrams out and
  * styles them itself, so the subset has no layout or appearance syntax.
  *
- * Facts PlantUML cannot carry are `' atlas` comments, which PlantUML ignores:
+ * Facts PlantUML cannot carry are `' coord` comments, which PlantUML ignores:
  *
- * - `' atlas capture {json}`: the file is a capture, written by Atlas from
+ * - `' coord capture {json}`: the file is a capture, written by Coord from
  *   code or a database. The JSON is its {@link CaptureMetadata}: `capturedAt`,
  *   `adapter` (id, version), `source` (kind, identity, scope), `coverage`
  *   (status, diagnostics) and `limitations`.
- * - `' atlas fingerprint <sha256>`: a capture's fingerprint, the SHA-256 of the
+ * - `' coord fingerprint <sha256>`: a capture's fingerprint, the SHA-256 of the
  *   file without this line (LF line endings, no trailing newlines). A capture
  *   is frozen: a capture whose text no longer matches it is reported as
  *   edited. {@link formatDiagram} writes it.
- * - `' atlas proposal <path>`: the file is a proposal starting from the
+ * - `' coord proposal <path>`: the file is a proposal starting from the
  *   diagram at `path` (relative to this file), usually a capture. Several
  *   proposals of one diagram are alternatives.
- * - `' atlas compares <path>`: a capture that compares with an earlier
+ * - `' coord compares <path>`: a capture that compares with an earlier
  *   capture, to show a system before and after a plan's implementation.
- * - `' atlas scenario <path> expected valid|invalid`: an object diagram of
+ * - `' coord scenario <path> expected valid|invalid`: an object diagram of
  *   example instances of the class diagram at `path`, assessed against it.
- * - `' atlas evidence {json}` and `' atlas snippet {json}` directly above an
+ * - `' coord evidence {json}` and `' coord snippet {json}` directly above an
  *   element, member or relation: where it is declared ({@link DiagramEvidence})
  *   and a short excerpt of its source ({@link DiagramSnippet}).
- * - `' atlas description <text>` directly above an element or member: one
+ * - `' coord description <text>` directly above an element or member: one
  *   short sentence of its purpose, at most 280 characters of plain text.
  *
  * Identities come from names, so a proposal copied from a capture compares
@@ -166,7 +166,7 @@ export interface DiagramSummary {
 }
 /**
  * Reads a diagram. `problems` are the lines outside the subset and the
- * `' atlas` comments it cannot read; `diagram` is null only when the file
+ * `' coord` comments it cannot read; `diagram` is null only when the file
  * cannot be read at all.
  */
 export function parseDiagram(
@@ -185,7 +185,7 @@ export function checkDiagram(
   text: string,
   options?: { path?: string; read?(reference: string): string | null },
 ): DiagramProblem[];
-/** Writes a diagram in Atlas's canonical form; a capture gets its fingerprint. */
+/** Writes a diagram in Coord's canonical form; a capture gets its fingerprint. */
 export function formatDiagram(diagram: Diagram): string;
 /** A capture's fingerprint over its text. */
 export function diagramFingerprint(text: string): string;
@@ -315,7 +315,7 @@ export interface ViewerGeneralizationSet extends ElementEvidence {
   generalizations: string[];
   evidence: string[];
 }
-/** What a capture recorded about its source, from its `' atlas capture` header. */
+/** What a capture recorded about its source, from its `' coord capture` header. */
 export interface CaptureMetadata {
   capturedAt: string;
   adapter: { id: string; version: string; [key: string]: unknown };
@@ -436,31 +436,30 @@ export interface DiagramGeneralizationGroup {
 export interface DiagramScene {
   key: string;
   title: string;
-  fields: boolean;
   width: number;
   height: number;
   initialFocus: string[];
   nodes: DiagramNode[];
   edges: DiagramEdge[];
   generalizationGroups?: DiagramGeneralizationGroup[];
+  /** A diagram's packages, each a region round its elements (its members' ids), named in its top left. */
+  packages?: {
+    name: string;
+    members: string[];
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }[];
 }
 export interface PreparedView {
   key: string;
   label: string;
   title: string;
   nodeIds: string[];
+  /** The view drawn, its elements with their attributes and methods. */
   diagram: DiagramScene;
-  diagramFields: DiagramScene;
   svg?: string;
-  svgFields?: string;
-}
-export interface HighlightedExcerpt {
-  language: string;
-  startLine: number;
-  endLine: number;
-  code: string;
-  url: string | null;
-  lines: { content: string; style: Record<string, string> }[][];
 }
 export interface ExportData {
   slug: string;
@@ -472,16 +471,12 @@ export interface ViewerPayload {
   model: ViewerModel & { validation: ValidationReport };
   views: Pick<
     PreparedView,
-    "key" | "label" | "title" | "nodeIds" | "diagram" | "diagramFields"
+    "key" | "label" | "title" | "nodeIds" | "diagram"
   >[];
   exports: ExportData;
-  snippets: Record<string, HighlightedExcerpt>;
   comparison?: {
-    baseline: Pick<ViewerPayload, "model" | "views" | "snippets" | "exports">;
-    changeView?: Pick<
-      ViewerPayload,
-      "model" | "views" | "snippets" | "exports"
-    >;
+    baseline: Pick<ViewerPayload, "model" | "views" | "exports">;
+    changeView?: Pick<ViewerPayload, "model" | "views" | "exports">;
     changes: SemanticComparison;
     /** Always empty: there is no merging. */
     conflicts: never[];
@@ -563,10 +558,10 @@ export function writeViewer(result: BuildResult, outputPath: string): void;
 
 /**
  * What every capture takes. A capture returns a diagram file's text: a class
- * diagram of code or an entity diagram of a database, with the `' atlas
+ * diagram of code or an entity diagram of a database, with the `' coord
  * capture` header (source, date, adapter and version, coverage and
  * diagnostics, limitations and the fingerprints of what was read), its `'
- * atlas fingerprint`, and where each element is declared. Captured again from
+ * coord fingerprint`, and where each element is declared. Captured again from
  * an unchanged source, a capture differs only in its date and fingerprint. A
  * capture that fails rejects with an error whose message starts with its code
  * (`CAPTURE_CONFIG`, `CAPTURE_PREREQUISITE`, `CAPTURE_SCOPE`,

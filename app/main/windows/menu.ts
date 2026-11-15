@@ -15,9 +15,8 @@ export function buildMenu(manager: WindowManager, actions: { openLogs(): void; d
         { label: 'New &Window', accelerator: 'CmdOrCtrl+Shift+N', click: () => { manager.create(window()?.computer ?? null); } },
         { label: 'New &Project…', click: () => manager.sendMenu('newProject') },
         { type: 'separator' },
-        { label: '&Import Plan…', click: () => manager.sendMenu('importPlan') },
-        // The shown file in the chosen editor, as the title bar's Open in button does; the window takes the key itself.
-        { label: 'Open in &Editor', accelerator: 'CmdOrCtrl+O', click: () => manager.sendMenu('openInEditor') },
+        // Settings, at General; the window takes the key itself too.
+        { label: '&Settings…', accelerator: 'CmdOrCtrl+,', click: () => manager.sendMenu('settings') },
         { type: 'separator' },
         { label: 'Close Win&dow', accelerator: 'CmdOrCtrl+Shift+W', click: () => window()?.win.close() },
         { role: 'quit', label: 'E&xit' },
@@ -31,12 +30,13 @@ export function buildMenu(manager: WindowManager, actions: { openLogs(): void; d
         { label: '&Back', accelerator: mac ? 'Cmd+[' : 'Alt+Left', click: () => manager.sendMenu('goBack') },
         { label: '&Forward', accelerator: mac ? 'Cmd+]' : 'Alt+Right', click: () => manager.sendMenu('goForward') },
         { type: 'separator' },
-        // The window's sections besides Plans.
-        { label: '&Projects', click: () => manager.sendMenu('projects') },
+        // Every plan, and all plans' statistics.
+        { label: '&Plans', click: () => manager.sendMenu('plans') },
         { label: 'S&tatistics', click: () => manager.sendMenu('statistics') },
         { type: 'separator' },
         { label: '&Search…', accelerator: 'CmdOrCtrl+P', click: () => manager.sendMenu('quickOpen') },
-        { label: 'F&iles', accelerator: 'CmdOrCtrl+Shift+E', click: () => manager.sendMenu('toggleFiles') },
+        // The plan's files take the keyboard; the window takes the key itself.
+        { label: 'F&iles', accelerator: 'CmdOrCtrl+Shift+E', click: () => manager.sendMenu('focusFiles') },
         { type: 'separator' },
         // Zoom keeps the title bar's window buttons as tall as the bar above its line.
         { label: 'Zoom &In', accelerator: 'CmdOrCtrl+Plus', click: () => window()?.zoom('in') },
@@ -51,7 +51,7 @@ export function buildMenu(manager: WindowManager, actions: { openLogs(): void; d
       submenu: [
         { label: 'Open &Logs', click: actions.openLogs },
         { type: 'separator' },
-        { label: '&About Atlas', click: () => manager.sendMenu('about') },
+        { label: '&About Coord', click: () => manager.sendMenu('about') },
       ],
     },
   ];

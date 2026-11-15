@@ -10,7 +10,6 @@ const SOURCE_FOLDERS = [
   "app",
   "packages",
   "plugin",
-  "extras",
   ".claude-plugin",
   ".agents",
   "assets",
@@ -22,6 +21,7 @@ const SOURCE_FILES = [
   "CONTEXT.md",
   "CONTRIBUTING.md",
   "THIRD_PARTY_NOTICES.md",
+  "LICENSE",
   "package.json",
   "package-lock.json",
 ];
@@ -45,7 +45,7 @@ ${status}`,
     );
   const commit = git("rev-parse", "HEAD"),
     output = path.resolve(outputDirectory),
-    stage = fs.mkdtempSync(path.join(os.tmpdir(), "atlas-release-"));
+    stage = fs.mkdtempSync(path.join(os.tmpdir(), "coord-release-"));
   if (fs.existsSync(output) && fs.readdirSync(output).length)
     throw new Error("RELEASE_OUTPUT: choose a new or empty directory");
   try {
@@ -166,12 +166,11 @@ ${status}`,
         files.set(name, data);
     }
     const manifest = {
-      format: "atlas/release",
+      format: "coord/release",
       formatVersion: 1,
       version,
       commit,
-      private: true,
-      license: "UNLICENSED",
+      license: "MIT",
       files: [...files]
         .sort(([a], [b]) => a.localeCompare(b, "en"))
         .map(([name, data]) => ({
@@ -190,7 +189,7 @@ ${status}`,
       ),
       { level: 6 },
     );
-    const filename = `atlas-${version}-${commit.slice(0, 12)}.zip`;
+    const filename = `coord-${version}-${commit.slice(0, 12)}.zip`;
     fs.mkdirSync(output, { recursive: true });
     fs.writeFileSync(path.join(output, filename), archive);
     fs.writeFileSync(

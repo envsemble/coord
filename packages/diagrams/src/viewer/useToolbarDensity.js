@@ -24,7 +24,7 @@ export function useToolbarDensity(topRef, resetKey, contentKey) {
     const check = () => {
       const width = top.clientWidth;
       const islands = [...top.children].filter((child) =>
-        child.classList.contains("atlas-island"),
+        child.classList.contains("coord-island"),
       );
       if (!width || !islands.length) return;
       // A stacked overlay places each island in its own grid cell, so only

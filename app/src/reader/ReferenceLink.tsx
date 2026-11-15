@@ -3,11 +3,12 @@
 // beside it; a file opens in the editor and an application's link in its application, on this
 // computer only (their paths are the host's).
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
-import { CallMerge } from '@envsemble/envui/icons/CallMerge';
-import { CallSplit } from '@envsemble/envui/icons/CallSplit';
-import { Cancel } from '@envsemble/envui/icons/Cancel';
-import { CheckCircle } from '@envsemble/envui/icons/CheckCircle';
-import { Pending } from '@envsemble/envui/icons/Pending';
+import { Link } from '@envsemble/envui';
+import { IconCallMerge as CallMerge } from '@envsemble/envui/icons/CallMerge';
+import { IconCallSplit as CallSplit } from '@envsemble/envui/icons/CallSplit';
+import { IconCancel as Cancel } from '@envsemble/envui/icons/Cancel';
+import { IconCheckCircle as CheckCircle } from '@envsemble/envui/icons/CheckCircle';
+import { IconPending as Pending } from '@envsemble/envui/icons/Pending';
 import type { ReferenceInput, ResolvedReference } from '../types';
 import { api } from '../api';
 import { workTarget } from '../navigation/targets';
@@ -75,7 +76,7 @@ export function PullMark({ pull }: { pull: NonNullable<ResolvedReference['pull']
 
 /** A link of the reader's own: an anchor that runs its action instead of leaving. */
 function Action({ run, title, children }: { run(): void; title?: string; children: ReactNode }) {
-  return <a href="#" title={title} onClick={(event: MouseEvent) => { event.preventDefault(); run(); }}>{children}</a>;
+  return <Link href="#" title={title} onClick={(event: MouseEvent) => { event.preventDefault(); run(); }}>{children}</Link>;
 }
 
 /** A reference the reader found: a link once it leads somewhere, plain text until then or when it leads nowhere. */
@@ -94,7 +95,7 @@ export function ReferenceLink({ found, children }: { found: Found; children: Rea
   if (!answer) return <>{children}</>;
   const { input } = found;
   if (input.kind === 'path') {
-    if (answer.file && !remote) return <Action run={() => { api.openReference(projectId, input).catch(failed); }} title={'Open in your editor: ' + answer.file.path + (answer.file.line ? ':' + answer.file.line : '')}>{children}</Action>;
+    if (answer.file && !remote) return <Action run={() => { api.openReference(projectId, input).catch(failed); }} title={'Open in VS Code: ' + answer.file.path + (answer.file.line ? ':' + answer.file.line : '')}>{children}</Action>;
     return answer.url ? <Action run={() => openUrl(answer.url!)} title={answer.url}>{children}</Action> : <>{children}</>;
   }
   if (!answer.url) return <>{children}</>;

@@ -3,9 +3,9 @@
 // work) and tokens. The rest (by session, model, effort and stage, and the timeline) is on the plan's
 // statistics page; a tooltip only says what a figure stands for.
 import { Fragment } from 'react';
-import { Schedule } from '@envsemble/envui/icons/Schedule';
-import { Token } from '@envsemble/envui/icons/Token';
-import type { ModelShare } from '@envsemble/atlas/planning/types';
+import { IconSchedule as Schedule } from '@envsemble/envui/icons/Schedule';
+import { IconToken as Token } from '@envsemble/envui/icons/Token';
+import type { ModelShare } from '@envsemble/coord/planning/types';
 import type { WorkStatistics } from '../types';
 import { aiModel, providerNames } from '../ui/aiModels';
 import { ModelName } from '../ui/ModelName';

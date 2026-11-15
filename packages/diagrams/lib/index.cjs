@@ -2,7 +2,7 @@ const diagram = () => require("./plantuml/diagram.cjs");
 // Modules load on first use: checking a diagram needs neither the layout
 // engine, a compiler nor a database driver.
 module.exports = {
-  // Diagram files: Atlas's PlantUML subset.
+  // Diagram files: Coord's PlantUML subset.
   parseDiagram: (...args) => diagram().parseDiagram(...args),
   checkDiagram: (...args) => diagram().checkDiagram(...args),
   formatDiagram: (...args) => diagram().formatDiagram(...args),
