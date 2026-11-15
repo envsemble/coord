@@ -140,11 +140,14 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
     const ranked = rankItems(local, words).map(({ icon: _icon, penalty: _penalty, state: _state, ...entry }) => ({ ...entry, kind: localKinds[entry.kind] }));
     const answered = asked && found?.query === asked ? found : null;
     const host = answered ? hostEntries(answered.results, projects).filter(entry => !kinds || kinds.includes(entry.kind)) : [];
-    const listed = listEntries(ranked, host, answered?.below)
+    let listed = listEntries(ranked, host, answered?.below)
       // A plan the host found reads as the window lists it: its project and number; a tag: search's
       // plans are headed by the tag.
       .map(entry => entry.kind === 'plan' && entry.key && plans.get(entry.key) ? { ...entry, detail: plans.get(entry.key)!.detail } : entry)
       .map(entry => tagged && entry.kind === 'plan' ? { ...entry, group: 'Plans tagged ' + tagged } : entry);
+    // A plan's ledger found where one of its steps is found too says nothing more than the step.
+    const stepped = new Set(listed.filter(entry => entry.kind === 'step' && entry.plan).map(entry => entry.plan));
+    listed = listed.filter(entry => !(entry.kind === 'document' && entry.label.startsWith('Steps of ') && entry.plan && stepped.has(entry.plan)));
     const closed = (entry: SearchEntry) => Boolean(entry.plan && plans.get(entry.plan)?.penalty);
     const inTitle = (entry: SearchEntry) => hasWords(entry.label, words);
     const whole = (entry: SearchEntry) => hasWords([entry.label, entry.detail, entry.snippet].filter(Boolean).join(' '), words);
@@ -183,9 +186,10 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   const items: CommandPaletteItem[] = [
     ...results.map(entry => 'more' in entry
       ? { id: entry.id, label: entry.label, textValue: entry.label, icon: <MoreIcon />, group: entry.group, className: 'search-more' }
-      // Every result of a plan, its steps, documents and diagrams too, says the plan's state at its end.
+      // A plan says its state at its end; its steps, documents and diagrams say it only when the plan is
+      // closed, where it tells something: the open ones come first already.
       : item({ ...entry,
-        icon: icons.get(entry.id) ?? (entry.key && plans.get(entry.key)?.icon) ?? kindIcons[entry.kind], state: entry.plan ? plans.get(entry.plan)?.state : null })),
+        icon: icons.get(entry.id) ?? (entry.key && plans.get(entry.key)?.icon) ?? kindIcons[entry.kind], state: entry.kind === 'plan' ? (entry.key ? plans.get(entry.key)?.state : null) : entry.plan && plans.get(entry.plan)?.penalty ? plans.get(entry.plan)?.state : null })),
     ...goTo.map(page => ({ id: page.id, label: page.label, textValue: 'Go to ' + page.label, icon: page.icon, group: 'Go to' })),
   ];
 
@@ -248,8 +252,10 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
       return item({ id: 'suggested:' + group + ':' + plan.project.id + ':' + plan.work.id, label: plan.work.title, detail: planWhere(plan), group, icon: <StatusIcon status={plan.status} decorative />, state: plan.status.label === group ? null : plan.status.label });
     });
     const starredPlans = take(all.filter(plan => starred(plan.project.id, plan.work.id)), 'Starred', 6);
+    const tryItems = tries.map(example => ({ id: 'try:' + example.query, label: <code className="search-try">{example.query}</code>, textValue: example.query + ', ' + example.finds, description: example.finds, icon: <SearchIcon />, group: 'Try' }));
     // What was opened lately, as it is now: a plan with its state; one no longer listed is left out.
-    const lately = recent.filter(each => !(each.key && shown.has(each.key)) && (each.kind !== 'plan' || (each.key && plans.has(each.key)))).map(each => {
+    // A starred plan opened lately is in both: Recent is about when, Starred about what.
+    const lately = recent.filter(each => each.kind !== 'plan' || (each.key && plans.has(each.key))).map(each => {
       if (each.key) shown.add(each.key);
       const plan = each.key ? plans.get(each.key) : undefined;
       return item({ id: 'recent:' + each.id, label: each.label, detail: each.detail, group: 'Recent', icon: plan?.icon ?? kindIcons[each.kind], state: (each.plan && plans.get(each.plan)?.state) ?? plan?.state ?? null });
@@ -257,8 +263,11 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
     return [
       ...starredPlans,
       ...lately,
-      ...tries.map(example => ({ id: 'try:' + example.query, label: <code className="search-try">{example.query}</code>, textValue: example.query + ', ' + example.finds, description: example.finds, icon: <SearchIcon />, group: 'Try' })),
+      // The searches to try come before Your turn for someone new to the search, after it once they
+      // have opened a few places from it.
+      ...(lately.length >= 3 ? [] : tryItems),
       ...take(hubGroups(all, 'open').find(group => group.id === 'your_turn')?.items ?? [], 'Your turn', 3),
+      ...(lately.length >= 3 ? tryItems : []),
       ...pages.map(page => ({ id: page.id, label: page.label, textValue: 'Go to ' + page.label, icon: page.icon, group: 'Go to' })),
     ];
   }, [projects, starred, tries, recent, plans]);

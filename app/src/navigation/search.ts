@@ -65,10 +65,13 @@ export function hostEntries(results: SearchResult[], projects: Project[]): Searc
     const work = result.work && result.kind !== 'plan' ? [workNumber(result.work), titles.get(workKey(result.projectId, result.work))].filter(Boolean).join(' ') : result.work ? workNumber(result.work) : null;
     const key = result.kind === 'plan' && result.work ? workKey(result.projectId, result.work)
       : (result.kind === 'document' || result.kind === 'diagram' || result.kind === 'page') && result.path && !result.anchor && !result.element ? pathKey(result.projectId, result.path) : null;
+    // A plan's own files read as what they are: its ledger is its steps, its plan.md its text.
+    const file = result.kind === 'document' && result.work && result.path ? result.path.slice(result.path.lastIndexOf('/') + 1) : null;
+    const title = file === 'ledger.md' ? 'Steps of ' + workNumber(result.work!) : file === 'plan.md' ? 'Plan ' + workNumber(result.work!) : result.title;
     return {
       id: 'search:' + index + ':' + result.kind + ':' + result.projectId + ':' + (result.work ?? '') + ':' + (result.path ?? '') + '#' + (result.anchor ?? result.element ?? ''),
       // An element is told apart from its namesakes in other diagrams by its diagram's file.
-      kind: result.kind, label: result.title, detail: [result.kind === 'project' ? null : result.projectName, work, result.element && result.path ? result.path.slice(result.path.lastIndexOf('/') + 1) : null].filter(Boolean).join(' · '),
+      kind: result.kind, label: title, detail: [result.kind === 'project' ? null : result.projectName, work, result.element && result.path ? result.path.slice(result.path.lastIndexOf('/') + 1) : null].filter(Boolean).join(' · '),
       snippet: result.snippet, ...result.tags?.length && { tags: result.tags }, destination: resultDestination(result), key,
       plan: result.work ? workKey(result.projectId, result.work) : null,
     };
