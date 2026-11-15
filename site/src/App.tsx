@@ -1,6 +1,6 @@
 // Coord's website: one dark page, with its privacy and terms pages (legal.tsx). The name, one line on what Coord is, a download button for
 // Windows and one for Linux under a Stable or Nightly switch (the newest build of each, read from GitHub Releases in the visitor's
-// browser by releases.ts), and a screenshot of a plan. Hovering a feature shows its screenshot by the cursor.
+// browser by releases.ts), and the app's screenshots in turn. Hovering a feature shows its screenshot by the cursor.
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import logo from '../../assets/coord-horizontal-on-dark.svg';
 import envsembleLogo from '../../assets/envsemble-horizontal-on-dark.svg';
@@ -114,11 +114,11 @@ function Screenshots() {
     {/* One small capsule, like the Stable and Nightly switch: the shown one's name, a dot for each (the
         shown one a bar that fills with its time) and a pause button. */}
     <div className="screenshot-controls">
-      <span className="screenshot-caption" aria-live="polite">{screenshots[shown].label}</span>
+      <span className="screenshot-caption" aria-live={playing ? 'off' : 'polite'}>{screenshots[shown].label}</span>
       <div className="screenshot-dots" role="group" aria-label="Show a screenshot">
         {screenshots.map((item, index) => <button key={item.key} type="button" className="screenshot-dot" aria-label={item.label}
           aria-current={index === shown ? 'true' : undefined} onClick={() => setShown(index)}>
-          {index === shown && <span className="screenshot-fill" key={shown} data-paused={playing ? undefined : ''} />}
+          {index === shown && <span className="screenshot-fill" data-paused={playing ? undefined : ''} />}
         </button>)}
       </div>
       <button type="button" className="screenshot-play" aria-label={playing ? 'Pause' : 'Play'} onClick={() => setPlaying(value => !value)}>
