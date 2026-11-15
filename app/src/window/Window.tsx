@@ -25,6 +25,7 @@ import { FilePage } from '../reader/FilePage';
 import { Hub, type HubFilters } from '../hub/Hub';
 import { NewProjectDialog, type ProjectActions } from '../projects/ProjectDialogs';
 import { ProjectAvatar } from '../projects/ProjectMenu';
+import { StarsProvider } from '../stars/stars';
 import { Gone, Page } from '../ui/Page';
 import { TitleBarStart, type WindowMenus } from '../titleBar/TitleBar';
 import { revealIds } from '../files/explorerModel';
@@ -252,7 +253,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   const openSearch = useCallback(() => setSearch(current => current ?? ''), []);
   const closeSearch = useCallback(() => setSearch(null), []);
   const [creatingProject, setCreatingProject] = useState(false);
-  const [hubFilters, setHubFilters] = useState<HubFilters>({ state: 'open' });
+  const [hubFilters, setHubFilters] = useState<HubFilters>({ state: 'open', only: [] });
   const projectOf = useCallback((projectId: string | null) => projects?.find(project => project.id === projectId), [projects]);
 
   /** Statistics, from the menu: all plans'. */
@@ -477,12 +478,11 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   const files = filesWork && scope && read ? <WindowContext.Provider value={scope}><ReadingContext.Provider value={read}>
     <FilesContext.Provider value={filesState}><PlanFiles work={filesWork} /></FilesContext.Provider>
   </ReadingContext.Provider></WindowContext.Provider> : null;
-  return <Scaffold className="coord-window" scroll="body" topBarSpan="full" bodyRef={setScroller}
+  return <StarsProvider hostId={info.computer.hostId}><Scaffold className="coord-window" scroll="body" topBarSpan="full" bodyRef={setScroller}
     navigation={files ? { drawer: files } : undefined} navigationForms={files ? { compact: 'none', medium: 'drawer', expanded: 'drawer', large: 'drawer' } : { compact: 'none', medium: 'none', expanded: 'none', large: 'none' }}
     topBar={<TopBar titleBar className="window-title-bar"
       start={<TitleBarStart info={info} menus={menus} onError={warn} />}
       actions={<>
-        {/* On the hub, its own search button is the search. */}
         <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />
         {scope && read && <Health issues={read.snapshot.issues} open={work => go({ projectId: scope.projectId, target: workTarget(work) })} />}
       </>} />}>
@@ -492,7 +492,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
     </div>
     {search !== null && projects && <SearchPopup projects={projects} open={searchScope} query={search} setQuery={setSearch} onChoose={choose} onClose={closeSearch} />}
     {creatingProject && <NewProjectDialog computer={info.computer.name} local={info.computer.hostId === null} onClose={() => setCreatingProject(false)} onCreated={projectActions.created} />}
-  </Scaffold>;
+  </Scaffold></StarsProvider>;
 }
 
 /**

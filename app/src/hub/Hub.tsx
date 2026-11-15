@@ -8,14 +8,17 @@
 // line with that project's statistics; the search stays in the title bar. One click opens a plan. A connected agent that does not run Coord (Codex not trusting its hooks, say)
 // has a notice above the plans, linking to Settings › Agents, until it does.
 import { memo, useMemo, type MouseEvent } from 'react';
-import { Alert, Button, Link, Row, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
+import { Alert, Button, IconButton, Link, Menu, Row, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
+import { IconFilterList } from '@envsemble/envui/icons/FilterList';
 import { EmptyState } from '../ui/EmptyState';
 import { StatisticsIcon, WorkIcon } from '../ui/icons';
 import type { Project } from '../types';
-import { hubGroups, hubItems, hubRowFacts, inState, partsFacts, type HubItem, type HubRowFacts, type HubState } from './hubPlans';
+import { hubGroups, hubItems, hubOnlyFilters, hubOnlyLabels, hubRowFacts, inState, matchesOnly, partsFacts, type HubItem, type HubOnly, type HubRowFacts, type HubState } from './hubPlans';
 import { absoluteDate, plural, relativeDate, workNumber } from '../ui/format';
 import { settingsPlace, statisticsPlace, workTarget, type Place } from '../navigation/targets';
 import { ProjectAvatar, ProjectMenu } from '../projects/ProjectMenu';
+import { StarButton } from '../stars/StarButton';
+import { useStars } from '../stars/stars';
 import type { ProjectActions } from '../projects/ProjectDialogs';
 import { AgentWarnings, useAgentChecks } from '../settings/AgentList';
 import { StatusIcon } from '../ui/badges';
@@ -26,7 +29,8 @@ import { ContinuedIn } from '../plan/HandoffLinks';
 import { Page } from '../ui/Page';
 
 /** The hub's state filter, kept while the window is open. */
-export interface HubFilters { state: HubState }
+/** Open, closed or all, and the filter menu's filters that are on. */
+export interface HubFilters { state: HubState; only: readonly HubOnly[] }
 
 /** Steps done of all, the planning steps among them in their own colour, the one in progress showing what agents do. */
 function Progress({ progress, wide }: { progress: NonNullable<HubRowFacts['progress']>; wide?: boolean }) {
@@ -87,6 +91,7 @@ const HubRow = memo(function HubRow({ item, go, showProject }: { item: HubItem; 
         <StatusIcon status={status} />
         <Link href="#" underline={false} className="hub-row-link" data-row-target draggable={false} title={work.summary ?? undefined} onClick={open}>{work.title}</Link>
         <span className="hub-row-number">{workNumber(work.id)}</span>
+        <StarButton projectId={project.id} workId={work.id} title={work.title} className="hub-row-star" />
         {parts && <span className="hub-row-parts" data-kind={parts.kind}>{parts.kind === 'part' ? 'Part ' + parts.index + ' of ' + workNumber(parts.group) : plural(parts.count, 'part') + (parts.closed ? ' · ' + parts.closed + ' closed' : '')}</span>}
       </span>
       {large && (facts.blocked ? <small className="cell-note hub-row-blocked">Blocked: {facts.blocked}</small>
@@ -123,7 +128,9 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, c
 }) {
   // Archived projects are seen only in the project menu, to restore: the hub of one shows every project's plans.
   const filter = projects?.some(project => project.id === asked && project.state === 'active') ? asked : null;
-  const items = useMemo(() => hubItems(projects ?? [], filter), [projects, filter]);
+  const { starred } = useStars();
+  // The filter menu's filters narrow the plans before Open, Closed and All count and group them.
+  const items = useMemo(() => hubItems(projects ?? [], filter).filter(item => matchesOnly(item, filters.only, each => starred(each.project.id, each.work.id), Date.now())), [projects, filter, filters.only, starred]);
   const groups = useMemo(() => hubGroups(items, filters.state), [items, filters.state]);
   const counts = useMemo(() => ({ open: items.filter(item => inState(item, 'open')).length, closed: items.filter(item => inState(item, 'closed')).length, all: items.length }), [items]);
   const filtered = projects?.find(project => project.id === filter);
@@ -144,7 +151,7 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, c
       description="Plans live in projects. Make one here, or ask an agent to."
       action={<Button variant="secondary" onClick={newProject}>New project</Button>} />
   </Page>;
-  const empty = filters.state === 'open' ? 'No open plans' : filters.state === 'closed' ? 'No closed plans' : 'No plans yet';
+  const empty = filters.only.length ? 'No plans match the filters' : filters.state === 'open' ? 'No open plans' : filters.state === 'closed' ? 'No closed plans' : 'No plans yet';
   // The title (the project's name, or Plans), and on its row the project menu, that project's
   // statistics and the state filter. Search stays in the title bar, as on every page.
   return <Page className="hub" title={filtered?.name ?? 'Plans'} controlSize="sm"
@@ -153,6 +160,7 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, c
       <Button variant="secondary" size="sm" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered?.id ?? null))}>Statistics</Button>
       <SegmentedControl aria-label="Plan state" size="sm" value={filters.state} onValueChange={state => setFilters({ ...filters, state: state as HubState })}
         items={[{ value: 'open', label: 'Open', count: counts.open }, { value: 'closed', label: 'Closed', count: counts.closed }, { value: 'all', label: 'All', count: counts.all }]} />
+      <FilterMenu only={filters.only} onChange={only => setFilters({ ...filters, only })} />
     </Row>}>
     {error && <Alert tone="warning">{error}</Alert>}
     {warnings}
@@ -165,6 +173,20 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, c
       </Table.Root>
     </section>)}
     {!groups.length && <EmptyState className="page-empty hub-empty" align="center" icon={<WorkIcon />} title={empty}
-      description={filtered ? (filters.state === 'open' ? 'Every plan of ' + filtered.name + ' is closed.' : 'Nothing here for ' + filtered.name + ' yet.') : undefined} />}
+      description={filters.only.length ? undefined : filtered ? (filters.state === 'open' ? 'Every plan of ' + filtered.name + ' is closed.' : 'Nothing here for ' + filtered.name + ' yet.') : undefined}
+      action={filters.only.length ? <Button variant="secondary" onClick={() => setFilters({ ...filters, only: [] })}>Clear filters</Button> : undefined} />}
   </Page>;
+}
+
+/** The hub's filter button: a menu of filters that narrow the plans shown, each on or off; the button marks that some are on. */
+function FilterMenu({ only, onChange }: { only: readonly HubOnly[]; onChange(only: HubOnly[]): void }) {
+  const set = (filter: HubOnly, on: boolean) => onChange(hubOnlyFilters.filter(item => item === filter ? on : only.includes(item)));
+  const label = only.length ? 'Filters, ' + only.length + ' on' : 'Filters';
+  return <Menu.Root aria-label="Filters" align="end"
+    trigger={<IconButton variant={only.length ? 'secondary' : 'ghost'} size="sm" className="hub-filters" aria-label={label} title={label} data-active={only.length ? '' : undefined} icon={<IconFilterList />} />}>
+    <Menu.Group label="Show only">
+      {hubOnlyFilters.map(filter => <Menu.CheckboxItem key={filter} checked={only.includes(filter)} onCheckedChange={on => set(filter, on)}>{hubOnlyLabels[filter]}</Menu.CheckboxItem>)}
+    </Menu.Group>
+    {only.length > 0 && <><Menu.Separator /><Menu.Item onClick={() => onChange([])}>Clear filters</Menu.Item></>}
+  </Menu.Root>;
 }

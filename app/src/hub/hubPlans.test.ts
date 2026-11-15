@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hubGroups, hubItems, hubRowFacts, hubStatus, inState, lastChange, partsFacts } from './hubPlans.ts';
+import { hubGroups, hubItems, hubRowFacts, hubStatus, inState, lastChange, matchesOnly, partsFacts } from './hubPlans.ts';
 import { compactNumber, duration } from '../ui/format.ts';
 import type { Project, ProjectSummary, ProjectWork } from '../types.ts';
 
@@ -53,6 +53,12 @@ test('open plans are grouped by whose turn they are: the user\'s first, then wor
   assert.deepEqual(turns[0].items.map(item => item.work.id), ['work-0030', 'work-0021']);
   assert.equal(inState(items[0], 'all'), true);
   assert.deepEqual(hubGroups([], 'open'), []);
+  // The filter menu's filters narrow the plans, each one that is on to those that match it.
+  const kept = (only: Parameters<typeof matchesOnly>[1]) => items.filter(item => matchesOnly(item, only, each => each.work.id === 'work-0023', Date.parse('2026-10-15T10:00:00Z'))).map(item => item.work.id);
+  assert.deepEqual(kept(['starred']), ['work-0023']);
+  assert.deepEqual(kept(['your_turn']), ['work-0021']);
+  assert.deepEqual(kept(['starred', 'your_turn']), []);
+  assert.equal(kept([]).length, items.length);
 });
 
 test('each plan shows its status, whose turn it declares first, and closed work how it ended', () => {

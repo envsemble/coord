@@ -59,6 +59,8 @@ export const api: Omit<Unwrapped, 'snapshot'> & { snapshot(projectId: string): P
   command: command => unwrap(bridge().command(command)),
   theme: () => unwrap(bridge().theme()),
   setTheme: preference => unwrap(bridge().setTheme(preference)),
+  stars: () => unwrap(bridge().stars()),
+  setStar: (key, starred) => unwrap(bridge().setStar(key, starred)),
   about: () => unwrap(bridge().about()),
   computers: () => unwrap(bridge().computers()),
   switchComputer: (hostId, newWindow) => unwrap(bridge().switchComputer(hostId, newWindow)),

@@ -24,7 +24,7 @@ export const invokeChannels = [
   'project:statistics', 'projects:statistics', 'ui:load', 'ui:save',
   'references:resolve', 'work:sessions', 'work:timeline',
   'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:copy',
-  'app:command', 'app:theme', 'app:setTheme', 'app:about',
+  'app:command', 'app:theme', 'app:setTheme', 'app:about', 'stars:list', 'stars:set',
   'computers:list', 'computers:switch', 'computers:pair', 'computers:forget',
   'access:state', 'access:update', 'access:pairingCreate', 'access:pairingRevoke', 'access:devices', 'access:deviceRevoke',
   'agents:list', 'agents:checks', 'agents:connect', 'agents:disconnect', 'agents:chooseProgram', 'agents:clearProgram', 'agents:byHand',
@@ -268,6 +268,10 @@ export interface CoordBridge {
   /** The app's theme preference. Windows follow it through `prefers-color-scheme`. */
   theme(): Promise<Result<ThemePreference>>;
   setTheme(preference: ThemePreference): Promise<Result<void>>;
+  /** The starred work items, the same in every window, each a `starKey`. */
+  stars(): Promise<Result<string[]>>;
+  /** Star or unstar one; returns them all. */
+  setStar(key: string, starred: boolean): Promise<Result<string[]>>;
   /** The versions and the Coord home About Coord shows. */
   about(): Promise<Result<AboutInfo>>;
   /** This computer and the computers this app paired with, each checked for whether it answers. */
@@ -316,4 +320,9 @@ export interface CoordBridge {
   onMenu(listener: (command: MenuCommand) => void): () => void;
   onAccessChanged(listener: (change: AccessChange) => void): () => void;
   onUpdatesChanged(listener: (state: UpdateState) => void): () => void;
+}
+
+/** A starred work item's key: its computer (`local` for this one), its project and its id. */
+export function starKey(hostId: string | null, projectId: string, workId: string): string {
+  return [hostId ?? 'local', projectId, workId].join(' ');
 }

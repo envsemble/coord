@@ -45,6 +45,23 @@ export function hubItems(projects: Project[], filter: string | null): HubItem[] 
   });
 }
 
+/**
+ * The hub's filters beyond Open, Closed and All, from its filter menu; a plan shows when it matches
+ * every one that is on: starred, the user's turn, agents working on it (or planning it), blocked,
+ * changed in the last seven days.
+ */
+export const hubOnlyFilters = ['starred', 'your_turn', 'working', 'blocked', 'recent'] as const;
+export type HubOnly = typeof hubOnlyFilters[number];
+export const hubOnlyLabels: Record<HubOnly, string> = { starred: 'Starred', your_turn: 'Your turn', working: 'Agents working', blocked: 'Blocked', recent: 'Changed this week' };
+const week = 7 * 24 * 60 * 60 * 1000;
+export function matchesOnly(item: HubItem, only: readonly HubOnly[], starred: (item: HubItem) => boolean, now: number): boolean {
+  return only.every(filter => filter === 'starred' ? starred(item)
+    : filter === 'your_turn' ? item.status.key === 'your_turn'
+    : filter === 'working' ? item.status.key === 'working' || item.status.key === 'planning'
+    : filter === 'blocked' ? item.status.key === 'blocked'
+    : Boolean(item.work.updated) && now - Date.parse(item.work.updated!) <= week);
+}
+
 /** Whether a plan is in the state the hub shows. */
 export const inState = (item: HubItem, state: HubState) => state === 'all' || (state === 'closed') === (item.work.state === 'closed');
 

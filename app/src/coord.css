@@ -650,3 +650,9 @@ body { margin: 0; }
 
 /* A project in the breadcrumbs: its avatar, as in the hub and the project menu, before its name. */
 .breadcrumb-project { display: inline-flex; align-items: center; gap: var(--env-space-2); }
+
+/* Stars: an outlined star, filled in amber once starred. In a hub row it shows only while the row is
+   hovered or focused, or when the plan is starred, so rows stay quiet. */
+.star-button[aria-pressed='true'] { color: var(--env-color-fg-warning); }
+.hub-row-star { flex: none; position: relative; margin-block: calc(-1 * var(--env-space-1)); }
+.hub-row:not(:hover, :focus-within) .hub-row-star[aria-pressed='false'] { opacity: 0; }
