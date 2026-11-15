@@ -57,7 +57,7 @@ function Home() {
       {/* One box as wide as its longest line, centred; its lines break where they read best. */}
       <div className="intro">
         <h1>A desktop app for planning <br />with <Agent name="Claude" path={claudePath} kind="claude" /> or <Agent name="Codex" path={codexPath} kind="codex" /></h1>
-        <p className="lead">Agents are fast, and happy to build the wrong thing. Coord keeps the plan, its decisions and its steps in your project, so you both mean the same thing.</p>
+        <p className="lead">Agents are fast, and happy to build the wrong thing. Coord keeps the plan you agreed on, with its decisions and steps, on your computer, where every agent session finds it.</p>
       </div>
       <ChannelPicker channel={channel} onChange={setChannel} />
       <div className="downloads" data-channel={channel}>
@@ -83,11 +83,11 @@ const screenshots: { key: string; label: string; text: ReactNode; shot: string; 
   { key: 'turn', label: 'Shows which plans are Your turn', text: <>Shows which plans are <State kind="turn">Your turn</State></>,
     shot: hub, focus: '0%', alt: "Coord's own plans: Your turn first, each saying what to do, then Waiting and Later, with the models that worked on them." },
   { key: 'plan', label: 'Grills you until the plan goes Draft to Accepted', text: <>Grills you until the plan goes <span className="nowrap"><State kind="draft">Draft</State> → <State kind="accepted">Accepted</State></span></>,
-    shot: plan, focus: '46%', alt: "One of Coord's own plans: what was decided, and its steps from understanding the request to the last one done." },
+    shot: plan, focus: '38%', alt: "One of Coord's own plans: its summary and outcome, what was asked for, and its steps, the last one in progress." },
   { key: 'diagram', label: 'Captures your code and database as a class diagram', text: <>Captures your code and database as a <Ref kind="diagram">class diagram</Ref></>,
-    shot: diagram, focus: '51%', alt: "Coord's own home database captured as a diagram: projects, sessions and the agents' reports, with their columns and relations." },
+    shot: diagram, focus: '67%', alt: "Coord's own home database captured as a diagram: projects, sessions and the agents' reports, with their columns and relations." },
   { key: 'statistics', label: "Counts every model's agent time and tokens", text: <>Counts every model's agent time and tokens</>,
-    shot: statistics, focus: '49%', alt: "The statistics of one plan's work: agent time, tokens and sessions, and a timeline of each model working." },
+    shot: statistics, focus: '38%', alt: "The statistics of one plan's work: agent time, tokens and sessions, and a timeline of each model working." },
 ];
 const screenshotTime = 6000;
 
@@ -107,7 +107,7 @@ function Screenshots() {
   }, [shown, playing]);
   return <section className="screenshots" aria-label="What Coord does" aria-roledescription="carousel">
     <div className="screenshot">
-      {screenshots.map((item, index) => <img key={item.key} src={item.shot} alt={item.alt} width={2182} height={1364}
+      {screenshots.map((item, index) => <img key={item.key} src={item.shot} alt={item.alt} width={2180} height={1364}
         decoding="async" style={{ '--focus': item.focus } as CSSProperties} data-shown={index === shown ? '' : undefined} aria-hidden={index === shown ? undefined : true} />)}
     </div>
     <div className="screenshot-captions" aria-live={playing ? 'off' : 'polite'}>
