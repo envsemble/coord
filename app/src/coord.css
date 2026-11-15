@@ -220,6 +220,8 @@ body { margin: 0; }
 .plan-files .env-resize-handle::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: calc(50% - var(--env-control-border-width) / 2); inline-size: var(--env-control-border-width); background: transparent; }
 .plan-files .env-resize-handle:is(:hover, [data-resizing])::before { background: var(--env-color-bg-neutral-muted-hover); }
 .plan-files .env-resize-handle:is(:hover, [data-resizing]) { --env-resize-handle-grip-color: transparent; }
+/* A narrow grip, as an editor's: the line shows only while the pointer is on the edge itself, and goes as soon as it moves off after a drag. */
+.plan-files .env-navigation-drawer-resize-handle { --env-resize-handle-size: var(--env-space-2); }
 /* Compact rows with a squarer selection, as an editor's explorer has them. */
 .plan-files .env-tree { --env-tree-item-padding: 0.125rem; }
 .plan-files .env-tree-item { border-radius: 0.25rem; }
