@@ -494,10 +494,11 @@ body { margin: 0; }
 .provider-mark[data-provider='deepseek'] { color: light-dark(#4d6bfe, #7d93ff); }
 /* stylelint-enable color-no-hex */
 .provider-mark[data-plain] { color: inherit; }
-/* A value that says more on hover and focus. */
-/* A hairline of evenly spaced dots, whatever the text's size: left to itself the underline thickens
-   with the font, and Chromium draws thick dots blotchy and uneven on a large figure. */
-.detailed { border-radius: 0.25rem; text-decoration: underline dotted var(--env-color-fg-disabled); text-decoration-thickness: 0.0625rem; text-decoration-skip-ink: none; text-underline-offset: 0.3em; cursor: help; }
+/* A value that says more on hover and focus takes envUI's dotted underline from its Tooltip
+   (env-hover-detail); it adds none of its own. A headline figure shows none at rest: dots under
+   large text read as a flaw, and its tooltip still opens on hover and focus. */
+.detailed { border-radius: 0.25rem; }
+.stat-value { --env-hover-detail-rest-color: transparent; }
 .detailed:focus-visible { outline: 0.125rem solid var(--env-color-border-focus); outline-offset: 0.125rem; }
 .breakdown { display: grid; grid-template-columns: auto auto; row-gap: 0.125rem; margin: 0; font-variant-numeric: tabular-nums; }
 .breakdown > div { display: contents; }
