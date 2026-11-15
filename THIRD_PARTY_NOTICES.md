@@ -8,6 +8,8 @@ The interface is built on envUI (`@envsemble/envui`), Envsemble's own component 
 
 The `coord-grill` skill's interview and domain-modeling methods are adapted from Matt Pocock's [skills](https://github.com/mattpocock/skills) and keep their [MIT license](plugin/skills/coord-grill/references/LICENSE).
 
+The website (`site/`) is set in [Geist](https://github.com/vercel/geist-font), from `@fontsource-variable/geist` 5.3.0 under the SIL Open Font License 1.1, served with the site; the license text ships in the package.
+
 The interface icons are envUI's Material Symbols. The reusable viewer imports them from envUI; the offline build bundles the icons it uses. No icon or font service or CDN is required.
 
 The AI providers' marks beside model names in the app's statistics (Claude's spark for Anthropic, the OpenAI blossom, the Gemini sparkle, Mistral AI's M and the DeepSeek whale) are SVG paths from [Simple Icons](https://github.com/simple-icons/simple-icons) under CC0 1.0: release 16.35.0, and 15.22.0 for OpenAI's, the last release that included it. Only the path data is copied, in `app/src/ui/ModelName.tsx`. The marks are trademarks of their owners and only identify their models; showing them implies no endorsement or affiliation.
@@ -22,6 +24,6 @@ The Coord host (`packages/coord/src/host`), which the desktop app runs and `coor
 
 Dependencies are pinned in package-lock.json and retain their upstream licenses in their npm distributions. Coord itself is under the MIT license ([LICENSE](LICENSE)).
 
-Coord's logos in `assets/` and its icons (the app's `app/build/app.ico`, `app.icns` and `app-1024.png`, and the viewer's `packages/diagrams/assets/icon.svg`) are the Coord mark and wordmark from the envsemble brand assets: original artwork, outlined into paths, so no font software is distributed. Application screenshots show the actual local viewer and planning integration. No upstream documentation imagery or third-party logo was copied into them. Interface components, icons and the font retain the notices above; Coord branding does not imply affiliation.
+Coord's logos in `assets/` and its icons (the app's `app/build/app.ico`, `app.icns` and `app-1024.png`, the viewer's `packages/diagrams/assets/icon.svg` and the website's `site/public/favicon.svg`) are the Coord mark and wordmark from the envsemble brand assets, and `assets/envsemble-horizontal-on-dark.svg`, in the website's footer, is envsemble's own logo from them: original artwork, outlined into paths, so no font software is distributed. Application screenshots show the actual local viewer and planning integration. No upstream documentation imagery or third-party logo was copied into them. Interface components, icons and the font retain the notices above; Coord branding does not imply affiliation.
 
 TypeScript 6.0.3 is distributed as the `typescript-compiler` npm alias under Apache-2.0, including its upstream license. Coord uses its classic compiler API for source inspection. TypeScript 7.0.2 remains a development type checker. The Java inspector is Coord source using standard JDK 21 compiler APIs; the JDK is an external prerequisite. prettier-plugin-java 2.11.0 is a development formatter under its upstream Apache-2.0 license.

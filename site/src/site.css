@@ -2,22 +2,22 @@
 
 :root {
   color-scheme: dark;
-  /* A black page, with envUI's dark theme's text, quieter text, hairlines and controls. */
-  --background: #000000;
+  /* envUI's dark theme: the gray page, its text, quieter text, hairlines and controls. */
+  --background: #1e1f21;
   --text: #e8eaee;
   --muted: #bdbfc3;
+  /* A step below the heading, for the lead and the line under the downloads. */
+  --quieter: #93969b;
   --border: #5d6166;
+  /* The screenshots' edge: a faint hairline, as the footer's, not the controls' lighter border. */
+  --frame: rgb(232 234 238 / 0.08);
   --button: #28292b;
   --button-hover: #383a3d;
-  font-family: Inter, "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: "Geist Variable", Geist, "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
   background: var(--background);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
-  transition: background-color 300ms;
 }
-/* Nightly picked: the starry sky (Sky.tsx) fades in behind the page. */
-.sky { position: fixed; inset: 0; z-index: -1; width: 100%; height: 100%; opacity: 0; pointer-events: none; transition: opacity 700ms; }
-.sky[data-shown] { opacity: 1; }
 
 * { box-sizing: border-box; }
 body { margin: 0; }
@@ -31,7 +31,7 @@ a { color: inherit; }
   margin-inline: auto;
 }
 .header { padding-block: 1.25rem; }
-.brand img { display: block; height: 2.25rem; width: auto; }
+.brand img { display: block; height: 1.75rem; width: auto; }
 .quiet { color: var(--muted); text-decoration: none; font-size: 0.9375rem; }
 .quiet:hover { color: var(--text); }
 
@@ -44,83 +44,38 @@ main {
   padding-block: 3.5rem 4rem;
 }
 
-/* Everything above the screenshot, in one column with one left edge. */
-.intro { width: fit-content; max-width: 100%; }
+/* Everything above the downloads, centred. */
+.intro { width: fit-content; max-width: 100%; text-align: center; }
 
+/* The heading is the loudest thing on the page, the logo above it smaller (the council, round 1). */
 h1 {
   margin: 0;
-  font-size: 1.875rem;
-  line-height: 1.35;
-  letter-spacing: -0.015em;
-  font-weight: 400;
+  font-size: 3rem;
+  line-height: 1.12;
+  letter-spacing: -0.025em;
+  font-weight: 600;
   text-wrap: balance;
 }
 
 .lead {
-  margin: 0.75rem 0 0;
-  color: var(--muted);
-  font-size: 1.0625rem;
-  line-height: 1.6;
+  max-width: 40rem;
+  margin: 1.25rem auto 0;
+  color: var(--quieter);
+  font-size: 1.1875rem;
+  line-height: 1.55;
+  text-wrap: balance;
 }
 
-.features {
-  margin: 1.75rem 0 0;
-  padding: 0;
-  list-style: none;
-  color: var(--text);
-  font-size: 1.0625rem;
-  /* Tall enough for the badges, so every line is the same height. */
-  line-height: 1.85;
-}
-.features li { position: relative; padding-left: 1.5rem; }
-.features li + li { margin-top: 0.25rem; }
-/* envUI's list mark: its spark, in the text's colour (envUI's assets/spark.svg). */
-.features li::before {
-  content: "";
-  position: absolute;
-  top: calc((1lh - 0.5625rem) / 2);
-  left: 0.3125rem;
-  width: 0.5625rem;
-  height: 0.5625rem;
-  background-color: var(--text);
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 0C12.9 7.4 16.6 11.1 24 12C16.6 12.9 12.9 16.6 12 24C11.1 16.6 7.4 12.9 0 12C7.4 11.1 11.1 7.4 12 0Z'/%3E%3C/svg%3E") center / contain no-repeat;
-}
-
-/* After each feature, a faint image mark: hovering shows its screenshot. */
-.features li { cursor: default; }
-.peek-hint { display: inline-block; width: 0.95em; height: 0.95em; margin-left: 0.45em; vertical-align: -0.15em; color: var(--muted); opacity: 0.45; transition: opacity 120ms; }
-.features li:hover .peek-hint { opacity: 1; }
-
-/* The hovered feature's screenshot, by the cursor; only where there is a mouse. All four stay in
-   the page on their own layer, so showing one and moving it costs no decoding or painting. */
-.peek {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: min(40rem, 60vw);
-  aspect-ratio: 8 / 5;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 0.625rem;
-  background: var(--background);
-  box-shadow: 0 1.25rem 3rem rgb(0 0 0 / 0.6);
-  pointer-events: none;
-  visibility: hidden;
-  will-change: transform;
-  z-index: 10;
-}
-.peek[data-shown] { visibility: visible; }
-.peek img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: left top; visibility: hidden; }
-.peek img[data-shown] { visibility: visible; }
-@media (hover: none) { .peek, .peek-hint { display: none; } }
-
-/* The plan's own inline parts, in the app's dark colours: agents with their marks, state badges,
+/* The app's own inline parts, in its dark colours, in the heading and the captions: agents with their marks, state badges,
    and links to a diagram (purple) or a page (teal). Badges and links are inline blocks, so their
    words sit on the line's baseline with the text around them; their symbols sit on the text. */
 .symbol, .agent-mark { width: 1.05em; height: 1.05em; flex: none; }
 .state .symbol, .ref .symbol { display: inline-block; vertical-align: -0.18em; margin-right: 0.25em; }
 .agent { display: inline-flex; align-items: baseline; gap: 0.3em; white-space: nowrap; }
-.agent-mark { align-self: center; width: 0.85em; height: 0.85em; }
+/* A maker's mark as tall as the capitals, standing on the baseline (a flex item's baseline is its
+   bottom edge), so it lines up with the name's letters; a touch larger, centred on them, reads as
+   the same size as the round letters. */
+.agent-mark { align-self: baseline; position: relative; top: 0.05cap; width: 1.1cap; height: 1.1cap; }
 .agent-claude .agent-mark { color: #e3896a; }
 .state {
   display: inline-block;
@@ -137,13 +92,6 @@ h1 {
 .ref .symbol { width: 1.1em; height: 1.1em; margin-right: 0.2em; }
 .ref-diagram { color: #dab0ec; }
 .ref-page { color: #97c9c1; }
-
-.facts {
-  margin: 1.5rem 0 0;
-  color: var(--muted);
-  font-size: 0.9375rem;
-  line-height: 1.6;
-}
 
 /* Stable or Nightly: a segmented control like envUI's, its chosen segment raised. */
 .channels {
@@ -185,7 +133,7 @@ h1 {
   display: inline-flex;
   align-items: center;
   gap: 0.875rem;
-  width: 17rem;
+  width: 18.5rem;
   max-width: 100%;
   padding: 0.75rem 1.375rem 0.75rem 1.125rem;
   border: 1px solid var(--border);
@@ -201,25 +149,99 @@ h1 {
 .download-windows { background: #0078d4; border-color: #0078d4; color: #ffffff; }
 .download-windows:hover { background: #1a86d9; border-color: #1a86d9; }
 .download-windows .download-detail { color: rgb(255 255 255 / 0.8); }
+/* Nightly picked: a night-blue glow comes in from each button's right edge; an overlay, so it fades. */
+.download { position: relative; overflow: hidden; isolation: isolate; }
+.download::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(270deg, rgb(110 125 245 / 0.32), rgb(110 125 245 / 0) 75%);
+  opacity: 0;
+  transition: opacity 400ms ease;
+  pointer-events: none;
+}
+.download-windows::after { background: linear-gradient(270deg, #3b3fb8, rgb(59 63 184 / 0) 80%); }
+.downloads[data-channel="nightly"] .download::after { opacity: 1; }
 .download[aria-busy] { opacity: 0.6; }
 .logo { width: 1.75rem; height: 1.75rem; flex: none; }
 .download-text { display: flex; flex-direction: column; gap: 0.125rem; }
-.download-label { font-size: 1.0625rem; font-weight: 600; line-height: 1.2; }
+.download-label { font-size: 1.0625rem; font-weight: 600; line-height: 1.2; white-space: nowrap; }
 .download-detail { font-size: 0.8125rem; color: var(--muted); }
 
-.note { margin: 0.875rem 0 0; text-align: center; color: var(--muted); font-size: 0.875rem; line-height: 1.6; }
-.note a { color: var(--muted); text-underline-offset: 0.2em; }
-.note a:hover { color: var(--text); }
+.note { margin: 1rem 0 0; text-align: center; color: var(--quieter); font-size: 0.8125rem; line-height: 1.6; }
+.note a { color: var(--muted); text-decoration: underline; text-decoration-color: rgb(232 234 238 / 0.25); text-underline-offset: 0.2em; }
+.note a:hover { color: var(--text); text-decoration-color: currentColor; }
 
+/* The screenshots: stacked in one frame, the shown one faded in, and their labels below. */
+.screenshots { width: 100%; margin-top: 3.5rem; }
 .screenshot {
-  display: block;
-  width: 100%;
-  height: auto;
-  margin-top: 3.5rem;
-  border: 1px solid var(--border);
+  display: grid;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 0.14);
   border-radius: 0.875rem;
-  /* envUI's raised shadow in its dark theme: a contact edge and a soft fall-off below. */
-  box-shadow: 0 1px 2px oklch(from var(--background) calc(l * 0.25) c h / 0.5), 0 12px 32px -10px oklch(from var(--background) calc(l * 0.8) c h / 0.85);
+  /* A light hairline inside a dark ring keeps the window's edge crisp on a page of nearly its own
+     gray; then a light top edge, as a window catching light, envUI's raised shadow in its dark theme (a contact
+     edge and a soft fall-off below), and a deep, wide shadow that lifts it off the page. */
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 0 0 1px rgb(0 0 0 / 0.45), 0 24px 48px -20px rgb(0 0 0 / 0.45), 0 1px 2px oklch(from var(--background) calc(l * 0.25) c h / 0.5), 0 12px 32px -10px oklch(from var(--background) calc(l * 0.8) c h / 0.85);
+}
+
+.screenshot img { grid-area: 1 / 1; display: block; width: 100%; height: auto; opacity: 0; transition: opacity 600ms ease; }
+.screenshot img[data-shown] { opacity: 1; }
+/* Under the screenshots, one capsule as small as the Stable and Nightly switch: the shown one's name,
+   its dots (the shown one a bar filling with its time, as on Apple's product pages) and a pause button. */
+/* The shown feature, under its screenshot: all captions stacked in one cell, so the line keeps the
+   tallest one's height and the change is a fade. */
+.screenshot-captions { display: grid; align-items: center; margin-top: 1.5rem; text-align: center; }
+.screenshot-captions p { grid-area: 1 / 1; margin: 0; font-size: 1.25rem; font-weight: 500; line-height: 1.75; text-wrap: balance; opacity: 0; transition: opacity 400ms ease; }
+.screenshot-captions p[data-shown] { opacity: 1; }
+.screenshot-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: fit-content;
+  margin: 0.75rem auto 0;
+  padding: 0.1875rem 0.1875rem 0.1875rem 0.875rem;
+  border-radius: 999px;
+  background: var(--button);
+}
+.screenshot-dots { display: flex; align-items: center; gap: 0.375rem; }
+.screenshot-dot {
+  position: relative;
+  overflow: hidden;
+  width: 0.375rem;
+  height: 0.375rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(232 234 238 / 0.3);
+  cursor: pointer;
+  transition: width 400ms cubic-bezier(0.4, 0, 0.2, 1), background-color 200ms linear;
+}
+/* A larger target than the dot itself. */
+.screenshot-dot::before { content: ""; position: absolute; inset: -0.625rem -0.1875rem; }
+.screenshot-dot:hover { background: rgb(232 234 238 / 0.55); }
+.screenshot-dot[aria-current] { width: 1.5rem; background: rgb(232 234 238 / 0.3); cursor: default; }
+.screenshot-fill { position: absolute; inset: 0; border-radius: inherit; background: var(--text); transform-origin: left; animation: screenshot-fill 6000ms linear forwards; }
+.screenshot-fill[data-paused] { animation: none; }
+@keyframes screenshot-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.screenshot-play {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.screenshot-play:hover { background: var(--button-hover); color: var(--text); }
+.screenshot-play svg { width: 0.875rem; height: 0.875rem; }
+.screenshot-dot:focus-visible, .screenshot-play:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .screenshot img, .screenshot-captions p, .screenshot-dot { transition: none; }
 }
 
 .nowrap { white-space: nowrap; }
@@ -230,13 +252,18 @@ h1 {
   gap: 0.75rem 1.5rem;
   margin-top: 1rem;
   padding-block: 1.5rem 2.5rem;
-  border-top: 1px solid rgb(232 234 238 / 0.08);
+  border-top: 1px solid var(--frame);
   color: var(--muted);
   font-size: 0.8125rem;
 }
 .footer nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; }
 .footer a { color: var(--muted); text-decoration: none; }
 .footer a:hover { color: var(--text); }
+.maker { display: flex; align-items: center; gap: 0.5rem; }
+/* envsemble's lockup: the on-dark file unchanged, with half the mark's height of clear space around
+   it. 18 px tall, under the brand guide's 24 px minimum, by the owner's choice (2026-11-15), so it sits
+   with the footer's small text. */
+.maker-logo img { display: block; height: 18px; width: auto; }
 
 /* The privacy and terms pages: one readable column. */
 .legal { align-items: stretch; max-width: 42rem; line-height: 1.65; }
@@ -255,22 +282,20 @@ h1 {
    hover marks (there is nothing to hover). */
 @media (max-width: 40rem) {
   .header { padding-block: 1rem; }
-  .brand img { height: 1.75rem; }
+  .brand img { height: 1.5rem; }
   main { padding-block: 2rem 3rem; }
-  h1 { font-size: 1.5rem; line-height: 1.3; }
-  .lead { margin-top: 0.625rem; font-size: 1rem; line-height: 1.55; }
-  .features { margin-top: 1.25rem; font-size: 0.9375rem; line-height: 1.7; }
-  .features li { padding-left: 1.25rem; }
-  .features li::before { left: 0.125rem; }
-  .features li + li { margin-top: 0.375rem; }
-  .peek-hint { display: none; }
-  .facts { margin-top: 1.25rem; font-size: 0.875rem; }
+  h1 { font-size: 2rem; line-height: 1.15; }
+  .lead { margin-top: 0.875rem; font-size: 1rem; line-height: 1.55; }
   .channels { margin-top: 1.5rem; }
   .downloads { flex-direction: column; width: 100%; gap: 0.625rem; }
   .download { width: 100%; padding-block: 0.625rem; }
   .download-label { font-size: 1rem; }
-  .note { font-size: 0.8125rem; }
-  .screenshot { margin-top: 2.5rem; border-radius: 0.5rem; }
+  .screenshots { margin-top: 2.5rem; }
+  .screenshot-captions p { font-size: 1.0625rem; line-height: 1.7; }
+  /* A phone shows part of each screenshot, large enough to read: a taller frame, cropped around the
+     screenshot's focus (App.tsx) from its top. */
+  .screenshot { aspect-ratio: 4 / 5; border-radius: 0.5rem; }
+  .screenshot img { height: 100%; object-fit: cover; object-position: var(--focus, 0%) top; }
   .footer { padding-block: 1.25rem 2rem; }
 }
 

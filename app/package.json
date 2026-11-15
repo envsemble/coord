@@ -1,9 +1,9 @@
 {
   "name": "@envsemble/coord-app",
   "productName": "Coord",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
-  "description": "Coord desktop app: plans, models and shared understanding for agents and the people they work with",
+  "description": "The Coord desktop app, for planning with Claude Code or Codex",
   "author": "envsemble",
   "license": "MIT",
   "homepage": "https://github.com/envsemble/coord",

@@ -1,0 +1,12 @@
+// Coord's website as a Cloudflare Worker that serves only static files: the build in dist/.
+// Cloudflare's Workers Builds runs it from the repository's root (site/README.md says how).
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "coord-site",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+  },
+  "routes": [{ "pattern": "coord.envsemble.com", "custom_domain": true }],
+}

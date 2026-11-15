@@ -1,8 +1,8 @@
 {
   "name": "coord",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
-  "description": "Plans, models and shared understanding for agents and the people they work with",
+  "description": "A desktop app for planning with Claude Code or Codex: the plans, steps, decisions and diagrams your agents work from, kept in your project",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/envsemble/coord.git"
