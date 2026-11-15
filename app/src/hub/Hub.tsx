@@ -5,7 +5,7 @@
 // closed work with how it ended. A part says its place in its group, a group how many of its parts
 // are closed. The project menu (its choice part of the place, so back and forward and a plan's
 // breadcrumb set it), where projects are also made and managed, and a state filter narrow it, on its heading's
-// line with the search field, which opens the search. One click opens a plan. A connected agent that does not run Coord (Codex not trusting its hooks, say)
+// line with that project's statistics; the search stays in the title bar. One click opens a plan. A connected agent that does not run Coord (Codex not trusting its hooks, say)
 // has a notice above the plans, linking to Settings › Agents, until it does.
 import { memo, useMemo, type MouseEvent } from 'react';
 import { Alert, Button, Link, Row, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
@@ -24,7 +24,6 @@ import { ModelName } from '../ui/ModelName';
 import { continuation } from '../plan/handoffs';
 import { ContinuedIn } from '../plan/HandoffLinks';
 import { Page } from '../ui/Page';
-import { SearchButton } from '../navigation/SearchButton';
 
 /** The hub's state filter, kept while the window is open. */
 export interface HubFilters { state: HubState }
@@ -114,12 +113,8 @@ function rowKey(item: HubItem) {
   return key;
 }
 
-export function Hub({ projects, error, filter: asked, filters, setFilters, go, search, platform, computer, local, actions, newProject }: {
+export function Hub({ projects, error, filter: asked, filters, setFilters, go, computer, local, actions, newProject }: {
   projects: Project[] | null; error: string; filter: string | null; filters: HubFilters; setFilters(filters: HubFilters): void; go(place: Place): void;
-  /** Open the search. */
-  search(): void;
-  /** The computer's platform, for the search's shortcut keys. */
-  platform: string;
   /** The window's computer, its name, and whether it is this one (whose folders can be chosen), for the project menu. */
   computer: string; local: boolean;
   actions: ProjectActions;
@@ -150,18 +145,14 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, s
       action={<Button variant="secondary" onClick={newProject}>New project</Button>} />
   </Page>;
   const empty = filters.state === 'open' ? 'No open plans' : filters.state === 'closed' ? 'No closed plans' : 'No plans yet';
-  // The title (the project's name, or Plans); under it, the search, then the project menu with that
-  // project's statistics beside it, and the state filter.
+  // The title (the project's name, or Plans), and on its row the project menu, that project's
+  // statistics and the state filter. Search stays in the title bar, as on every page.
   return <Page className="hub" title={filtered?.name ?? 'Plans'} controlSize="sm"
-    toolbar={<Row wrap align="center" justify="between" gap={3}>
-      {/* The title bar's search, here: it opens the search popup, and never filters this list. */}
-      <SearchButton className="hub-search" platform={platform} label="Search every project" onClick={search} />
-      <Row align="center" gap={2}>
+    actions={<Row align="center" gap={2}>
       <ProjectMenu projects={projects} chosen={filtered} computer={computer} local={local} actions={actions} newProject={newProject} />
       <Button variant="secondary" size="sm" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered?.id ?? null))}>Statistics</Button>
       <SegmentedControl aria-label="Plan state" size="sm" value={filters.state} onValueChange={state => setFilters({ ...filters, state: state as HubState })}
         items={[{ value: 'open', label: 'Open', count: counts.open }, { value: 'closed', label: 'Closed', count: counts.closed }, { value: 'all', label: 'All', count: counts.all }]} />
-      </Row>
     </Row>}>
     {error && <Alert tone="warning">{error}</Alert>}
     {warnings}

@@ -463,7 +463,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   const searchScope = useMemo(() => projectPlace && reading && readSnapshot ? { projectId: reading, snapshot: readSnapshot } : null, [Boolean(projectPlace), reading, readSnapshot]);
 
   let content;
-  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.projectId} filters={hubFilters} setFilters={setHubFilters} go={go} search={openSearch} platform={info.platform}
+  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.projectId} filters={hubFilters} setFilters={setHubFilters} go={go}
     computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} newProject={() => setCreatingProject(true)} />;
   else if (isPage(placed) && placed.page === 'settings') content = <SettingsPage section={placed.section} computer={info.computer} go={showSettings} />;
   // All plans' statistics: every active project together.
@@ -482,7 +482,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
       start={<TitleBarStart info={info} menus={menus} onError={warn} />}
       actions={<>
         {/* On the hub, its own search button is the search. */}
-        {!hubShown && <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />}
+        <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />
         {scope && read && <Health issues={read.snapshot.issues} open={work => go({ projectId: scope.projectId, target: workTarget(work) })} />}
       </>} />}>
     <div className={'window-body' + (fills ? ' is-filled' : '')}>

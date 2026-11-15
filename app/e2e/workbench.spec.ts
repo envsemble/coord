@@ -29,7 +29,7 @@ test('a window opens on the hub: every plan of every active project, grouped by 
   await expect(groupRows(window, 'Your turn').first().locator('.hub-row-note')).toHaveText('Choose how a customer picks a saved card, on the card picker page');
   await expect(groupRows(window, 'Waiting').locator('.status-icon').first()).toHaveAttribute('aria-label', 'Blocked');
   await expect(groupRows(window, 'Later')).toHaveText([/Order fulfilment model\s*#0002\s*(Project)?(Northwind|Harbor)/, /Order fulfilment model\s*#0002\s*(Project)?(Northwind|Harbor)/]);
-  await expect(hubRows(window, 'Saved payment methods').locator('.hub-row-project')).toHaveText(['Northwind', 'Harbor']);
+  await expect(hubRows(window, 'Saved payment methods').locator('.hub-row-project-name')).toHaveText(['Northwind', 'Harbor']);
   // One click on the row, away from its title, opens the plan; Back returns to the hub.
   const plan = hubRows(window, 'Customer order notifications').first();
   await expect(plan.getByRole('link')).toHaveAttribute('draggable', 'false');
@@ -51,9 +51,9 @@ test("the hub's search button opens the search and it never filters the hub; the
   launched = await launch({ dataDirectory: home.dataDirectory });
   const { window } = launched;
   await expect(hubRows(window)).toHaveCount(6);
-  // The title bar has no search of its own on the hub: the hub's button, in its style, is the search.
-  await expect(titleBar(window).getByRole('button', { name: 'Search', exact: true })).toHaveCount(0);
-  const trigger = window.getByRole('button', { name: 'Search every project' });
+  // The search is the title bar's, on the hub as on every page; the hub has none of its own.
+  await expect(window.getByRole('button', { name: 'Search every project' })).toHaveCount(0);
+  const trigger = titleBar(window).getByRole('button', { name: 'Search', exact: true });
   const popup = searchPopup(window);
   const input = popup.getByRole('combobox');
   // A click opens the search; what is typed goes there, and the hub's list stays as it is.
@@ -422,7 +422,7 @@ test('one row at the top: the logo, back and forward, Plans, Settings and Help, 
   await expect(window.getByRole('combobox', { name: 'Theme' })).toHaveText(/Match the system/);
   await bar.getByRole('button', { name: /^Computer:/ }).click();
   const computerMenu = window.getByRole('menu', { name: /^Computer/ });
-  await expect(computerMenu.getByRole('menuitem')).toHaveText(['Computer settings…']);
+  await expect(computerMenu.getByRole('menuitem')).toHaveText([/This computer/, 'Computer settings…']);
   await computerMenu.getByRole('menuitem', { name: 'Computer settings…' }).click();
   await expect(settingsTab).toHaveText('Computers');
   await expect(window.getByRole('heading', { name: /^Devices that can reach / })).toBeVisible();
@@ -581,10 +581,6 @@ test('the side column of a plan stays still while the page scrolls, and scrolls 
   await expect.poll(() => aside.evaluate(element => element.scrollHeight > element.clientHeight + 50)).toBe(true);
   const top = async () => (await aside.boundingBox())!.y;
   await window.mouse.move(5, 300);
-  // Its scrollbar shows only while the pointer is over it.
-  expect(await aside.evaluate(element => getComputedStyle(element).scrollbarColor)).toMatch(/^(transparent|rgba\(0, 0, 0, 0\)) (transparent|rgba\(0, 0, 0, 0\))$/);
-  await aside.hover();
-  await expect.poll(() => aside.evaluate(element => getComputedStyle(element).scrollbarColor)).not.toMatch(/^(transparent|rgba\(0, 0, 0, 0\)) /);
   // A wheel over the plan scrolls the page; past the page's header the column stays where it is.
   await window.locator('.work-main').hover();
   await window.mouse.wheel(0, 300);

@@ -91,7 +91,6 @@ body { margin: 0; }
    filters together at the right. The search gives up room first; when even its narrowest does not fit,
    the controls go under the title, still at the right. */
 /* The hub's toolbar: the search gives up room first, the menu and the filter keep their labels on one line. */
-.hub-search { flex: 0 1 18rem; min-inline-size: 12rem; }
 /* With no plans to list, the state sits in the middle of the page. */
 .hub-empty { min-block-size: 50vh; }
 .hub-note { margin: 0; }
