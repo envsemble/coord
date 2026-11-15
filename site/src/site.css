@@ -225,50 +225,54 @@ h1 {
 
 .screenshot img { grid-area: 1 / 1; display: block; width: 100%; height: auto; opacity: 0; transition: opacity 600ms ease; }
 .screenshot img[data-shown] { opacity: 1; }
-/* Under the screenshots, as on Apple's product pages: the shown one's name, then a frosted capsule of
-   dots (the shown one a bar filling with its time) and a round play and pause button of the same glass. */
-.screenshot-caption { margin: 1.25rem 0 0; text-align: center; color: var(--muted); font-size: 0.9375rem; }
-.screenshot-controls { display: flex; justify-content: center; gap: 0.625rem; margin-top: 0.875rem; }
-.screenshot-dots, .screenshot-play {
-  height: 3.5rem;
+/* Under the screenshots, one capsule as small as the Stable and Nightly switch: the shown one's name,
+   its dots (the shown one a bar filling with its time, as on Apple's product pages) and a pause button. */
+.screenshot-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: fit-content;
+  margin: 1rem auto 0;
+  padding: 0.1875rem 0.1875rem 0.1875rem 0.875rem;
   border-radius: 999px;
-  background: rgb(232 234 238 / 0.1);
-  -webkit-backdrop-filter: blur(14px) saturate(1.5);
-  backdrop-filter: blur(14px) saturate(1.5);
+  background: var(--button);
 }
-.screenshot-dots { display: flex; align-items: center; gap: 0.5rem; padding-inline: 1.5rem; }
+.screenshot-caption { min-width: 4.75rem; color: var(--text); font-size: 0.875rem; font-weight: 500; }
+.screenshot-dots { display: flex; align-items: center; gap: 0.375rem; }
 .screenshot-dot {
   position: relative;
   overflow: hidden;
-  width: 0.5rem;
-  height: 0.5rem;
+  width: 0.375rem;
+  height: 0.375rem;
   padding: 0;
   border: 0;
   border-radius: 999px;
-  background: rgb(232 234 238 / 0.4);
+  background: rgb(232 234 238 / 0.3);
   cursor: pointer;
-  transition: width 400ms cubic-bezier(0.4, 0, 0.2, 1), background-color 250ms linear;
+  transition: width 400ms cubic-bezier(0.4, 0, 0.2, 1), background-color 200ms linear;
 }
 /* A larger target than the dot itself. */
-.screenshot-dot::before { content: ""; position: absolute; inset: -0.75rem -0.25rem; }
-.screenshot-dot:hover { background: rgb(232 234 238 / 0.6); }
-.screenshot-dot[aria-current] { width: 3rem; background: rgb(232 234 238 / 0.4); cursor: default; }
+.screenshot-dot::before { content: ""; position: absolute; inset: -0.625rem -0.1875rem; }
+.screenshot-dot:hover { background: rgb(232 234 238 / 0.55); }
+.screenshot-dot[aria-current] { width: 1.5rem; background: rgb(232 234 238 / 0.3); cursor: default; }
 .screenshot-fill { position: absolute; inset: 0; border-radius: inherit; background: var(--text); transform-origin: left; animation: screenshot-fill 6000ms linear forwards; }
 .screenshot-fill[data-paused] { animation: none; }
 @keyframes screenshot-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 .screenshot-play {
   display: grid;
   place-items: center;
-  width: 3.5rem;
+  width: 1.75rem;
+  height: 1.75rem;
   padding: 0;
   border: 0;
-  color: var(--text);
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
   cursor: pointer;
-  transition: background-color 100ms linear;
 }
-.screenshot-play:hover { background: rgb(232 234 238 / 0.16); }
-.screenshot-play svg { width: 1.25rem; height: 1.25rem; }
-.screenshot-dot:focus-visible, .screenshot-play:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+.screenshot-play:hover { background: var(--button-hover); color: var(--text); }
+.screenshot-play svg { width: 0.875rem; height: 0.875rem; }
+.screenshot-dot:focus-visible, .screenshot-play:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .screenshot img, .screenshot-dot { transition: none; }
 }

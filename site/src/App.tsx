@@ -92,9 +92,9 @@ const screenshots: { key: string; label: string; shot: string; alt: string }[] =
 const screenshotTime = 6000;
 
 /**
- * The app's screenshots in turn, one every six seconds, fading into each other, with controls as on
- * Apple's product pages: a capsule of dots, the shown one stretched into a bar that fills with its time,
- * and a round play and pause button beside it. A dot shows its screenshot; pausing holds the shown one.
+ * The app's screenshots in turn, one every six seconds, fading into each other, with timed dots as on
+ * Apple's product pages, kept as small as the site's other controls. A dot shows its screenshot;
+ * pausing holds the shown one.
  * With reduced motion they start paused. All stay in the page, so the change is a fade, not a load.
  */
 function Screenshots() {
@@ -106,16 +106,17 @@ function Screenshots() {
     return () => clearTimeout(timer);
   }, [shown, playing]);
   return <section className="screenshots" aria-label="Screenshots" aria-roledescription="carousel">
-    <div className="screenshot" aria-live={playing ? 'off' : 'polite'}>
+    <div className="screenshot">
       {screenshots.map((item, index) => <img key={item.key} src={item.shot} alt={item.alt} width={2184} height={1364}
         decoding="async" data-shown={index === shown ? '' : undefined} aria-hidden={index === shown ? undefined : true} />)}
     </div>
-    <p className="screenshot-caption">{screenshots[shown].label}</p>
+    {/* One small capsule, like the Stable and Nightly switch: the shown one's name, a dot for each (the
+        shown one a bar that fills with its time) and a pause button. */}
     <div className="screenshot-controls">
+      <span className="screenshot-caption" aria-live="polite">{screenshots[shown].label}</span>
       <div className="screenshot-dots" role="group" aria-label="Show a screenshot">
         {screenshots.map((item, index) => <button key={item.key} type="button" className="screenshot-dot" aria-label={item.label}
           aria-current={index === shown ? 'true' : undefined} onClick={() => setShown(index)}>
-          {/* The shown dot's bar fills over its six seconds, or stays full while paused. */}
           {index === shown && <span className="screenshot-fill" key={shown} data-paused={playing ? undefined : ''} />}
         </button>)}
       </div>
