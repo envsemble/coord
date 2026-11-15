@@ -107,7 +107,9 @@ body { margin: 0; }
 .hub-row-large .hub-row-link { font-weight: 500; }
 .hub-row-number, .hub-row-project, .hub-row-updated { color: var(--env-color-fg-muted); font-variant-numeric: tabular-nums; }
 .hub-row-number { flex: none; font: var(--env-type-body-sm); }
-.hub-row :is(.cell-note, .hub-row-project) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-row .cell-note, .hub-row-project-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A plan's project: its avatar, as in the project menu, then its name. */
+.hub-row-project { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; }
 .hub-row-title + .cell-note { margin-inline-start: calc(1.125rem + var(--env-space-2)); }
 /* A row's state line: what the user is to do in amber, what it waits on muted. */
 .hub-row-note { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

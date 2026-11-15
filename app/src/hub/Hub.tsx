@@ -15,7 +15,7 @@ import type { Project } from '../types';
 import { hubGroups, hubItems, hubRowFacts, inState, partsFacts, type HubItem, type HubRowFacts, type HubState } from './hubPlans';
 import { absoluteDate, plural, relativeDate, workNumber } from '../ui/format';
 import { settingsPlace, statisticsPlace, workTarget, type Place } from '../navigation/targets';
-import { ProjectMenu } from '../projects/ProjectMenu';
+import { ProjectAvatar, ProjectMenu } from '../projects/ProjectMenu';
 import type { ProjectActions } from '../projects/ProjectDialogs';
 import { AgentWarnings, useAgentChecks } from '../settings/AgentList';
 import { StatusIcon } from '../ui/badges';
@@ -97,7 +97,7 @@ const HubRow = memo(function HubRow({ item, go, showProject }: { item: HubItem; 
           {facts.step.label + ': ' + facts.step.title}
         </small>)}
     </Table.Cell>
-    {showProject && <Table.Cell label="Project"><span className="hub-row-project" title={project.name}>{project.name}</span></Table.Cell>}
+    {showProject && <Table.Cell label="Project"><span className="hub-row-project" title={project.name}><ProjectAvatar project={project} /><span className="hub-row-project-name">{project.name}</span></span></Table.Cell>}
     <Table.Cell label={facts.ended ? 'Ended' : 'Steps'}>{facts.ended ? <span className="hub-row-ended">{facts.ended.label}{facts.ended.date && <span className="muted" title={absoluteDate(facts.ended.date)}> {relativeDate(facts.ended.date)}</span>}
       {continued.length > 0 && <small className="cell-note"><ContinuedIn items={continued} open={to => go({ projectId: to.projectId, target: workTarget(to.work) })} /></small>}</span>
       : facts.progress ? <Progress progress={facts.progress} wide={large} /> : <span className="muted">—</span>}</Table.Cell>
@@ -150,15 +150,15 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, s
       action={<Button variant="secondary" onClick={newProject}>New project</Button>} />
   </Page>;
   const empty = filters.state === 'open' ? 'No open plans' : filters.state === 'closed' ? 'No closed plans' : 'No plans yet';
-  // The title (the project's name, or Plans) with its statistics as the page's action; the search,
-  // the project menu and the state filter in the toolbar under it.
+  // The title (the project's name, or Plans); under it, the search, then the project menu with that
+  // project's statistics beside it, and the state filter.
   return <Page className="hub" title={filtered?.name ?? 'Plans'} controlSize="sm"
-    actions={<Button variant="secondary" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered?.id ?? null))}>Statistics</Button>}
     toolbar={<Row wrap align="center" justify="between" gap={3}>
       {/* The title bar's search, here: it opens the search popup, and never filters this list. */}
       <SearchButton className="hub-search" platform={platform} label="Search every project" onClick={search} />
       <Row align="center" gap={2}>
       <ProjectMenu projects={projects} chosen={filtered} computer={computer} local={local} actions={actions} newProject={newProject} />
+      <Button variant="secondary" size="sm" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered?.id ?? null))}>Statistics</Button>
       <SegmentedControl aria-label="Plan state" size="sm" value={filters.state} onValueChange={state => setFilters({ ...filters, state: state as HubState })}
         items={[{ value: 'open', label: 'Open', count: counts.open }, { value: 'closed', label: 'Closed', count: counts.closed }, { value: 'all', label: 'All', count: counts.all }]} />
       </Row>
