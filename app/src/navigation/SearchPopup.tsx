@@ -226,7 +226,7 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   return <CommandPalette open onOpenChange={value => { if (!value) onClose(); }} className="search-popup" aria-label="Search" closeOnAction={false}
     inputValue={query} onInputValueChange={setQuery} items={items} suggestedItems={suggestions} placeholder="Search everything, or narrow with tag:, step:, doc:…"
     hints={[{ keys: ['Enter'], label: 'Open' }, { keys: ['Esc'], label: 'Close' }]} emptyLabel={text ? 'No matches' : 'No plans yet'}
-    footer={<span className="search-tip">Narrow with <code className="search-try">tag:</code> <code className="search-try">step:</code> <code className="search-try">doc:</code> <code className="search-try">diagram:</code> <code className="search-try">term:</code> <code className="search-try">project:</code> · <code className="search-try">#0031</code> opens a plan</span>}
+    footer={<span className="search-tip">Narrow with <code className="search-try">tag:</code> <code className="search-try">step:</code> <code className="search-try">doc:</code> <code className="search-try">diagram:</code> <code className="search-try">term:</code> <code className="search-try">project:</code><span className="search-tip-gap" aria-hidden="true" /><code className="search-try">#0031</code> opens a plan</span>}
     onAction={chosen => {
       // A search to try is typed into the field, and a group's Show all narrows the search to its kind;
       // the search stays open on what they find.
