@@ -92,32 +92,38 @@ const screenshots: { key: string; label: string; shot: string; alt: string }[] =
 const screenshotTime = 6000;
 
 /**
- * The app's screenshots in turn, one every six seconds, fading into each other; the labels under them
- * show which one it is and pick one. Hovering or focusing them holds the current one, and with reduced
- * motion they change only when picked. All stay in the page, so the change is a fade, not a load.
+ * The app's screenshots in turn, one every six seconds, fading into each other, with controls as on
+ * Apple's product pages: a capsule of dots, the shown one stretched into a bar that fills with its time,
+ * and a round play and pause button beside it. A dot shows its screenshot; pausing holds the shown one.
+ * With reduced motion they start paused. All stay in the page, so the change is a fade, not a load.
  */
 function Screenshots() {
   const [shown, setShown] = useState(0);
-  const [held, setHeld] = useState(false);
+  const [playing, setPlaying] = useState(() => !matchMedia('(prefers-reduced-motion: reduce)').matches);
   useEffect(() => {
-    if (held || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!playing) return;
     const timer = setTimeout(() => setShown(index => (index + 1) % screenshots.length), screenshotTime);
     return () => clearTimeout(timer);
-  }, [shown, held]);
-  return <section className="screenshots" aria-label="Screenshots" onMouseEnter={() => setHeld(true)} onMouseLeave={() => setHeld(false)}
-    onFocus={() => setHeld(true)} onBlur={() => setHeld(false)}>
-    <div className="screenshot">
+  }, [shown, playing]);
+  return <section className="screenshots" aria-label="Screenshots" aria-roledescription="carousel">
+    <div className="screenshot" aria-live={playing ? 'off' : 'polite'}>
       {screenshots.map((item, index) => <img key={item.key} src={item.shot} alt={item.alt} width={2184} height={1364}
         decoding="async" data-shown={index === shown ? '' : undefined} aria-hidden={index === shown ? undefined : true} />)}
     </div>
-    <div className="screenshot-picker" role="group" aria-label="Show a screenshot">
-      {screenshots.map((item, index) => <button key={item.key} type="button" aria-pressed={index === shown} onClick={() => setShown(index)}>
-        {/* A track per screenshot; the shown one's fills over its six seconds, or is full while held. */}
-        <span className="screenshot-track" aria-hidden="true">
-          {index === shown && <span className="screenshot-fill" key={shown} data-held={held ? '' : undefined} />}
-        </span>
-        {item.label}
-      </button>)}
+    <p className="screenshot-caption">{screenshots[shown].label}</p>
+    <div className="screenshot-controls">
+      <div className="screenshot-dots" role="group" aria-label="Show a screenshot">
+        {screenshots.map((item, index) => <button key={item.key} type="button" className="screenshot-dot" aria-label={item.label}
+          aria-current={index === shown ? 'true' : undefined} onClick={() => setShown(index)}>
+          {/* The shown dot's bar fills over its six seconds, or stays full while paused. */}
+          {index === shown && <span className="screenshot-fill" key={shown} data-paused={playing ? undefined : ''} />}
+        </button>)}
+      </div>
+      <button type="button" className="screenshot-play" aria-label={playing ? 'Pause' : 'Play'} onClick={() => setPlaying(value => !value)}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          {playing ? <path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /> : <path fill="currentColor" d="M8 5.5v13l10.5-6.5z" />}
+        </svg>
+      </button>
     </div>
   </section>;
 }
