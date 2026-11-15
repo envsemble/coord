@@ -112,7 +112,11 @@ function Screenshots() {
     </div>
     <div className="screenshot-picker" role="group" aria-label="Show a screenshot">
       {screenshots.map((item, index) => <button key={item.key} type="button" aria-pressed={index === shown} onClick={() => setShown(index)}>
-        {item.label}{index === shown && !held && <span className="screenshot-timer" key={shown} aria-hidden="true" />}
+        {/* A track per screenshot; the shown one's fills over its six seconds, or is full while held. */}
+        <span className="screenshot-track" aria-hidden="true">
+          {index === shown && <span className="screenshot-fill" key={shown} data-held={held ? '' : undefined} />}
+        </span>
+        {item.label}
       </button>)}
     </div>
   </section>;
