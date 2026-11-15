@@ -1,4 +1,4 @@
-// Coord's website: one dark page, with its privacy and terms pages (legal.tsx). The name, one line on what Coord is, a download button for
+// Coord's website: one near-black page, with its privacy and terms pages (legal.tsx). The name, one line on what Coord is, a download button for
 // Windows and one for Linux under a Stable or Nightly switch (the newest build of each, read from GitHub Releases in the visitor's
 // browser by releases.ts), and what Coord does, one feature at a time under its screenshot.
 import { useEffect, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
@@ -10,7 +10,6 @@ import hub from '../../assets/hub.png';
 import comparison from '../../assets/comparison-dark.png';
 import statistics from '../../assets/statistics.png';
 import { Privacy, Terms } from './legal.tsx';
-import { Sky } from './Sky.tsx';
 import { linuxPath } from './linuxPath.ts';
 import { acceptedPath, claudePath, codexPath, diagramPath, draftPath, moonPath, pagePath, yourTurnPath } from './marks.ts';
 import { fetchBuilds, releasesPage, sourcePage, visitorPlatform, type Build, type Channel, type Platform } from './releases.ts';
@@ -52,14 +51,10 @@ function Home() {
   }, []);
   const visitor = visitorPlatform({ userAgent: navigator.userAgent, platform: navigator.platform });
   const [channel, setChannel] = useState<Channel>('stable');
-  // Stable keeps the gray page; Nightly darkens it to black behind its stars (site.css).
-  useEffect(() => { document.documentElement.dataset.channel = channel; }, [channel]);
   const build = typeof builds === 'object' ? builds[channel] : null;
   // The visitor's system first.
   const platforms: Platform[] = visitor === 'linux' ? ['linux', 'windows'] : ['windows', 'linux'];
   return <main>
-    {/* Nightly shows a starry sky behind the page. */}
-    <Sky shown={channel === 'nightly'} />
       {/* One box as wide as its longest line, centred; its lines break where they read best. */}
       <div className="intro">
         <h1>A desktop app for planning <br />with <Agent name="Claude Code" path={claudePath} kind="claude" /> or <Agent name="Codex" path={codexPath} kind="codex" /></h1>
