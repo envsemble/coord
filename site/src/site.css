@@ -6,6 +6,8 @@
   --background: #111214;
   --text: #e8eaee;
   --muted: #bdbfc3;
+  /* A step below the heading, for the lead and the line under the downloads. */
+  --quieter: #93969b;
   --border: #5d6166;
   /* The screenshots' edge: a faint hairline, as the footer's, not the controls' lighter border. */
   --frame: rgb(232 234 238 / 0.08);
@@ -29,7 +31,7 @@ a { color: inherit; }
   margin-inline: auto;
 }
 .header { padding-block: 1.25rem; }
-.brand img { display: block; height: 2.25rem; width: auto; }
+.brand img { display: block; height: 1.75rem; width: auto; }
 .quiet { color: var(--muted); text-decoration: none; font-size: 0.9375rem; }
 .quiet:hover { color: var(--text); }
 
@@ -45,20 +47,23 @@ main {
 /* Everything above the downloads, centred. */
 .intro { width: fit-content; max-width: 100%; text-align: center; }
 
+/* The heading is the loudest thing on the page, the logo above it smaller (the council, round 1). */
 h1 {
   margin: 0;
-  font-size: 1.875rem;
-  line-height: 1.35;
-  letter-spacing: -0.015em;
-  font-weight: 400;
+  font-size: 3rem;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  font-weight: 600;
   text-wrap: balance;
 }
 
 .lead {
-  margin: 0.75rem 0 0;
-  color: var(--muted);
-  font-size: 1.0625rem;
-  line-height: 1.6;
+  max-width: 40rem;
+  margin: 1.25rem auto 0;
+  color: var(--quieter);
+  font-size: 1.1875rem;
+  line-height: 1.55;
+  text-wrap: balance;
 }
 
 /* The app's own inline parts, in its dark colours, in the heading and the captions: agents with their marks, state badges,
@@ -67,7 +72,10 @@ h1 {
 .symbol, .agent-mark { width: 1.05em; height: 1.05em; flex: none; }
 .state .symbol, .ref .symbol { display: inline-block; vertical-align: -0.18em; margin-right: 0.25em; }
 .agent { display: inline-flex; align-items: baseline; gap: 0.3em; white-space: nowrap; }
-.agent-mark { align-self: center; width: 0.85em; height: 0.85em; }
+/* A maker's mark as tall as the capitals, standing on the baseline (a flex item's baseline is its
+   bottom edge), so it lines up with the name's letters; a touch larger, centred on them, reads as
+   the same size as the round letters. */
+.agent-mark { align-self: baseline; position: relative; top: 0.05cap; width: 1.1cap; height: 1.1cap; }
 .agent-claude .agent-mark { color: #e3896a; }
 .state {
   display: inline-block;
@@ -161,19 +169,20 @@ h1 {
 .download-label { font-size: 1.0625rem; font-weight: 600; line-height: 1.2; }
 .download-detail { font-size: 0.8125rem; color: var(--muted); }
 
-.note { margin: 0.875rem 0 0; text-align: center; color: var(--muted); font-size: 0.875rem; line-height: 1.6; }
-.note a { color: var(--muted); text-underline-offset: 0.2em; }
-.note a:hover { color: var(--text); }
+.note { margin: 1rem 0 0; text-align: center; color: var(--quieter); font-size: 0.8125rem; line-height: 1.6; }
+.note a { color: var(--muted); text-decoration: underline; text-decoration-color: rgb(232 234 238 / 0.25); text-underline-offset: 0.2em; }
+.note a:hover { color: var(--text); text-decoration-color: currentColor; }
 
 /* The screenshots: stacked in one frame, the shown one faded in, and their labels below. */
 .screenshots { width: 100%; margin-top: 3.5rem; }
 .screenshot {
   display: grid;
   overflow: hidden;
-  border: 1px solid var(--frame);
+  border: 1px solid rgb(232 234 238 / 0.12);
   border-radius: 0.875rem;
-  /* envUI's raised shadow in its dark theme: a contact edge and a soft fall-off below. */
-  box-shadow: 0 1px 2px oklch(from var(--background) calc(l * 0.25) c h / 0.5), 0 12px 32px -10px oklch(from var(--background) calc(l * 0.8) c h / 0.85);
+  /* A light top edge, as a window catching light, then envUI's raised shadow in its dark theme: a
+     contact edge and a soft fall-off below. */
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px oklch(from var(--background) calc(l * 0.25) c h / 0.5), 0 12px 32px -10px oklch(from var(--background) calc(l * 0.8) c h / 0.85);
 }
 
 .screenshot img { grid-area: 1 / 1; display: block; width: 100%; height: auto; opacity: 0; transition: opacity 600ms ease; }
@@ -182,8 +191,8 @@ h1 {
    its dots (the shown one a bar filling with its time, as on Apple's product pages) and a pause button. */
 /* The shown feature, under its screenshot: all captions stacked in one cell, so the line keeps the
    tallest one's height and the change is a fade. */
-.screenshot-captions { display: grid; margin-top: 1.5rem; text-align: center; }
-.screenshot-captions p { grid-area: 1 / 1; margin: 0; font-size: 1.0625rem; line-height: 1.85; text-wrap: balance; opacity: 0; transition: opacity 400ms ease; }
+.screenshot-captions { display: grid; align-items: center; margin-top: 1.5rem; text-align: center; }
+.screenshot-captions p { grid-area: 1 / 1; margin: 0; font-size: 1.25rem; font-weight: 500; line-height: 1.75; text-wrap: balance; opacity: 0; transition: opacity 400ms ease; }
 .screenshot-captions p[data-shown] { opacity: 1; }
 .screenshot-controls {
   display: flex;
@@ -272,17 +281,16 @@ h1 {
    hover marks (there is nothing to hover). */
 @media (max-width: 40rem) {
   .header { padding-block: 1rem; }
-  .brand img { height: 1.75rem; }
+  .brand img { height: 1.5rem; }
   main { padding-block: 2rem 3rem; }
-  h1 { font-size: 1.5rem; line-height: 1.3; }
-  .lead { margin-top: 0.625rem; font-size: 1rem; line-height: 1.55; }
+  h1 { font-size: 2rem; line-height: 1.15; }
+  .lead { margin-top: 0.875rem; font-size: 1rem; line-height: 1.55; }
   .channels { margin-top: 1.5rem; }
   .downloads { flex-direction: column; width: 100%; gap: 0.625rem; }
   .download { width: 100%; padding-block: 0.625rem; }
   .download-label { font-size: 1rem; }
-  .note { font-size: 0.8125rem; }
   .screenshots { margin-top: 2.5rem; }
-  .screenshot-captions p { font-size: 0.9375rem; line-height: 1.7; }
+  .screenshot-captions p { font-size: 1.0625rem; line-height: 1.7; }
   /* A phone shows part of each screenshot, large enough to read: a taller frame, cropped around the
      screenshot's focus (App.tsx) from its top. */
   .screenshot { aspect-ratio: 4 / 5; border-radius: 0.5rem; }

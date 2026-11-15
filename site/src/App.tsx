@@ -56,17 +56,19 @@ function Home() {
   return <main>
       {/* One box as wide as its longest line, centred; its lines break where they read best. */}
       <div className="intro">
-        <h1>A desktop app for planning <br />with <Agent name="Claude Code" path={claudePath} kind="claude" /> or <Agent name="Codex" path={codexPath} kind="codex" /></h1>
-        <p className="lead">Agents are fast, and happy to build the wrong thing. <br />Coord makes sure you both mean the same thing, in any terminal, editor or <span className="nowrap">T3 Code</span>.</p>
+        <h1>A desktop app for planning <br />with <Agent name="Claude" path={claudePath} kind="claude" /> or <Agent name="Codex" path={codexPath} kind="codex" /></h1>
+        <p className="lead">Agents are fast, and happy to build the wrong thing. Coord keeps the plan, its decisions and its steps in your project, so you both mean the same thing.</p>
       </div>
       <ChannelPicker channel={channel} onChange={setChannel} />
       <div className="downloads" data-channel={channel}>
         {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={build} loading={builds === 'loading'} />)}
       </div>
       <p className="note">
-        {channel === 'stable' ? 'The tested release, for everyday use.' : 'Built every night from the newest changes. Expect rough edges.'}<br />
-        {build ? <a href={build.page}>Version {build.version}</a> : channel === 'nightly' && builds !== 'loading' ? 'No nightly build yet' : null}
-        {(build || channel === 'nightly' && builds !== 'loading') && ' · '}<a href={releasesPage}>All releases</a> · Free and open source
+        {/* One quiet line: what the channel is, its version, all releases, and the licence. Each part
+            keeps its words together, with the dot after it, so a narrow line breaks only after a dot. */}
+        <span className="nowrap">{channel === 'stable' ? 'Tested, for everyday use' : 'Built every night, expect rough edges'} ·</span>
+        {' '}{build ? <span className="nowrap"><a href={build.page}>Version {build.version}</a> ·</span> : channel === 'nightly' && builds !== 'loading' ? <span className="nowrap">No nightly build yet ·</span> : null}
+        {' '}<span className="nowrap"><a href={releasesPage}>All releases</a> ·</span> <span className="nowrap">Free and open source</span>
       </p>
       <Screenshots />
     </main>;
@@ -78,12 +80,12 @@ function Home() {
  * screenshot's width (site.css). The screenshots are of Coord's own plans, at 2x in the dark theme.
  */
 const screenshots: { key: string; label: string; text: ReactNode; shot: string; focus: string; alt: string }[] = [
-  { key: 'plan', label: 'Grills you until the plan goes Draft to Accepted', text: <>Grills you until the plan goes <span className="nowrap"><State kind="draft">Draft</State> → <State kind="accepted">Accepted</State></span></>,
-    shot: plan, focus: '41%', alt: "One of Coord's own plans: what was decided, and its steps from understanding the request to the last one done." },
-  { key: 'diagram', label: 'Captures your code and database as a class diagram', text: <>Captures your code and database as a <Ref kind="diagram">class diagram</Ref></>,
-    shot: diagram, focus: '51%', alt: "Coord's own home database captured as a diagram: projects, sessions and the agents' reports, with their columns and relations." },
   { key: 'turn', label: 'Shows which plans are Your turn', text: <>Shows which plans are <State kind="turn">Your turn</State></>,
     shot: hub, focus: '0%', alt: "Coord's own plans: Your turn first, each saying what to do, then Waiting and Later, with the models that worked on them." },
+  { key: 'plan', label: 'Grills you until the plan goes Draft to Accepted', text: <>Grills you until the plan goes <span className="nowrap"><State kind="draft">Draft</State> → <State kind="accepted">Accepted</State></span></>,
+    shot: plan, focus: '46%', alt: "One of Coord's own plans: what was decided, and its steps from understanding the request to the last one done." },
+  { key: 'diagram', label: 'Captures your code and database as a class diagram', text: <>Captures your code and database as a <Ref kind="diagram">class diagram</Ref></>,
+    shot: diagram, focus: '51%', alt: "Coord's own home database captured as a diagram: projects, sessions and the agents' reports, with their columns and relations." },
   { key: 'statistics', label: "Counts every model's agent time and tokens", text: <>Counts every model's agent time and tokens</>,
     shot: statistics, focus: '49%', alt: "The statistics of one plan's work: agent time, tokens and sessions, and a timeline of each model working." },
 ];
