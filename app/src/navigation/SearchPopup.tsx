@@ -50,6 +50,15 @@ const localKinds: Record<QuickItem['kind'], SearchKind> = { work: 'plan', diagra
 const kindIcons: Record<SearchKind, ReactNode> = {
   plan: <PlanIcon />, step: <LedgerIcon />, document: <FileIcon />, heading: <FileIcon />, diagram: <DiagramIcon />, page: <PageIcon />, element: <DiagramIcon />, term: <SearchIcon />, project: <FolderIcon />,
 };
+/** A place opened from the search, remembered (`recentKey` in localStorage) to show under Recent. */
+interface Recent { id: string; kind: SearchKind; label: string; detail: string; destination: SearchDestination; key: string | null; plan: string | null }
+const recentKey = 'coord-search-recent';
+function readRecent(): Recent[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(recentKey) ?? '[]') as unknown;
+    return Array.isArray(value) ? value.filter((each): each is Recent => Boolean(each && typeof each.id === 'string' && typeof each.label === 'string' && each.destination)).slice(0, 5) : [];
+  } catch { return []; }
+}
 /** Whether the user moved the highlight off the first result (by key or pointer). */
 function highlightMoved() {
   const options = [...document.querySelectorAll('.search-popup [role="option"]')];
@@ -163,7 +172,8 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   }, [entries, words, kinds, tagged, asked, found, projects, plans]);
   const byId = useMemo(() => new Map(results.map(entry => [entry.id, entry])), [results]);
   const item = (entry: { id: string; label: string; detail: string; snippet?: string | null; group: string; icon: ReactNode; state?: string | null }): CommandPaletteItem => ({
-    id: entry.id, label: marked(entry.label, words), textValue: [entry.label, entry.state, entry.detail, entry.snippet].filter(Boolean).join(', '), icon: entry.icon, group: entry.group,
+    // One line of title: a long one ends in an ellipsis, so more results fit in view.
+    id: entry.id, label: <span className="search-label" title={entry.label}>{marked(entry.label, words)}</span>, textValue: [entry.label, entry.state, entry.detail, entry.snippet].filter(Boolean).join(', '), icon: entry.icon, group: entry.group,
     // One line of where it is; the words it was found in under it, marked, only when the search found it in its text.
     description: entry.detail || entry.snippet ? <><span className="search-where">{entry.detail}</span>{entry.snippet && <span className="search-snippet">{marked(entry.snippet, words)}</span>}</> : undefined,
     // A plan's state at the row's end, where it does not crowd where the plan is.
@@ -173,10 +183,36 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   const items: CommandPaletteItem[] = [
     ...results.map(entry => 'more' in entry
       ? { id: entry.id, label: entry.label, textValue: entry.label, icon: <MoreIcon />, group: entry.group, className: 'search-more' }
+      // Every result of a plan, its steps, documents and diagrams too, says the plan's state at its end.
       : item({ ...entry,
-        icon: icons.get(entry.id) ?? (entry.key && plans.get(entry.key)?.icon) ?? kindIcons[entry.kind], state: entry.kind === 'plan' && entry.key ? plans.get(entry.key)?.state : null })),
+        icon: icons.get(entry.id) ?? (entry.key && plans.get(entry.key)?.icon) ?? kindIcons[entry.kind], state: entry.plan ? plans.get(entry.plan)?.state : null })),
     ...goTo.map(page => ({ id: page.id, label: page.label, textValue: 'Go to ' + page.label, icon: page.icon, group: 'Go to' })),
   ];
+
+  // A prefix's values, as it is typed (tag:, tag:0.9, project:): the user's tags, the most used first,
+  // and their projects, so the prefixes the tip shows lead somewhere at once.
+  const picking = /^(tag|project):(\S*)$/i.exec(text);
+  const values: CommandPaletteItem[] = useMemo(() => {
+    if (!picking) return [];
+    const part = picking[2]!.toLowerCase();
+    if (picking[1]!.toLowerCase() === 'project') return projects.filter(each => each.state === 'active' && hasWords(each.name, part || each.name))
+      .map(each => ({ id: 'project:' + each.id, label: each.name, textValue: each.name, icon: <FolderIcon />, group: 'Projects', end: <span className="search-state">{plural(hubItems([each], each.id).filter(plan => plan.work.state !== 'closed').length, 'open plan')}</span> }));
+    const counts = new Map<string, number>();
+    for (const plan of hubItems(projects, null)) for (const tag of plan.work.tags ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    return [...counts].filter(([tag]) => tag.toLowerCase().startsWith(part)).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12)
+      .map(([tag, count]) => ({ id: 'tag:' + tag, label: <code className="search-try">tag:{tag}</code>, textValue: 'tag ' + tag, icon: <SearchIcon />, group: 'Tags', end: <span className="search-state">{plural(count, 'plan')}</span> }));
+  }, [picking?.[0], projects]);
+  const shownItems = [...values.filter(value => value.id !== 'tag:' + tagged), ...items];
+  // A prefix with nothing after it says what to type, not that nothing matched.
+  const waiting = prefix && !words && !picking ? 'Type words to find ' + kindNames[narrowers[prefix]![0]!] : null;
+
+  // The places opened from the search lately, the newest first, kept in this browser for the next time.
+  const [recent, setRecent] = useState<Recent[]>(readRecent);
+  const remember = (entry: Recent) => {
+    const next = [entry, ...recent.filter(each => each.id !== entry.id)].slice(0, 5);
+    setRecent(next);
+    try { localStorage.setItem(recentKey, JSON.stringify(next)); } catch { /* kept for this session */ }
+  };
 
   // What the search can find, shown to someone who has not used it yet: four searches to try, made
   // from their own plans, each typed into the field when chosen. A tag (the one most plans have), a
@@ -199,43 +235,60 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
     ].filter((example): example is { query: string; finds: string } => Boolean(example));
   }, [projects]);
 
-  // Before typing: what is worth coming back to, and how to search. The starred plans, then searches
-  // to try, the plans that are the user's turn (the longest waiting first), the open ones changed most
-  // recently, and the pages to go to.
+  // Before typing: what is worth coming back to, and how to search. The starred plans, the places
+  // opened from the search lately, searches to try, the plans that are the user's turn (the longest
+  // waiting first), and the pages to go to.
   const { starred } = useStars();
   const suggestions = useMemo(() => {
     const all = hubItems(projects, null);
     const shown = new Set<string>();
-    const take = (list: HubItem[], group: string, limit: number) => list.filter(plan => !shown.has(plan.project.id + ':' + plan.work.id)).slice(0, limit).map(plan => {
-      shown.add(plan.project.id + ':' + plan.work.id);
+    const take = (list: HubItem[], group: string, limit: number) => list.filter(plan => !shown.has(workKey(plan.project.id, plan.work.id))).slice(0, limit).map(plan => {
+      shown.add(workKey(plan.project.id, plan.work.id));
       // The state is said by the group's heading where it is the group's.
       return item({ id: 'suggested:' + group + ':' + plan.project.id + ':' + plan.work.id, label: plan.work.title, detail: planWhere(plan), group, icon: <StatusIcon status={plan.status} decorative />, state: plan.status.label === group ? null : plan.status.label });
     });
-    const open = hubGroups(all, 'open');
-    const recent = all.filter(plan => plan.work.state !== 'closed').sort((a, b) => (b.work.updated ?? '').localeCompare(a.work.updated ?? ''));
+    const starredPlans = take(all.filter(plan => starred(plan.project.id, plan.work.id)), 'Starred', 6);
+    // What was opened lately, as it is now: a plan with its state; one no longer listed is left out.
+    const lately = recent.filter(each => !(each.key && shown.has(each.key)) && (each.kind !== 'plan' || (each.key && plans.has(each.key)))).map(each => {
+      if (each.key) shown.add(each.key);
+      const plan = each.key ? plans.get(each.key) : undefined;
+      return item({ id: 'recent:' + each.id, label: each.label, detail: each.detail, group: 'Recent', icon: plan?.icon ?? kindIcons[each.kind], state: (each.plan && plans.get(each.plan)?.state) ?? plan?.state ?? null });
+    });
     return [
-      ...take(all.filter(plan => starred(plan.project.id, plan.work.id)), 'Starred', 6),
+      ...starredPlans,
+      ...lately,
       ...tries.map(example => ({ id: 'try:' + example.query, label: <code className="search-try">{example.query}</code>, textValue: example.query + ', ' + example.finds, description: example.finds, icon: <SearchIcon />, group: 'Try' })),
-      ...take(open.find(group => group.id === 'your_turn')?.items ?? [], 'Your turn', 3),
-      ...take(recent, 'Recently changed', 3),
+      ...take(hubGroups(all, 'open').find(group => group.id === 'your_turn')?.items ?? [], 'Your turn', 3),
       ...pages.map(page => ({ id: page.id, label: page.label, textValue: 'Go to ' + page.label, icon: page.icon, group: 'Go to' })),
     ];
-  }, [projects, starred, tries]);
+  }, [projects, starred, tries, recent, plans]);
   const suggested = useMemo(() => new Map(hubItems(projects, null).map(plan => [plan.project.id + ':' + plan.work.id, plan])), [projects]);
 
   return <CommandPalette open onOpenChange={value => { if (!value) onClose(); }} className="search-popup" aria-label="Search" closeOnAction={false}
-    inputValue={query} onInputValueChange={setQuery} items={items} suggestedItems={suggestions} placeholder="Search everything, or narrow with tag:, step:, doc:…"
-    hints={[{ keys: ['Enter'], label: 'Open' }, { keys: ['Esc'], label: 'Close' }]} emptyLabel={text ? 'No matches' : 'No plans yet'}
+    inputValue={query} onInputValueChange={setQuery} items={shownItems} suggestedItems={suggestions} placeholder="Search everything, or narrow with tag:, step:, doc:…"
+    hints={[{ keys: ['Enter'], label: 'Open' }, { keys: ['Esc'], label: 'Close' }]}
+    // While the host is asked, the field says so, and "No matches" waits for its answer.
+    loading={Boolean(asked) && !waiting && found?.query !== asked}
+    emptyLabel={waiting ?? (text ? 'No matches' : 'No plans yet')} emptyDescription={waiting ? 'Such as ' + prefix + ': ' + (prefix === 'project' ? 'coord' : 'release') : text ? 'Try fewer words, or narrow with step: or doc:' : undefined}
     footer={<span className="search-tip">Narrow with <code className="search-try">tag:</code> <code className="search-try">step:</code> <code className="search-try">doc:</code> <code className="search-try">diagram:</code> <code className="search-try">term:</code> <code className="search-try">project:</code><span className="search-tip-gap" aria-hidden="true" /><code className="search-try">#0031</code> opens a plan</span>}
     onAction={chosen => {
       // A search to try is typed into the field, and a group's Show all narrows the search to its kind;
       // the search stays open on what they find.
       if (chosen.id.startsWith('try:')) { setQuery(chosen.id.slice(4)); return; }
       if (chosen.id.startsWith('more:')) { setQuery(chosen.id.slice(5) + ': ' + words); return; }
+      // A tag is typed in, to see its plans; a project opens its plans.
+      if (chosen.id.startsWith('tag:')) { setQuery(chosen.id); return; }
+      if (chosen.id.startsWith('project:')) { onClose(); onChoose({ place: hubPlace(chosen.id.slice(8)) }); return; }
       const page = pages.find(each => each.id === chosen.id);
       const plan = chosen.id.startsWith('suggested:') ? suggested.get(chosen.id.split(':').slice(2).join(':')) : undefined;
-      const destination = page ? { place: page.place } : plan ? { place: { projectId: plan.project.id, target: workTarget(plan.work.id) } } : byId.get(chosen.id)?.destination;
+      const again = chosen.id.startsWith('recent:') ? recent.find(each => 'recent:' + each.id === chosen.id) : undefined;
+      const result = byId.get(chosen.id);
+      const destination = page ? { place: page.place } : plan ? { place: { projectId: plan.project.id, target: workTarget(plan.work.id) } } : again?.destination ?? result?.destination;
       if (!destination) return;
+      // What was opened is remembered for the next time the search opens, under Recent.
+      if (plan) remember({ id: workKey(plan.project.id, plan.work.id), kind: 'plan', label: plan.work.title, detail: planWhere(plan), destination, key: workKey(plan.project.id, plan.work.id), plan: workKey(plan.project.id, plan.work.id) });
+      else if (again) remember(again);
+      else if (result && !('more' in result)) remember({ id: result.key ?? result.id, kind: result.kind, label: result.label, detail: result.detail, destination, key: result.key, plan: result.plan ?? null });
       onClose();
       onChoose(destination);
     }} />;

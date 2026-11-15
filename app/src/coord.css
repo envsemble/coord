@@ -125,7 +125,7 @@ body { margin: 0; }
 /* The search: each result its title and one muted line of where it is, then, when the search found it
    in the text, the words it was found in. Groups are set apart by a hairline and a small capital
    heading, so the kinds of result read at a glance. */
-.search-where, .search-snippet { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-label, .search-where, .search-snippet { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .search-snippet { margin-block-start: 0.125rem; color: var(--env-color-fg-default); opacity: 0.75; }
 /* The words typed, where a result has them: in the text's own colour and weight, not a highlighter's. */
 .search-mark { background: none; color: inherit; font-weight: 600; }
