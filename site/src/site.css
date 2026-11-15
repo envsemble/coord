@@ -237,6 +237,11 @@ h1 {
 .footer nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; }
 .footer a { color: var(--muted); text-decoration: none; }
 .footer a:hover { color: var(--text); }
+.maker { display: flex; align-items: center; gap: 0.5rem; }
+/* envsemble's lockup: the on-dark file unchanged, with half the mark's height of clear space around
+   it. 18 px tall, under the brand guide's 24 px minimum, by the owner's choice (2026-11-15), so it sits
+   with the footer's small text. */
+.maker-logo img { display: block; height: 18px; width: auto; }
 
 /* The privacy and terms pages: one readable column. */
 .legal { align-items: stretch; max-width: 42rem; line-height: 1.65; }
