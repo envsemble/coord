@@ -57,7 +57,7 @@ function Home() {
       {/* One box as wide as its longest line, centred; its lines break where they read best. */}
       <div className="intro">
         <h1>A desktop app for planning <br />with <Agent name="Claude" path={claudePath} kind="claude" /> or <Agent name="Codex" path={codexPath} kind="codex" /></h1>
-        <p className="lead">Agents are fast, and happy to build the wrong thing. Coord makes sure you both mean the same thing before any work starts, shows how far every plan has got, and reminds you when one is waiting on you.</p>
+        <p className="lead">Agents are fast, and happy to build the wrong thing. Coord gets you both on the same page, then tracks the work and tells you when it's your turn.</p>
       </div>
       <ChannelPicker channel={channel} onChange={setChannel} />
       <div className="downloads" data-channel={channel}>

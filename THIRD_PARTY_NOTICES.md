@@ -8,7 +8,7 @@ The interface is built on envUI (`@envsemble/envui`), Envsemble's own component 
 
 The `coord-grill` skill's interview and domain-modeling methods are adapted from Matt Pocock's [skills](https://github.com/mattpocock/skills) and keep their [MIT license](plugin/skills/coord-grill/references/LICENSE).
 
-The website (`site/`) is set in [Inter](https://github.com/rsms/inter), from `@fontsource-variable/inter` 5.3.0 under the SIL Open Font License 1.1, served with the site; the license text ships in the package.
+The website (`site/`) is set in [Geist](https://github.com/vercel/geist-font), from `@fontsource-variable/geist` 5.3.0 under the SIL Open Font License 1.1, served with the site; the license text ships in the package.
 
 The interface icons are envUI's Material Symbols. The reusable viewer imports them from envUI; the offline build bundles the icons it uses. No icon or font service or CDN is required.
 

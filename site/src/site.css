@@ -13,9 +13,7 @@
   --frame: rgb(232 234 238 / 0.08);
   --button: #28292b;
   --button-hover: #383a3d;
-  font-family: "Inter Variable", Inter, "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
-  /* Inter's single-storey a and rounded quotes. */
-  font-feature-settings: "cv11", "ss03";
+  font-family: "Geist Variable", Geist, "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
   background: var(--background);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
@@ -54,7 +52,7 @@ h1 {
   margin: 0;
   font-size: 3rem;
   line-height: 1.12;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.025em;
   font-weight: 600;
   text-wrap: balance;
 }
