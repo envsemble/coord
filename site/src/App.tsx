@@ -57,8 +57,7 @@ function Home() {
       {/* One box as wide as its longest line, centred; its lines break where they read best. */}
       <div className="intro">
         <h1>A desktop app for planning <br />with <Agent name="Claude Code" path={claudePath} kind="claude" /> or <Agent name="Codex" path={codexPath} kind="codex" /></h1>
-        <p className="lead">Agents are fast, and happy to build the wrong thing. <br />Coord makes sure you and your agent mean the same thing.</p>
-        <p className="facts">In any terminal, editor or <span className="nowrap">T3 Code</span>. Windows and Linux. Free, MIT.</p>
+        <p className="lead">Agents are fast, and happy to build the wrong thing. <br />Coord makes sure you both mean the same thing, in any terminal, editor or <span className="nowrap">T3 Code</span>.</p>
       </div>
       <ChannelPicker channel={channel} onChange={setChannel} />
       <div className="downloads" data-channel={channel}>
@@ -67,7 +66,7 @@ function Home() {
       <p className="note">
         {channel === 'stable' ? 'The tested release, for everyday use.' : 'Built every night from the newest changes. Expect rough edges.'}<br />
         {build ? <a href={build.page}>Version {build.version}</a> : channel === 'nightly' && builds !== 'loading' ? 'No nightly build yet' : null}
-        {(build || channel === 'nightly' && builds !== 'loading') && ' · '}<a href={releasesPage}>All releases</a>
+        {(build || channel === 'nightly' && builds !== 'loading') && ' · '}<a href={releasesPage}>All releases</a> · Free and open source
       </p>
       <Screenshots />
     </main>;
