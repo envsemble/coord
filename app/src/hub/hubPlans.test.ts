@@ -48,9 +48,9 @@ test('open plans are grouped by whose turn they are: the user\'s first, then wor
   ]);
   assert.deepEqual(groups('closed'), [['Closed', ['work-0019', 'work-0018']]]);
   assert.deepEqual(groups('all').map(([label]) => label), ['Your turn', 'Working', 'Waiting', 'Later', 'Closed']);
-  // The user's turn, the longest waiting first.
-  const turns = hubGroups([...items, { ...items[0], work: { ...items[0].work, id: 'work-0030', turn: { kind: 'your_turn', note: 'Try it', since: '2026-10-01T09:00:00Z' } } }], 'open');
-  assert.deepEqual(turns[0].items.map(item => item.work.id), ['work-0030', 'work-0021']);
+  // Every group the most recently changed first, the user's turn too.
+  const turns = hubGroups([...items, { ...items[0], work: { ...items[0].work, id: 'work-0030', updated: '2026-10-01', statistics: null, turn: { kind: 'your_turn', note: 'Try it', since: '2026-10-01T09:00:00Z' } } }], 'open');
+  assert.deepEqual(turns[0].items.map(item => item.work.id), ['work-0021', 'work-0030']);
   assert.equal(inState(items[0], 'all'), true);
   assert.deepEqual(hubGroups([], 'open'), []);
   // The filter menu's filters narrow the plans, each one that is on to those that match it.

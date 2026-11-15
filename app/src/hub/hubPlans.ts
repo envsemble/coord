@@ -66,17 +66,13 @@ export function matchesOnly(item: HubItem, only: readonly HubOnly[], starred: (i
 export const inState = (item: HubItem, state: HubState) => state === 'all' || (state === 'closed') === (item.work.state === 'closed');
 
 /**
- * The plans in the state asked for, in their groups (only those with plans): the user's turn the
- * longest waiting first, the others the most recently changed first.
+ * The plans in the state asked for, in their groups (only those with plans), each group the most
+ * recently changed first, by the time its Changed column shows (`lastChange`).
  */
 export function hubGroups(items: HubItem[], state: HubState): HubGroup[] {
   const shown = items.filter(item => inState(item, state)).sort((a, b) =>
-    (b.work.updated ?? '').localeCompare(a.work.updated ?? '') || a.project.position - b.project.position || b.work.id.localeCompare(a.work.id));
-  const since = (item: HubItem) => item.work.turn?.since ?? item.work.updated ?? '';
-  return groupOrder.map(id => {
-    const members = shown.filter(item => groupOf(item.status.key) === id);
-    return { id, label: groupLabels[id], items: id === 'your_turn' ? members.sort((a, b) => since(a).localeCompare(since(b))) : members };
-  }).filter(group => group.items.length);
+    (lastChange(b.work) ?? '').localeCompare(lastChange(a.work) ?? '') || a.project.position - b.project.position || b.work.id.localeCompare(a.work.id));
+  return groupOrder.map(id => ({ id, label: groupLabels[id], items: shown.filter(item => groupOf(item.status.key) === id) })).filter(group => group.items.length);
 }
 
 /** How much a row says: work under way (anyone's turn, waiting or blocked) the most, closed work how it ended. */
