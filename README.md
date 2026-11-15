@@ -69,4 +69,4 @@ To work on Coord itself, or to run the command from a checkout instead, see [the
 - [The coord command](docs/command.md) and [all documentation](docs/README.md).
 - [Contributing](CONTRIBUTING.md), the [changelog](CHANGELOG.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
 
-Coord is open source under the [MIT license](LICENSE).
+Coord is open source under the [MIT license](LICENSE). It covers the code, not the Coord name, logos or icons, which remain envsemble's.
