@@ -9,6 +9,9 @@ import dashboard from './shots/dashboard.png';
 import diagrams from './shots/diagrams.png';
 import grill from './shots/grill.png';
 import plan from './shots/plan.png';
+import hub from '../../assets/hub.png';
+import comparison from '../../assets/comparison-dark.png';
+import statistics from '../../assets/statistics.png';
 import { Privacy, Terms } from './legal.tsx';
 import { Sky } from './Sky.tsx';
 import { linuxPath } from './linuxPath.ts';
@@ -52,6 +55,8 @@ function Home() {
   }, []);
   const visitor = visitorPlatform({ userAgent: navigator.userAgent, platform: navigator.platform });
   const [channel, setChannel] = useState<Channel>('stable');
+  // Stable keeps the gray page; Nightly darkens it to black behind its stars (site.css).
+  useEffect(() => { document.documentElement.dataset.channel = channel; }, [channel]);
   const build = typeof builds === 'object' ? builds[channel] : null;
   // The visitor's system first.
   const platforms: Platform[] = visitor === 'linux' ? ['linux', 'windows'] : ['windows', 'linux'];
@@ -74,9 +79,43 @@ function Home() {
         {build ? <a href={build.page}>Version {build.version}</a> : channel === 'nightly' && builds !== 'loading' ? 'No nightly build yet' : null}
         {(build || channel === 'nightly' && builds !== 'loading') && ' · '}<a href={releasesPage}>All releases</a>
       </p>
-      <img className="screenshot" src={plan} width={2184} height={1364}
-        alt="A plan in Coord: its title, whose turn it is and what to do, its outcome and scope, and beside it the plan's progress, steps and statistics." />
+      <Screenshots />
     </main>;
+}
+
+const screenshots: { key: string; label: string; shot: string; alt: string }[] = [
+  { key: 'plan', label: 'A plan', shot: plan, alt: "A plan in Coord: its title, whose turn it is and what to do, its outcome and scope, and beside it the plan's progress, steps and statistics." },
+  { key: 'hub', label: 'Your plans', shot: hub, alt: 'The hub: every open plan of a project, grouped as Your turn, Waiting and Later, each saying what it waits on and which models worked on it.' },
+  { key: 'proposal', label: 'A proposal', shot: comparison, alt: "An agent's proposal in the change view: new and changed classes and relations marked on the diagram, unchanged ones faded, and the list of changes beside it." },
+  { key: 'statistics', label: 'Statistics', shot: statistics, alt: "A project's statistics: agent time, plans completed, time waited on you, and the work over time by model." },
+];
+const screenshotTime = 6000;
+
+/**
+ * The app's screenshots in turn, one every six seconds, fading into each other; the labels under them
+ * show which one it is and pick one. Hovering or focusing them holds the current one, and with reduced
+ * motion they change only when picked. All stay in the page, so the change is a fade, not a load.
+ */
+function Screenshots() {
+  const [shown, setShown] = useState(0);
+  const [held, setHeld] = useState(false);
+  useEffect(() => {
+    if (held || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const timer = setTimeout(() => setShown(index => (index + 1) % screenshots.length), screenshotTime);
+    return () => clearTimeout(timer);
+  }, [shown, held]);
+  return <section className="screenshots" aria-label="Screenshots" onMouseEnter={() => setHeld(true)} onMouseLeave={() => setHeld(false)}
+    onFocus={() => setHeld(true)} onBlur={() => setHeld(false)}>
+    <div className="screenshot">
+      {screenshots.map((item, index) => <img key={item.key} src={item.shot} alt={item.alt} width={2184} height={1364}
+        decoding="async" data-shown={index === shown ? '' : undefined} aria-hidden={index === shown ? undefined : true} />)}
+    </div>
+    <div className="screenshot-picker" role="group" aria-label="Show a screenshot">
+      {screenshots.map((item, index) => <button key={item.key} type="button" aria-pressed={index === shown} onClick={() => setShown(index)}>
+        {item.label}{index === shown && !held && <span className="screenshot-timer" key={shown} aria-hidden="true" />}
+      </button>)}
+    </div>
+  </section>;
 }
 
 /** A Material Symbol from envUI, on its 960-unit grid. */

@@ -2,8 +2,8 @@
 
 :root {
   color-scheme: dark;
-  /* A black page, with envUI's dark theme's text, quieter text, hairlines and controls. */
-  --background: #000000;
+  /* envUI's dark theme: the gray page, its text, quieter text, hairlines and controls. */
+  --background: #1e1f21;
   --text: #e8eaee;
   --muted: #bdbfc3;
   --border: #5d6166;
@@ -15,7 +15,8 @@
   -webkit-font-smoothing: antialiased;
   transition: background-color 300ms;
 }
-/* Nightly picked: the starry sky (Sky.tsx) fades in behind the page. */
+/* Nightly picked: the page darkens to black and the starry sky (Sky.tsx) fades in behind it. */
+:root[data-channel="nightly"] { --background: #000000; }
 .sky { position: fixed; inset: 0; z-index: -1; width: 100%; height: 100%; opacity: 0; pointer-events: none; transition: opacity 700ms; }
 .sky[data-shown] { opacity: 1; }
 
@@ -211,15 +212,41 @@ h1 {
 .note a { color: var(--muted); text-underline-offset: 0.2em; }
 .note a:hover { color: var(--text); }
 
+/* The screenshots: stacked in one frame, the shown one faded in, and their labels below. */
+.screenshots { width: 100%; margin-top: 3.5rem; }
 .screenshot {
-  display: block;
-  width: 100%;
-  height: auto;
-  margin-top: 3.5rem;
+  display: grid;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 0.875rem;
   /* envUI's raised shadow in its dark theme: a contact edge and a soft fall-off below. */
   box-shadow: 0 1px 2px oklch(from var(--background) calc(l * 0.25) c h / 0.5), 0 12px 32px -10px oklch(from var(--background) calc(l * 0.8) c h / 0.85);
+}
+
+.screenshot img { grid-area: 1 / 1; display: block; width: 100%; height: auto; opacity: 0; transition: opacity 600ms ease; }
+.screenshot img[data-shown] { opacity: 1; }
+.screenshot-picker { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.25rem; margin-top: 1rem; }
+.screenshot-picker button {
+  position: relative;
+  overflow: hidden;
+  padding: 0.375rem 0.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.screenshot-picker button:hover { color: var(--text); }
+.screenshot-picker button[aria-pressed="true"] { background: var(--button); color: var(--text); }
+.screenshot-picker button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+/* The time left on the shown screenshot, as a hairline filling along its label's bottom. */
+.screenshot-timer { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--muted); transform-origin: left; animation: screenshot-timer 6000ms linear forwards; }
+@keyframes screenshot-timer { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .screenshot img { transition: none; }
+  .screenshot-timer { display: none; }
 }
 
 .nowrap { white-space: nowrap; }
@@ -275,7 +302,8 @@ h1 {
   .download { width: 100%; padding-block: 0.625rem; }
   .download-label { font-size: 1rem; }
   .note { font-size: 0.8125rem; }
-  .screenshot { margin-top: 2.5rem; border-radius: 0.5rem; }
+  .screenshots { margin-top: 2.5rem; }
+  .screenshot { border-radius: 0.5rem; }
   .footer { padding-block: 1.25rem 2rem; }
 }
 
