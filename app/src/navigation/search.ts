@@ -25,6 +25,8 @@ export interface SearchEntry {
   destination: SearchDestination;
   /** What else finds the same thing: a plan, or a file by its path, in a project. */
   key: string | null;
+  /** The plan it is of, by its key (`workKey`), when it is of one. */
+  plan?: string | null;
 }
 
 /** A plan's or file's key, so the window's own entries do not repeat the host's. */
@@ -68,6 +70,7 @@ export function hostEntries(results: SearchResult[], projects: Project[]): Searc
       // An element is told apart from its namesakes in other diagrams by its diagram's file.
       kind: result.kind, label: result.title, detail: [result.kind === 'project' ? null : result.projectName, work, result.element && result.path ? result.path.slice(result.path.lastIndexOf('/') + 1) : null].filter(Boolean).join(' · '),
       snippet: result.snippet, ...result.tags?.length && { tags: result.tags }, destination: resultDestination(result), key,
+      plan: result.work ? workKey(result.projectId, result.work) : null,
     };
   });
 }

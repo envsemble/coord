@@ -129,6 +129,10 @@ body { margin: 0; }
 .search-snippet { margin-block-start: 0.125rem; color: var(--env-color-fg-default); opacity: 0.75; }
 /* The words typed, where a result has them: in the text's own colour and weight, not a highlighter's. */
 .search-mark { background: none; color: inherit; font-weight: 600; }
+/* A plan's state at its row's end, muted; a group's Show all row, quieter than a result; the tip under the list. */
+.search-state { color: var(--env-color-fg-muted); font: var(--env-type-body-sm); white-space: nowrap; }
+.search-popup .search-more { color: var(--env-color-fg-muted); }
+.search-tip { color: var(--env-color-fg-muted); font: var(--env-type-body-sm); }
 /* A search to try, as it would be typed. */
 .search-try { font: inherit; font-family: var(--env-font-family-mono, ui-monospace, monospace); font-size: 0.9em; }
 .search-popup .env-command-palette-group + .env-command-palette-group { margin-block-start: var(--env-space-2); padding-block-start: var(--env-space-2); border-block-start: var(--env-control-border-width) solid var(--env-color-border-muted); }
