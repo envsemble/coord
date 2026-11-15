@@ -117,8 +117,6 @@ h1 {
 }
 .channels button:hover { color: var(--text); }
 .channels button[aria-checked="true"] { background: var(--button-hover); color: var(--text); }
-/* Nightly picked: the app's Nightly tag colours, deep night blue with pale blue text (app/src/coord.css). */
-.channels button[data-value="nightly"][aria-checked="true"] { background: #151b33; color: #b8c4f5; }
 .channels button:focus-visible { outline: 2px solid var(--text); outline-offset: 1px; }
 
 .downloads {
