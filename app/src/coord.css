@@ -136,26 +136,31 @@ body { margin: 0; }
 .search-tip-gap { display: inline-block; inline-size: var(--env-space-4); }
 /* A search to try, as it would be typed. */
 .search-try { font: inherit; font-family: var(--env-font-family-mono, ui-monospace, monospace); font-size: 0.9em; }
-/* The search's panel, quieter than envUI's raised popup: a fill a step above the page, a hairline
-   edge and a deep soft shadow; the field sits flat at its top over a hairline, with no ring of its
-   own; titles at the body's weight, the kind headings small and dim, the highlighted row a faint
-   fill. The content is envUI's CommandPalette as it is. */
+/* The search's panel reads as one of envUI's tables: a raised surface in a hairline frame, the field
+   over a divider, each kind's heading a header band across the panel, and the results parted by the
+   table's dividers, the highlighted one in the table's row hover. The content is envUI's
+   CommandPalette as it is. */
 .search-popup.env-command-palette {
-  --env-popup-fill: color-mix(in srgb, var(--env-color-bg-page) 75%, var(--env-color-bg-popup));
+  --search-band: var(--env-table-band, var(--env-color-bg-neutral-muted));
+  --search-divider: var(--env-table-divider, var(--env-color-border-muted));
+  --env-popup-fill: var(--env-color-bg-raised);
   --env-popup-opacity: 100%;
-  border-color: color-mix(in srgb, var(--env-color-border-muted) 45%, transparent);
-  box-shadow: 0 1.5rem 4rem -1rem oklch(from var(--env-color-bg-page) calc(l * 0.2) c h / 0.65), 0 0 0 var(--env-control-border-width) oklch(from var(--env-color-bg-page) calc(l * 0.4) c h / 0.5);
+  padding: 0;
+  border-color: var(--env-color-border-muted);
+  border-radius: var(--env-radius-lg);
 }
-.search-popup .env-command-palette-header { margin-inline: calc(-1 * var(--env-space-1)); padding-block-end: var(--env-space-1); border-block-end: var(--env-control-border-width) solid color-mix(in srgb, var(--env-color-border-muted) 35%, transparent); }
+.search-popup .env-command-palette-header { padding: var(--env-space-1) var(--env-space-2); border-block-end: var(--env-control-border-width) solid var(--search-divider); }
 .search-popup .env-command-palette-search { --env-text-field-ghost-solid: transparent; --env-text-field-ghost-edge: transparent; }
 .search-popup .env-command-palette-search::after { display: none; }
-.search-popup .env-command-palette-list { margin-block-start: var(--env-space-1); }
+.search-popup .env-command-palette-list { margin-block-start: 0; }
+.search-popup .env-command-palette-group + .env-command-palette-group { margin-block-start: 0; }
+.search-popup .env-command-palette-group-label { padding: var(--env-space-2) var(--env-space-4); background: var(--search-band); color: var(--env-color-fg-muted); font: var(--env-type-body-sm); font-weight: var(--env-font-weight-medium); }
+.search-popup .env-list-row { padding-inline: var(--env-space-4); border-radius: 0; }
+.search-popup .env-command-palette-item + .env-command-palette-item { border-block-start: var(--env-control-border-width) solid var(--search-divider); }
 .search-popup .env-list-row-label { font-size: 0.875rem; }
 .search-popup .env-list-row .env-icon { color: var(--env-color-fg-muted); }
-.search-popup .env-list-row:is([data-highlighted], [data-popup-open]) { background: color-mix(in srgb, var(--env-color-bg-neutral-muted) 55%, transparent); }
-.search-popup .env-command-palette-group + .env-command-palette-group { margin-block-start: var(--env-space-1); padding-block-start: var(--env-space-1); border-block-start: var(--env-control-border-width) solid color-mix(in srgb, var(--env-color-border-muted) 30%, transparent); }
-.search-popup .env-command-palette-group-label { color: var(--env-color-fg-muted); font-size: 0.6875rem; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.8; }
-.search-popup .env-command-palette-footer { margin-inline: calc(-1 * var(--env-space-1)); border-block-start: var(--env-control-border-width) solid color-mix(in srgb, var(--env-color-border-muted) 35%, transparent); }
+.search-popup .env-list-row:is([data-highlighted], [data-popup-open]) { background: var(--env-color-bg-row-hover); }
+.search-popup .env-command-palette-footer { padding: var(--env-space-2) var(--env-space-4); border-block-start: var(--env-control-border-width) solid var(--search-divider); }
 /* A work item's tags: small read-only labels under its title and on its search results. */
 .tag-list { display: flex; flex-wrap: wrap; gap: var(--env-space-1); margin: 0; padding: 0; list-style: none; }
 .tag { padding-inline: var(--env-space-2); border-radius: var(--env-radius-sm); background: var(--env-color-bg-default); color: var(--env-color-fg-muted); font-size: var(--env-font-size-label); line-height: 1.6; }
