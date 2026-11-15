@@ -155,7 +155,8 @@ body { margin: 0; }
 /* The drawer's header holds the tree, which takes its height and scrolls; it has no destinations. */
 .plan-files .env-navigation-drawer-header { flex: 1 1 auto; min-block-size: 0; gap: var(--env-space-1); }
 .plan-files .env-navigation-drawer-list:empty { display: none; }
-.plan-files-heading { margin: 0; padding-inline-start: var(--env-space-2); font-weight: 500; }
+/* The pane's label, small and muted in capitals, as editors label their explorer: it names the pane, it is not a heading to read. */
+.plan-files-heading { margin: 0; padding-inline-start: var(--env-space-2); color: var(--env-color-fg-muted); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
 .plan-files-tree { flex: 1; min-block-size: 0; overflow-y: auto; }
 .plan-files-empty { margin: 0; padding: var(--env-space-1) var(--env-space-2); }
 /* The parts rail: envUI's supporting pane beside a plan and its pages when the work is made of parts
@@ -214,7 +215,10 @@ body { margin: 0; }
 /* The file shown on a quiet neutral fill rather than the selection blue, clearly stronger than a row
    under the pointer (a fainter row hover than envUI's here), in the default text colour and a little heavier. */
 .plan-files .env-tree-item:not([aria-selected='true']):hover { background: color-mix(in srgb, var(--env-color-bg-row-hover) 45%, transparent); }
-.plan-files .env-tree-item[aria-selected='true'] { background: var(--env-color-bg-neutral-muted-hover); color: var(--env-color-fg-default); font-weight: var(--env-font-weight-medium); }
+/* Compact rows with a squarer selection, as an editor's explorer has them. */
+.plan-files .env-tree { --env-tree-item-padding: 0.125rem; }
+.plan-files .env-tree-item { border-radius: 0.25rem; }
+.plan-files .env-tree-item[aria-selected='true'] { background: var(--env-color-bg-neutral-muted-hover); color: var(--env-color-fg-default); }
 .plan-files .env-tree-item[aria-selected='true']:hover { background: var(--env-color-bg-neutral-muted-pressed); }
 .plan-files .env-tree-item[aria-selected='true']:active { background: var(--env-color-bg-neutral-muted-pressed); }
 .plan-files .env-tree-item[aria-selected='true'] :is(.env-tree-icon, .env-tree-chevron) { color: var(--env-color-fg-muted); }

@@ -165,7 +165,7 @@ export function focusPlanFiles() {
 
 /**
  * A row of the tree. Only the files Coord reads for what they are have an icon: the plan, its ledger,
- * its glossary and its diagrams; every other row keeps the icon's room empty, so the names line up.
+ * its glossary and its diagrams; every other file keeps the icon's room empty, so the names line up.
  */
 function treeItem(row: ExplorerRow, workPath: string, tag: string | undefined, attention: Record<string, string>): Row {
   const base = { value: row.id, depth: row.depth, expandable: row.expandable, expanded: row.expanded, row, textValue: row.name };
@@ -175,7 +175,8 @@ function treeItem(row: ExplorerRow, workPath: string, tag: string | undefined, a
   }
   // A folded folder with a page in it that needs its user shows that it has one.
   const inside = row.kind !== 'file' && !row.expanded ? Object.keys(attention).filter(page => page.startsWith(row.path + '/')) : [];
-  if (row.kind !== 'file') return { ...base, label: row.name, icon: <></>, ...inside.length ? { end: <AttentionDot text={inside.length === 1 ? 'A page in it needs you' : inside.length + ' pages in it need you'} /> } : {}, tooltip: row.path };
+  // A folder has no icon and no room for one: its chevron is its mark, and its name follows it closely.
+  if (row.kind !== 'file') return { ...base, label: row.name, ...inside.length ? { end: <AttentionDot text={inside.length === 1 ? 'A page in it needs you' : inside.length + ' pages in it need you'} /> } : {}, tooltip: row.path };
   const own = (name: string) => row.path === workPath + '/' + name;
   const icon = own('plan.md') ? <PlanIcon className="explorer-special" data-file="plan" />
     : own('ledger.md') ? <LedgerIcon className="explorer-special" data-file="ledger" />
