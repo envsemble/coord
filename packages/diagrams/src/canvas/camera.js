@@ -236,12 +236,24 @@ export function createCamera({
     const within = (offset, start, size, extent) => {
       const low = start + size - FIT_PADDING - extent * scale;
       const high = start + FIT_PADDING;
-      return low > high ? start + (size - extent * scale) / 2 : Math.min(high, Math.max(low, offset));
+      return low > high
+        ? start + (size - extent * scale) / 2
+        : Math.min(high, Math.max(low, offset));
     };
     snapTo({
       scale,
-      x: within(area.x + area.width / 2 - x * scale, area.x, area.width, b.width),
-      y: within(area.y + area.height / 2 - y * scale, area.y, area.height, b.height),
+      x: within(
+        area.x + area.width / 2 - x * scale,
+        area.x,
+        area.width,
+        b.width,
+      ),
+      y: within(
+        area.y + area.height / 2 - y * scale,
+        area.y,
+        area.height,
+        b.height,
+      ),
       fitted: false,
     });
   }
