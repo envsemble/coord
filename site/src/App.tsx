@@ -4,11 +4,10 @@
 import { useEffect, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import logo from '../../assets/coord-horizontal-on-dark.svg';
 import envsembleLogo from '../../assets/envsemble-horizontal-on-dark.svg';
-import dashboard from './shots/dashboard.png';
-import grill from './shots/grill.png';
-import hub from '../../assets/hub.png';
-import comparison from '../../assets/comparison-dark.png';
-import statistics from '../../assets/statistics.png';
+import diagram from './shots/diagram.png';
+import hub from './shots/hub.png';
+import plan from './shots/plan.png';
+import statistics from './shots/statistics.png';
 import { Privacy, Terms } from './legal.tsx';
 import { linuxPath } from './linuxPath.ts';
 import { acceptedPath, claudePath, codexPath, diagramPath, draftPath, moonPath, pagePath, yourTurnPath } from './marks.ts';
@@ -77,19 +76,17 @@ function Home() {
 /**
  * What Coord does, a feature at a time with its screenshot. text is the caption, with the app's badges;
  * label names it for a screen reader; focus is the part a phone's cropped frame keeps, across the
- * screenshot's width (site.css). The screenshots are all 16:10.
+ * screenshot's width (site.css). The screenshots are of Coord's own plans, at 2x in the dark theme.
  */
-const screenshots: { key: string; label: string; text: ReactNode; shot: string; width: number; height: number; focus: string; alt: string }[] = [
-  { key: 'grill', label: 'Grills you until the plan goes Draft to Accepted', text: <>Grills you until the plan goes <span className="nowrap"><State kind="draft">Draft</State> → <State kind="accepted">Accepted</State></span></>,
-    shot: grill, width: 1092, height: 682, focus: '30%', alt: 'A draft plan being settled: its items marked Settled or Proposed, and its planning steps.' },
-  { key: 'diagrams', label: 'Captures your code and database as a class diagram', text: <>Captures your code and database as a <Ref kind="diagram">class diagram</Ref></>,
-    shot: comparison, width: 2184, height: 1364, focus: '97%', alt: "An agent's proposal on the captured class diagram: new and changed classes and relations marked, unchanged ones faded, and the list of changes beside it." },
-  { key: 'dashboards', label: 'Builds live dashboards inside the plan', text: <>Builds live <Ref kind="page">dashboards</Ref> inside the plan</>,
-    shot: dashboard, width: 960, height: 600, focus: '0%', alt: 'A dashboard inside a plan: a rollout with its key figures and its progress by market.' },
+const screenshots: { key: string; label: string; text: ReactNode; shot: string; focus: string; alt: string }[] = [
+  { key: 'plan', label: 'Grills you until the plan goes Draft to Accepted', text: <>Grills you until the plan goes <span className="nowrap"><State kind="draft">Draft</State> → <State kind="accepted">Accepted</State></span></>,
+    shot: plan, focus: '41%', alt: "One of Coord's own plans: what was decided, and its steps from understanding the request to the last one done." },
+  { key: 'diagram', label: 'Captures your code and database as a class diagram', text: <>Captures your code and database as a <Ref kind="diagram">class diagram</Ref></>,
+    shot: diagram, focus: '51%', alt: "Coord's own home database captured as a diagram: projects, sessions and the agents' reports, with their columns and relations." },
   { key: 'turn', label: 'Shows which plans are Your turn', text: <>Shows which plans are <State kind="turn">Your turn</State></>,
-    shot: hub, width: 2184, height: 1364, focus: '4%', alt: 'The plans: Your turn first, saying what to do, then Waiting and Later, each with which models worked on it.' },
+    shot: hub, focus: '0%', alt: "Coord's own plans: Your turn first, each saying what to do, then Waiting and Later, with the models that worked on them." },
   { key: 'statistics', label: "Counts every model's agent time and tokens", text: <>Counts every model's agent time and tokens</>,
-    shot: statistics, width: 2184, height: 1364, focus: '4%', alt: "A project's statistics: agent time, plans completed, time waited on you, and the work over time by model." },
+    shot: statistics, focus: '49%', alt: "The statistics of one plan's work: agent time, tokens and sessions, and a timeline of each model working." },
 ];
 const screenshotTime = 6000;
 
@@ -109,7 +106,7 @@ function Screenshots() {
   }, [shown, playing]);
   return <section className="screenshots" aria-label="What Coord does" aria-roledescription="carousel">
     <div className="screenshot">
-      {screenshots.map((item, index) => <img key={item.key} src={item.shot} alt={item.alt} width={item.width} height={item.height}
+      {screenshots.map((item, index) => <img key={item.key} src={item.shot} alt={item.alt} width={2182} height={1364}
         decoding="async" style={{ '--focus': item.focus } as CSSProperties} data-shown={index === shown ? '' : undefined} aria-hidden={index === shown ? undefined : true} />)}
     </div>
     <div className="screenshot-captions" aria-live={playing ? 'off' : 'polite'}>
