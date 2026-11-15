@@ -21,7 +21,7 @@ import { plural, relativeDate } from '../ui/format';
 import { FoldersDialog, RenameProjectDialog, type ProjectActions } from './ProjectDialogs';
 
 /** A project's avatar: its initials on a small square in its own hue. */
-export function ProjectAvatar({ project }: { project: Project }) {
+export function ProjectAvatar({ project }: { project: Pick<Project, 'id' | 'name'> }) {
   return <span className="project-avatar" aria-hidden="true" style={{ '--project-hue': projectHue(project.id) } as CSSProperties}>{initials(project.name)}</span>;
 }
 

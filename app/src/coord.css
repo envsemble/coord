@@ -645,3 +645,6 @@ body { margin: 0; }
    works on marked by the selection's fill, as envUI fills a chosen item, without a check mark. */
 .computer-menu-where { color: var(--env-color-fg-muted); font: var(--env-type-body-sm); }
 .computer-menu-item[aria-current='true'] { background: var(--env-color-bg-neutral-muted-hover); }
+
+/* A project in the breadcrumbs: its avatar, as in the hub and the project menu, before its name. */
+.breadcrumb-project { display: inline-flex; align-items: center; gap: var(--env-space-2); }
