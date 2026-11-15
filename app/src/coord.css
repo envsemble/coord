@@ -147,7 +147,6 @@ body { margin: 0; }
   --env-popup-opacity: 100%;
   padding: 0;
   border-color: var(--env-color-border-muted);
-  border-radius: var(--env-radius-lg);
 }
 .search-popup .env-command-palette-header { padding: calc(var(--env-radius-surface) - var(--env-popup-row-radius)); }
 .search-popup .env-command-palette-list { margin-block-start: 0; }
