@@ -1403,7 +1403,7 @@ const article = (kind) =>
 function baselineCycle(name, read, file) {
   const named = (reference) => posix.normalize(reference.replace(/\\/g, "/"));
   const chain = file ? [posix.basename(named(file))] : [];
-  for (let path = named(name); chain.length < 100;) {
+  for (let path = named(name); chain.length < 100; ) {
     if (chain.includes(path)) return [...chain, path];
     chain.push(path);
     const text = read(path);
