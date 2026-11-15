@@ -3,6 +3,7 @@
 // browser by releases.ts), and a screenshot of a plan. Hovering a feature shows its screenshot by the cursor.
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import logo from '../../assets/coord-horizontal-on-dark.svg';
+import envsembleLogo from '../../assets/envsemble-horizontal-on-dark.svg';
 import attention from './shots/attention.png';
 import dashboard from './shots/dashboard.png';
 import diagrams from './shots/diagrams.png';
@@ -27,7 +28,11 @@ export function App() {
     </header>
     <Page />
     <footer className="footer">
-      <span>© 2026 envsemble</span>
+      {/* Coord is made by envsemble: its lockup, linking to the company's site, beside the copyright. */}
+      <div className="maker">
+        <a href="https://envsemble.com" className="maker-logo"><img src={envsembleLogo} alt="envsemble" width={303} height={63} /></a>
+        <span>© 2026 envsemble</span>
+      </div>
       <nav aria-label="Site">
         <a href={releasesPage}>Releases</a>
         <a href={sourcePage + '/blob/main/LICENSE'}>MIT license</a>

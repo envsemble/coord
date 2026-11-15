@@ -11,14 +11,14 @@ From the repository's root, after `npm ci`:
 
 ## Deploy it
 
-Any static host serves `site/dist/`. On Cloudflare Pages, connect the repository with:
+The site is a Cloudflare Worker that serves only the static files in `site/dist/` (`site/wrangler.jsonc`), at its custom domain `coord.envsemble.com`. In Cloudflare, **Workers & Pages › Create › Import a repository**, choose `envsemble/coord` and set:
 
-| Setting                | Value                                                       |
-| ---------------------- | ----------------------------------------------------------- |
-| Production branch      | `main`                                                      |
-| Build command          | `npm ci && npm run build --workspace @envsemble/coord-site` |
-| Build output directory | `site/dist`                                                 |
-| Root directory         | `/` (the repository's root, for the workspace)              |
-| Environment variable   | `NODE_VERSION=24`                                           |
+| Setting              | Value                                                       |
+| -------------------- | ----------------------------------------------------------- |
+| Production branch    | `main`                                                      |
+| Root directory       | `/` (the repository's root, for the workspace)              |
+| Build command        | `npm ci && npm run build --workspace @envsemble/coord-site` |
+| Deploy command       | `npx wrangler deploy --config site/wrangler.jsonc`          |
+| Environment variable | `NODE_VERSION=24`                                           |
 
-Then add `coord.envsemble.com` as the project's custom domain; envsemble.com's DNS is on Cloudflare already.
+The first deploy adds the custom domain itself (envsemble.com's DNS is on Cloudflare). A new release needs no new deploy: the page reads the releases in the visitor's browser.

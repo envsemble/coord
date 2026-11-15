@@ -1,6 +1,6 @@
 {
   "name": "coord",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Coord planning for agents: the planning folder and active work for your checkout at session start, planning-state tools, checks of planning edits, and work statistics from every session.",
   "author": { "name": "envsemble" },
   "homepage": "https://github.com/envsemble/coord",

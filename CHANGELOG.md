@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.0 — Coord — 2026-11-15
 
 **Releases and updates**
 
