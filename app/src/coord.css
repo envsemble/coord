@@ -122,9 +122,17 @@ body { margin: 0; }
 .hub-row-model { display: flex; align-items: center; gap: var(--env-space-1); min-inline-size: 0; white-space: nowrap; }
 .hub-row-ended { white-space: nowrap; }
 
-/* The search: where a result is, then the words it was found in. */
+/* The search: each result its title and one muted line of where it is, then, when the search found it
+   in the text, the words it was found in. Groups are set apart by a hairline and a small capital
+   heading, so the kinds of result read at a glance. */
 .search-where, .search-snippet { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.search-snippet { font-style: italic; }
+.search-snippet { margin-block-start: 0.125rem; color: var(--env-color-fg-default); opacity: 0.75; }
+/* The words typed, where a result has them: in the text's own colour and weight, not a highlighter's. */
+.search-mark { background: none; color: inherit; font-weight: 600; }
+/* A search to try, as it would be typed. */
+.search-try { font: inherit; font-family: var(--env-font-family-mono, ui-monospace, monospace); font-size: 0.9em; }
+.search-popup .env-command-palette-group + .env-command-palette-group { margin-block-start: var(--env-space-2); padding-block-start: var(--env-space-2); border-block-start: var(--env-control-border-width) solid var(--env-color-border-muted); }
+.search-popup .env-command-palette-group-label { color: var(--env-color-fg-muted); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
 /* A work item's tags: small read-only labels under its title and on its search results. */
 .tag-list { display: flex; flex-wrap: wrap; gap: var(--env-space-1); margin: 0; padding: 0; list-style: none; }
 .tag { padding-inline: var(--env-space-2); border-radius: var(--env-radius-sm); background: var(--env-color-bg-default); color: var(--env-color-fg-muted); font-size: var(--env-font-size-label); line-height: 1.6; }
