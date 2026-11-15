@@ -185,10 +185,10 @@ test('another Coord pairs with a one-time link and works on that computer\'s pro
   // Switching to this computer, which has no projects, and back (once the window saved what it shows).
   await viewer.waitForTimeout(600);
   await viewer.getByRole('button', { name: /^Computer:/ }).click();
-  await viewer.getByRole('menu', { name: /^Computer/ }).getByRole('menuitemradio').filter({ hasText: 'This computer' }).click();
+  await viewer.getByRole('menu', { name: /^Computer/ }).getByRole('menuitem').filter({ hasText: 'This computer' }).click();
   await noProjects(viewer);
   await viewer.getByRole('button', { name: /^Computer:/ }).click();
-  await viewer.getByRole('menu', { name: /^Computer/ }).getByRole('menuitemradio').filter({ hasText: /127\.0\.0\.1/ }).click();
+  await viewer.getByRole('menu', { name: /^Computer/ }).getByRole('menuitem').filter({ hasText: /127\.0\.0\.1/ }).click();
   // What it showed of that computer comes back with it.
   await expect(viewer.locator('.work-page h1')).toHaveText('Customer order notifications');
   // Its files and applications' links do not open here: they are that computer's.
