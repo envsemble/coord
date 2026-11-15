@@ -1,21 +1,16 @@
-// Coord's website: one dark page, with its privacy and terms pages (legal.tsx). The name, one line on what Coord is, a download button for
+// Coord's website: one near-black page, with its privacy and terms pages (legal.tsx). The name, one line on what Coord is, a download button for
 // Windows and one for Linux under a Stable or Nightly switch (the newest build of each, read from GitHub Releases in the visitor's
-// browser by releases.ts), and the app's screenshots in turn. Hovering a feature shows its screenshot by the cursor.
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+// browser by releases.ts), and what Coord does, one feature at a time under its screenshot.
+import { useEffect, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import logo from '../../assets/coord-horizontal-on-dark.svg';
 import envsembleLogo from '../../assets/envsemble-horizontal-on-dark.svg';
-import attention from './shots/attention.png';
-import dashboard from './shots/dashboard.png';
-import diagrams from './shots/diagrams.png';
-import grill from './shots/grill.png';
+import diagram from './shots/diagram.png';
+import hub from './shots/hub.png';
 import plan from './shots/plan.png';
-import hub from '../../assets/hub.png';
-import comparison from '../../assets/comparison-dark.png';
-import statistics from '../../assets/statistics.png';
+import statistics from './shots/statistics.png';
 import { Privacy, Terms } from './legal.tsx';
-import { Sky } from './Sky.tsx';
 import { linuxPath } from './linuxPath.ts';
-import { acceptedPath, claudePath, codexPath, diagramPath, draftPath, moonPath, pagePath, previewPath, yourTurnPath } from './marks.ts';
+import { acceptedPath, claudePath, codexPath, diagramPath, draftPath, moonPath, pagePath, yourTurnPath } from './marks.ts';
 import { fetchBuilds, releasesPage, sourcePage, visitorPlatform, type Build, type Channel, type Platform } from './releases.ts';
 
 type Builds = Record<Channel, Build | null> | 'loading' | 'failed';
@@ -55,48 +50,52 @@ function Home() {
   }, []);
   const visitor = visitorPlatform({ userAgent: navigator.userAgent, platform: navigator.platform });
   const [channel, setChannel] = useState<Channel>('stable');
-  // Stable keeps the gray page; Nightly darkens it to black behind its stars (site.css).
-  useEffect(() => { document.documentElement.dataset.channel = channel; }, [channel]);
   const build = typeof builds === 'object' ? builds[channel] : null;
   // The visitor's system first.
   const platforms: Platform[] = visitor === 'linux' ? ['linux', 'windows'] : ['windows', 'linux'];
   return <main>
-    {/* Nightly shows a starry sky behind the page. */}
-    <Sky shown={channel === 'nightly'} />
       {/* One box as wide as its longest line, centred; its lines break where they read best. */}
       <div className="intro">
-        <h1>A desktop app for planning <br />with <Agent name="Claude Code" path={claudePath} kind="claude" /> or <Agent name="Codex" path={codexPath} kind="codex" /></h1>
-        <p className="lead">Agents are fast, and happy to build the wrong thing. <br />Coord makes sure you and your agent mean the same thing.</p>
-        <Features />
-        <p className="facts">In any terminal, editor or <span className="nowrap">T3 Code</span>. Windows and Linux. Free, MIT.</p>
+        <h1>A desktop app for planning <br />with <Agent name="Claude" path={claudePath} kind="claude" /> or <Agent name="Codex" path={codexPath} kind="codex" /></h1>
+        <p className="lead">Agents are fast, and happy to build the wrong thing. Coord gets you both on the same page, then tracks the work and tells you when it's your turn.</p>
       </div>
       <ChannelPicker channel={channel} onChange={setChannel} />
-      <div className="downloads">
+      <div className="downloads" data-channel={channel}>
         {platforms.map(platform => <DownloadButton key={platform} platform={platform} build={build} loading={builds === 'loading'} />)}
       </div>
       <p className="note">
-        {channel === 'stable' ? 'The tested release, for everyday use.' : 'Built every night from the newest changes. Expect rough edges.'}<br />
-        {build ? <a href={build.page}>Version {build.version}</a> : channel === 'nightly' && builds !== 'loading' ? 'No nightly build yet' : null}
-        {(build || channel === 'nightly' && builds !== 'loading') && ' · '}<a href={releasesPage}>All releases</a>
+        {/* One quiet line: what the channel is, its version, all releases, and the licence. Each part
+            keeps its words together, with the dot after it, so a narrow line breaks only after a dot. */}
+        <span className="nowrap">{channel === 'stable' ? 'Tested, for everyday use' : 'Built every night, expect rough edges'} ·</span>
+        {' '}{build ? <span className="nowrap"><a href={build.page}>Version {build.version}</a> ·</span> : channel === 'nightly' && builds !== 'loading' ? <span className="nowrap">No nightly build yet ·</span> : null}
+        {' '}<span className="nowrap"><a href={releasesPage}>All releases</a> ·</span> <span className="nowrap">Free and open source</span>
       </p>
       <Screenshots />
     </main>;
 }
 
-// focus: the part a phone's cropped frame keeps, across the screenshot's width (site.css).
-const screenshots: { key: string; label: string; shot: string; focus: string; alt: string }[] = [
-  { key: 'plan', label: 'A plan', shot: plan, focus: '25%', alt: "A plan in Coord: its title, whose turn it is and what to do, its outcome and scope, and beside it the plan's progress, steps and statistics." },
-  { key: 'hub', label: 'Your plans', shot: hub, focus: '4%', alt: 'The hub: every open plan of a project, grouped as Your turn, Waiting and Later, each saying what it waits on and which models worked on it.' },
-  { key: 'proposal', label: 'A proposal', shot: comparison, focus: '97%', alt: "An agent's proposal in the change view: new and changed classes and relations marked on the diagram, unchanged ones faded, and the list of changes beside it." },
-  { key: 'statistics', label: 'Statistics', shot: statistics, focus: '4%', alt: "A project's statistics: agent time, plans completed, time waited on you, and the work over time by model." },
+/**
+ * What Coord does, a feature at a time with its screenshot. text is the caption, with the app's badges;
+ * label names it for a screen reader; focus is the part a phone's cropped frame keeps, across the
+ * screenshot's width (site.css). The screenshots are of Coord's own plans, at 2x in the dark theme.
+ */
+const screenshots: { key: string; label: string; text: ReactNode; shot: string; focus: string; alt: string }[] = [
+  { key: 'turn', label: 'Shows which plans are Your turn', text: <>Shows which plans are <State kind="turn">Your turn</State></>,
+    shot: hub, focus: '0%', alt: "Coord's own plans: Your turn first, each saying what to do, then Waiting and Later, with the models that worked on them." },
+  { key: 'plan', label: 'Grills you until the plan goes Draft to Accepted', text: <>Grills you until the plan goes <span className="nowrap"><State kind="draft">Draft</State> → <State kind="accepted">Accepted</State></span></>,
+    shot: plan, focus: '38%', alt: "One of Coord's own plans, complete: what it does in short, why the user asked for it in their own words, and its steps from understanding the request to accepted and done." },
+  { key: 'diagram', label: 'Captures your code and database as a class diagram', text: <>Captures your code and database as a <Ref kind="diagram">class diagram</Ref></>,
+    shot: diagram, focus: '67%', alt: "Coord's own home database captured as a diagram: projects, sessions and the agents' reports, with their columns and relations." },
+  { key: 'statistics', label: "Counts every model's agent time and tokens", text: <>Counts every model's agent time and tokens</>,
+    shot: statistics, focus: '38%', alt: "The statistics of one plan's work: agent time, tokens and sessions, and a timeline of the main agent and its subagents working." },
 ];
 const screenshotTime = 6000;
 
 /**
- * The app's screenshots in turn, one every six seconds, fading into each other, with timed dots as on
- * Apple's product pages, kept as small as the site's other controls. A dot shows its screenshot;
- * pausing holds the shown one.
- * With reduced motion they start paused. All stay in the page, so the change is a fade, not a load.
+ * The features in turn, one every six seconds, each screenshot fading into the next with its caption
+ * under it, and timed dots as on Apple's product pages, kept as small as the site's other controls. A
+ * dot shows its feature; pausing holds the shown one. With reduced motion they start paused. All stay
+ * in the page, stacked, so the change is a fade, not a load, and the captions keep the tallest one's height.
  */
 function Screenshots() {
   const [shown, setShown] = useState(0);
@@ -106,16 +105,18 @@ function Screenshots() {
     const timer = setTimeout(() => setShown(index => (index + 1) % screenshots.length), screenshotTime);
     return () => clearTimeout(timer);
   }, [shown, playing]);
-  return <section className="screenshots" aria-label="Screenshots" aria-roledescription="carousel">
+  return <section className="screenshots" aria-label="What Coord does" aria-roledescription="carousel">
     <div className="screenshot">
-      {screenshots.map((item, index) => <img key={item.key} src={item.shot} alt={item.alt} width={2184} height={1364}
+      {screenshots.map((item, index) => <img key={item.key} src={item.shot} alt={item.alt} width={2180} height={1364}
         decoding="async" style={{ '--focus': item.focus } as CSSProperties} data-shown={index === shown ? '' : undefined} aria-hidden={index === shown ? undefined : true} />)}
     </div>
-    {/* One small capsule, like the Stable and Nightly switch: the shown one's name, a dot for each (the
-        shown one a bar that fills with its time) and a pause button. */}
+    <div className="screenshot-captions" aria-live={playing ? 'off' : 'polite'}>
+      {screenshots.map((item, index) => <p key={item.key} data-shown={index === shown ? '' : undefined} aria-hidden={index === shown ? undefined : true}>{item.text}</p>)}
+    </div>
+    {/* One small capsule, like the Stable and Nightly switch: a dot for each feature (the shown one a
+        bar that fills with its time) and a pause button. */}
     <div className="screenshot-controls">
-      <span className="screenshot-caption" aria-live={playing ? 'off' : 'polite'}>{screenshots[shown].label}</span>
-      <div className="screenshot-dots" role="group" aria-label="Show a screenshot">
+      <div className="screenshot-dots" role="group" aria-label="Show a feature">
         {screenshots.map((item, index) => <button key={item.key} type="button" className="screenshot-dot" aria-label={item.label}
           aria-current={index === shown ? 'true' : undefined} onClick={() => setShown(index)}>
           {index === shown && <span className="screenshot-fill" data-paused={playing ? undefined : ''} />}
@@ -146,42 +147,6 @@ function State({ kind, children }: { kind: 'draft' | 'accepted' | 'turn'; childr
 /** A plan's link to one of its diagrams or pages, in the app's colours: purple, and teal. */
 function Ref({ kind, children }: { kind: 'diagram' | 'page'; children: ReactNode }) {
   return <span className={'ref ref-' + kind}><Symbol path={kind === 'diagram' ? diagramPath : pagePath} />{children}</span>;
-}
-
-const features: { key: string; text: ReactNode; shot: string; alt: string }[] = [
-  { key: 'grill', text: <>Grills you until the plan goes <span className="nowrap"><State kind="draft">Draft</State> → <State kind="accepted">Accepted</State></span></>, shot: grill, alt: 'A draft plan being settled: its items marked Settled or Proposed, and its planning steps.' },
-  { key: 'diagrams', text: <>Captures your code and database as a <Ref kind="diagram">class diagram</Ref></>, shot: diagrams, alt: "Classes of the captured code, with the ones an agent's proposal adds marked New." },
-  { key: 'dashboards', text: <>Builds live <Ref kind="page">dashboards</Ref> inside the plan</>, shot: dashboard, alt: 'A dashboard inside a plan: a rollout with its key figures and its progress by market.' },
-  { key: 'attention', text: <>Shows which plans are <State kind="turn">Your turn</State></>, shot: attention, alt: 'The plans: Your turn first, saying what to do, then Waiting and Later.' },
-];
-
-/**
- * The features, each with a faint image mark after it; with a mouse, a feature's screenshot follows the
- * cursor while it is hovered. The screenshots stay in the page, decoded once, and the cursor moves them
- * without React: hovering only swaps which one shows.
- */
-function Features() {
-  const [shown, setShown] = useState<number | null>(null);
-  const peek = useRef<HTMLDivElement>(null);
-  const follow = (event: MouseEvent) => {
-    const element = peek.current;
-    if (!element) return;
-    // Beside the cursor, flipped to the other side near the window's right and bottom edges.
-    const width = element.offsetWidth, height = element.offsetHeight, gap = 20;
-    const x = event.clientX + gap + width > window.innerWidth ? event.clientX - gap - width : event.clientX + gap;
-    const y = Math.max(gap, Math.min(event.clientY + gap, window.innerHeight - height - gap));
-    element.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-  };
-  return <>
-    <ul className="features">
-      {features.map((feature, index) => <li key={feature.key} onMouseEnter={event => { follow(event); setShown(index); }} onMouseMove={follow} onMouseLeave={() => setShown(null)}>
-        {feature.text}<Symbol path={previewPath} className="peek-hint" />
-      </li>)}
-    </ul>
-    <div ref={peek} className="peek" data-shown={shown === null ? undefined : ''} aria-hidden="true">
-      {features.map((feature, index) => <img key={feature.key} src={feature.shot} alt={feature.alt} width={960} height={600} data-shown={index === shown ? '' : undefined} />)}
-    </div>
-  </>;
 }
 
 const channels: { value: Channel; label: string }[] = [{ value: 'stable', label: 'Stable' }, { value: 'nightly', label: 'Nightly' }];
