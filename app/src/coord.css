@@ -225,9 +225,9 @@ body { margin: 0; }
 /* Compact rows with a squarer selection, as an editor's explorer has them. */
 .plan-files .env-tree { --env-tree-item-padding: 0.125rem; }
 .plan-files .env-tree-item { border-radius: 0.25rem; }
-.plan-files .env-tree-item[aria-selected='true'] { background: var(--env-color-bg-neutral-muted-hover); color: var(--env-color-fg-default); }
-.plan-files .env-tree-item[aria-selected='true']:hover { background: var(--env-color-bg-neutral-muted-pressed); }
-.plan-files .env-tree-item[aria-selected='true']:active { background: var(--env-color-bg-neutral-muted-pressed); }
+.plan-files .env-tree-item[aria-selected='true'] { background: color-mix(in srgb, var(--env-color-bg-neutral-muted) 70%, transparent); color: var(--env-color-fg-default); }
+.plan-files .env-tree-item[aria-selected='true']:hover { background: var(--env-color-bg-neutral-muted); }
+.plan-files .env-tree-item[aria-selected='true']:active { background: var(--env-color-bg-neutral-muted-hover); }
 .plan-files .env-tree-item[aria-selected='true'] :is(.env-tree-icon, .env-tree-chevron) { color: var(--env-color-fg-muted); }
 
 /* Pages */
