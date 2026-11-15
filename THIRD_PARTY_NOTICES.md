@@ -8,6 +8,8 @@ The interface is built on envUI (`@envsemble/envui`), Envsemble's own component 
 
 The `coord-grill` skill's interview and domain-modeling methods are adapted from Matt Pocock's [skills](https://github.com/mattpocock/skills) and keep their [MIT license](plugin/skills/coord-grill/references/LICENSE).
 
+The website (`site/`) is set in [Geist](https://github.com/vercel/geist-font), from `@fontsource-variable/geist` 5.3.0 under the SIL Open Font License 1.1, served with the site; the license text ships in the package.
+
 The interface icons are envUI's Material Symbols. The reusable viewer imports them from envUI; the offline build bundles the icons it uses. No icon or font service or CDN is required.
 
 The AI providers' marks beside model names in the app's statistics (Claude's spark for Anthropic, the OpenAI blossom, the Gemini sparkle, Mistral AI's M and the DeepSeek whale) are SVG paths from [Simple Icons](https://github.com/simple-icons/simple-icons) under CC0 1.0: release 16.35.0, and 15.22.0 for OpenAI's, the last release that included it. Only the path data is copied, in `app/src/ui/ModelName.tsx`. The marks are trademarks of their owners and only identify their models; showing them implies no endorsement or affiliation.
