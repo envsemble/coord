@@ -270,10 +270,16 @@ body { margin: 0; }
 .page-empty { padding-block: var(--env-space-8); padding-inline: 0; }
 
 /* Ledger steps: done in the "completed" tone, in progress in the "open" tone, over the work left. */
-.step-bar { display: flex; inline-size: 100%; block-size: 0.5rem; overflow: hidden; border-radius: var(--env-radius-sm); background: var(--env-color-bg-default); }
-/* Planning in blue, implementation done in purple and in progress in green, apart in both themes. */
-.step-bar-done { background: var(--env-color-fg-accent); }
-.step-bar-doing { background: var(--env-color-fg-success); }
+.step-bar { display: flex; inline-size: 100%; block-size: 0.5rem; overflow: hidden; border-radius: var(--env-radius-sm); background: light-dark(var(--env-color-bg-neutral-muted), var(--env-color-bg-default)); }
+/* Planning in blue, implementation done in purple and in progress in green, apart in both themes. The
+   dark theme takes envUI's light text tones; in the light theme envUI's tones are all dark and run
+   together, so the bar has its own: a light blue, a deep purple and a clear green, apart in hue and
+   in lightness. */
+/* stylelint-disable color-no-hex -- the step bar's light-theme colours, which envUI's tokens do not give */
+.step-bar { --step-planning: light-dark(#4f8fe6, var(--env-color-fg-primary)); --step-done: light-dark(#7c3aad, var(--env-color-fg-accent)); --step-doing: light-dark(#1f9d55, var(--env-color-fg-success)); }
+/* stylelint-enable color-no-hex */
+.step-bar-done { background: var(--step-done); }
+.step-bar-doing { background: var(--step-doing); }
 .step-bar-compact { inline-size: 4rem; block-size: 0.375rem; }
 .ledger-progress { display: grid; gap: var(--env-space-2); }
 .ledger-progress-summary { margin: 0; color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); }
@@ -305,8 +311,8 @@ body { margin: 0; }
    their marks and their part of the bar; their phase is also in their names. */
 .step-icon[data-phase='planning'] { color: color-mix(in srgb, var(--env-color-fg-primary) 45%, var(--env-color-fg-muted)); }
 .step-icon[data-phase='planning']:is([data-status='done'], [data-status='doing']) { color: var(--env-color-fg-primary); }
-.step-bar-planning-done { background: var(--env-color-fg-primary); }
-.step-bar-planning-doing { background: color-mix(in srgb, var(--env-color-fg-primary) 55%, var(--env-color-bg-default)); }
+.step-bar-planning-done { background: var(--step-planning); }
+.step-bar-planning-doing { background: color-mix(in srgb, var(--step-planning) 50%, var(--env-color-bg-raised)); }
 
 /* Work page: the plan, with the work's facts beside it. The diagrams' islands keep a gutter from the edge. */
 /* The plan's page is wider than envUI's large page, for its text and its side column together. */
