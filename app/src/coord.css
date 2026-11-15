@@ -701,15 +701,11 @@ body { margin: 0; }
    that line stays centred in the segment. */
 .env-segmented-control-item:has(.env-segmented-control-item-count) { flex-wrap: wrap; align-content: center; align-items: baseline; }
 
-/* Tables in the light theme: envUI's muted edge and header band are close to the light page, so a
-   table melted into it. There the edge is a step darker, the header band lighter (white with a trace
-   of the band) and a faint shadow sets the table on the page; the dark theme keeps envUI's look. */
-.env-table-region {
-  border-color: light-dark(color-mix(in srgb, var(--env-color-border-muted) 55%, var(--env-color-border-default)), var(--env-color-border-muted));
-  box-shadow: 0 1px 2px light-dark(color-mix(in srgb, var(--env-color-fg-default) 8%, transparent), transparent);
-}
+/* Tables in the light theme: envUI's header band was close to the light page, so a table melted
+   into it. There the band is lighter, so the table's white surface reads against the page, as the
+   dark theme's raised surface does; no extra edges. */
 .env-table { --env-table-band: light-dark(color-mix(in srgb, var(--env-color-bg-neutral-muted) 45%, transparent), var(--env-color-bg-neutral-muted)); }
-/* The hub's controls in the light theme take the tables' white surface and edge, not a gray on the gray page. */
-.hub :is(.hub-project, .hub-statistics) { --env-button-container: light-dark(var(--env-color-bg-raised), var(--env-color-bg-neutral-muted)); box-shadow: inset 0 0 0 var(--env-control-border-width) light-dark(color-mix(in srgb, var(--env-color-border-muted) 55%, var(--env-color-border-default)), transparent); }
-.hub-filter-group { background: light-dark(var(--env-color-bg-raised), var(--env-color-bg-neutral-muted)); box-shadow: inset 0 0 0 var(--env-control-border-width) light-dark(color-mix(in srgb, var(--env-color-border-muted) 55%, var(--env-color-border-default)), transparent); }
+/* The hub's controls in the light theme take the tables' white surface, not a gray on the gray page. */
+.hub :is(.hub-project, .hub-statistics) { --env-button-container: light-dark(var(--env-color-bg-raised), var(--env-color-bg-neutral-muted)); }
+.hub-filter-group { background: light-dark(var(--env-color-bg-raised), var(--env-color-bg-neutral-muted)); }
 .hub-filter-group .env-segmented-control { --env-segmented-control-thumb: light-dark(var(--env-color-bg-neutral-muted), var(--env-color-bg-neutral-strong-hover)); }
