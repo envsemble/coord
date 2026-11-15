@@ -217,7 +217,7 @@ body { margin: 0; }
 .plan-files .env-tree-item:not([aria-selected='true']):hover { background: color-mix(in srgb, var(--env-color-bg-row-hover) 45%, transparent); }
 /* The files' edge: under the pointer, or while dragged, a line the full height of the pane in
    a gray a little lighter than the page marks where it will resize, as soon as the cursor changes; the grip's dots give way to it. */
-.plan-files .env-resize-handle::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: calc(50% - var(--env-control-border-width)); inline-size: calc(2 * var(--env-control-border-width)); background: transparent; }
+.plan-files .env-resize-handle::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: calc(50% - var(--env-control-border-width) / 2); inline-size: var(--env-control-border-width); background: transparent; }
 .plan-files .env-resize-handle:is(:hover, [data-resizing])::before { background: var(--env-color-bg-neutral-muted-hover); }
 .plan-files .env-resize-handle:is(:hover, [data-resizing]) { --env-resize-handle-grip-color: transparent; }
 /* Compact rows with a squarer selection, as an editor's explorer has them. */
