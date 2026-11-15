@@ -157,7 +157,7 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, c
   return <Page className="hub" title={filtered?.name ?? 'Plans'} controlSize="sm"
     actions={<Row align="center" gap={2}>
       <ProjectMenu projects={projects} chosen={filtered} computer={computer} local={local} actions={actions} newProject={newProject} />
-      <Button variant="secondary" size="sm" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered?.id ?? null))}>Statistics</Button>
+      <Button variant="secondary" size="sm" className="hub-statistics" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered?.id ?? null))}>Statistics</Button>
       {/* One filter widget: Open, Closed or All, and in the same capsule the menu of further filters. */}
       <div className="hub-filter-group" role="group" aria-label="Filter plans">
         <SegmentedControl aria-label="Plan state" size="sm" value={filters.state} onValueChange={state => setFilters({ ...filters, state: state as HubState })}
