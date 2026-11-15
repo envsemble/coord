@@ -1,7 +1,7 @@
 // Coord's website: one dark page, with its privacy and terms pages (legal.tsx). The name, one line on what Coord is, a download button for
 // Windows and one for Linux under a Stable or Nightly switch (the newest build of each, read from GitHub Releases in the visitor's
 // browser by releases.ts), and a screenshot of a plan. Hovering a feature shows its screenshot by the cursor.
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import logo from '../../assets/coord-horizontal-on-dark.svg';
 import envsembleLogo from '../../assets/envsemble-horizontal-on-dark.svg';
 import attention from './shots/attention.png';
@@ -83,11 +83,12 @@ function Home() {
     </main>;
 }
 
-const screenshots: { key: string; label: string; shot: string; alt: string }[] = [
-  { key: 'plan', label: 'A plan', shot: plan, alt: "A plan in Coord: its title, whose turn it is and what to do, its outcome and scope, and beside it the plan's progress, steps and statistics." },
-  { key: 'hub', label: 'Your plans', shot: hub, alt: 'The hub: every open plan of a project, grouped as Your turn, Waiting and Later, each saying what it waits on and which models worked on it.' },
-  { key: 'proposal', label: 'A proposal', shot: comparison, alt: "An agent's proposal in the change view: new and changed classes and relations marked on the diagram, unchanged ones faded, and the list of changes beside it." },
-  { key: 'statistics', label: 'Statistics', shot: statistics, alt: "A project's statistics: agent time, plans completed, time waited on you, and the work over time by model." },
+// focus: the part a phone's cropped frame keeps, across the screenshot's width (site.css).
+const screenshots: { key: string; label: string; shot: string; focus: string; alt: string }[] = [
+  { key: 'plan', label: 'A plan', shot: plan, focus: '25%', alt: "A plan in Coord: its title, whose turn it is and what to do, its outcome and scope, and beside it the plan's progress, steps and statistics." },
+  { key: 'hub', label: 'Your plans', shot: hub, focus: '4%', alt: 'The hub: every open plan of a project, grouped as Your turn, Waiting and Later, each saying what it waits on and which models worked on it.' },
+  { key: 'proposal', label: 'A proposal', shot: comparison, focus: '97%', alt: "An agent's proposal in the change view: new and changed classes and relations marked on the diagram, unchanged ones faded, and the list of changes beside it." },
+  { key: 'statistics', label: 'Statistics', shot: statistics, focus: '4%', alt: "A project's statistics: agent time, plans completed, time waited on you, and the work over time by model." },
 ];
 const screenshotTime = 6000;
 
@@ -108,7 +109,7 @@ function Screenshots() {
   return <section className="screenshots" aria-label="Screenshots" aria-roledescription="carousel">
     <div className="screenshot">
       {screenshots.map((item, index) => <img key={item.key} src={item.shot} alt={item.alt} width={2184} height={1364}
-        decoding="async" data-shown={index === shown ? '' : undefined} aria-hidden={index === shown ? undefined : true} />)}
+        decoding="async" style={{ '--focus': item.focus } as CSSProperties} data-shown={index === shown ? '' : undefined} aria-hidden={index === shown ? undefined : true} />)}
     </div>
     {/* One small capsule, like the Stable and Nightly switch: the shown one's name, a dot for each (the
         shown one a bar that fills with its time) and a pause button. */}

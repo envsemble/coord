@@ -333,7 +333,10 @@ h1 {
   .download-label { font-size: 1rem; }
   .note { font-size: 0.8125rem; }
   .screenshots { margin-top: 2.5rem; }
-  .screenshot { border-radius: 0.5rem; }
+  /* A phone shows part of each screenshot, large enough to read: a taller frame, cropped around the
+     screenshot's focus (App.tsx) from its top. */
+  .screenshot { aspect-ratio: 4 / 5; border-radius: 0.5rem; }
+  .screenshot img { height: 100%; object-fit: cover; object-position: var(--focus, 0%) top; }
   .footer { padding-block: 1.25rem 2rem; }
 }
 
