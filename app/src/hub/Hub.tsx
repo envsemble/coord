@@ -158,9 +158,12 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, c
     actions={<Row align="center" gap={2}>
       <ProjectMenu projects={projects} chosen={filtered} computer={computer} local={local} actions={actions} newProject={newProject} />
       <Button variant="secondary" size="sm" startIcon={<StatisticsIcon />} onClick={() => go(statisticsPlace(filtered?.id ?? null))}>Statistics</Button>
-      <SegmentedControl aria-label="Plan state" size="sm" value={filters.state} onValueChange={state => setFilters({ ...filters, state: state as HubState })}
+      {/* One filter widget: Open, Closed or All, and in the same capsule the menu of further filters. */}
+      <div className="hub-filter-group" role="group" aria-label="Filter plans">
+        <SegmentedControl aria-label="Plan state" size="sm" value={filters.state} onValueChange={state => setFilters({ ...filters, state: state as HubState })}
         items={[{ value: 'open', label: 'Open', count: counts.open }, { value: 'closed', label: 'Closed', count: counts.closed }, { value: 'all', label: 'All', count: counts.all }]} />
-      <FilterMenu only={filters.only} onChange={only => setFilters({ ...filters, only })} />
+        <FilterMenu only={filters.only} onChange={only => setFilters({ ...filters, only })} />
+      </div>
     </Row>}>
     {error && <Alert tone="warning">{error}</Alert>}
     {warnings}
@@ -183,7 +186,7 @@ function FilterMenu({ only, onChange }: { only: readonly HubOnly[]; onChange(onl
   const set = (filter: HubOnly, on: boolean) => onChange(hubOnlyFilters.filter(item => item === filter ? on : only.includes(item)));
   const label = only.length ? 'Filters, ' + only.length + ' on' : 'Filters';
   return <Menu.Root aria-label="Filters" align="end"
-    trigger={<IconButton variant={only.length ? 'secondary' : 'ghost'} size="sm" className="hub-filters" aria-label={label} title={label} data-active={only.length ? '' : undefined} icon={<IconFilterList />} />}>
+    trigger={<IconButton variant="ghost" size="sm" className="hub-filters" aria-label={label} title={label} data-active={only.length ? '' : undefined} icon={<IconFilterList />} />}>
     <Menu.Group label="Show only">
       {hubOnlyFilters.map(filter => <Menu.CheckboxItem key={filter} checked={only.includes(filter)} onCheckedChange={on => set(filter, on)}>{hubOnlyLabels[filter]}</Menu.CheckboxItem>)}
     </Menu.Group>
