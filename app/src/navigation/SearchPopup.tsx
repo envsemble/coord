@@ -52,6 +52,8 @@ const kindIcons: Record<SearchKind, ReactNode> = {
 };
 /** A place opened from the search, remembered by main for the window's computer to show under Recent. */
 interface Recent { id: string; kind: SearchKind; label: string; detail: string; destination: SearchDestination; key: string | null; plan: string | null }
+/** The last Recent each computer's search had in this window, shown at once while main is asked again. */
+const lastRecent = new Map<string, Recent[]>();
 function readRecent(json: string): Recent[] {
   try {
     const value = JSON.parse(json) as unknown;
@@ -212,15 +214,16 @@ export function SearchPopup({ hostId, projects, open, query, setQuery, onChoose,
   // The places opened from the search lately on the window's computer, the newest first, the same in
   // every window and kept by main for the next time.
   const computer = hostId ?? 'local';
-  const [recent, setRecent] = useState<Recent[]>([]);
+  const [recent, setRecent] = useState<Recent[]>(() => lastRecent.get(computer) ?? []);
   useEffect(() => {
     let current = true;
-    api.recentSearches(computer).then(json => { if (current) setRecent(readRecent(json)); }, () => undefined);
+    api.recentSearches(computer).then(json => { const read = readRecent(json); lastRecent.set(computer, read); if (current) setRecent(read); }, () => undefined);
     return () => { current = false; };
   }, [computer]);
   const remember = (entry: Recent) => {
     const next = [entry, ...recent.filter(each => each.id !== entry.id)].slice(0, 5);
     setRecent(next);
+    lastRecent.set(computer, next);
     api.rememberSearches(computer, JSON.stringify(next)).catch(() => undefined);
   };
 
