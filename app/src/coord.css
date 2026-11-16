@@ -123,8 +123,7 @@ body { margin: 0; }
 .hub-row-ended { white-space: nowrap; }
 
 /* The search: each result its title and one muted line of where it is, then, when the search found it
-   in the text, the words it was found in. Groups are set apart by a hairline and a small capital
-   heading, so the kinds of result read at a glance. */
+   in the text, the words it was found in. */
 .search-label, .search-where, .search-snippet { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .search-snippet { margin-block-start: 0.125rem; color: var(--env-color-fg-muted); }
 /* The words typed, where a result has them: in the text's own colour and weight, not a highlighter's. */
@@ -136,28 +135,13 @@ body { margin: 0; }
 .search-tip-gap { display: inline-block; inline-size: var(--env-space-4); }
 /* A search to try, as it would be typed. */
 .search-try { font: inherit; font-family: var(--env-font-family-mono, ui-monospace, monospace); font-size: 0.9em; }
-/* The search's panel reads as one of envUI's tables: a raised surface in a hairline frame, envUI's own
-   search field at its top, each kind's heading a header band across the panel, and the results parted by the
-   table's dividers, the highlighted one in the table's row hover. The content is envUI's
-   CommandPalette as it is. */
-.search-popup.env-command-palette {
-  --search-band: var(--env-table-band, var(--env-color-bg-neutral-muted));
-  --search-divider: var(--env-table-divider, var(--env-color-border-muted));
-  --env-popup-fill: var(--env-color-bg-raised);
-  --env-popup-opacity: 100%;
-  padding: 0;
-  border-color: var(--env-color-border-muted);
-}
-.search-popup .env-command-palette-header { padding: calc(var(--env-radius-surface) - var(--env-popup-row-radius)); }
-.search-popup .env-command-palette-list { margin-block-start: 0; }
-.search-popup .env-command-palette-group + .env-command-palette-group { margin-block-start: 0; }
-.search-popup .env-command-palette-group-label { padding: var(--env-space-2) var(--env-space-4); background: var(--search-band); color: var(--env-color-fg-muted); font: var(--env-type-body-sm); font-weight: var(--env-font-weight-medium); }
-.search-popup .env-list-row { padding-inline: var(--env-space-4); border-radius: 0; }
-.search-popup .env-command-palette-item + .env-command-palette-item { border-block-start: var(--env-control-border-width) solid var(--search-divider); }
+/* The search's panel is envUI's CommandPalette as it is, on a solid raised fill so the page behind
+   doesn't show through the text: the kinds of result are told apart by their headings and the space
+   between them, the results by their titles, and the highlighted one by the table's row hover. */
+.search-popup.env-command-palette { --env-popup-fill: var(--env-color-bg-raised); --env-popup-opacity: 100%; }
 .search-popup .env-list-row-label { font-size: 0.875rem; }
 .search-popup .env-list-row .env-icon { color: var(--env-color-fg-muted); }
 .search-popup .env-list-row:is([data-highlighted], [data-popup-open]) { background: var(--env-color-bg-row-hover); }
-.search-popup .env-command-palette-footer { padding: var(--env-space-2) var(--env-space-4); border-block-start: var(--env-control-border-width) solid var(--search-divider); }
 /* A work item's tags: small read-only labels under its title and on its search results. */
 .tag-list { display: flex; flex-wrap: wrap; gap: var(--env-space-1); margin: 0; padding: 0; list-style: none; }
 .tag { padding-inline: var(--env-space-2); border-radius: var(--env-radius-sm); background: var(--env-color-bg-default); color: var(--env-color-fg-muted); font-size: var(--env-font-size-label); line-height: 1.6; }
