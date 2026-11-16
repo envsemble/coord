@@ -53,7 +53,7 @@ export function Terms() {
     <h2>Builds</h2>
     <ul>
       <li>Get Coord from this site or the <a href={releasesPage}>GitHub Releases</a> of <code>{repository}</code>. The builds are not code-signed, so Windows may warn before the first start.</li>
-      <li>Stable builds are the tested releases. Nightly builds are made each night from unreleased changes and may have bugs; keep copies of what matters to you.</li>
+      <li>Stable builds are the tested releases. Nightly builds are made every six hours from unreleased changes and may have bugs; keep copies of what matters to you.</li>
     </ul>
 
     <h2>Your work and your agents</h2>
