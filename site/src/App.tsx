@@ -4,10 +4,10 @@
 import { useEffect, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import logo from '../../assets/coord-horizontal-on-dark.svg';
 import envsembleLogo from '../../assets/envsemble-horizontal-on-dark.svg';
-import diagram from './shots/diagram.png';
-import hub from './shots/hub.png';
-import plan from './shots/plan.png';
-import statistics from './shots/statistics.png';
+import diagram from '../../assets/comparison-dark.png';
+import hub from '../../assets/hub.png';
+import plan from '../../assets/plan.png';
+import statistics from '../../assets/statistics.png';
 import { Privacy, Terms } from './legal.tsx';
 import { linuxPath } from './linuxPath.ts';
 import { acceptedPath, claudePath, codexPath, diagramPath, draftPath, moonPath, pagePath, yourTurnPath } from './marks.ts';
@@ -77,17 +77,17 @@ function Home() {
 /**
  * What Coord does, a feature at a time with its screenshot. text is the caption, with the app's badges;
  * label names it for a screen reader; focus is the part a phone's cropped frame keeps, across the
- * screenshot's width (site.css). The screenshots are of Coord's own plans, at 2x in the dark theme.
+ * screenshot's width (site.css). The screenshots are the README's (assets/), at 2x in the dark theme.
  */
 const screenshots: { key: string; label: string; text: ReactNode; shot: string; focus: string; alt: string }[] = [
   { key: 'turn', label: 'Shows which plans are Your turn', text: <>Shows which plans are <State kind="turn">Your turn</State></>,
     shot: hub, focus: '0%', alt: "Coord's and envUI's own plans, each with its project's avatar: Your turn first, each saying what to do, then Working, Waiting and Later, with the models that worked on them." },
   { key: 'plan', label: 'Grills you until the plan goes Draft to Accepted', text: <>Grills you until the plan goes <span className="nowrap"><State kind="draft">Draft</State> → <State kind="accepted">Accepted</State></span></>,
-    shot: plan, focus: '38%', alt: "One of Coord's own plans, complete: what it does in short, why the user asked for it in their own words, and its steps from understanding the request to accepted and done." },
+    shot: plan, focus: '38%', alt: "One of Coord's own plans, its steps all done: what it does in short, what is left for the user, the decisions it settled, and its steps from understanding the request to accepted and done." },
   { key: 'diagram', label: 'Captures your code and database as a class diagram', text: <>Captures your code and database as a <Ref kind="diagram">class diagram</Ref></>,
-    shot: diagram, focus: '67%', alt: "Coord's own home database captured as a diagram: projects, sessions and the agents' reports, with their columns and relations." },
+    shot: diagram, focus: '55%', alt: "A proposal against captured TypeScript code: its new and changed classes marked on the diagram, and the list of changes beside it." },
   { key: 'statistics', label: "Counts every model's agent time and tokens", text: <>Counts every model's agent time and tokens</>,
-    shot: statistics, focus: '38%', alt: "The statistics of one plan's work: agent time, tokens and sessions, and a timeline of the main agent and its subagents working." },
+    shot: statistics, focus: '38%', alt: "A project's statistics for three months: agent time, plans completed, the work over time by model, and each model's agent time, share and tokens." },
 ];
 const screenshotTime = 6000;
 
