@@ -2,19 +2,19 @@
 // can be done with it. Settings' Agents section connects and disconnects them; the onboarding uses
 // the same rows to choose the agents to connect, then to connect them. Connecting or disconnecting
 // one can take a while: its row shows it, and the others stay usable. An agent not found on this
-// computer is greyed, with a link to install it and Choose program… for one the PATH does not have;
-// the list checks again whenever it shows and as the window comes forward, so one installed (or
-// trusted) meanwhile shows as it is. A connected agent's row says whether it runs Coord, and in
-// Settings each row can show the commands that connect it by hand.
+// computer is greyed, with a button to install it and, in its More menu, Choose program… for one the
+// PATH does not have; the list checks again whenever it shows and as the window comes forward, so one
+// installed (or trusted) meanwhile shows as it is. A connected agent's row says whether it runs Coord,
+// and in Settings each row's More menu shows the commands that connect it by hand.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Button, Checkbox, Disclosure, List, Spinner } from '@envsemble/envui';
+import { Alert, Badge, Button, Checkbox, Dialog, IconButton, List, Menu, Spinner } from '@envsemble/envui';
 import { Code } from '@envsemble/envui/code';
 import { agentIds, agentNames } from '../../shared/contract';
 import type { AgentFolder, AgentId, AgentState } from '../types';
 import { api, CoordError } from '../api';
 import { AgentLogo } from './AgentLogo';
-import { agentCheckLine, agentInstallPages, agentStatus, agentWarnings, byHandCommands, finished, idle, started, withAgent, type AgentActivity } from './agents';
-import { CheckIcon } from '../ui/icons';
+import { agentCheckLine, agentInstallPages, agentWarnings, byHandCommands, finished, idle, started, withAgent, type AgentActivity } from './agents';
+import { CheckIcon, MoreIcon, NewWindowIcon } from '../ui/icons';
 import { CopyButton } from '../ui/CopyButton';
 import { absoluteDate, relativeDate } from '../ui/format';
 
@@ -108,8 +108,8 @@ export function AgentWarnings({ agents, action }: { agents: readonly AgentState[
 }
 
 /** Open an agent's install page in the browser. */
-function InstallLink({ agent }: { agent: AgentState }) {
-  return <Button variant="text" underline className="agent-install" onClick={() => { api.openExternal(agentInstallPages[agent.id]).catch(() => undefined); }}>Install {agentNames[agent.id]}</Button>;
+function InstallButton({ agent }: { agent: AgentState }) {
+  return <Button variant="secondary" endIcon={<NewWindowIcon />} onClick={() => { api.openExternal(agentInstallPages[agent.id]).catch(() => undefined); }}>Install {agentNames[agent.id]}</Button>;
 }
 
 /**
@@ -122,22 +122,49 @@ export function AgentList({ agents: state, mode, label = 'Agents' }: { agents: A
   const { agents, activity } = state;
   // The folder and marketplace the commands for connecting by hand name (Settings only).
   const [folder, setFolder] = useState<AgentFolder | null>(null);
+  // The agent whose commands for connecting by hand show in a dialog.
+  const [byHand, setByHand] = useState<AgentId | null>(null);
   useEffect(() => { if (mode.kind === 'manage') api.agentFolder().then(setFolder, () => undefined); }, [mode.kind]);
   if (agents === null) return <Spinner label="Checking the agents on this computer" />;
   const shown = agents.filter(agent => mode.kind !== 'connect' || mode.only.includes(agent.id))
     .sort((a, b) => agentIds.indexOf(a.id) - agentIds.indexOf(b.id));
-  return <List.Root className="agent-list" aria-label={label}>{shown.map(agent => {
-    const now = activity(agent.id);
-    return <List.Item key={agent.id} className="agent-row" data-agent={agent.id} data-found={agent.found} aria-busy={now.running ? true : undefined}
-      label={<span className="agent-name"><AgentLogo agent={agent.id} /><span className="row-link-title">{agentNames[agent.id]}</span></span>}
-      description={<AgentDetail agent={agent} activity={now} state={state} mode={mode} folder={folder} />}
-      end={<span className="row-actions agent-actions">{action(agent, now, mode, state)}</span>} />;
-  })}</List.Root>;
+  return <>
+    <List.Root className="agent-list" aria-label={label}>{shown.map(agent => {
+      const now = activity(agent.id);
+      return <List.Item key={agent.id} className="agent-row" data-agent={agent.id} data-found={agent.found} aria-busy={now.running ? true : undefined}
+        label={<span className="agent-name"><AgentLogo agent={agent.id} /><span className="row-link-title">{agentNames[agent.id]}</span></span>}
+        description={<AgentDetail agent={agent} activity={now} state={state} />}
+        end={<span className="row-actions agent-actions">{action(agent, now, mode, state)}<MoreMenu agent={agent} activity={now} mode={mode} state={state} onByHand={folder ? () => setByHand(agent.id) : null} /></span>} />;
+    })}</List.Root>
+    {byHand && folder && <ByHand agent={byHand} folder={folder} onClose={() => setByHand(null)} />}
+  </>;
+}
+
+/**
+ * What else can be done with an agent, out of the row's way: choose its program (one the PATH does
+ * not have) or forget the one chosen, check again, and in Settings see the commands that connect it by hand.
+ */
+function MoreMenu({ agent, activity, mode, state, onByHand }: { agent: AgentState; activity: AgentActivity; mode: AgentListMode; state: Agents; onByHand: (() => void) | null }) {
+  if (mode.kind === 'connect' || activity.running) return null;
+  const name = agentNames[agent.id];
+  const items = [
+    agent.program ? <Menu.Item key="clear" onClick={() => state.clearProgram(agent.id)}>Forget the chosen program</Menu.Item>
+      : !agent.found && <Menu.Item key="choose" onClick={() => state.chooseProgram(agent.id)}>Choose program…</Menu.Item>,
+    !agent.found && <Menu.Item key="check" onClick={state.check}>Check again</Menu.Item>,
+    mode.kind === 'manage' && agent.found && onByHand && <Menu.Item key="by-hand" onClick={onByHand}>Connect by hand…</Menu.Item>,
+  ].filter(Boolean);
+  if (!items.length) return null;
+  return <Menu.Root aria-label={'More for ' + name} align="end"
+    trigger={<IconButton variant="ghost" icon={<MoreIcon />} aria-label={'More for ' + name} />}>{items}</Menu.Root>;
 }
 
 /** An agent's status (with, connected, whether it runs Coord), what is happening to it, or why the last change failed. */
-function AgentDetail({ agent, activity, state, mode, folder }: { agent: AgentState; activity: AgentActivity; state: Agents; mode: AgentListMode; folder: AgentFolder | null }) {
-  let line: ReactNode = agentStatus(agent);
+function AgentDetail({ agent, activity, state }: { agent: AgentState; activity: AgentActivity; state: Agents }) {
+  // Its state as a badge, as the row's status; the plugin's version beside it.
+  let line: ReactNode = <>
+    <Badge tone={agent.connected ? 'success' : 'neutral'}>{agent.connected ? 'Connected' : agent.found ? 'Not connected' : 'Not found on this computer'}</Badge>
+    {agent.connected && agent.version && <span className="muted">plugin {agent.version}</span>}
+  </>;
   if (activity.running) line = <span className="agent-progress"><Spinner size="sm" label="" />{activity.running === 'connect' ? 'Connecting… this can take a minute.' : 'Disconnecting…'}</span>;
   const check = agent.connected && agent.check && !activity.running ? agentCheckLine(agent.check, agent.id) : null;
   const refused = state.refused(agent.id);
@@ -146,32 +173,28 @@ function AgentDetail({ agent, activity, state, mode, folder }: { agent: AgentSta
     {check && agent.check && <span className="agent-check" data-warning={check.warning || undefined}>
       {agent.check.status === 'ready' ? <>Ready · last session <time dateTime={agent.check.at} title={absoluteDate(agent.check.at)}>{relativeDate(agent.check.at)}</time></> : withCode(check.text)}
     </span>}
-    {!agent.found && !activity.running && <InstallLink agent={agent} />}
-    {mode.kind !== 'connect' && !activity.running && (agent.program
-      ? <span className="agent-program">Program: <span className="agent-program-path">{agent.program}</span>
-        <Button variant="text" underline className="agent-install" aria-label={'Clear the program chosen for ' + agentNames[agent.id]} onClick={() => state.clearProgram(agent.id)}>Clear</Button></span>
-      : !agent.found && <Button variant="text" underline className="agent-install" aria-label={'Choose program… for ' + agentNames[agent.id]} onClick={() => state.chooseProgram(agent.id)}>Choose program…</Button>)}
+    {agent.program && !activity.running && <span className="agent-program">Program: <span className="agent-program-path">{agent.program}</span></span>}
     {refused && <Alert tone="danger" announce className="agent-error">{refused}</Alert>}
     {activity.failed && !activity.running && <Alert tone="danger" announce className="agent-error">{activity.failed.error}</Alert>}
-    {mode.kind === 'manage' && folder && <ByHand agent={agent} folder={folder} />}
   </span>;
 }
 
-/** The commands that connect the agent by hand, each with a Copy button; folded until opened. */
-function ByHand({ agent, folder }: { agent: AgentState; folder: AgentFolder }) {
-  const { terminal, session } = byHandCommands(agent.id, folder);
+/** The commands that connect the agent by hand, each with a Copy button, in a dialog. */
+function ByHand({ agent, folder, onClose }: { agent: AgentId; folder: AgentFolder; onClose(): void }) {
+  const { terminal, session } = byHandCommands(agent, folder);
   const command = (text: string) => <li key={text}><Code>{text}</Code><CopyButton text={text} label="Copy" /></li>;
-  return <Disclosure className="agent-by-hand" title="Connect by hand">
-    <p>In a terminal (this installs the plugin; Connect also grants the agent Coord’s home):</p>
+  return <Dialog open onOpenChange={open => { if (!open) onClose(); }} className="agent-by-hand" title={'Connect ' + agentNames[agent] + ' by hand'}
+    description="In a terminal: this installs the plugin. Connect also grants the agent Coord’s home." closeLabel="Close">
     <ol className="agent-commands">{terminal.map(command)}</ol>
-    <p>{agent.id === 'claude' ? 'Or in a Claude Code session:' : 'Then in Codex, to see it:'}</p>
+    <p>{agent === 'claude' ? 'Or in a Claude Code session:' : 'Then in Codex, to see it:'}</p>
     <ol className="agent-commands">{session.map(command)}</ol>
-  </Disclosure>;
+  </Dialog>;
 }
 
 function action(agent: AgentState, now: AgentActivity, mode: AgentListMode, state: Agents): ReactNode {
   const name = agentNames[agent.id];
   const retry = now.failed && <Button variant="secondary" onClick={() => now.failed!.action === 'connect' ? state.connect(agent.id) : state.disconnect(agent.id)}>Try again</Button>;
+  if (!agent.found && mode.kind !== 'connect' && !now.running) return <InstallButton agent={agent} />;
   if (mode.kind === 'choose') {
     return <Checkbox label="Connect" aria-label={'Connect ' + name} disabled={!agent.found} checked={agent.found && mode.chosen.includes(agent.id)} onCheckedChange={value => mode.choose(agent.id, value === true)} />;
   }
@@ -180,11 +203,10 @@ function action(agent: AgentState, now: AgentActivity, mode: AgentListMode, stat
     if (retry) return retry;
     return agent.connected ? <CheckIcon className="agent-done" aria-label={name + ' is connected'} role="img" /> : null;
   }
-  if (!agent.found) return <Button variant="secondary" onClick={state.check}>Check again</Button>;
   const disconnect = <Button variant="secondary" pending={now.running === 'disconnect'} disabled={Boolean(now.running)} aria-label={'Disconnect ' + name} onClick={() => state.disconnect(agent.id)}>Disconnect</Button>;
   // A connect whose plugin went in but whose grant failed leaves the agent connected: it can be tried again or disconnected.
   if (retry && !now.running) return agent.connected && now.failed!.action === 'connect' ? <>{retry}{disconnect}</> : retry;
   return agent.connected
     ? disconnect
-    : <Button variant="primary" pending={now.running === 'connect'} disabled={Boolean(now.running)} aria-label={'Connect ' + name} onClick={() => state.connect(agent.id)}>Connect</Button>;
+    : <Button variant="secondary" pending={now.running === 'connect'} disabled={Boolean(now.running)} aria-label={'Connect ' + name} onClick={() => state.connect(agent.id)}>Connect</Button>;
 }

@@ -24,6 +24,7 @@ import { PartsRail, partsGroup } from '../plan/PartsRail';
 import { FilePage } from '../reader/FilePage';
 import { Hub, type HubFilters } from '../hub/Hub';
 import { NewProjectDialog, type ProjectActions } from '../projects/ProjectDialogs';
+import { ProjectAvatar } from '../projects/ProjectMenu';
 import { Gone, Page } from '../ui/Page';
 import { TitleBarStart, type WindowMenus } from '../titleBar/TitleBar';
 import { revealIds } from '../files/explorerModel';
@@ -43,7 +44,8 @@ const loadingPage = <div className="page-state" aria-busy="true"><Spinner size="
 const toastTones = { info: 'neutral', warning: 'info', danger: 'danger' } as const;
 
 /** Keys handled in the window; the same shortcuts in the application menu are the fallback. */
-const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+shift+e': 'focusFiles', 'ctrl+,': 'settings' };
+// Ctrl+K opens the search, and Ctrl+P too, as editors have it.
+const shortcuts: Record<string, MenuCommand> = { 'ctrl+k': 'quickOpen', 'ctrl+p': 'quickOpen', 'ctrl+shift+e': 'focusFiles', 'ctrl+,': 'settings' };
 /** Where the back and forward keys stay: fields, and open menus, lists and dialogs. */
 const keepsHistoryKeys = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"], [role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
 /** What the mouse's back and forward buttons only close: open menus, lists and dialogs. */
@@ -250,7 +252,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   const openSearch = useCallback(() => setSearch(current => current ?? ''), []);
   const closeSearch = useCallback(() => setSearch(null), []);
   const [creatingProject, setCreatingProject] = useState(false);
-  const [hubFilters, setHubFilters] = useState<HubFilters>({ state: 'open' });
+  const [hubFilters, setHubFilters] = useState<HubFilters>({ state: 'open', only: [] });
   const projectOf = useCallback((projectId: string | null) => projects?.find(project => project.id === projectId), [projects]);
 
   /** Statistics, from the menu: all plans'. */
@@ -462,13 +464,13 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   const searchScope = useMemo(() => projectPlace && reading && readSnapshot ? { projectId: reading, snapshot: readSnapshot } : null, [Boolean(projectPlace), reading, readSnapshot]);
 
   let content;
-  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.projectId} filters={hubFilters} setFilters={setHubFilters} go={go} search={openSearch} platform={info.platform}
+  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.projectId} filters={hubFilters} setFilters={setHubFilters} go={go}
     computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} newProject={() => setCreatingProject(true)} />;
   else if (isPage(placed) && placed.page === 'settings') content = <SettingsPage section={placed.section} computer={info.computer} go={showSettings} />;
   // All plans' statistics: every active project together.
   else if (isPage(placed) && !placed.projectId) content = <Suspense fallback={loadingPage}><AllStatisticsPage revision={statisticsMark} trail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: 'Statistics' }]} />} /></Suspense>;
   else content = <ProjectContent place={placed} folder={readFolder} project={owner} scope={scope} read={read}
-    statisticsTrail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: projectOf(reading)?.name ?? 'Project', onClick: projectOf(reading)?.state === 'archived' ? undefined : () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
+    statisticsTrail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: projectOf(reading) ? <span className="breadcrumb-project"><ProjectAvatar project={projectOf(reading)!} />{projectOf(reading)!.name}</span> : 'Project', onClick: projectOf(reading)?.state === 'archived' ? undefined : () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
 
   // The plan's files, in the Scaffold's navigation region at the left from a medium width up, while a
   // plan, its pages or one of its files show.
@@ -480,15 +482,14 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
     topBar={<TopBar titleBar className="window-title-bar"
       start={<TitleBarStart info={info} menus={menus} onError={warn} />}
       actions={<>
-        {/* On the hub, its own search button is the search. */}
-        {!hubShown && <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />}
+        <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />
         {scope && read && <Health issues={read.snapshot.issues} open={work => go({ projectId: scope.projectId, target: workTarget(work) })} />}
       </>} />}>
     <div className={'window-body' + (fills ? ' is-filled' : '')}>
       <div ref={page} className="window-page">{content}</div>
       <ScrollMemory scroller={scroller} scrollKey={scrollKey(placed)} shown={placeId(placed)} anchored={anchored} entry={currentEntry(history)} content={page} positions={scrollPositions} entryPositions={entryPositions} />
     </div>
-    {search !== null && projects && <SearchPopup projects={projects} open={searchScope} query={search} setQuery={setSearch} onChoose={choose} onClose={closeSearch} />}
+    {search !== null && projects && <SearchPopup hostId={info.computer.hostId} projects={projects} open={searchScope} query={search} setQuery={setSearch} onChoose={choose} onClose={closeSearch} />}
     {creatingProject && <NewProjectDialog computer={info.computer.name} local={info.computer.hostId === null} onClose={() => setCreatingProject(false)} onCreated={projectActions.created} />}
   </Scaffold>;
 }

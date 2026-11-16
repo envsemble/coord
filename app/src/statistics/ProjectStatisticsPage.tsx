@@ -4,7 +4,7 @@
 // the plans completed marked) and its models and effort. From the host's project.statistics; all
 // plans' statistics (every active project together) are the same page, from its projects.statistics.
 import { useEffect, useState, type ReactNode } from 'react';
-import { Alert, Disclosure, IconButton, Popover, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
+import { Alert, Button, Disclosure, IconButton, Popover, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
 import { InfoIcon, StatisticsIcon } from '../ui/icons';
 import type { ProjectStatistics } from '../types';
@@ -15,7 +15,7 @@ import { Page } from '../ui/Page';
 import { roughDuration } from '../plan/sessions';
 import { change, modelKey, periods, periodStart, workBars, type PeriodId } from './statisticsPeriods';
 import { modelPalette, orderModels } from '../ui/modelColours';
-import { ModelKey, StatsCard } from '../ui/statistics';
+import { KeyFigures, ModelKey, StatsCard } from '../ui/statistics';
 
 type Figures = ProjectStatistics['current'];
 /** The headline figures of the period, each with its change against the period before. */
@@ -23,18 +23,19 @@ function Headline({ statistics, period }: { statistics: ProjectStatistics; perio
   const { current, previous } = statistics;
   const card = (label: string, value: (figures: Figures) => number | null, format: (value: number) => string) => {
     const now = value(current), moved = change(now, previous ? value(previous) : null);
-    const note = !previous ? (statistics.from ? null : 'since the first report')
+    // All time needs no note: the period chosen above says it.
+    const note = !previous ? null
       : !moved ? 'none in ' + period.before
       : moved.direction === 'same' ? 'as in ' + period.before
       : (moved.by > 0 ? '+' : '−') + format(Math.abs(moved.by)) + (moved.percent !== null ? ' (' + (moved.percent > 0 ? '+' : '−') + Math.abs(moved.percent) + '%)' : '') + ' against ' + period.before;
     return <StatsCard label={label} value={now === null ? '—' : format(now)} note={note ?? undefined} />;
   };
-  return <div className="stats-grid">
+  return <KeyFigures label="Headline figures">
     {card('Agent time', figures => figures.agentMs, duration)}
     {card('Plans completed', figures => figures.plansCompleted, String)}
     {card('Median time to complete', figures => figures.medianImplementingMs, roughDuration)}
     {card('Waited on you', figures => figures.waitedMs, roughDuration)}
-  </div>;
+  </KeyFigures>;
 }
 
 /** A bucket's name: its day, or the week it begins. */
@@ -128,7 +129,7 @@ function StatisticsView({ read, revision, trail, scope, all }: {
   // The breadcrumb over the title, how the numbers are counted beside it, the period as its action.
   return <Page title="Statistics" className="statistics-page" breadcrumbs={trail} controlSize="sm"
     actions={<SegmentedControl aria-label="Period" size="sm" value={periodId} onValueChange={value => setPeriodId(value as PeriodId)} items={periods.map(item => ({ value: item.id, label: item.label }))} />}
-    meta={<Popover aria-label="About statistics" title="About these numbers" width="lg" trigger={<IconButton variant="text" icon={<InfoIcon />} aria-label="About these numbers" />}>
+    meta={<Popover aria-label="About statistics" title="About these numbers" width="lg" trigger={<IconButton variant="ghost" icon={<InfoIcon />} aria-label="About these numbers" />}>
       <div className="info-body">
         <p>The figures come from the reports agents record when a session stops, read from their session logs where Coord can (Claude Code and Codex). Agent time adds up every agent's working time, each session and each subagent in full, also while they work at once; the line shows the time at least one of them was working.</p>
         <p>Time counts where it was worked, by the reports' working intervals; a report without them counts at its time. A plan counts as completed on its completion date, and the time it took runs from its acceptance to its completion. Waiting on you counts the time {all ? 'the sessions' : 'the project’s sessions'} waited for you, waits at once counted once.{all ? ' All plans are every active project’s together.' : ''}</p>
@@ -137,7 +138,8 @@ function StatisticsView({ read, revision, trail, scope, all }: {
     {shown?.error && <Alert tone="warning">{shown.error}</Alert>}
     {!shown ? <div className="page-state" aria-busy="true"><Spinner size="lg" label="Reading the statistics" /></div>
       : !statistics ? null
-      : statistics.current.agentMs === 0 && statistics.current.plansCompleted === 0 ? <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No work in this period" description={statistics.from ? 'Agents have not reported on ' + scope + ' since ' + absoluteDate(statistics.from) + '.' : 'Agents have not reported on ' + scope + ' yet.'} />
+      : statistics.current.agentMs === 0 && statistics.current.plansCompleted === 0 ? <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No work in this period" description={statistics.from ? 'Agents have not reported on ' + scope + ' since ' + absoluteDate(statistics.from) + '.' : 'Agents have not reported on ' + scope + ' yet.'}
+        action={periodId !== 'all' ? <Button variant="secondary" onClick={() => setPeriodId('all')}>Show all time</Button> : undefined} />
       : <>
         <Headline statistics={statistics} period={period} />
         <WorkOverTime statistics={statistics} scope={scope} />

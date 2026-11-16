@@ -187,7 +187,9 @@ export function createCamera({
 
   function initialCamera() {
     fit(false);
-    if (camera.scale >= 0.7 || !initialFocus.length) return;
+    // The whole diagram, when it fits at a scale its names stay readable at;
+    // otherwise its focus, closer.
+    if (camera.scale >= 0.6 || !initialFocus.length) return;
     const anchors = initialFocus.map((id) => {
       const node = worldRef.current.querySelector(
         `.node[data-node-id="${id}"]`,
@@ -227,10 +229,31 @@ export function createCamera({
         (area.height - 2 * FIT_PADDING) / Math.max(1, height),
       ),
     );
+    // Centred on the focus, but never past the diagram's edges: a focus near an
+    // edge would otherwise leave empty canvas on one side and cut the diagram off
+    // on the other.
+    const b = worldRef.current.querySelector("svg").viewBox.baseVal;
+    const within = (offset, start, size, extent) => {
+      const low = start + size - FIT_PADDING - extent * scale;
+      const high = start + FIT_PADDING;
+      return low > high
+        ? start + (size - extent * scale) / 2
+        : Math.min(high, Math.max(low, offset));
+    };
     snapTo({
       scale,
-      x: area.x + area.width / 2 - x * scale,
-      y: area.y + area.height / 2 - y * scale,
+      x: within(
+        area.x + area.width / 2 - x * scale,
+        area.x,
+        area.width,
+        b.width,
+      ),
+      y: within(
+        area.y + area.height / 2 - y * scale,
+        area.y,
+        area.height,
+        b.height,
+      ),
       fitted: false,
     });
   }

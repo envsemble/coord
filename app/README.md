@@ -47,7 +47,7 @@ A window has one row at the top, its title bar, from the left:
 - **Help**: **Open Logs** and **About Coord**;
 - the **computer menu**, the name of the computer the window works on: this computer and the paired ones (choosing one shows its plans in this window), and **Computer settings…**, which opens **Settings › Computers** (see [Remote computers](#remote-computers));
 - **Update**, beside the computer, while a newer Coord is on offer, downloading or ready (see [Updates](#updates));
-- at the right: **Search** (Ctrl+P; on the hub its own **Search every project** takes its place), record-health notes when the shown project has any, and the system's window buttons.
+- at the right: **Search** (Ctrl+K, or Ctrl+P), on every page, record-health notes when the shown project has any, and the system's window buttons.
 
 The window's other commands (New Window, zoom, full screen) keep their shortcuts, Ctrl+Shift+N, Ctrl++, Ctrl+-, Ctrl+0 and F11. Empty space in the title bar moves the window, and a double click maximizes it.
 
@@ -57,12 +57,12 @@ The window's other commands (New Window, zoom, full screen) keep their shortcuts
 
 **New Window** opens another window on the same computer; Ctrl+Shift+W closes one. Windows open at quit come back at the next start, each with its size, position and place; so does the last window closed. A window whose paired computer does not answer at the start shows the hub at once and its place when the computer answers.
 
-**The search** (Ctrl+P, **Search**, or the hub's **Search every project**) searches every active project of the computer: plans, ledger steps, documents with their headings and text, diagrams and their elements, glossary terms and projects. A plan's tags match as words, and `tag:0.8.0` keeps only the plans tagged `0.8.0` (with words, those that also match them); plans show their tags. Results come grouped by kind, each with its project and plan, and open where they are: a plan, a document at its heading, a diagram at its element, a project's plans in the hub.
+**The search** (Ctrl+K or Ctrl+P, or **Search** in the title bar) searches every active project of the computer: plans, ledger steps, documents with their headings and text, diagrams and their elements, glossary terms and projects. A plan's tags match as words, and `tag:0.8.0` keeps only the plans tagged `0.8.0` (with words, those that also match them); plans show their tags. Results come grouped by kind, each with its project and plan, and open where they are: a plan, a document at its heading, a diagram at its element, a project's plans in the hub.
 
 | Shortcut                 | Action                                 |
 | ------------------------ | -------------------------------------- |
 | Alt+← / Alt+→            | Back / forward                         |
-| Ctrl+P                   | Search                                 |
+| Ctrl+K, Ctrl+P           | Search                                 |
 | Ctrl+Shift+E             | Bring the keyboard to the plan's Files |
 | Ctrl+,                   | Settings                               |
 | Ctrl+Shift+N             | New window                             |

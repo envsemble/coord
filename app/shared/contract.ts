@@ -24,7 +24,7 @@ export const invokeChannels = [
   'project:statistics', 'projects:statistics', 'ui:load', 'ui:save',
   'references:resolve', 'work:sessions', 'work:timeline',
   'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:copy',
-  'app:command', 'app:theme', 'app:setTheme', 'app:about',
+  'app:command', 'app:theme', 'app:setTheme', 'app:about', 'search:recent', 'search:remember',
   'computers:list', 'computers:switch', 'computers:pair', 'computers:forget',
   'access:state', 'access:update', 'access:pairingCreate', 'access:pairingRevoke', 'access:devices', 'access:deviceRevoke',
   'agents:list', 'agents:checks', 'agents:connect', 'agents:disconnect', 'agents:chooseProgram', 'agents:clearProgram', 'agents:byHand',
@@ -268,6 +268,9 @@ export interface CoordBridge {
   /** The app's theme preference. Windows follow it through `prefers-color-scheme`. */
   theme(): Promise<Result<ThemePreference>>;
   setTheme(preference: ThemePreference): Promise<Result<void>>;
+  /** The places opened from the search lately on a computer (`local` for this one), as the search keeps them (JSON). */
+  recentSearches(computer: string): Promise<Result<string>>;
+  rememberSearches(computer: string, recent: string): Promise<Result<void>>;
   /** The versions and the Coord home About Coord shows. */
   about(): Promise<Result<AboutInfo>>;
   /** This computer and the computers this app paired with, each checked for whether it answers. */

@@ -149,8 +149,9 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
   // Drawn once the arrangement is read, so the automatic layout does not show first.
   const positions = !arranging ? null : arrangement?.root === arranging ? arrangement.positions : undefined;
   const empty = diagrams && !listed.length && !selected;
-  // The plan's breadcrumb, at the diagram's top left, as on the plan's other pages.
-  const trail = useMemo(() => <Trail work={work.id} items={[{ label: workNumber(work.id), target: workTarget(work.id) }]} />, [work.id]);
+  // The plan's breadcrumb, at the diagram's top left, as on the plan's other pages, ending at the diagram shown.
+  const title = entry?.title;
+  const trail = useMemo(() => <Trail work={work.id} items={[{ label: workNumber(work.id), target: workTarget(work.id) }, ...title ? [{ label: title }] : []]} />, [work.id, title]);
 
   // The diagram is named by the Files tree, where it is marked; its name heads the page for assistive technology.
   return <section className="diagrams" aria-label="Work diagrams">

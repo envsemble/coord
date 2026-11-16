@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hubGroups, hubItems, hubRowFacts, hubStatus, inState, lastChange, partsFacts } from './hubPlans.ts';
+import { hubGroups, hubItems, hubRowFacts, hubStatus, inState, lastChange, matchesOnly, partsFacts } from './hubPlans.ts';
 import { compactNumber, duration } from '../ui/format.ts';
 import type { Project, ProjectSummary, ProjectWork } from '../types.ts';
 
@@ -48,11 +48,19 @@ test('open plans are grouped by whose turn they are: the user\'s first, then wor
   ]);
   assert.deepEqual(groups('closed'), [['Closed', ['work-0019', 'work-0018']]]);
   assert.deepEqual(groups('all').map(([label]) => label), ['Your turn', 'Working', 'Waiting', 'Later', 'Closed']);
-  // The user's turn, the longest waiting first.
-  const turns = hubGroups([...items, { ...items[0], work: { ...items[0].work, id: 'work-0030', turn: { kind: 'your_turn', note: 'Try it', since: '2026-10-01T09:00:00Z' } } }], 'open');
-  assert.deepEqual(turns[0].items.map(item => item.work.id), ['work-0030', 'work-0021']);
+  // Every group the most recently changed first, the user's turn too.
+  const turns = hubGroups([...items, { ...items[0], work: { ...items[0].work, id: 'work-0030', updated: '2026-10-01', statistics: null, turn: { kind: 'your_turn', note: 'Try it', since: '2026-10-01T09:00:00Z' } } }], 'open');
+  assert.deepEqual(turns[0].items.map(item => item.work.id), ['work-0021', 'work-0030']);
   assert.equal(inState(items[0], 'all'), true);
   assert.deepEqual(hubGroups([], 'open'), []);
+  // The filter menu's filters narrow the plans, each one that is on to those that match it.
+  const kept = (only: Parameters<typeof matchesOnly>[1]) => items.filter(item => matchesOnly(item, only, Date.parse('2026-10-15T10:00:00Z'))).map(item => item.work.id);
+  assert.deepEqual(kept(['your_turn']), ['work-0021']);
+  assert.deepEqual(kept(['your_turn', 'blocked']), []);
+  assert.equal(kept([]).length, items.length);
+  const reported = (lastReport: string | null) => ({ ...items[0]!, work: work('work-0099', 'implementing', { updated: '2026-09-01', statistics: lastReport ? { lastReport } as ProjectWork['statistics'] : null }) });
+  assert.equal(matchesOnly(reported('2026-10-14T09:00:00Z'), ['recent'], Date.parse('2026-10-15T10:00:00Z')), true);
+  assert.equal(matchesOnly(reported(null), ['recent'], Date.parse('2026-10-15T10:00:00Z')), false);
 });
 
 test('each plan shows its status, whose turn it declares first, and closed work how it ended', () => {

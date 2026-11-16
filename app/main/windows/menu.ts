@@ -34,7 +34,9 @@ export function buildMenu(manager: WindowManager, actions: { openLogs(): void; d
         { label: '&Plans', click: () => manager.sendMenu('plans') },
         { label: 'S&tatistics', click: () => manager.sendMenu('statistics') },
         { type: 'separator' },
-        { label: '&Search…', accelerator: 'CmdOrCtrl+P', click: () => manager.sendMenu('quickOpen') },
+        { label: '&Search…', accelerator: 'CmdOrCtrl+K', click: () => manager.sendMenu('quickOpen') },
+        // Ctrl+P too, as editors have it, not shown in the menu.
+        { label: 'Search…', accelerator: 'CmdOrCtrl+P', visible: false, acceleratorWorksWhenHidden: true, click: () => manager.sendMenu('quickOpen') },
         // The plan's files take the keyboard; the window takes the key itself.
         { label: 'F&iles', accelerator: 'CmdOrCtrl+Shift+E', click: () => manager.sendMenu('focusFiles') },
         { type: 'separator' },

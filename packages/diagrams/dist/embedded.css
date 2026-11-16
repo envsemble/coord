@@ -111,13 +111,6 @@
 .coord-panel .island-end {
   margin-left: auto;
 }
-.coord-panel .island-divider {
-  flex: none;
-  width: 0.0625rem;
-  height: 1.25rem;
-  margin: 0 var(--env-space-1);
-  background: var(--env-color-border-muted);
-}
 .coord-panel .island-leading {
   display: flex;
   align-items: center;
@@ -263,7 +256,8 @@
   font-weight: 500;
 }
 
-/* The changes overview: groups of rows, each a button. */
+/* The changes overview: groups of rows, each a button, as structured text: rows parted by hairlines
+   rather than filled tiles, since the panel itself is already a surface. */
 .coord-panel .change-groups {
   display: grid;
   gap: var(--env-space-5);
@@ -285,7 +279,7 @@
 }
 .coord-panel .change-rows {
   display: grid;
-  gap: 0.125rem;
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -296,10 +290,11 @@
   gap: var(--env-space-2);
   width: 100%;
   min-height: 2.5rem;
-  padding: var(--env-space-2) var(--env-space-3);
+  padding: var(--env-space-2) var(--env-space-2);
   border: 0;
-  border-radius: var(--env-radius-row-inner);
-  background: var(--env-color-bg-list-item);
+  border-block-start: 1px solid var(--env-color-border-muted);
+  border-radius: 0;
+  background: transparent;
   color: var(--env-color-fg-default);
   font: var(--env-type-body-sm);
   text-align: start;
@@ -307,15 +302,9 @@
   transition: background-color var(--env-motion-duration-fast)
     var(--env-motion-ease);
 }
-.coord-panel .change-rows > li:first-child > .change-row,.coord-panel
-.change-rows > .change-row:first-child {
-  border-start-start-radius: var(--env-radius-sm);
-  border-start-end-radius: var(--env-radius-sm);
-}
 .coord-panel .change-rows > li:last-child > .change-row,.coord-panel
 .change-rows > .change-row:last-child {
-  border-end-start-radius: var(--env-radius-sm);
-  border-end-end-radius: var(--env-radius-sm);
+  border-block-end: 1px solid var(--env-color-border-muted);
 }
 .coord-panel .change-row.static {
   cursor: default;
@@ -362,7 +351,7 @@
   flex-wrap: wrap;
   gap: 0 var(--env-space-2);
   color: var(--env-color-fg-muted);
-  font: var(--coord-font-size-code) / 1.5 var(--coord-font-code);
+  font: var(--env-font-size-caption) / 1.5 var(--coord-font-code);
   overflow-wrap: anywhere;
 }
 .coord-panel .change-token {
@@ -774,9 +763,17 @@
     animation: none;
   }
 }
-/* Reviewing a proposal: what it leaves unchanged fades into context. */
-.coord-panel .fade-unchanged .diagram-base [data-change="unchanged"] {
-  opacity: 0.32;
+/* Reviewing a proposal: what it leaves unchanged fades into context. Its
+   boxes and lines fade most; its names and members stay legible, since a
+   change is understood through what surrounds it. */
+.coord-panel .fade-unchanged
+  .diagram-base
+  [data-change="unchanged"]
+  :is(rect, path, line, polyline, polygon) {
+  opacity: 0.4;
+}
+.coord-panel .fade-unchanged .diagram-base [data-change="unchanged"] text {
+  opacity: 0.72;
 }
 
 .coord-panel {

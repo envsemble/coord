@@ -111,13 +111,6 @@ body {
 .island-end {
   margin-left: auto;
 }
-.island-divider {
-  flex: none;
-  width: 0.0625rem;
-  height: 1.25rem;
-  margin: 0 var(--env-space-1);
-  background: var(--env-color-border-muted);
-}
 .island-leading {
   display: flex;
   align-items: center;
@@ -263,7 +256,8 @@ body {
   font-weight: 500;
 }
 
-/* The changes overview: groups of rows, each a button. */
+/* The changes overview: groups of rows, each a button, as structured text: rows parted by hairlines
+   rather than filled tiles, since the panel itself is already a surface. */
 .change-groups {
   display: grid;
   gap: var(--env-space-5);
@@ -285,7 +279,7 @@ body {
 }
 .change-rows {
   display: grid;
-  gap: 0.125rem;
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -296,10 +290,11 @@ body {
   gap: var(--env-space-2);
   width: 100%;
   min-height: 2.5rem;
-  padding: var(--env-space-2) var(--env-space-3);
+  padding: var(--env-space-2) var(--env-space-2);
   border: 0;
-  border-radius: var(--env-radius-row-inner);
-  background: var(--env-color-bg-list-item);
+  border-block-start: 1px solid var(--env-color-border-muted);
+  border-radius: 0;
+  background: transparent;
   color: var(--env-color-fg-default);
   font: var(--env-type-body-sm);
   text-align: start;
@@ -307,15 +302,9 @@ body {
   transition: background-color var(--env-motion-duration-fast)
     var(--env-motion-ease);
 }
-.change-rows > li:first-child > .change-row,
-.change-rows > .change-row:first-child {
-  border-start-start-radius: var(--env-radius-sm);
-  border-start-end-radius: var(--env-radius-sm);
-}
 .change-rows > li:last-child > .change-row,
 .change-rows > .change-row:last-child {
-  border-end-start-radius: var(--env-radius-sm);
-  border-end-end-radius: var(--env-radius-sm);
+  border-block-end: 1px solid var(--env-color-border-muted);
 }
 .change-row.static {
   cursor: default;
@@ -362,7 +351,7 @@ button.change-row[aria-current="true"] {
   flex-wrap: wrap;
   gap: 0 var(--env-space-2);
   color: var(--env-color-fg-muted);
-  font: var(--coord-font-size-code) / 1.5 var(--coord-font-code);
+  font: var(--env-font-size-caption) / 1.5 var(--coord-font-code);
   overflow-wrap: anywhere;
 }
 .change-token {

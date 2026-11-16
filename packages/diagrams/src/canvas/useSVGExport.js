@@ -52,10 +52,21 @@ export function useSVGExport(svgSource, theme, scope, fade = false) {
     svg
       .querySelectorAll(".selected,.dimmed")
       .forEach((n) => n.classList.remove("selected", "dimmed"));
+    // As on screen (canvas.css): what is unchanged fades, its shapes and lines
+    // most, its text less.
+    const unchanged = '[data-change="unchanged"]';
     const faded = fade
-      ? [...svg.querySelectorAll('[data-change="unchanged"]')]
+      ? [
+          ...svg.querySelectorAll(
+            `${unchanged} :is(rect,path,line,polyline,polygon)`,
+          ),
+        ].map((element) => [element, "0.4"])
       : [];
-    for (const element of faded) element.setAttribute("opacity", "0.32");
+    if (fade)
+      for (const text of svg.querySelectorAll(`${unchanged} text`))
+        faded.push([text, "0.72"]);
+    for (const [element, opacity] of faded)
+      element.setAttribute("opacity", opacity);
     // A transparent drawing layer lets the world grid show through. The
     // downloadable SVG below has an opaque theme-colored background.
     const backgroundURL = URL.createObjectURL(
@@ -71,7 +82,7 @@ export function useSVGExport(svgSource, theme, scope, fade = false) {
     background.setAttribute("height", svg.viewBox.baseVal.height);
     background.setAttribute("fill", colours.get("--canvas") ?? "#ffffff");
     svg.insertBefore(background, svg.firstChild);
-    for (const element of faded) element.removeAttribute("opacity");
+    for (const [element] of faded) element.removeAttribute("opacity");
     const diagramURL = URL.createObjectURL(
       new Blob([new XMLSerializer().serializeToString(svg)], {
         type: "image/svg+xml",

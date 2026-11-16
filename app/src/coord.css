@@ -1,6 +1,17 @@
 /* Coord on envUI: the layout of Coord's own regions. Colours, type, controls and their states come
    from envUI components and tokens; nothing here restyles an envUI component's insides. */
 
+/* What is selected (a menu's or a select's chosen option, a selected row, the current destination)
+   is marked in envUI's neutral layer under the text's own color, not its blue: the accent stays for
+   actions. Every selection keeps envUI's second cue, a check, a bar or a dot. The neutral tokens
+   carry their own values per theme and contrast, so one rule covers them all. */
+.env-theme {
+  --env-color-bg-selected: var(--env-color-bg-neutral-muted-hover);
+  --env-color-bg-selected-hover: var(--env-color-bg-neutral-muted-pressed);
+  --env-color-bg-selected-pressed: var(--env-color-bg-neutral-muted-pressed);
+  --env-color-fg-on-selected: var(--env-color-fg-default);
+}
+
 html, body, #root { min-block-size: 100%; }
 body { margin: 0; }
 /* envUI's type is regular or medium: emphasis in the interface is medium, not bold. Bold in a
@@ -34,6 +45,8 @@ body { margin: 0; }
 /* In a narrow window the arrows and the menus keep their width; the computer's name gives way. */
 .title-bar-start > :not(.computer-trigger) { flex-shrink: 0; }
 .title-bar-commands { display: flex; align-items: center; }
+/* The place the window shows (Plans or Settings) is marked as every selection is: the neutral layer. */
+.title-bar-commands > .env-button[aria-current='page'] { --env-button-container: var(--env-color-bg-selected); --env-button-content: var(--env-color-fg-on-selected); }
 .title-bar-start > .computer-trigger { min-inline-size: 0; }
 /* The logo is only a picture: Plans goes to every plan. */
 .title-bar-logo { display: inline-flex; align-items: center; justify-content: center; inline-size: var(--env-control-height-sm); block-size: var(--env-control-height-sm); flex: none; }
@@ -56,7 +69,7 @@ body { margin: 0; }
 /* A diagram fills the body below the title bar. */
 .window-body.is-filled { block-size: 100%; min-block-size: 0; overflow: hidden; }
 .window-body.is-filled .window-page { display: flex; flex-direction: column; min-block-size: 0; padding: 0; }
-.search-button { min-inline-size: 13rem; justify-content: flex-start; }
+.search-button { --env-button-container: var(--env-color-bg-field); --env-button-content: var(--env-color-fg-muted); --env-button-outline: var(--env-color-border-default); min-inline-size: 13rem; justify-content: flex-start; }
 .search-button-label { flex: 1; text-align: start; }
 /* Narrow windows keep the title bar on one line: its search button drops its keys, then its label. */
 @media (max-width: 72rem) {
@@ -78,7 +91,6 @@ body { margin: 0; }
    filters together at the right. The search gives up room first; when even its narrowest does not fit,
    the controls go under the title, still at the right. */
 /* The hub's toolbar: the search gives up room first, the menu and the filter keep their labels on one line. */
-.hub-search { flex: 0 1 18rem; min-inline-size: 12rem; }
 /* With no plans to list, the state sits in the middle of the page. */
 .hub-empty { min-block-size: 50vh; }
 .hub-note { margin: 0; }
@@ -90,12 +102,16 @@ body { margin: 0; }
 .hub-row { cursor: pointer; }
 .hub-row-title { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; }
 .hub-row-link { overflow: hidden; color: inherit; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
-.hub-row:hover .hub-row-link { text-decoration: underline; }
+/* The title is the row's link, not a control of its own: the row reacts to hover and presses, the
+   title keeps its colour, with no underline or pressed fill of its own. */
+.hub-row-link:is(:hover, :active) { background: none; color: inherit; text-decoration: none; }
 .hub-row-link:focus-visible { outline: 0.125rem solid var(--env-color-border-focus); outline-offset: 0.125rem; border-radius: 0.25rem; }
 .hub-row-large .hub-row-link { font-weight: 500; }
 .hub-row-number, .hub-row-project, .hub-row-updated { color: var(--env-color-fg-muted); font-variant-numeric: tabular-nums; }
 .hub-row-number { flex: none; font: var(--env-type-body-sm); }
-.hub-row :is(.cell-note, .hub-row-project) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-row .cell-note, .hub-row-project-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A plan's project: its avatar, as in the project menu, then its name. */
+.hub-row-project { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; }
 .hub-row-title + .cell-note { margin-inline-start: calc(1.125rem + var(--env-space-2)); }
 /* A row's state line: what the user is to do in amber, what it waits on muted. */
 .hub-row-note { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -106,9 +122,26 @@ body { margin: 0; }
 .hub-row-model { display: flex; align-items: center; gap: var(--env-space-1); min-inline-size: 0; white-space: nowrap; }
 .hub-row-ended { white-space: nowrap; }
 
-/* The search: where a result is, then the words it was found in. */
-.search-where, .search-snippet { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.search-snippet { font-style: italic; }
+/* The search: each result its title and one muted line of where it is, then, when the search found it
+   in the text, the words it was found in. */
+.search-label, .search-where, .search-snippet { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-snippet { margin-block-start: 0.125rem; color: var(--env-color-fg-muted); }
+/* The words typed, where a result has them: in the text's own colour and weight, not a highlighter's. */
+.search-mark { background: none; color: var(--env-color-fg-default); font-weight: 600; }
+/* A plan's state at its row's end, muted; a group's Show all row, quieter than a result; the tip under the list. */
+.search-state { color: var(--env-color-fg-muted); font: var(--env-type-body-sm); white-space: nowrap; }
+.search-popup .search-more { color: var(--env-color-fg-muted); }
+.search-tip { color: var(--env-color-fg-muted); font: var(--env-type-body-sm); }
+.search-tip-gap { display: inline-block; inline-size: var(--env-space-4); }
+/* A search to try, as it would be typed. */
+.search-try { font: inherit; font-family: var(--env-font-family-mono, ui-monospace, monospace); font-size: 0.9em; }
+/* The search's panel is envUI's CommandPalette as it is, on a solid raised fill so the page behind
+   doesn't show through the text: the kinds of result are told apart by their headings and the space
+   between them, the results by their titles, and the highlighted one by the table's row hover. */
+.search-popup.env-command-palette { --env-popup-fill: var(--env-color-bg-raised); --env-popup-opacity: 100%; }
+.search-popup .env-list-row-label { font-size: 0.875rem; }
+.search-popup .env-list-row .env-icon { color: var(--env-color-fg-muted); }
+.search-popup .env-list-row:is([data-highlighted], [data-popup-open]) { background: var(--env-color-bg-row-hover); }
 /* A work item's tags: small read-only labels under its title and on its search results. */
 .tag-list { display: flex; flex-wrap: wrap; gap: var(--env-space-1); margin: 0; padding: 0; list-style: none; }
 .tag { padding-inline: var(--env-space-2); border-radius: var(--env-radius-sm); background: var(--env-color-bg-default); color: var(--env-color-fg-muted); font-size: var(--env-font-size-label); line-height: 1.6; }
@@ -141,7 +174,8 @@ body { margin: 0; }
 /* The drawer's header holds the tree, which takes its height and scrolls; it has no destinations. */
 .plan-files .env-navigation-drawer-header { flex: 1 1 auto; min-block-size: 0; gap: var(--env-space-1); }
 .plan-files .env-navigation-drawer-list:empty { display: none; }
-.plan-files-heading { margin: 0; padding-inline-start: var(--env-space-2); font-weight: 500; }
+/* The pane's label, small and muted in capitals, as editors label their explorer: it names the pane, it is not a heading to read. */
+.plan-files-heading { margin: 0; padding-inline-start: var(--env-space-2); color: var(--env-color-fg-muted); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
 .plan-files-tree { flex: 1; min-block-size: 0; overflow-y: auto; }
 .plan-files-empty { margin: 0; padding: var(--env-space-1) var(--env-space-2); }
 /* The parts rail: envUI's supporting pane beside a plan and its pages when the work is made of parts
@@ -187,6 +221,8 @@ body { margin: 0; }
 .computer-trigger-label { flex: 1; min-inline-size: 0; overflow: hidden; text-align: start; text-overflow: ellipsis; white-space: nowrap; }
 /* The files Coord reads for what they are, each in a colour of its own: the plan blue, its ledger
    green, its glossary amber, its diagrams purple (as the diagrams' links in a plan). */
+/* A diagram's layer, for screen readers only, kept at the row's start so it never widens the tree. */
+.explorer-layer { inset-block-start: 0; inset-inline-start: 0; }
 .explorer-special[data-file='plan'] { color: var(--env-color-fg-primary); }
 .explorer-special[data-file='ledger'] { color: var(--env-color-fg-success); }
 .explorer-special[data-file='glossary'] { color: var(--env-color-fg-warning); }
@@ -198,22 +234,38 @@ body { margin: 0; }
 /* The file shown on a quiet neutral fill rather than the selection blue, clearly stronger than a row
    under the pointer (a fainter row hover than envUI's here), in the default text colour and a little heavier. */
 .plan-files .env-tree-item:not([aria-selected='true']):hover { background: color-mix(in srgb, var(--env-color-bg-row-hover) 45%, transparent); }
-.plan-files .env-tree-item[aria-selected='true'] { background: var(--env-color-bg-neutral-muted-hover); color: var(--env-color-fg-default); font-weight: var(--env-font-weight-medium); }
-.plan-files .env-tree-item[aria-selected='true']:hover { background: var(--env-color-bg-neutral-muted-pressed); }
-.plan-files .env-tree-item[aria-selected='true']:active { background: var(--env-color-bg-neutral-muted-pressed); }
+/* The files' edge: under the pointer, or while dragged, a line the full height of the pane in
+   a gray a little lighter than the page marks where it will resize, as soon as the cursor changes; the grip's dots give way to it. */
+.plan-files .env-resize-handle::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: calc(50% - var(--env-control-border-width) / 2); inline-size: var(--env-control-border-width); background: transparent; }
+.plan-files .env-resize-handle:is(:hover, [data-resizing])::before { background: var(--env-color-bg-neutral-muted-hover); }
+.plan-files .env-resize-handle:is(:hover, [data-resizing]) { --env-resize-handle-grip-color: transparent; }
+/* A narrow grip, as an editor's: the line shows only while the pointer is on the edge itself, and goes as soon as it moves off after a drag. */
+.plan-files .env-navigation-drawer-resize-handle { --env-resize-handle-size: var(--env-space-2); }
+/* Compact rows with a squarer selection, as an editor's explorer has them. */
+.plan-files .env-tree { --env-tree-item-padding: 0.125rem; }
+.plan-files .env-tree-item { border-radius: 0.25rem; }
+.plan-files .env-tree-item[aria-selected='true'] { background: color-mix(in srgb, var(--env-color-bg-neutral-muted) 70%, transparent); color: var(--env-color-fg-default); }
+.plan-files .env-tree-item[aria-selected='true']:hover { background: var(--env-color-bg-neutral-muted); }
+.plan-files .env-tree-item[aria-selected='true']:active { background: var(--env-color-bg-neutral-muted-hover); }
 .plan-files .env-tree-item[aria-selected='true'] :is(.env-tree-icon, .env-tree-chevron) { color: var(--env-color-fg-muted); }
 
 /* Pages */
 /* Page and section toolbars use compact controls, like the title bar. */
 .page-toolbar, .section-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-3); --env-control-height: var(--env-control-height-sm); }
 .section-toolbar > :first-child { margin-inline-end: auto; }
-.page-empty { padding-block: var(--env-space-8); }
+.page-empty { padding-block: var(--env-space-8); padding-inline: 0; }
 
 /* Ledger steps: done in the "completed" tone, in progress in the "open" tone, over the work left. */
-.step-bar { display: flex; inline-size: 100%; block-size: 0.5rem; overflow: hidden; border-radius: var(--env-radius-sm); background: var(--env-color-bg-default); }
-/* Planning in blue, implementation done in purple and in progress in green, apart in both themes. */
-.step-bar-done { background: var(--env-color-fg-accent); }
-.step-bar-doing { background: var(--env-color-fg-success); }
+.step-bar { display: flex; inline-size: 100%; block-size: 0.5rem; overflow: hidden; border-radius: var(--env-radius-sm); background: light-dark(var(--env-color-bg-neutral-muted), var(--env-color-bg-default)); }
+/* Planning in blue, implementation done in purple and in progress in green, apart in both themes. The
+   dark theme takes envUI's light text tones; in the light theme envUI's tones are all dark and run
+   together, so the bar has its own: a light blue, a deep purple and a clear green, apart in hue and
+   in lightness. */
+/* stylelint-disable color-no-hex -- the step bar's light-theme colours, which envUI's tokens do not give */
+.step-bar { --step-planning: light-dark(#4f8fe6, var(--env-color-fg-primary)); --step-done: light-dark(#7c3aad, var(--env-color-fg-accent)); --step-doing: light-dark(#1f9d55, var(--env-color-fg-success)); }
+/* stylelint-enable color-no-hex */
+.step-bar-done { background: var(--step-done); }
+.step-bar-doing { background: var(--step-doing); }
 .step-bar-compact { inline-size: 4rem; block-size: 0.375rem; }
 .ledger-progress { display: grid; gap: var(--env-space-2); }
 .ledger-progress-summary { margin: 0; color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); }
@@ -245,8 +297,8 @@ body { margin: 0; }
    their marks and their part of the bar; their phase is also in their names. */
 .step-icon[data-phase='planning'] { color: color-mix(in srgb, var(--env-color-fg-primary) 45%, var(--env-color-fg-muted)); }
 .step-icon[data-phase='planning']:is([data-status='done'], [data-status='doing']) { color: var(--env-color-fg-primary); }
-.step-bar-planning-done { background: var(--env-color-fg-primary); }
-.step-bar-planning-doing { background: color-mix(in srgb, var(--env-color-fg-primary) 55%, var(--env-color-bg-default)); }
+.step-bar-planning-done { background: var(--step-planning); }
+.step-bar-planning-doing { background: color-mix(in srgb, var(--step-planning) 50%, var(--env-color-bg-raised)); }
 
 /* Work page: the plan, with the work's facts beside it. The diagrams' islands keep a gutter from the edge. */
 /* The plan's page is wider than envUI's large page, for its text and its side column together. */
@@ -290,8 +342,10 @@ body { margin: 0; }
    than the room below them, with its scrollbar shown while the pointer is over it. It keeps its
    scrolling to itself only when it has something to scroll, so a wheel over a short column still
    moves the page. */
-.plan-aside { position: sticky; inset-block-start: calc(var(--coord-sticky-top) + var(--env-space-6)); display: grid; align-content: start; gap: var(--env-space-6); max-block-size: calc(100dvh - max(env(titlebar-area-height, 0rem), var(--env-title-bar-height)) - var(--coord-sticky-top) - var(--env-space-6)); overflow-y: auto; scrollbar-width: thin; scrollbar-gutter: stable; scrollbar-color: transparent transparent; padding-inline-end: var(--env-space-2); padding-block-end: var(--env-space-6); }
-.plan-aside:is(:hover, :focus-within) { scrollbar-color: var(--env-color-border-default) transparent; }
+.plan-aside { position: sticky; inset-block-start: calc(var(--coord-sticky-top) + var(--env-space-6)); display: grid; align-content: start; gap: var(--env-space-6); max-block-size: calc(100dvh - max(env(titlebar-area-height, 0rem), var(--env-title-bar-height)) - var(--coord-sticky-top) - var(--env-space-6)); overflow-y: auto; scrollbar-gutter: stable; padding-inline-end: var(--env-space-2); padding-block-end: var(--env-space-6); }
+.plan-aside::-webkit-scrollbar-thumb { background-color: transparent; }
+.plan-aside:is(:hover, :focus-within)::-webkit-scrollbar-thumb { background-color: var(--env-color-border-default); }
+.plan-aside:is(:hover, :focus-within)::-webkit-scrollbar-thumb:is(:hover, :active) { background-color: var(--env-color-fg-muted); }
 .plan-aside[data-scrolls] { overscroll-behavior: contain; }
 .plan-aside-section { display: grid; gap: var(--env-space-2); }
 .plan-aside-heading { display: block; }
@@ -378,10 +432,7 @@ body { margin: 0; }
 .visually-hidden { position: absolute; inline-size: 0.0625rem; block-size: 0.0625rem; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* Statistics */
-.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--env-space-3); }
-.stat { display: grid; gap: var(--env-space-1); }
-.stat-label, .stat-note { color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); }
-.stat-value { font-size: 1.75rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.stat-value { font-variant-numeric: tabular-nums; }
 .model-cell { display: inline-flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; max-inline-size: 100%; }
 .work-chart-tip-figure { margin-inline-start: auto; padding-inline-start: var(--env-space-3); font-variant-numeric: tabular-nums; }
 /* A model at an effort's colour, the same in every chart and table. */
@@ -471,8 +522,11 @@ body { margin: 0; }
 .provider-mark[data-provider='deepseek'] { color: light-dark(#4d6bfe, #7d93ff); }
 /* stylelint-enable color-no-hex */
 .provider-mark[data-plain] { color: inherit; }
-/* A value that says more on hover and focus. */
-.detailed { border-radius: 0.25rem; text-decoration: underline dotted var(--env-color-fg-disabled); text-underline-offset: 0.25em; cursor: help; }
+/* A value that says more on hover and focus takes envUI's dotted underline from its Tooltip
+   (env-hover-detail); it adds none of its own. A headline figure shows none at rest: dots under
+   large text read as a flaw, and its tooltip still opens on hover and focus. */
+.detailed { border-radius: 0.25rem; }
+.stat-value { --env-hover-detail-rest-color: transparent; }
 .detailed:focus-visible { outline: 0.125rem solid var(--env-color-border-focus); outline-offset: 0.125rem; }
 .breakdown { display: grid; grid-template-columns: auto auto; row-gap: 0.125rem; margin: 0; font-variant-numeric: tabular-nums; }
 .breakdown > div { display: contents; }
@@ -512,8 +566,7 @@ body { margin: 0; }
 .import-diagrams { display: grid; gap: var(--env-space-1); margin: 0; padding: 0; list-style: none; }
 .import-diagrams li { display: flex; align-items: center; gap: var(--env-space-2); }
 .access-section { display: grid; gap: var(--env-space-3); }
-.access-fields { display: grid; grid-template-columns: minmax(0, 1fr) 8rem; gap: var(--env-space-3); align-items: end; }
-.access-status { margin: 0; font-size: var(--env-font-size-body-sm); color: var(--env-color-fg-muted); }
+.access-status { margin: 0; color: var(--env-color-fg-muted); }
 .access-status[data-state='on'] { color: var(--env-color-fg-success); }
 .access-status[data-state='error'] { color: var(--env-color-fg-danger); }
 .pairing { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--env-space-5); align-items: start; }
@@ -525,32 +578,34 @@ body { margin: 0; }
 .pairing-form { display: grid; gap: var(--env-space-3); }
 .pairing-permissions { display: grid; gap: var(--env-space-2); margin: 0; padding: 0; border: 0; }
 .field-legend { margin-block-end: var(--env-space-1); padding: 0; font-weight: 500; }
-.pairing-permission { display: flex; gap: var(--env-space-2); margin: 0; }
-.pairing-permission > span { display: grid; }
-.pairing-permission-icon { flex: none; color: var(--env-color-fg-success); }
 
-/* Settings: its sections in a column at the left, the one shown beside them; in a narrow window the
-   sections are a row above it. A section holds its parts one under another, each with its heading. */
-.settings-page { max-inline-size: 64rem; }
-.settings-layout { display: grid; grid-template-columns: 12rem minmax(0, 1fr); gap: var(--env-space-7); align-items: start; }
-.settings-nav { inline-size: auto; }
-.settings-content { display: grid; gap: var(--env-space-8); min-inline-size: 0; }
+/* Settings: its sections as tabs in a column at the left, the one shown beside them; where the page
+   is narrow, the tabs are a row above it. A section holds its parts one under another, each with its
+   heading. The selected tab is marked in the text's own color, not the accent. */
+.settings-tabs { --env-tabs-selected-content: var(--env-color-fg-default); --env-tabs-indicator: var(--env-color-fg-default); }
+.settings-tabs[data-beside] { flex-direction: row; align-items: start; gap: var(--env-space-7); }
+.settings-tabs[data-beside] > .settings-tab-list { flex: none; inline-size: 11rem; }
+.settings-tabs[data-beside] > .env-tabs-panels { flex: 1; min-inline-size: 0; }
+.settings-tabs:not([data-beside]) > .env-tabs-panels { margin-block-start: var(--env-space-5); }
+.settings-content { display: grid; gap: var(--env-space-8); min-inline-size: 0; max-inline-size: 46rem; }
 .settings-group { display: grid; gap: var(--env-space-3); min-inline-size: 0; }
 .settings-group-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--env-space-2) var(--env-space-3); }
 .settings-group-heading > h2 { margin: 0; }
 .settings-scope { display: inline-flex; align-items: center; gap: var(--env-space-2); color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); }
 .settings-scope svg { inline-size: 1.125rem; block-size: 1.125rem; }
-.settings-description { margin: 0; max-inline-size: 48rem; }
+.settings-description { margin: 0; }
+/* A part within a section, such as Pair a device: the body size in medium, below the section heading. */
+.settings-subheading { margin: var(--env-space-3) 0 0; font-weight: var(--env-font-weight-medium); }
 .settings-group .section-toolbar > .settings-description { flex: 1 1 20rem; }
-/* Remote access's fields keep a form's width on the wide page. */
-.settings-group :is(.access-fields, .pairing-label) { max-inline-size: 36rem; }
-.updates-channel, .settings-choice { inline-size: min(100%, 36rem); }
-.updates-status { display: flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-2) var(--env-space-3); min-block-size: var(--env-control-height-md); }
+/* A setting's row: its title and what it does, and its control at the end, which keeps its width
+   while the text wraps beside it. */
+.settings-row { flex-wrap: nowrap; }
+.settings-row-select { flex: none; inline-size: 13rem; }
+.access-address { inline-size: 17rem; }
+.access-port { flex: none; inline-size: 7rem; }
+.settings-group .pairing-label { max-inline-size: 36rem; }
 .updates-progress { inline-size: min(100%, 24rem); }
-.updates-failure { flex: 1 1 100%; max-inline-size: 48rem; }
-@media (max-width: 52rem) {
-  .settings-layout { grid-template-columns: minmax(0, 1fr); gap: var(--env-space-5); }
-}
+.updates-failure { color: var(--env-color-fg-danger); }
 
 /* The agents on this computer: each one's mark and name over its status, its action at the end of the
    row. One not on this computer is greyed, with its install link; a change on its way shows in its row. */
@@ -558,20 +613,18 @@ body { margin: 0; }
 .agent-logo { flex: none; inline-size: 1.5rem; block-size: 1.5rem; }
 .agent-row[data-found='false'] :is(.agent-name, .agent-status) { opacity: 0.55; }
 .agent-detail { display: flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-1) var(--env-space-3); padding-inline-start: calc(1.5rem + var(--env-space-3)); }
-.agent-status[data-connected='true'] { color: var(--env-color-fg-success); }
+.agent-status { display: inline-flex; align-items: center; gap: var(--env-space-2); }
 .agent-progress { display: inline-flex; align-items: center; gap: var(--env-space-2); color: var(--env-color-fg-muted); }
-.agent-install { --env-control-height: 1.5rem; }
 .agent-error { flex-basis: 100%; color: var(--env-color-fg-danger); overflow-wrap: anywhere; }
 .agent-check { color: var(--env-color-fg-muted); }
 .agent-check[data-warning] { color: var(--env-color-fg-warning); }
 .agent-program { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-2); min-inline-size: 0; color: var(--env-color-fg-muted); }
 .agent-program-path { overflow-wrap: anywhere; }
-.agent-by-hand { flex-basis: 100%; }
-.agent-by-hand p { margin: var(--env-space-2) 0 0; }
+.agent-by-hand p { margin: var(--env-space-4) 0 0; }
 .agent-commands { display: grid; gap: var(--env-space-2); margin: var(--env-space-2) 0 0; padding: 0; list-style: none; }
-.agent-commands li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-3); }
-.agent-commands code { overflow-wrap: anywhere; }
-.agent-actions { flex: none; justify-content: flex-end; }
+.agent-commands li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--env-space-3); }
+.agent-commands code { justify-self: start; overflow-wrap: anywhere; }
+.agent-actions { flex: none; justify-content: flex-end; gap: var(--env-space-1); }
 .agent-done { inline-size: 1.5rem; block-size: 1.5rem; color: var(--env-color-fg-success); }
 
 /* The onboarding, in place of the window until it is finished: one step at a time in a
@@ -603,3 +656,45 @@ body { margin: 0; }
    A table with more columns than fit scrolls sideways in envUI's table region instead of crushing them. */
 .prose .env-markdown-table > table { inline-size: auto; min-inline-size: 100%; }
 .prose .env-markdown-table :is(th, td) { min-inline-size: 8rem; vertical-align: top; }
+
+/* Scrollbars, everywhere in the window: a thin rounded thumb on no track and without arrow buttons,
+   which widens under the pointer. The thumb sits in a 0.75 rem rail inside a transparent border, 4 px
+   wide at rest and 8 px when hovered or dragged. Chromium draws these only where no standard
+   scrollbar-width or scrollbar-color is set, so the parts envUI marks thin go back to auto; the
+   ones it hides (scrollbar-width: none) stay hidden. */
+::-webkit-scrollbar { inline-size: 0.75rem; block-size: 0.75rem; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-button { display: none; }
+::-webkit-scrollbar-thumb { min-block-size: 2rem; border: 4px solid transparent; border-radius: var(--env-radius-full); background-color: var(--env-color-border-default); background-clip: padding-box; }
+::-webkit-scrollbar-thumb:is(:hover, :active) { border-width: 2px; background-color: var(--env-color-fg-muted); }
+:is(.env-button-group, .env-table-region, .env-tabs-list, textarea.env-text-field-input, .env-tree, .env-command-palette-list) { scrollbar-width: auto; }
+
+/* The computer menu: one line per computer, where it is muted at the end; the one this window
+   works on marked by the selection's fill, as envUI fills a chosen item, without a check mark. */
+.computer-menu-where { color: var(--env-color-fg-muted); font: var(--env-type-body-sm); }
+.computer-menu-item[aria-current='true'] { background: var(--env-color-bg-neutral-muted-hover); }
+
+/* A project in the breadcrumbs: its avatar, as in the hub and the project menu, before its name. */
+.breadcrumb-project { display: inline-flex; align-items: center; gap: var(--env-space-2); }
+
+/* The hub's filters as one widget: the segmented control's capsule holds Open, Closed and All and
+   then the filter menu's button, a segment's height and round, with a selected segment's fill while
+   any of its filters is on. */
+.hub-filter-group { display: inline-flex; align-items: center; gap: var(--env-segmented-control-gap, 0.125rem); padding-inline-end: 0.1875rem; border-radius: var(--env-radius-full); background: var(--env-color-bg-neutral-muted); }
+.hub-filter-group .env-segmented-control { --env-segmented-control-container: transparent; }
+.hub-filter-group .hub-filters { position: relative; flex: none; inline-size: calc(var(--env-control-height-sm) - 0.375rem); block-size: calc(var(--env-control-height-sm) - 0.375rem); min-inline-size: 0; border-radius: var(--env-radius-full); }
+.hub-filter-group .hub-filters[data-active] { background: var(--env-color-bg-neutral-strong); color: var(--env-color-fg-default); }
+
+/* A segment's count on its label's baseline (envUI centres the smaller count in the segment on its
+   own, which sets it off its label): the label and the count share one baseline-aligned line, and
+   that line stays centred in the segment. */
+.env-segmented-control-item:has(.env-segmented-control-item-count) { flex-wrap: wrap; align-content: center; align-items: baseline; }
+
+/* Tables in the light theme: envUI's header band was close to the light page, so a table melted
+   into it. There the band is lighter, so the table's white surface reads against the page, as the
+   dark theme's raised surface does; no extra edges. */
+.env-table { --env-table-band: light-dark(color-mix(in srgb, var(--env-color-bg-neutral-muted) 45%, transparent), var(--env-color-bg-neutral-muted)); }
+/* The hub's controls in the light theme take the tables' white surface, not a gray on the gray page. */
+.hub :is(.hub-project, .hub-statistics) { --env-button-container: light-dark(var(--env-color-bg-raised), var(--env-color-bg-neutral-muted)); }
+.hub-filter-group { background: light-dark(var(--env-color-bg-raised), var(--env-color-bg-neutral-muted)); }
+.hub-filter-group .env-segmented-control { --env-segmented-control-thumb: light-dark(var(--env-color-bg-neutral-muted), var(--env-color-bg-neutral-strong-hover)); }

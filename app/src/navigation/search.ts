@@ -25,6 +25,8 @@ export interface SearchEntry {
   destination: SearchDestination;
   /** What else finds the same thing: a plan, or a file by its path, in a project. */
   key: string | null;
+  /** The plan it is of, by its key (`workKey`), when it is of one. */
+  plan?: string | null;
 }
 
 /** A plan's or file's key, so the window's own entries do not repeat the host's. */
@@ -63,10 +65,19 @@ export function hostEntries(results: SearchResult[], projects: Project[]): Searc
     const work = result.work && result.kind !== 'plan' ? [workNumber(result.work), titles.get(workKey(result.projectId, result.work))].filter(Boolean).join(' ') : result.work ? workNumber(result.work) : null;
     const key = result.kind === 'plan' && result.work ? workKey(result.projectId, result.work)
       : (result.kind === 'document' || result.kind === 'diagram' || result.kind === 'page') && result.path && !result.anchor && !result.element ? pathKey(result.projectId, result.path) : null;
+    // A plan's own files read as what they are: its ledger is its steps, its plan.md its text.
+    const file = result.kind === 'document' && result.work && result.path ? result.path.slice(result.path.lastIndexOf('/') + 1) : null;
+    // A document with no title of its own, only its file's name, is named by where it is in its plan's
+    // folder (research/judges/r3-judges.md), and the path is not shown again as its snippet.
+    const inPlan = file && result.path && result.title === file ? result.path.split('/').slice(2).join('/') : null;
+    const title = file === 'ledger.md' ? 'Steps of ' + workNumber(result.work!) : file === 'plan.md' ? 'Plan ' + workNumber(result.work!) : inPlan || result.title;
+    const snippet = result.snippet && result.path && result.snippet.trim() === result.path ? null : result.snippet;
     return {
       id: 'search:' + index + ':' + result.kind + ':' + result.projectId + ':' + (result.work ?? '') + ':' + (result.path ?? '') + '#' + (result.anchor ?? result.element ?? ''),
-      kind: result.kind, label: result.title, detail: [result.kind === 'project' ? null : result.projectName, work].filter(Boolean).join(' · '),
-      snippet: result.snippet, ...result.tags?.length && { tags: result.tags }, destination: resultDestination(result), key,
+      // An element is told apart from its namesakes in other diagrams by its diagram's file.
+      kind: result.kind, label: title, detail: [result.kind === 'project' ? null : result.projectName, work, result.element && result.path ? result.path.slice(result.path.lastIndexOf('/') + 1) : null].filter(Boolean).join(' · '),
+      snippet, ...result.tags?.length && { tags: result.tags }, destination: resultDestination(result), key,
+      plan: result.work ? workKey(result.projectId, result.work) : null,
     };
   });
 }
