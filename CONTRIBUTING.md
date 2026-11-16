@@ -95,7 +95,7 @@ Pull requests into `main`, the releases, also run the `End-to-end` workflow (`e2
 
 ## Releases
 
-Merge the release into `main`, then tag `main` with the version: `git fetch origin && git tag v0.9.0 origin/main && git push origin v0.9.0`. The release workflow (`release.yml`) makes a GitHub Release with the release ZIP, the AppImage and the Windows installer, and their update files; it also makes a nightly prerelease of `dev` every night. Installed apps update from them; nothing is deployed or published to a registry. [Releases](docs/releases.md) describes the ZIP, the workflow and how to recover from a failed run. Record each version in the [changelog](CHANGELOG.md).
+Merge the release into `main`, then tag `main` with the version: `git fetch origin && git tag v0.9.0 origin/main && git push origin v0.9.0`. The release workflow (`release.yml`) makes a GitHub Release with the release ZIP, the AppImage and the Windows installer, and their update files; it also makes a nightly prerelease of `dev` every six hours. Installed apps update from them; nothing is deployed or published to a registry. [Releases](docs/releases.md) describes the ZIP, the workflow and how to recover from a failed run. Record each version in the [changelog](CHANGELOG.md).
 
 ## Branding, history and license
 

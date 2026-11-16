@@ -1,7 +1,7 @@
 // Coord's updates: the installed app checks its release channel on GitHub Releases (electron-updater,
 // envsemble/coord), says when a newer build is out, downloads it when asked and restarts into it when
 // asked. Nothing downloads or installs on its own. The channel is stable (the latest release) or
-// nightly (a build of dev each night); a build starts on its own kind, and the choice is kept in the
+// nightly (a build of dev every six hours); a build starts on its own kind, and the choice is kept in the
 // home database. Moving from nightly to stable never goes back to an older build: the install waits
 // for a stable release newer than itself.
 import { isNightlyVersion, type UpdateChannel, type UpdateState, type UpdateStatus } from '../shared/contract.ts';

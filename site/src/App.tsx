@@ -66,7 +66,7 @@ function Home() {
       <p className="note">
         {/* One quiet line: what the channel is, its version, all releases, and the licence. Each part
             keeps its words together, with the dot after it, so a narrow line breaks only after a dot. */}
-        <span className="nowrap">{channel === 'stable' ? 'Tested, for everyday use' : 'Built every night, expect rough edges'} ·</span>
+        <span className="nowrap">{channel === 'stable' ? 'Tested, for everyday use' : 'Built every six hours, expect rough edges'} ·</span>
         {' '}{build ? <span className="nowrap"><a href={build.page}>Version {build.version}</a> ·</span> : channel === 'nightly' && builds !== 'loading' ? <span className="nowrap">No nightly build yet ·</span> : null}
         {' '}<span className="nowrap"><a href={releasesPage}>All releases</a> ·</span> <span className="nowrap">Free and open source</span>
       </p>

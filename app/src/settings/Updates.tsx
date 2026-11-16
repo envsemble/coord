@@ -46,7 +46,7 @@ export function UpdateButton() {
 
 const channels: { value: UpdateChannel; label: string; description: string }[] = [
   { value: 'stable', label: 'Stable', description: 'Releases, after they are tested. Recommended.' },
-  { value: 'nightly', label: 'Nightly', description: 'A build of the newest changes, every night. It can break.' },
+  { value: 'nightly', label: 'Nightly', description: 'A build of the newest changes, every six hours. It can break.' },
 ];
 
 /**
