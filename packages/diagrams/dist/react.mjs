@@ -1712,8 +1712,18 @@ function createCamera({
     };
     snapTo({
       scale,
-      x: within(area.x + area.width / 2 - x * scale, area.x, area.width, b.width),
-      y: within(area.y + area.height / 2 - y * scale, area.y, area.height, b.height),
+      x: within(
+        area.x + area.width / 2 - x * scale,
+        area.x,
+        area.width,
+        b.width
+      ),
+      y: within(
+        area.y + area.height / 2 - y * scale,
+        area.y,
+        area.height,
+        b.height
+      ),
       fitted: false
     });
   }
