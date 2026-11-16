@@ -1,7 +1,7 @@
 import { renameSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { addProject, chooseMenu, close, expectHub, filterHub, goHome, launch, launchProject, openPlan, projectHome, removeDirectory, secondInstance, windowTitles, type Launched } from './app';
+import { addProject, chooseMenu, close, expectHub, filterHub, goHome, launch, launchProject, openPlan, projectHome, removeDirectory, searchPopup, secondInstance, windowTitles, type Launched } from './app';
 
 let launched: Launched | undefined;
 const homes: string[] = [];
@@ -47,13 +47,20 @@ test('a second launch brings the running app forward, and windows open again sho
   await expect.poll(() => again.windows().length).toBe(1);
   const left = again.windows()[0];
   await goHome(left);
-  await openPlan(left, 'Order fulfilment model');
+  // Opened from the search, it is under the search's Recent after the restart too.
+  await left.keyboard.press('Control+K');
+  await searchPopup(left).getByRole('combobox').fill('Order fulfilment');
+  await expect(searchPopup(left).getByRole('option').first()).toContainText('Order fulfilment model');
+  await searchPopup(left).getByRole('combobox').press('Enter');
+  await expect(left.locator('.work-page h1')).toHaveText('Order fulfilment model');
   await left.waitForTimeout(600);
   await again.evaluate(({ app: electronApp }) => electronApp.quit()).catch(() => undefined);
   await again.waitForEvent('close').catch(() => undefined);
   launched = await launch({ dataDirectory: home.dataDirectory });
   await expect.poll(() => windowTitles(launched!.app).then(titles => titles.length)).toBe(1);
   await expect(launched.window.locator('.work-page h1')).toHaveText('Order fulfilment model');
+  await launched.window.keyboard.press('Control+K');
+  await expect(searchPopup(launched.window).locator('.env-command-palette-group', { hasText: 'Recent' })).toContainText('Order fulfilment model');
 });
 
 test('a plan of a project whose folder is not a planning folder at the start shows again when it is', async () => {

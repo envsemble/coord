@@ -50,12 +50,11 @@ const localKinds: Record<QuickItem['kind'], SearchKind> = { work: 'plan', diagra
 const kindIcons: Record<SearchKind, ReactNode> = {
   plan: <PlanIcon />, step: <LedgerIcon />, document: <FileIcon />, heading: <FileIcon />, diagram: <DiagramIcon />, page: <PageIcon />, element: <DiagramIcon />, term: <SearchIcon />, project: <FolderIcon />,
 };
-/** A place opened from the search, remembered (`recentKey` in localStorage) to show under Recent. */
+/** A place opened from the search, remembered by main for the window's computer to show under Recent. */
 interface Recent { id: string; kind: SearchKind; label: string; detail: string; destination: SearchDestination; key: string | null; plan: string | null }
-const recentKey = 'coord-search-recent';
-function readRecent(): Recent[] {
+function readRecent(json: string): Recent[] {
   try {
-    const value = JSON.parse(localStorage.getItem(recentKey) ?? '[]') as unknown;
+    const value = JSON.parse(json) as unknown;
     return Array.isArray(value) ? value.filter((each): each is Recent => Boolean(each && typeof each.id === 'string' && typeof each.label === 'string' && each.destination)).slice(0, 5) : [];
   } catch { return []; }
 }
@@ -74,8 +73,8 @@ const searchDelay = 150;
  * plan's project unless it is archived (`open`, with its snapshot; diagrams are listed as they arrive). The window keeps
  * the query, which the hub's search field types into until the popup takes focus.
  */
-export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose }: {
-  projects: Project[]; open: { projectId: string; snapshot: Snapshot } | null; query: string; setQuery(query: string): void; onChoose(destination: SearchDestination): void; onClose(): void;
+export function SearchPopup({ hostId, projects, open, query, setQuery, onChoose, onClose }: {
+  hostId: string | null; projects: Project[]; open: { projectId: string; snapshot: Snapshot } | null; query: string; setQuery(query: string): void; onChoose(destination: SearchDestination): void; onClose(): void;
 }) {
   const [diagrams, setDiagrams] = useState<DiagramIndexEntry[]>([]);
   const projectId = open?.projectId ?? null;
@@ -170,7 +169,7 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
       const shown = members.length <= cap + 1 ? members : members.slice(0, cap);
       const more = members.length - shown.length;
       const kind = members[0]!.kind;
-      return more > 0 && kindPrefixes[kind] ? [...shown, { id: 'more:' + kindPrefixes[kind], kind, label: 'Show all ' + members.length + ' ' + kindNames[kind], detail: '', snippet: null, destination: shown[0]!.destination, key: null, group, more: true }] : shown;
+      return more > 0 && kindPrefixes[kind] ? [...shown, { id: 'more:' + kindPrefixes[kind] + ':' + group, kind, label: 'Show all ' + members.length + ' ' + kindNames[kind], detail: '', snippet: null, destination: shown[0]!.destination, key: null, group, more: true }] : shown;
     });
   }, [entries, words, kinds, tagged, asked, found, projects, plans]);
   const byId = useMemo(() => new Map(results.map(entry => [entry.id, entry])), [results]);
@@ -210,12 +209,19 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   // A prefix with nothing after it says what to type, not that nothing matched.
   const waiting = prefix && !words && !picking ? 'Type words to find ' + kindNames[narrowers[prefix]![0]!] : null;
 
-  // The places opened from the search lately, the newest first, kept in this browser for the next time.
-  const [recent, setRecent] = useState<Recent[]>(readRecent);
+  // The places opened from the search lately on the window's computer, the newest first, the same in
+  // every window and kept by main for the next time.
+  const computer = hostId ?? 'local';
+  const [recent, setRecent] = useState<Recent[]>([]);
+  useEffect(() => {
+    let current = true;
+    api.recentSearches(computer).then(json => { if (current) setRecent(readRecent(json)); }, () => undefined);
+    return () => { current = false; };
+  }, [computer]);
   const remember = (entry: Recent) => {
     const next = [entry, ...recent.filter(each => each.id !== entry.id)].slice(0, 5);
     setRecent(next);
-    try { localStorage.setItem(recentKey, JSON.stringify(next)); } catch { /* kept for this session */ }
+    api.rememberSearches(computer, JSON.stringify(next)).catch(() => undefined);
   };
 
   // What the search can find, shown to someone who has not used it yet: four searches to try, made
@@ -240,8 +246,8 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
   }, [projects]);
 
   // Before typing: what is worth coming back to, and how to search. The starred plans, the places
-  // opened from the search lately, searches to try, the plans that are the user's turn (the longest
-  // waiting first), and the pages to go to.
+  // opened from the search lately, searches to try, the plans that are the user's turn (the most
+  // recently changed first), and the pages to go to.
   const { starred } = useStars();
   const suggestions = useMemo(() => {
     const all = hubItems(projects, null);
@@ -284,7 +290,7 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
       // A search to try is typed into the field, and a group's Show all narrows the search to its kind;
       // the search stays open on what they find.
       if (chosen.id.startsWith('try:')) { setQuery(chosen.id.slice(4)); return; }
-      if (chosen.id.startsWith('more:')) { setQuery(chosen.id.slice(5) + ': ' + words); return; }
+      if (chosen.id.startsWith('more:')) { setQuery(chosen.id.split(':')[1] + ': ' + words); return; }
       // A tag is typed in, to see its plans; a project opens its plans.
       if (chosen.id.startsWith('tag:')) { setQuery(chosen.id); return; }
       if (chosen.id.startsWith('project:')) { onClose(); onChoose({ place: hubPlace(chosen.id.slice(8)) }); return; }
@@ -297,7 +303,7 @@ export function SearchPopup({ projects, open, query, setQuery, onChoose, onClose
       // What was opened is remembered for the next time the search opens, under Recent.
       if (plan) remember({ id: workKey(plan.project.id, plan.work.id), kind: 'plan', label: plan.work.title, detail: planWhere(plan), destination, key: workKey(plan.project.id, plan.work.id), plan: workKey(plan.project.id, plan.work.id) });
       else if (again) remember(again);
-      else if (result && !('more' in result)) remember({ id: result.key ?? result.id, kind: result.kind, label: result.label, detail: result.detail, destination, key: result.key, plan: result.plan ?? null });
+      else if (result && !('more' in result)) remember({ id: result.key ?? result.kind + ':' + JSON.stringify(destination), kind: result.kind, label: result.label, detail: result.detail, destination, key: result.key, plan: result.plan ?? null });
       onClose();
       onChoose(destination);
     }} />;

@@ -59,6 +59,9 @@ test('open plans are grouped by whose turn they are: the user\'s first, then wor
   assert.deepEqual(kept(['your_turn']), ['work-0021']);
   assert.deepEqual(kept(['starred', 'your_turn']), []);
   assert.equal(kept([]).length, items.length);
+  const reported = (lastReport: string | null) => ({ ...items[0]!, work: work('work-0099', 'implementing', { updated: '2026-09-01', statistics: lastReport ? { lastReport } as ProjectWork['statistics'] : null }) });
+  assert.equal(matchesOnly(reported('2026-10-14T09:00:00Z'), ['recent'], () => false, Date.parse('2026-10-15T10:00:00Z')), true);
+  assert.equal(matchesOnly(reported(null), ['recent'], () => false, Date.parse('2026-10-15T10:00:00Z')), false);
 });
 
 test('each plan shows its status, whose turn it declares first, and closed work how it ended', () => {

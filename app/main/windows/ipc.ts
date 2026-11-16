@@ -217,6 +217,8 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
     'app:theme': { args: [], handle: () => manager.context.state.theme },
     'stars:list': { args: [], handle: () => manager.context.state.stars },
     'stars:set': { args: [string({ min: 1, max: 400 }), boolean], handle: (_window, key: string, starred: boolean) => manager.context.state.setStar(key, starred) },
+    'search:recent': { args: [string({ min: 1, max: 400 })], handle: (_window, computer: string) => manager.context.state.recentSearches(computer) },
+    'search:remember': { args: [string({ min: 1, max: 400 }), string({ min: 2, max: 50_000 })], handle: (_window, computer: string, recent: string) => { manager.context.state.setRecentSearches(computer, recent); } },
     // Every window follows the native theme through prefers-color-scheme, so one change reaches them all.
     'app:setTheme': { args: [themePreference], handle: (_window, preference: ThemePreference) => { manager.context.state.setTheme(preference); nativeTheme.themeSource = preference; } },
     // About Coord, which the window shows: versions and the data folder, nothing a page could misuse.

@@ -54,12 +54,13 @@ export const hubOnlyFilters = ['starred', 'your_turn', 'working', 'blocked', 're
 export type HubOnly = typeof hubOnlyFilters[number];
 export const hubOnlyLabels: Record<HubOnly, string> = { starred: 'Starred', your_turn: 'Your turn', working: 'Agents working', blocked: 'Blocked', recent: 'Changed this week' };
 const week = 7 * 24 * 60 * 60 * 1000;
+const withinWeek = (changed: string | null, now: number) => Boolean(changed) && now - Date.parse(changed!) <= week;
 export function matchesOnly(item: HubItem, only: readonly HubOnly[], starred: (item: HubItem) => boolean, now: number): boolean {
   return only.every(filter => filter === 'starred' ? starred(item)
     : filter === 'your_turn' ? item.status.key === 'your_turn'
     : filter === 'working' ? item.status.key === 'working' || item.status.key === 'planning'
     : filter === 'blocked' ? item.status.key === 'blocked'
-    : Boolean(item.work.updated) && now - Date.parse(item.work.updated!) <= week);
+    : withinWeek(lastChange(item.work), now));
 }
 
 /** Whether a plan is in the state the hub shows. */

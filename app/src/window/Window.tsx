@@ -490,7 +490,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
       <div ref={page} className="window-page">{content}</div>
       <ScrollMemory scroller={scroller} scrollKey={scrollKey(placed)} shown={placeId(placed)} anchored={anchored} entry={currentEntry(history)} content={page} positions={scrollPositions} entryPositions={entryPositions} />
     </div>
-    {search !== null && projects && <SearchPopup projects={projects} open={searchScope} query={search} setQuery={setSearch} onChoose={choose} onClose={closeSearch} />}
+    {search !== null && projects && <SearchPopup hostId={info.computer.hostId} projects={projects} open={searchScope} query={search} setQuery={setSearch} onChoose={choose} onClose={closeSearch} />}
     {creatingProject && <NewProjectDialog computer={info.computer.name} local={info.computer.hostId === null} onClose={() => setCreatingProject(false)} onCreated={projectActions.created} />}
   </Scaffold></StarsProvider>;
 }

@@ -26,7 +26,7 @@ export function StarsProvider({ hostId, children }: { hostId: string | null; chi
     const key = starKey(hostId, projectId, workId);
     // Shown at once; main's answer, every window's stars, follows.
     setKeys(previous => { const next = new Set(previous); if (starred) next.add(key); else next.delete(key); return next; });
-    api.setStar(key, starred).then(list => setKeys(new Set(list)), () => undefined);
+    api.setStar(key, starred).then(list => setKeys(new Set(list)), () => { api.stars().then(list => setKeys(new Set(list)), () => undefined); });
   }, [hostId]);
   const value = useMemo<Stars>(() => ({ starred: (projectId, workId) => keys.has(starKey(hostId, projectId, workId)), setStarred }), [keys, hostId, setStarred]);
   return <StarsContext.Provider value={value}>{children}</StarsContext.Provider>;

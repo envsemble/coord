@@ -75,6 +75,18 @@ export class AppState {
     return kept;
   }
 
+  /** The places opened from the search lately, per computer, each list kept as the search wrote it. */
+  recentSearches(computer: string): string { return this.searchRecents()[computer] ?? '[]'; }
+  setRecentSearches(computer: string, recent: string) {
+    this.database.setSetting('searchRecent', JSON.stringify({ ...this.searchRecents(), [computer]: recent }));
+  }
+  private searchRecents(): Record<string, string> {
+    try {
+      const value = JSON.parse(this.database.setting('searchRecent') ?? '{}') as unknown;
+      return value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string')) : {};
+    } catch { return {}; }
+  }
+
   /** The windows to open: those open when Coord quit, and any opened since. */
   windows(): WindowRow[] {
     return (this.database.db.prepare('SELECT * FROM "window" ORDER BY id').all() as Row[]).map(row => ({
