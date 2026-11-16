@@ -2,10 +2,10 @@ name: Release
 # Coord's releases, on GitHub's own runners (free for a public repository), in two channels:
 #
 # - Stable: pushing a version tag (v0.9.0) on a commit of main makes the release from that commit.
-# - Nightly: every night at 03:00 UTC (04:00 in Central European winter time, 05:00 in summer),
-#   dev's newest commit becomes a prerelease vX.Y.(Z+1)-nightly.YYYYMMDD.RUN, on the patch after the
-#   version in package.json, unless the last nightly already built that commit. Run workflow (by
-#   hand) builds one at once. The repository variable PAUSE_NIGHTLY=true stops the scheduled ones.
+# - Nightly: every six hours (00:00, 06:00, 12:00 and 18:00 UTC), dev's newest commit becomes a
+#   prerelease vX.Y.(Z+1)-nightly.YYYYMMDD.RUN, on the patch after the version in package.json,
+#   unless the last nightly already built that commit. Run workflow (by hand) builds one at once.
+#   The repository variable PAUSE_NIGHTLY=true stops the scheduled ones.
 #
 # Each release gets the AppImage from the Linux job and the Windows installer, tested by installing
 # it, from the Windows job, with the update files the installed app reads (latest.yml and
@@ -18,7 +18,7 @@ on:
     # Stable versions only; this workflow makes the nightlies' tags itself.
     tags: ["v*.*.*", "!v*-*"]
   schedule:
-    - cron: "0 3 * * *"
+    - cron: "0 */6 * * *"
   workflow_dispatch:
 permissions:
   # Creates, fills and publishes the release, and deletes old nightlies.
@@ -244,7 +244,7 @@ jobs:
           gh release list --exclude-drafts --limit 200 --json tagName,isPrerelease \
             --jq '[.[] | select(.isPrerelease and (.tagName | test("-nightly\\.")))] | .[14:] | .[].tagName' |
             while read -r old; do gh release delete "$old" --yes --cleanup-tag; done
-          # Drafts of nightlies whose run failed: each night makes a new tag, so none is filled again.
+          # Drafts of nightlies whose run failed: each nightly run makes a new tag, so none is filled again.
           gh release list --limit 200 --json tagName,isDraft \
             --jq '.[] | select(.isDraft and (.tagName | test("-nightly\\."))) | .tagName' |
             while read -r old; do gh release delete "$old" --yes; done

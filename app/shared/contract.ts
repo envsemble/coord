@@ -166,7 +166,7 @@ export interface AgentFolder { directory: string; marketplace: string; plugin: s
 /** Whether the onboarding has been finished on this computer; it shows on launch until then. */
 export interface OnboardingState { done: boolean }
 
-/** Where Coord's updates come from: its stable releases, or a build of its development branch each night. */
+/** Where Coord's updates come from: its stable releases, or a build of its development branch every six hours. */
 export const updateChannels = ['stable', 'nightly'] as const;
 export type UpdateChannel = typeof updateChannels[number];
 /** Whether a version is a nightly build's (`0.9.1-nightly.20261114.42`): its updates follow the nightly channel, and its title bar says Nightly. */
