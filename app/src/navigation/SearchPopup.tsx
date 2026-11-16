@@ -10,7 +10,6 @@ import { plural, workNumber } from '../ui/format';
 import { IconUnfoldMore as MoreIcon } from '@envsemble/envui/icons/UnfoldMore';
 import { hostEntries, listEntries, pathKey, workKey, type SearchDestination, type SearchEntry } from './search';
 import { StatusIcon } from '../ui/badges';
-import { useStars } from '../stars/stars';
 import type { HubItem } from '../hub/hubPlans';
 
 interface Entry extends QuickItem, Omit<SearchEntry, 'kind'> { icon: ReactNode; state?: string }
@@ -248,10 +247,9 @@ export function SearchPopup({ hostId, projects, open, query, setQuery, onChoose,
     ].filter((example): example is { query: string; finds: string } => Boolean(example));
   }, [projects]);
 
-  // Before typing: what is worth coming back to, and how to search. The starred plans, the places
-  // opened from the search lately, searches to try, the plans that are the user's turn (the most
+  // Before typing: what is worth coming back to, and how to search. The places opened from the
+  // search lately, searches to try, the plans that are the user's turn (the most
   // recently changed first), and the pages to go to.
-  const { starred } = useStars();
   const suggestions = useMemo(() => {
     const all = hubItems(projects, null);
     const shown = new Set<string>();
@@ -260,17 +258,14 @@ export function SearchPopup({ hostId, projects, open, query, setQuery, onChoose,
       // The state is said by the group's heading where it is the group's.
       return item({ id: 'suggested:' + group + ':' + plan.project.id + ':' + plan.work.id, label: plan.work.title, detail: planWhere(plan), group, icon: <StatusIcon status={plan.status} decorative />, state: plan.status.label === group ? null : plan.status.label });
     });
-    const starredPlans = take(all.filter(plan => starred(plan.project.id, plan.work.id)), 'Starred', 6);
     const tryItems = tries.map(example => ({ id: 'try:' + example.query, label: <code className="search-try">{example.query}</code>, textValue: example.query + ', ' + example.finds, description: example.finds, icon: <SearchIcon />, group: 'Try' }));
     // What was opened lately, as it is now: a plan with its state; one no longer listed is left out.
-    // A starred plan opened lately is in both: Recent is about when, Starred about what.
     const lately = recent.filter(each => each.kind !== 'plan' || (each.key && plans.has(each.key))).map(each => {
       if (each.key) shown.add(each.key);
       const plan = each.key ? plans.get(each.key) : undefined;
       return item({ id: 'recent:' + each.id, label: each.label, detail: each.detail, group: 'Recent', icon: plan?.icon ?? kindIcons[each.kind], state: (each.plan && plans.get(each.plan)?.state) ?? plan?.state ?? null });
     });
     return [
-      ...starredPlans,
       ...lately,
       // The searches to try come before Your turn for someone new to the search, after it once they
       // have opened a few places from it.
@@ -279,7 +274,7 @@ export function SearchPopup({ hostId, projects, open, query, setQuery, onChoose,
       ...(lately.length >= 3 ? tryItems : []),
       ...pages.map(page => ({ id: page.id, label: page.label, textValue: 'Go to ' + page.label, icon: page.icon, group: 'Go to' })),
     ];
-  }, [projects, starred, tries, recent, plans]);
+  }, [projects, tries, recent, plans]);
   const suggested = useMemo(() => new Map(hubItems(projects, null).map(plan => [plan.project.id + ':' + plan.work.id, plan])), [projects]);
 
   return <CommandPalette open onOpenChange={value => { if (!value) onClose(); }} className="search-popup" aria-label="Search" closeOnAction={false}

@@ -215,8 +215,6 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
     'shell:openReference': { args: [projectId, referenceInput], handle: (window, projectId: string, reference: ReferenceInput) => openReference(window, projectId, reference) },
     'shell:copy': { args: [string({ min: 1, max: 10000 })], handle: (_window, text: string) => { clipboard.writeText(text); } },
     'app:theme': { args: [], handle: () => manager.context.state.theme },
-    'stars:list': { args: [], handle: () => manager.context.state.stars },
-    'stars:set': { args: [string({ min: 1, max: 400 }), boolean], handle: (_window, key: string, starred: boolean) => manager.context.state.setStar(key, starred) },
     'search:recent': { args: [string({ min: 1, max: 400 })], handle: (_window, computer: string) => manager.context.state.recentSearches(computer) },
     'search:remember': { args: [string({ min: 1, max: 400 }), string({ min: 2, max: 50_000 })], handle: (_window, computer: string, recent: string) => { manager.context.state.setRecentSearches(computer, recent); } },
     // Every window follows the native theme through prefers-color-scheme, so one change reaches them all.

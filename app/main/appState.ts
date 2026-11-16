@@ -60,21 +60,6 @@ export class AppState {
   }
   setTheme(theme: ThemePreference) { this.database.setSetting('theme', theme === 'system' ? null : theme); }
 
-  /** The starred work items, kept as one setting: a few hundred keys at most. */
-  get stars(): string[] {
-    try {
-      const value = JSON.parse(this.database.setting('stars') ?? '[]') as unknown;
-      return Array.isArray(value) ? value.filter((key): key is string => typeof key === 'string') : [];
-    } catch { return []; }
-  }
-  setStar(key: string, starred: boolean): string[] {
-    const stars = this.stars.filter(item => item !== key);
-    if (starred) stars.unshift(key);
-    const kept = stars.slice(0, 500);
-    this.database.setSetting('stars', kept.length ? JSON.stringify(kept) : null);
-    return kept;
-  }
-
   /** The places opened from the search lately, per computer, each list kept as the search wrote it. */
   recentSearches(computer: string): string { return this.searchRecents()[computer] ?? '[]'; }
   setRecentSearches(computer: string, recent: string) {

@@ -17,8 +17,6 @@ import { hubGroups, hubItems, hubOnlyFilters, hubOnlyLabels, hubRowFacts, inStat
 import { absoluteDate, plural, relativeDate, workNumber } from '../ui/format';
 import { settingsPlace, statisticsPlace, workTarget, type Place } from '../navigation/targets';
 import { ProjectAvatar, ProjectMenu } from '../projects/ProjectMenu';
-import { StarButton } from '../stars/StarButton';
-import { useStars } from '../stars/stars';
 import type { ProjectActions } from '../projects/ProjectDialogs';
 import { AgentWarnings, useAgentChecks } from '../settings/AgentList';
 import { StatusIcon } from '../ui/badges';
@@ -91,7 +89,6 @@ const HubRow = memo(function HubRow({ item, go, showProject }: { item: HubItem; 
         <StatusIcon status={status} />
         <Link href="#" underline={false} className="hub-row-link" data-row-target draggable={false} title={work.summary ?? undefined} onClick={open}>{work.title}</Link>
         <span className="hub-row-number">{workNumber(work.id)}</span>
-        <StarButton projectId={project.id} workId={work.id} title={work.title} className="hub-row-star" />
         {parts && <span className="hub-row-parts" data-kind={parts.kind}>{parts.kind === 'part' ? 'Part ' + parts.index + ' of ' + workNumber(parts.group) : plural(parts.count, 'part') + (parts.closed ? ' · ' + parts.closed + ' closed' : '')}</span>}
       </span>
       {large && (facts.blocked ? <small className="cell-note hub-row-blocked">Blocked: {facts.blocked}</small>
@@ -128,9 +125,8 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, c
 }) {
   // Archived projects are seen only in the project menu, to restore: the hub of one shows every project's plans.
   const filter = projects?.some(project => project.id === asked && project.state === 'active') ? asked : null;
-  const { starred } = useStars();
   // The filter menu's filters narrow the plans before Open, Closed and All count and group them.
-  const items = useMemo(() => hubItems(projects ?? [], filter).filter(item => matchesOnly(item, filters.only, each => starred(each.project.id, each.work.id), Date.now())), [projects, filter, filters.only, starred]);
+  const items = useMemo(() => hubItems(projects ?? [], filter).filter(item => matchesOnly(item, filters.only, Date.now())), [projects, filter, filters.only]);
   const groups = useMemo(() => hubGroups(items, filters.state), [items, filters.state]);
   const counts = useMemo(() => ({ open: items.filter(item => inState(item, 'open')).length, closed: items.filter(item => inState(item, 'closed')).length, all: items.length }), [items]);
   const filtered = projects?.find(project => project.id === filter);

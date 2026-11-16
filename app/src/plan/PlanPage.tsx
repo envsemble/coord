@@ -17,7 +17,6 @@ import { WorkStatisticsSummary } from '../statistics/WorkStatisticsSummary';
 import { SessionsList, StateNote, useWorkSessions } from './WorkSessions';
 import { TargetLink, useWindow, useWindowActions } from '../window/windowContext';
 import { Trail } from '../ui/Trail';
-import { StarButton } from '../stars/StarButton';
 import { Page } from '../ui/Page';
 import { TagList } from './TagList';
 
@@ -127,7 +126,7 @@ function StatusLine({ work, status }: { work: Work; status: StatusLook }) {
  * statistics. Diagrams open from their cards in the plan.
  */
 export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Snapshot; target: WorkTarget }) {
-  const { listed, projectId } = useWindow();
+  const { listed } = useWindow();
   const { open } = useWindowActions();
   const plan = planDocument(work);
   const reading: Document | undefined = defaultDocument(work);
@@ -139,7 +138,7 @@ export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Sna
   // Its pages that need the person, as their agents said in their page.json.
   const asking = Object.entries(snapshot.attention ?? {}).filter(([page]) => page.startsWith(work.path + '/pages/'));
   return <Page className="work-page" breadcrumbs={<Trail work={work.id} items={[{ label: workNumber(work.id) }]} />}
-    title={work.title} actions={<StarButton projectId={projectId} workId={work.id} title={work.title} />} toolbar={<StatusLine work={work} status={status} />} description={summary}>
+    title={work.title} toolbar={<StatusLine work={work} status={status} />} description={summary}>
     <div className="work-layout">
       <div className="work-main">
         {(listing?.tags?.length || asking.length > 0) && <div className="work-header">

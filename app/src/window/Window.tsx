@@ -25,7 +25,6 @@ import { FilePage } from '../reader/FilePage';
 import { Hub, type HubFilters } from '../hub/Hub';
 import { NewProjectDialog, type ProjectActions } from '../projects/ProjectDialogs';
 import { ProjectAvatar } from '../projects/ProjectMenu';
-import { StarsProvider } from '../stars/stars';
 import { Gone, Page } from '../ui/Page';
 import { TitleBarStart, type WindowMenus } from '../titleBar/TitleBar';
 import { revealIds } from '../files/explorerModel';
@@ -478,7 +477,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   const files = filesWork && scope && read ? <WindowContext.Provider value={scope}><ReadingContext.Provider value={read}>
     <FilesContext.Provider value={filesState}><PlanFiles work={filesWork} /></FilesContext.Provider>
   </ReadingContext.Provider></WindowContext.Provider> : null;
-  return <StarsProvider hostId={info.computer.hostId}><Scaffold className="coord-window" scroll="body" topBarSpan="full" bodyRef={setScroller}
+  return <Scaffold className="coord-window" scroll="body" topBarSpan="full" bodyRef={setScroller}
     navigation={files ? { drawer: files } : undefined} navigationForms={files ? { compact: 'none', medium: 'drawer', expanded: 'drawer', large: 'drawer' } : { compact: 'none', medium: 'none', expanded: 'none', large: 'none' }}
     topBar={<TopBar titleBar className="window-title-bar"
       start={<TitleBarStart info={info} menus={menus} onError={warn} />}
@@ -492,7 +491,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
     </div>
     {search !== null && projects && <SearchPopup hostId={info.computer.hostId} projects={projects} open={searchScope} query={search} setQuery={setSearch} onChoose={choose} onClose={closeSearch} />}
     {creatingProject && <NewProjectDialog computer={info.computer.name} local={info.computer.hostId === null} onClose={() => setCreatingProject(false)} onCreated={projectActions.created} />}
-  </Scaffold></StarsProvider>;
+  </Scaffold>;
 }
 
 /**
