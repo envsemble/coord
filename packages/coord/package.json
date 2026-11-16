@@ -38,10 +38,10 @@
   },
   "dependencies": {
     "@envsemble/coord-diagrams": "*",
-    "@hono/node-server": "2.1.4",
+    "@hono/node-server": "2.1.8",
     "@modelcontextprotocol/sdk": "1.32.1",
     "github-slugger": "2.0.0",
-    "hono": "4.13.13",
+    "hono": "4.13.18",
     "mdast-util-from-markdown": "2.1.0",
     "mdast-util-gfm": "3.1.0",
     "micromark-extension-gfm": "3.0.0",
