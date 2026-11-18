@@ -269,7 +269,7 @@ html, body, #root { min-block-size: 100%; }
 /* The plan's page is wider than envUI's large page, for its text and its side column together. */
 .work-page { --coord-gutter: var(--env-space-3); }
 /* A plan reads in a column of comfortable lines (--coord-reading), with its side column beside it:
-   the page is as wide as the two, so its title and breadcrumb line up with the text. */
+   the page is as wide as the two, so its title lines up with the text. */
 .work-page { --coord-reading: 48rem; }
 .work-page.env-page { max-inline-size: calc(var(--coord-reading) + var(--env-space-7) + 20rem + 2 * var(--env-space-5)); }
 @media (max-width: 40rem) {
@@ -335,7 +335,10 @@ html, body, #root { min-block-size: 100%; }
 .work-page.is-diagrams, .work-page.is-page { flex: 1; display: flex; flex-direction: column; min-block-size: 0; }
 /* A page: its frame fills the body below the plan's breadcrumb, on the page's own background. */
 .page-view { display: flex; flex: 1; flex-direction: column; min-block-size: 22rem; }
-.page-view-trail { padding: var(--env-space-3) var(--env-space-5) 0; }
+/* The breadcrumbs of every page, in the top left of the window, not in the page's centred column; the
+   page under them starts a little higher, as its header did under them. */
+.page-view-trail, .page-trail { padding: var(--env-space-3) var(--env-space-5) 0; }
+.page-trail + .env-page { padding-block-start: var(--env-space-4); }
 .page-view-body { position: relative; display: flex; flex: 1; flex-direction: column; min-block-size: 0; }
 .page-frame { flex: 1; inline-size: 100%; min-block-size: 0; border: 0; background: var(--env-color-bg-page); }
 .page-view-state { position: absolute; inset: 0; display: grid; place-items: center; padding: var(--env-space-5); }
