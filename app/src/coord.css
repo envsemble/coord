@@ -184,7 +184,7 @@ html, body, #root { min-block-size: 100%; }
 .parts-rail-meta { color: var(--env-color-fg-muted); font-variant-numeric: tabular-nums; }
 .parts-rail-list { display: grid; gap: var(--env-space-1); margin: 0; padding: 0; list-style: none; }
 /* A part's place in its group, or a group's parts, beside its number in the hub. */
-.hub-row-parts { flex: none; padding-inline: var(--env-space-2); border-radius: var(--env-radius-sm); background: var(--env-color-bg-default); color: var(--env-color-fg-muted); font: var(--env-type-body-sm); white-space: nowrap; }
+.hub-row-parts { flex: none; padding-inline: var(--env-space-2); border-radius: var(--env-radius-sm); background: var(--env-color-bg-neutral-muted); color: var(--env-color-fg-muted); font: var(--env-type-body-sm); white-space: nowrap; }
 /* Create project: its folders as rows, then a card to add one. */
 .folder-list-section { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--env-space-2); min-inline-size: 0; }
 .folder-list-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--env-space-3); }
@@ -208,9 +208,6 @@ html, body, #root { min-block-size: 100%; }
 .explorer-special[data-file='page'] { color: var(--env-color-fg-avatar-seafoam); }
 /* A page that needs its user: a dot in the needs-you colour. */
 .attention-dot { display: inline-block; flex: none; inline-size: 0.5rem; block-size: 0.5rem; border-radius: 50%; background: var(--env-color-bg-warning-emphasis); vertical-align: middle; }
-/* A row under the pointer takes a fainter hover than envUI's here, so the file shown, on envUI's
-   neutral selection, stands clearly apart from it. */
-.plan-files .env-tree-item:not([aria-selected='true']):hover { background: color-mix(in srgb, var(--env-color-bg-row-hover) 45%, transparent); }
 /* Squarer rows, as an editor's explorer has them (the tree's xs density makes them compact). */
 .plan-files .env-tree-item { border-radius: var(--env-radius-xs); }
 
@@ -221,7 +218,7 @@ html, body, #root { min-block-size: 100%; }
 .page-empty { padding-block: var(--env-space-8); padding-inline: 0; }
 
 /* Ledger steps: done in the "completed" tone, in progress in the "open" tone, over the work left. */
-.step-bar { display: flex; inline-size: 100%; block-size: 0.5rem; overflow: hidden; border-radius: var(--env-radius-sm); background: light-dark(var(--env-color-bg-neutral-muted), var(--env-color-bg-default)); }
+.step-bar { display: flex; inline-size: 100%; block-size: 0.5rem; overflow: hidden; border-radius: var(--env-radius-sm); background: var(--env-color-bg-neutral-muted); }
 /* Planning in blue, implementation done in purple and in progress in green, apart in both themes. The
    dark theme takes envUI's light text tones; in the light theme envUI's tones are all dark and run
    together, so the bar has its own: a light blue, a deep purple and a clear green, apart in hue and

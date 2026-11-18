@@ -1,8 +1,8 @@
 // Settings › General › Appearance: the app's theme, the operating system's, light or dark, as one
-// field. Main keeps the choice for every window and applies it as Electron's native theme; envUI
+// field on a card that groups it. Main keeps the choice for every window and applies it as Electron's native theme; envUI
 // follows it through prefers-color-scheme.
 import { useEffect, useState } from 'react';
-import { Select } from '@envsemble/envui';
+import { Card, Select } from '@envsemble/envui';
 import { themePreferences, type ThemePreference } from '../../shared/contract';
 import { api } from '../api';
 
@@ -27,6 +27,6 @@ export function ThemeChoice() {
     setPreference(next);
     api.setTheme(next).catch(() => setPreference(previous));
   };
-  return <Select className="settings-field" label="Theme" description={details[preference ?? 'system']} value={preference} onValueChange={choose}
-    items={themePreferences.map(value => ({ value, label: labels[value] }))} />;
+  return <Card background="default"><Select className="settings-field" label="Theme" description={details[preference ?? 'system']} value={preference} onValueChange={choose}
+    items={themePreferences.map(value => ({ value, label: labels[value] }))} /></Card>;
 }

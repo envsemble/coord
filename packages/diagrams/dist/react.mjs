@@ -2514,7 +2514,7 @@ function Island({ label, className = "", children, ...props }) {
   return /* @__PURE__ */ jsx10(
     Surface,
     {
-      background: "default",
+      background: "raised",
       radius: "full",
       padding: 1,
       render: /* @__PURE__ */ jsx10(Toolbar.Root, { "aria-label": label, size: "sm" }),
