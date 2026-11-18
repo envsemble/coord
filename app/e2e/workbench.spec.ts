@@ -417,7 +417,7 @@ test('one row at the top: the logo, back and forward, Plans, Settings and Help, 
   // Settings opens Settings at General, with the theme; Computer settings… opens it at Computers.
   await titleButton(window, 'Settings').click();
   await expect(window.locator('.settings-page h1')).toHaveText('Settings');
-  const settingsTab = window.getByRole('tablist', { name: 'Settings' }).getByRole('tab', { selected: true });
+  const settingsTab = window.getByRole('navigation', { name: 'Settings' }).locator('[aria-current="page"]');
   await expect(settingsTab).toHaveText('General');
   await expect(window.getByRole('combobox', { name: 'Theme' })).toHaveText(/Match the system/);
   await bar.getByRole('button', { name: /^Computer:/ }).click();

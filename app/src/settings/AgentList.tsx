@@ -7,8 +7,7 @@
 // installed (or trusted) meanwhile shows as it is. A connected agent's row says whether it runs Coord,
 // and in Settings each row's More menu shows the commands that connect it by hand.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Badge, Button, Checkbox, Dialog, IconButton, List, Menu, Spinner } from '@envsemble/envui';
-import { Code } from '@envsemble/envui/code';
+import { Alert, Badge, Button, Checkbox, Code, Dialog, IconButton, List, Menu, Spinner } from '@envsemble/envui';
 import { agentIds, agentNames } from '../../shared/contract';
 import type { AgentFolder, AgentId, AgentState } from '../types';
 import { api, CoordError } from '../api';

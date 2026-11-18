@@ -1,8 +1,8 @@
 // Settings › General › Appearance: the app's theme, the operating system's, light or dark, as one
-// setting row with its choice at the end. Main keeps the choice for every window and applies it as
-// Electron's native theme; envUI follows it through prefers-color-scheme.
-import { useEffect, useId, useState } from 'react';
-import { List, Select } from '@envsemble/envui';
+// field. Main keeps the choice for every window and applies it as Electron's native theme; envUI
+// follows it through prefers-color-scheme.
+import { useEffect, useState } from 'react';
+import { Select } from '@envsemble/envui';
 import { themePreferences, type ThemePreference } from '../../shared/contract';
 import { api } from '../api';
 
@@ -15,7 +15,6 @@ const details: Record<ThemePreference, string> = {
 
 /** The theme to choose, read when Settings shows it (another window may have changed it). */
 export function ThemeChoice() {
-  const id = useId();
   const [preference, setPreference] = useState<ThemePreference | null>(null);
   useEffect(() => {
     let live = true;
@@ -28,9 +27,6 @@ export function ThemeChoice() {
     setPreference(next);
     api.setTheme(next).catch(() => setPreference(previous));
   };
-  return <List.Root className="settings-rows" aria-label="Appearance">
-    <List.Item className="settings-row" label={<span id={id + '-title'}>Theme</span>} description={<span id={id + '-detail'}>{details[preference ?? 'system']}</span>}
-      end={<Select className="settings-row-select" aria-labelledby={id + '-title'} aria-describedby={id + '-detail'} value={preference} onValueChange={choose}
-        items={themePreferences.map(value => ({ value, label: labels[value] }))} />} />
-  </List.Root>;
+  return <Select className="settings-field" label="Theme" description={details[preference ?? 'system']} value={preference} onValueChange={choose}
+    items={themePreferences.map(value => ({ value, label: labels[value] }))} />;
 }

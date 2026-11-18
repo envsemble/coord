@@ -4,9 +4,8 @@
 // code, and revokes paired devices. A paired device gets the whole computer; the pairing link may
 // also grant it Manage access, so it can pair and revoke devices itself. In a window on another
 // computer, the section manages that computer's pairings, when this app was granted Manage access there.
-import { useEffect, useId, useState } from 'react';
-import { Alert, Badge, Button, Checkbox, ConfirmButton, Graphic, List, Select, Spinner, Switch, Text, TextField } from '@envsemble/envui';
-import { Code } from '@envsemble/envui/code';
+import { useEffect, useState } from 'react';
+import { Alert, Badge, Button, Checkbox, Code, ConfirmButton, Graphic, List, Select, Spinner, Switch, Text, TextField } from '@envsemble/envui';
 import type { AccessSettings, AccessState, ComputerRef, PairedDevice, PairingLinkView } from '../types';
 import { api } from '../api';
 import { absoluteDate, relativeDate } from '../ui/format';
@@ -18,7 +17,6 @@ const platforms: Record<string, string> = { win32: 'Windows', linux: 'Linux', da
 export const remoteAccessTitle = (computer: ComputerRef) => 'Devices that can reach ' + computer.name;
 
 export function RemoteAccess({ computer }: { computer: ComputerRef }) {
-  const id = useId();
   const here = computer.hostId === null;
   const [state, setState] = useState<AccessState | null>(null);
   const [devices, setDevices] = useState<PairedDevice[] | null>(null);
@@ -83,10 +81,11 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
     try { await api.revokeDevice(computer.hostId, deviceId); refreshDevices(); }
     catch (failure) { if ((failure as { code?: string }).code !== 'cancelled') setError((failure as Error).message); }
   };
-  const savePort = () => {
-    const value = Number(port);
+  // The port as committed (Enter, or leaving the field); one out of range stays in the field to correct.
+  const savePort = (text: string) => {
+    const value = Number(text);
     if (!settings || value === settings.network.port) return;
-    if (!Number.isInteger(value) || value < 1024 || value > 65535) { setError('Choose a port from 1024 to 65535.'); return; }
+    if (!Number.isInteger(value) || value < 1024 || value > 65535) { setError('Choose a port from 1024 to 65535.'); return false; }
     void apply(next => ({ ...next, network: { ...next.network, port: value } }));
   };
 
@@ -100,24 +99,24 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
         : state.managedBy && <Alert tone="warning">Remote access on this computer is managed by {state.managedBy}. Quit it, and Coord takes over here within a few seconds.</Alert>}
 
       {here ? <section className="access-section" aria-label="Network">
-        {/* Each setting applies as it changes: a row with its title and what it does, its control at the end. */}
+        {/* Each setting applies as it changes: the switch in a row that names it, the fields under it with their labels above. */}
         <List.Root className="settings-rows" aria-label="Network">
-          <List.Item className="settings-row" label={<span id={id + '-allow'}>Allow paired devices to connect to this computer</span>}
-            description={<span id={id + '-status'} className="access-status" data-state={state.status.listening ? 'on' : state.status.error ? 'error' : 'off'} role="status">
+          <List.Item className="settings-row" label="Allow paired devices to connect to this computer"
+            description={<span className="access-status" data-state={state.status.listening ? 'on' : state.status.error ? 'error' : 'off'} role="status">
               {state.status.listening ? `Listening on ${state.status.address}:${state.status.port}.` : state.status.error ?? 'Remote access is off.'}
             </span>}
-            end={<Switch aria-labelledby={id + '-allow'} aria-describedby={id + '-status'} checked={settings!.network.enabled} disabled={busy || managed}
+            control={<Switch checked={settings!.network.enabled} disabled={busy || managed}
               onCheckedChange={enabled => void apply(next => ({ ...next, network: { ...next.network, enabled, address: next.network.address ?? address } }))} />} />
-          <List.Item className="settings-row" label={<span id={id + '-via'}>Reach this computer via</span>}
-            description={<span id={id + '-via-detail'}>{chosen?.kind === 'loopback' ? 'Only Coord on this same computer can connect through this address.'
-              : chosen?.kind === 'lan' ? 'A local network: the connection is not encrypted.' : 'The network paired devices find this computer on.'}</span>}
-            end={<Select className="settings-row-select access-address" aria-labelledby={id + '-via'} aria-describedby={id + '-via-detail'} value={address ?? ''} disabled={busy || managed}
-              onValueChange={value => { if (value) void apply(next => ({ ...next, network: { ...next.network, address: value } })); }}
-              items={state.addresses.map(entry => ({ value: entry.address, label: `${entry.label} — ${entry.address}` }))} />} />
-          <List.Item className="settings-row" label={<span id={id + '-port'}>Port</span>} description="From 1024 to 65535. It applies when you leave the field or press Enter."
-            end={<TextField className="access-port" aria-labelledby={id + '-port'} inputMode="numeric" value={port} disabled={busy || managed}
-              onValueChange={value => setPort(value.replace(/[^0-9]/g, '').slice(0, 5))} onBlur={savePort} onKeyDown={event => { if (event.key === 'Enter') savePort(); }} />} />
         </List.Root>
+        <div className="settings-fields">
+          <Select className="access-address" label="Reach this computer via" value={address ?? ''} disabled={busy || managed}
+            description={chosen?.kind === 'loopback' ? 'Only Coord on this same computer can connect through this address.'
+              : chosen?.kind === 'lan' ? 'A local network: the connection is not encrypted.' : 'The network paired devices find this computer on.'}
+            onValueChange={value => { if (value) void apply(next => ({ ...next, network: { ...next.network, address: value } })); }}
+            items={state.addresses.map(entry => ({ value: entry.address, label: `${entry.label} — ${entry.address}` }))} />
+          <TextField className="access-port" label="Port" description="From 1024 to 65535. It applies when you leave the field or press Enter." inputMode="numeric" value={port} disabled={busy || managed}
+            onValueChange={value => setPort(value.replace(/[^0-9]/g, '').slice(0, 5))} onValueCommitted={savePort} />
+        </div>
         {chosen?.kind === 'lan' && <Alert tone="warning">On a local network, the connection is not encrypted. Prefer Tailscale, which encrypts it end to end.</Alert>}
       </section> : <p className="access-status" data-state={state.status.listening ? 'on' : 'off'} role="status">
         {state.status.listening ? `${computer.name} listens on ${state.status.address}:${state.status.port}.` : `Remote access is off on ${computer.name}.`}

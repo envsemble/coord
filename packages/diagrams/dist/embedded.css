@@ -14,16 +14,10 @@
     0 0.5rem 1.5rem -0.5rem
       oklch(from var(--env-color-bg-page) calc(l * 0.2) c h / 0.28);
   --coord-gutter: var(--env-space-3);
-  /* Code in panels: envUI's code typeface and size, which its code
-     styles define, with the same values where the host loads none. */
-  --coord-font-code: var(
-    --env-code-font-family,
-    ui-monospace,
-    "Cascadia Code",
-    Consolas,
-    monospace
-  );
-  --coord-font-size-code: var(--env-code-font-size, 0.8125rem);
+  /* Code in panels: the typeface and size of envUI's Code, which keeps
+     them to itself. */
+  --coord-font-code: ui-monospace, "Cascadia Code", Consolas, monospace;
+  --coord-font-size-code: 0.8125rem;
 }
 .coord-panel {
   margin: 0;
@@ -396,7 +390,7 @@
    the line's height, so the sentence keeps its line spacing. */
 .coord-panel .inline-action {
   --env-control-height: 1lh;
-  --env-button-touch-height: 0rem;
+  --env-control-height-touch: 1lh;
   vertical-align: baseline;
 }
 .coord-panel .example-list {
@@ -459,7 +453,7 @@
 }
 
 /* Narrow panels (embedded cards, phones): tighter gutters, full-width panes. */
-@container coord-viewer (max-width: 640px) {
+@container coord-viewer (max-width: 40rem) {
   .coord-panel .coord-overlay-top {
     --coord-gutter: var(--env-space-2);
     gap: var(--env-space-1);
@@ -486,7 +480,7 @@
     display: none;
   }
 }
-@container coord-viewer (max-width: 420px) {
+@container coord-viewer (max-width: 26.25rem) {
   .coord-panel .provenance-detail,.coord-panel
   .island-provenance {
     display: none;
@@ -566,7 +560,7 @@
 /* The grid is drawn in the diagram's own coordinates, which are pixels:
    camera.js scales it with the camera and steps its density from these
    sizes (GRID_OVERHANG is the inset). */
-/* stylelint-disable unit-disallowed-list -- diagram coordinates are pixels */
+/* stylelint-disable envui/no-px, envui/no-off-scale-values -- diagram coordinates are pixels */
 .coord-panel .canvas-grid {
   position: absolute;
   inset: -64px;
@@ -575,7 +569,7 @@
   background-size: 20px 20px;
   will-change: transform;
 }
-/* stylelint-enable unit-disallowed-list */
+/* stylelint-enable envui/no-px, envui/no-off-scale-values */
 /* An element that can be dragged shows it; one being dragged follows the
    hand. */
 .coord-panel #canvas.arrangeable .node {

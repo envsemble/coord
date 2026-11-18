@@ -5,7 +5,7 @@
 // window; folders open and close in place. Ctrl+Shift+E brings the keyboard to it. Its end edge
 // resizes it (envUI's resizable drawer, on the page's background), and the width is kept.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Menu, NavigationDrawer, Text, Tree, type NavigationDrawerDestination, type TreeItem } from '@envsemble/envui';
+import { Menu, NavigationDrawer, Text, Tree, VisuallyHidden, type NavigationDrawerDestination, type TreeItem } from '@envsemble/envui';
 import { DiagramIcon, GlossaryIcon, LedgerIcon, PageIcon, PlanIcon } from '../ui/icons';
 import { AttentionDot } from '../ui/AttentionDot';
 import type { Document, Snapshot, Target, Work } from '../types';
@@ -128,7 +128,7 @@ export function PlanFiles({ work }: { work: Work }) {
     resizable resizeLabel="Resize files" width={width} defaultWidth={DEFAULT_WIDTH} minWidth={12} maxWidth={32} onWidthChange={keepWidth}
     header={<>
       <Text render={<h2 />} variant="body" className="plan-files-heading">Files</Text>
-      {rows.length ? <Tree<Row> className="plan-files-tree" items={rows} aria-label={'Files of ' + workNumber(work.id) + ' ' + work.title} value={selected} density="sm"
+      {rows.length ? <Tree<Row> className="plan-files-tree" items={rows} aria-label={'Files of ' + workNumber(work.id) + ' ' + work.title} value={selected} density="xs"
         onAction={item => activate(item)}
         onExpandedChange={(item, value) => setOpen(item.value, value)}
         contextMenu={menu} />
@@ -168,7 +168,7 @@ export function focusPlanFiles() {
  * its glossary and its diagrams; every other file keeps the icon's room empty, so the names line up.
  */
 function treeItem(row: ExplorerRow, workPath: string, tag: string | undefined, attention: Record<string, string>): Row {
-  const base = { value: row.id, depth: row.depth, expandable: row.expandable, expanded: row.expanded, row, textValue: row.name };
+  const base = { value: row.id, depth: row.depth, expandable: row.expandable, expanded: row.expanded, row };
   if (row.kind === 'page') {
     const asks = attention[row.path!];
     return { ...base, label: row.name, icon: <PageIcon className="explorer-special" data-file="page" />, ...asks ? { end: <AttentionDot text={asks} /> } : {}, tooltip: 'Page · ' + row.path + (asks ? '\nNeeds you: ' + asks : '') };
@@ -187,5 +187,5 @@ function treeItem(row: ExplorerRow, workPath: string, tag: string | undefined, a
   // A diagram's layer (Captured, Proposal) shows by its place, a proposal under its capture, so the
   // narrow pane keeps the whole name for the file; screen readers and the tooltip say the layer.
   const where = row.file && row.file.title !== row.file.name ? row.file.title + ' \u00b7 ' + row.path : row.path;
-  return { ...base, label: tag ? <>{row.name}<span className="visually-hidden explorer-layer"> {tag}</span></> : row.name, icon, tooltip: tag ? tag + ' \u00b7 ' + where : where };
+  return { ...base, label: row.name, icon, ...tag ? { end: <VisuallyHidden className="explorer-layer">{' ' + tag}</VisuallyHidden> } : {}, tooltip: tag ? tag + ' \u00b7 ' + where : where };
 }

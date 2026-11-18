@@ -8,7 +8,7 @@ import { diagramTarget, workTarget } from '../navigation/targets';
 import { selectDiagram } from './diagramSelection';
 import { familyLayers, stepLayer } from './layers';
 import { elementId } from '@envsemble/coord/planning/provenance';
-import { Alert, Spinner, Text, useThemePreference } from '@envsemble/envui';
+import { Alert, Spinner, VisuallyHidden, useThemePreference } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
 import { Trail } from '../ui/Trail';
 import { workNumber } from '../ui/format';
@@ -155,7 +155,7 @@ export function DiagramsView({ work, target }: { work: Work; target: DiagramTarg
 
   // The diagram is named by the Files tree, where it is marked; its name heads the page for assistive technology.
   return <section className="diagrams" aria-label="Work diagrams">
-    {entry && <Text render={<h1 />} className="visually-hidden diagram-title">{entry.title}</Text>}
+    {entry && <VisuallyHidden render={<h1 />} className="diagram-title">{entry.title}</VisuallyHidden>}
     <div className="diagrams-canvas">
       {payload && positions !== undefined ? <ViewerErrorBoundary key={payload.family ?? selected} resetKey={payload.model.document?.revision.id}>
         <DiagramPanel payload={payload} theme={theme} focus={focus} sections={trail} arrangement={positions} onArrange={arranging ? arrange : undefined} />

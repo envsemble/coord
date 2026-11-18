@@ -4,7 +4,7 @@
 // the work item's diagrams). As the agent changes the page, it is built again and shown again, like
 // a dev server's page; a change to a file the page only reads tells the page, which reads it again.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Spinner, Text, useThemePreference } from '@envsemble/envui';
+import { Alert, Spinner, VisuallyHidden, useThemePreference } from '@envsemble/envui';
 import type { PageBuild, PageProblem, Work } from '../types';
 import { api } from '../api';
 import { diagramTarget, documentTarget, pageAt, pageTarget, workTarget } from '../navigation/targets';
@@ -120,7 +120,7 @@ export function PageView({ work, folder, name }: { work: Work; folder: string; n
   const trail = <Trail work={work.id} items={[{ label: workNumber(work.id), target: workTarget(work.id) }, { label: name }]} />;
   const problems = build && !build.ok ? build.problems : null;
   return <section className="page-view" aria-label={name}>
-    <Text render={<h1 />} className="visually-hidden">{name}</Text>
+    <VisuallyHidden render={<h1 />}>{name}</VisuallyHidden>
     <div className="page-view-trail">{trail}</div>
     <div className="page-view-body">
       <iframe ref={frame} className="page-frame" title={name} src={frameUrl()} onLoad={started} sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-downloads allow-popups"

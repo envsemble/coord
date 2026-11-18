@@ -2,7 +2,7 @@
 // it follows (stable or nightly), and the title bar's update button, which shows only while a newer build
 // is on offer, downloading or ready. Main checks on its own; downloading and restarting are the
 // person's clicks.
-import { useEffect, useId, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Button, List, Progress, Select, Text, Tooltip } from '@envsemble/envui';
 import type { UpdateChannel, UpdateState } from '../types';
 import { api } from '../api';
@@ -50,11 +50,10 @@ const channels: { value: UpdateChannel; label: string; description: string }[] =
 ];
 
 /**
- * Settings › Updates, as two setting rows: the version with where its update stands and the one
- * action that moves it on, and the channel, chosen at the row's end.
+ * Settings › Updates: a setting row with the version, where its update stands and the one action
+ * that moves it on, and the channel, a field under it.
  */
 export function UpdatesSection() {
-  const id = useId();
   const state = useUpdates();
   if (!state) return null;
   const channel = channels.find(item => item.value === state.channel) ?? channels[0];
@@ -68,12 +67,11 @@ export function UpdatesSection() {
     </Text>}
     <List.Root className="settings-rows" aria-label="Updates">
       <UpdateStatusRow state={state} />
-      {!off && <List.Item className="settings-row" label={<span id={id + '-title'}>Channel</span>}
-        description={<span id={id + '-detail'}>{leavingNightly ? 'This is a nightly build: Coord moves to stable with the next stable release newer than it, never back to an older one.' : channel.description}</span>}
-        end={<Select className="settings-row-select" aria-labelledby={id + '-title'} aria-describedby={id + '-detail'} value={state.channel}
-          onValueChange={value => { if (value) void api.setUpdateChannel(value as UpdateChannel).catch(() => {}); }}
-          items={channels} />} />}
     </List.Root>
+    {!off && <Select className="settings-field" label="Channel" value={state.channel}
+      description={leavingNightly ? 'This is a nightly build: Coord moves to stable with the next stable release newer than it, never back to an older one.' : channel.description}
+      onValueChange={value => { if (value) void api.setUpdateChannel(value as UpdateChannel).catch(() => {}); }}
+      items={channels} />}
   </>;
 }
 

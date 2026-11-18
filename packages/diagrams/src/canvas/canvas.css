@@ -66,7 +66,7 @@
 /* The grid is drawn in the diagram's own coordinates, which are pixels:
    camera.js scales it with the camera and steps its density from these
    sizes (GRID_OVERHANG is the inset). */
-/* stylelint-disable unit-disallowed-list -- diagram coordinates are pixels */
+/* stylelint-disable envui/no-px, envui/no-off-scale-values -- diagram coordinates are pixels */
 .canvas-grid {
   position: absolute;
   inset: -64px;
@@ -75,7 +75,7 @@
   background-size: 20px 20px;
   will-change: transform;
 }
-/* stylelint-enable unit-disallowed-list */
+/* stylelint-enable envui/no-px, envui/no-off-scale-values */
 /* An element that can be dragged shows it; one being dragged follows the
    hand. */
 #canvas.arrangeable .node {

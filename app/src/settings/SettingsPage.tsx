@@ -1,12 +1,13 @@
-// Settings (the title bar's Settings), a page of the window with four sections, each a tab of its
+// Settings (the title bar's Settings), a page of the window with four sections, each a place of its
 // own: General, the app's appearance; Agents, the agents on this computer that Coord connects (Claude
 // Code and Codex); Computers, pairing in both directions: the other computers this one connects to,
 // and the devices that can reach the window's computer; and Updates, this app's version, release
-// channel and update. The tabs stand in a column beside the section, or in a row above it where the
-// page is narrow. In a window on another computer, Agents is still this computer's (it installs
-// here), Devices that can reach follows the window's computer, and Other computers is this computer's.
+// channel and update. The sections are a side list beside the section shown, or a segmented control
+// above it where the page is narrow. In a window on another computer, Agents is still this computer's
+// (it installs here), Devices that can reach follows the window's computer, and Other computers is
+// this computer's.
 import { useId, useRef, type ReactNode } from 'react';
-import { Alert, Tabs, Text, useContainerSize, windowClassOf } from '@envsemble/envui';
+import { Alert, NavigationDrawer, SegmentedControl, Text, useContainerSize, windowClassOf } from '@envsemble/envui';
 import type { ComputerRef, SettingsSection } from '../types';
 import { AgentIcon, ComputerIcon, SettingsIcon, UpdateIcon } from '../ui/icons';
 import { Page } from '../ui/Page';
@@ -19,7 +20,7 @@ import { ThemeChoice } from './Appearance';
 export function SettingsPage({ section, computer, go }: { section: SettingsSection; computer: ComputerRef; go(section: SettingsSection): void }) {
   const frame = useRef<HTMLDivElement>(null);
   const size = useContainerSize(frame);
-  // The tabs keep a column of their own once the page has room beside the section.
+  // The sections keep a column of their own once the page has room beside the section.
   const beside = size !== undefined && !['compact', 'medium'].includes(windowClassOf(size.inlineSize));
   const sections: { id: SettingsSection; label: string; icon: ReactNode; content: ReactNode }[] = [
     { id: 'general', label: 'General', icon: <SettingsIcon />, content: <SettingsGroup title="Appearance"><ThemeChoice /></SettingsGroup> },
@@ -27,12 +28,15 @@ export function SettingsPage({ section, computer, go }: { section: SettingsSecti
     { id: 'computers', label: 'Computers', icon: <ComputerIcon />, content: <ComputersSection computer={computer} /> },
     { id: 'updates', label: 'Updates', icon: <UpdateIcon />, content: <SettingsGroup title="Updates" aside={thisComputer}><UpdatesSection /></SettingsGroup> },
   ];
+  const shown = sections.find(item => item.id === section) ?? sections[0]!;
   return <Page className="settings-page" title="Settings" width="lg">
-    <div ref={frame} className="settings-frame">
-      <Tabs aria-label="Settings" className="settings-tabs" data-beside={beside || undefined} orientation={beside ? 'vertical' : 'horizontal'}
-        listClassName="settings-tab-list" panelClassName="settings-panel" activation="manual"
-        value={section} onValueChange={value => { if (value) go(value as SettingsSection); }}
-        items={sections.map(item => ({ value: item.id, label: item.label, icon: item.icon, content: <div className="settings-content">{item.content}</div> }))} />
+    <div ref={frame} className="settings-frame" data-beside={beside || undefined}>
+      {beside
+        ? <NavigationDrawer aria-label="Settings" className="settings-sections" background="page"
+          destinations={sections.map(item => ({ id: item.id, label: item.label, icon: item.icon, current: item.id === shown.id, onClick: () => go(item.id) }))} />
+        : <SegmentedControl aria-label="Settings" className="settings-sections" value={shown.id} onValueChange={value => go(value as SettingsSection)}
+          items={sections.map(item => ({ value: item.id, label: item.label, icon: item.icon }))} />}
+      <div className="settings-content">{shown.content}</div>
     </div>
   </Page>;
 }

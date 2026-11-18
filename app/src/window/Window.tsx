@@ -5,7 +5,7 @@
 // project's statistics or Settings. A plan and its pages have the plan's own files at their left,
 // and the parts of the work it belongs to in a rail at their right.
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { Alert, Breadcrumbs, Button, Panes, Popover, Scaffold, Spinner, TopBar, useToast } from '@envsemble/envui';
+import { Alert, Breadcrumbs, Button, Panes, Popover, Scaffold, Sheet, Spinner, TopBar, useContainerSize, useToast, windowClassOf } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
 import { ErrorIcon, WarningIcon } from '../ui/icons';
 import type { MenuCommand } from '../../shared/contract';
@@ -24,7 +24,6 @@ import { PartsRail, partsGroup } from '../plan/PartsRail';
 import { FilePage } from '../reader/FilePage';
 import { Hub, type HubFilters } from '../hub/Hub';
 import { NewProjectDialog, type ProjectActions } from '../projects/ProjectDialogs';
-import { ProjectAvatar } from '../projects/ProjectMenu';
 import { Gone, Page } from '../ui/Page';
 import { TitleBarStart, type WindowMenus } from '../titleBar/TitleBar';
 import { revealIds } from '../files/explorerModel';
@@ -470,7 +469,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   // All plans' statistics: every active project together.
   else if (isPage(placed) && !placed.projectId) content = <Suspense fallback={loadingPage}><AllStatisticsPage revision={statisticsMark} trail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: 'Statistics' }]} />} /></Suspense>;
   else content = <ProjectContent place={placed} folder={readFolder} project={owner} scope={scope} read={read}
-    statisticsTrail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: projectOf(reading) ? <span className="breadcrumb-project"><ProjectAvatar project={projectOf(reading)!} />{projectOf(reading)!.name}</span> : 'Project', onClick: projectOf(reading)?.state === 'archived' ? undefined : () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
+    statisticsTrail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: projectOf(reading)?.name ?? 'Project', onClick: projectOf(reading)?.state === 'archived' ? undefined : () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
 
   // The plan's files, in the Scaffold's navigation region at the left from a medium width up, while a
   // plan, its pages or one of its files show.
@@ -481,7 +480,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
     navigation={files ? { drawer: files } : undefined} navigationForms={files ? { compact: 'none', medium: 'drawer', expanded: 'drawer', large: 'drawer' } : { compact: 'none', medium: 'none', expanded: 'none', large: 'none' }}
     topBar={<TopBar titleBar className="window-title-bar"
       start={<TitleBarStart info={info} menus={menus} onError={warn} />}
-      actions={<>
+      end={<>
         <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />
         {scope && read && <Health issues={read.snapshot.issues} open={work => go({ projectId: scope.projectId, target: workTarget(work) })} />}
       </>} />}>
@@ -597,21 +596,30 @@ function ProjectContent({ place, folder, project, scope, read, statisticsTrail }
 }
 
 /**
- * A page of a plan (the plan, its statistics, a file): with the parts rail beside it, in envUI's
- * supporting pane, when the work item is made of parts or is one of them. In a narrow window the rail
- * is a sheet that Parts opens. A diagram fills the window instead.
+ * A page of a plan (the plan, its statistics, a file): with the parts rail beside it, in a pane of
+ * envUI's Panes, when the work item is made of parts or is one of them. Where the window is narrower
+ * than the expanded class the rail is a sheet that Parts opens instead, which closes as another part
+ * shows. A diagram fills the window instead.
  */
 function PlanFrame({ work, snapshot, children }: { work: Work | null; snapshot: Snapshot; children: ReactNode }) {
-  const [open, setOpen] = useState(false);
+  const frame = useRef<HTMLDivElement>(null);
+  const size = useContainerSize(frame);
+  const [openFor, setOpenFor] = useState<string | null>(null);
   const group = partsGroup(work, snapshot);
   if (!group || !work) return children;
-  return <Panes.Root behavior="supporting" open={open} onOpenChange={setOpen} defaultWidth={18} className="plan-frame">
-    <Panes.Main label={work.title} className="plan-frame-page">
-      <Panes.Trigger variant="secondary" size="sm" className="parts-trigger">Parts</Panes.Trigger>
+  const label = 'Parts of ' + workNumber(group.id);
+  const rail = <PartsRail group={group} shown={work.id} />;
+  const beside = size === undefined || !['compact', 'medium'].includes(windowClassOf(size.inlineSize));
+  return <div ref={frame} className="plan-frame">
+    {beside ? <Panes.Root sized="end" defaultWidth={18} className="plan-frame-panes">
+      <Panes.Pane label={work.title} className="plan-frame-page">{children}</Panes.Pane>
+      <Panes.Pane label={label} className="plan-frame-parts">{rail}</Panes.Pane>
+    </Panes.Root> : <>
+      <Sheet aria-label={label} open={openFor === work.id} onOpenChange={open => setOpenFor(open ? work.id : null)}
+        trigger={<Button variant="secondary" size="sm" className="parts-trigger">Parts</Button>}>{rail}</Sheet>
       {children}
-    </Panes.Main>
-    <Panes.Supporting label={'Parts of ' + workNumber(group.id)} className="plan-frame-parts"><PartsRail group={group} shown={work.id} /></Panes.Supporting>
-  </Panes.Root>;
+    </>}
+  </div>;
 }
 
 /** Record health of the shown project: problems in its planning records, each linking to its work item. */

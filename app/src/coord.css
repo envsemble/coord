@@ -1,19 +1,7 @@
 /* Coord on envUI: the layout of Coord's own regions. Colours, type, controls and their states come
    from envUI components and tokens; nothing here restyles an envUI component's insides. */
 
-/* What is selected (a menu's or a select's chosen option, a selected row, the current destination)
-   is marked in envUI's neutral layer under the text's own color, not its blue: the accent stays for
-   actions. Every selection keeps envUI's second cue, a check, a bar or a dot. The neutral tokens
-   carry their own values per theme and contrast, so one rule covers them all. */
-.env-theme {
-  --env-color-bg-selected: var(--env-color-bg-neutral-muted-hover);
-  --env-color-bg-selected-hover: var(--env-color-bg-neutral-muted-pressed);
-  --env-color-bg-selected-pressed: var(--env-color-bg-neutral-muted-pressed);
-  --env-color-fg-on-selected: var(--env-color-fg-default);
-}
-
 html, body, #root { min-block-size: 100%; }
-body { margin: 0; }
 /* envUI's type is regular or medium: emphasis in the interface is medium, not bold. Bold in a
    document's Markdown is its author's and stays. */
 :is(strong, b):not(.env-markdown *) { font-weight: 500; }
@@ -51,8 +39,6 @@ body { margin: 0; }
 /* The logo is only a picture: Plans goes to every plan. */
 .title-bar-logo { display: inline-flex; align-items: center; justify-content: center; inline-size: var(--env-control-height-sm); block-size: var(--env-control-height-sm); flex: none; }
 .title-bar-logo svg { inline-size: 1.25rem; block-size: 1.25rem; }
-/* Coord Dev's Dev tag opens its menu (titleBar/BuildBadge.tsx): its button lets the badge keep its own colours, which a button otherwise turns to an outline. */
-.build-badge-button { --env-badge-fg: initial; --env-badge-bg: initial; --env-badge-border: initial; }
 /* A nightly build's tag: deep night blue with pale blue text, in either theme. Its own colours,
    not envUI's tokens, which have no night blue (the user's choice). */
 /* stylelint-disable color-no-hex -- the night blue chosen for the Nightly tag */
@@ -105,7 +91,7 @@ body { margin: 0; }
 /* The title is the row's link, not a control of its own: the row reacts to hover and presses, the
    title keeps its colour, with no underline or pressed fill of its own. */
 .hub-row-link:is(:hover, :active) { background: none; color: inherit; text-decoration: none; }
-.hub-row-link:focus-visible { outline: 0.125rem solid var(--env-color-border-focus); outline-offset: 0.125rem; border-radius: 0.25rem; }
+.hub-row-link:focus-visible { outline: 0.125rem solid var(--env-color-border-focus); outline-offset: 0.125rem; border-radius: var(--env-radius-xs); }
 .hub-row-large .hub-row-link { font-weight: 500; }
 .hub-row-number, .hub-row-project, .hub-row-updated { color: var(--env-color-fg-muted); font-variant-numeric: tabular-nums; }
 .hub-row-number { flex: none; font: var(--env-type-body-sm); }
@@ -134,11 +120,11 @@ body { margin: 0; }
 .search-tip { color: var(--env-color-fg-muted); font: var(--env-type-body-sm); }
 .search-tip-gap { display: inline-block; inline-size: var(--env-space-4); }
 /* A search to try, as it would be typed. */
-.search-try { font: inherit; font-family: var(--env-font-family-mono, ui-monospace, monospace); font-size: 0.9em; }
+.search-try { font: inherit; font-family: ui-monospace, monospace; font-size: 0.9em; }
 /* The search's panel is envUI's CommandPalette as it is, on a solid raised fill so the page behind
    doesn't show through the text: the kinds of result are told apart by their headings and the space
    between them, the results by their titles, and the highlighted one by the table's row hover. */
-.search-popup.env-command-palette { --env-popup-fill: var(--env-color-bg-raised); --env-popup-opacity: 100%; }
+.search-popup.env-command-palette { --env-popup-opacity: 100%; }
 .search-popup .env-list-row-label { font-size: 0.875rem; }
 .search-popup .env-list-row .env-icon { color: var(--env-color-fg-muted); }
 .search-popup .env-list-row:is([data-highlighted], [data-popup-open]) { background: var(--env-color-bg-row-hover); }
@@ -178,27 +164,18 @@ body { margin: 0; }
 .plan-files-heading { margin: 0; padding-inline-start: var(--env-space-2); color: var(--env-color-fg-muted); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
 .plan-files-tree { flex: 1; min-block-size: 0; overflow-y: auto; }
 .plan-files-empty { margin: 0; padding: var(--env-space-1) var(--env-space-2); }
-/* The parts rail: envUI's supporting pane beside a plan and its pages when the work is made of parts
+/* The parts rail: a pane of envUI's Panes beside a plan and its pages when the work is made of parts
    or is one of them, staying in view as the page scrolls with the body, as the panes' own scrolling
-   would where the panes had the window's height. */
-.plan-frame-parts > .parts-rail { position: sticky; inset-block-start: 0; padding: var(--env-space-6) var(--env-space-4); }
-.plan-frame > .env-panes-main { overflow: visible; }
-/* Below the panes' split the rail is envUI's sheet: pinned to the window under the title bar, as envUI
-   pins it where the document scrolls, rather than to the end of a long page. */
-@container env-panes (width < 52.5rem) {
-  .plan-frame > .env-panes-supporting { position: fixed; z-index: var(--env-z-modal); }
-  .plan-frame > .env-panes-backdrop { position: fixed; inset-block-start: max(env(titlebar-area-height, 0rem), var(--env-title-bar-height)); z-index: var(--env-z-backdrop); }
-}
-@container env-panes (37.5rem <= width < 52.5rem) {
-  .plan-frame > .env-panes-supporting { inset-block-start: max(env(titlebar-area-height, 0rem), var(--env-title-bar-height)); }
-}
+   would where the panes had the window's height. In a narrower window it is a sheet. */
+.plan-frame-parts .parts-rail { position: sticky; inset-block-start: 0; padding: var(--env-space-6) var(--env-space-4); }
+.plan-frame-panes > .env-panes-pane > .env-panes-body { overflow: visible; }
 .parts-trigger { margin: var(--env-space-4) var(--env-space-5) 0; }
 .parts-rail { display: grid; gap: var(--env-space-1); font-size: var(--env-font-size-body-sm); }
 .parts-rail-heading { margin: 0 0 var(--env-space-1); font-weight: 500; }
 /* A row: its place in the order, its status, its title over its number and steps. The one shown is
    marked by a bar at its start and its title's weight. */
 .parts-rail-item { position: relative; display: grid; grid-template-columns: 1.25rem auto minmax(0, 1fr); align-items: start; gap: var(--env-space-2); padding-block: var(--env-space-1); }
-.parts-rail-item[aria-current='page']::before { content: ''; position: absolute; inset-block: var(--env-space-1); inset-inline-start: calc(-1 * var(--env-space-2)); inline-size: 0.125rem; border-radius: 0.0625rem; background: var(--env-color-fg-primary); }
+.parts-rail-item[aria-current='page']::before { content: ''; position: absolute; inset-block: var(--env-space-1); inset-inline-start: calc(-1 * var(--env-space-2)); inline-size: 0.125rem; border-radius: 0.0625rem; background: var(--env-color-bg-primary-emphasis); }
 .parts-rail-item[aria-current='page'] .parts-rail-link { font-weight: 500; }
 .parts-rail-item .status-icon { inline-size: 1rem; block-size: 1rem; margin-block-start: 0.125rem; }
 .parts-rail-index { color: var(--env-color-fg-muted); font-variant-numeric: tabular-nums; text-align: end; }
@@ -230,24 +207,12 @@ body { margin: 0; }
 /* Pages in teal, apart from the plan's blue, the ledger's green, the glossary's amber and the diagrams' purple. */
 .explorer-special[data-file='page'] { color: var(--env-color-fg-avatar-seafoam); }
 /* A page that needs its user: a dot in the needs-you colour. */
-.attention-dot { display: inline-block; flex: none; inline-size: 0.5rem; block-size: 0.5rem; border-radius: 50%; background: var(--env-color-fg-warning); vertical-align: middle; }
-/* The file shown on a quiet neutral fill rather than the selection blue, clearly stronger than a row
-   under the pointer (a fainter row hover than envUI's here), in the default text colour and a little heavier. */
+.attention-dot { display: inline-block; flex: none; inline-size: 0.5rem; block-size: 0.5rem; border-radius: 50%; background: var(--env-color-bg-warning-emphasis); vertical-align: middle; }
+/* A row under the pointer takes a fainter hover than envUI's here, so the file shown, on envUI's
+   neutral selection, stands clearly apart from it. */
 .plan-files .env-tree-item:not([aria-selected='true']):hover { background: color-mix(in srgb, var(--env-color-bg-row-hover) 45%, transparent); }
-/* The files' edge: under the pointer, or while dragged, a line the full height of the pane in
-   a gray a little lighter than the page marks where it will resize, as soon as the cursor changes; the grip's dots give way to it. */
-.plan-files .env-resize-handle::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: calc(50% - var(--env-control-border-width) / 2); inline-size: var(--env-control-border-width); background: transparent; }
-.plan-files .env-resize-handle:is(:hover, [data-resizing])::before { background: var(--env-color-bg-neutral-muted-hover); }
-.plan-files .env-resize-handle:is(:hover, [data-resizing]) { --env-resize-handle-grip-color: transparent; }
-/* A narrow grip, as an editor's: the line shows only while the pointer is on the edge itself, and goes as soon as it moves off after a drag. */
-.plan-files .env-navigation-drawer-resize-handle { --env-resize-handle-size: var(--env-space-2); }
-/* Compact rows with a squarer selection, as an editor's explorer has them. */
-.plan-files .env-tree { --env-tree-item-padding: 0.125rem; }
-.plan-files .env-tree-item { border-radius: 0.25rem; }
-.plan-files .env-tree-item[aria-selected='true'] { background: color-mix(in srgb, var(--env-color-bg-neutral-muted) 70%, transparent); color: var(--env-color-fg-default); }
-.plan-files .env-tree-item[aria-selected='true']:hover { background: var(--env-color-bg-neutral-muted); }
-.plan-files .env-tree-item[aria-selected='true']:active { background: var(--env-color-bg-neutral-muted-hover); }
-.plan-files .env-tree-item[aria-selected='true'] :is(.env-tree-icon, .env-tree-chevron) { color: var(--env-color-fg-muted); }
+/* Squarer rows, as an editor's explorer has them (the tree's xs density makes them compact). */
+.plan-files .env-tree-item { border-radius: var(--env-radius-xs); }
 
 /* Pages */
 /* Page and section toolbars use compact controls, like the title bar. */
@@ -280,7 +245,7 @@ body { margin: 0; }
 .ledger-handoff[data-handoff='continues']:has(+ .ledger-handoff[data-handoff='continues']) { padding-block-end: 0; border-block-end: 0; }
 .handoff-ref { color: var(--env-color-fg-link); text-decoration: none; overflow-wrap: anywhere; }
 .handoff-ref:hover { text-decoration: underline; }
-.handoff-ref:focus-visible { outline: 0.125rem solid var(--env-color-border-focus); outline-offset: 0.125rem; border-radius: 0.25rem; }
+.handoff-ref:focus-visible { outline: 0.125rem solid var(--env-color-border-focus); outline-offset: 0.125rem; border-radius: var(--env-radius-xs); }
 .handoff-ref.muted { color: var(--env-color-fg-muted); }
 .step-icon { flex: none; inline-size: 1.125rem; block-size: 1.125rem; color: var(--env-color-fg-muted); }
 .step-icon[data-status='done'] { color: var(--env-color-fg-accent); }
@@ -328,7 +293,7 @@ body { margin: 0; }
 .work-status-fact + .work-status-fact::before { content: '·'; margin-inline-end: var(--env-space-2); }
 /* The plan's summary leads the page, under its status. */
 /* The request a plan records shows folded, its heading the toggle. */
-.request-fold-toggle { display: inline-flex; align-items: center; gap: var(--env-space-1); margin: 0 0 0 -0.25rem; padding: 0 0.25rem; border: 0; border-radius: 0.25rem; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.request-fold-toggle { display: inline-flex; align-items: center; gap: var(--env-space-1); margin: 0 0 0 calc(-1 * var(--env-space-1)); padding: 0 var(--env-space-1); border: 0; border-radius: var(--env-radius-xs); background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
 .request-fold-toggle:focus-visible { outline: 0.125rem solid var(--env-color-border-focus); outline-offset: 0.125rem; }
 .request-fold-icon { flex: none; inline-size: 1em; block-size: 1em; color: var(--env-color-fg-muted); transition: transform var(--env-motion-duration-fast) var(--env-motion-ease); }
 .request-fold-toggle[aria-expanded='true'] .request-fold-icon { transform: rotate(90deg); }
@@ -345,7 +310,7 @@ body { margin: 0; }
 .plan-aside { position: sticky; inset-block-start: calc(var(--coord-sticky-top) + var(--env-space-6)); display: grid; align-content: start; gap: var(--env-space-6); max-block-size: calc(100dvh - max(env(titlebar-area-height, 0rem), var(--env-title-bar-height)) - var(--coord-sticky-top) - var(--env-space-6)); overflow-y: auto; scrollbar-gutter: stable; padding-inline-end: var(--env-space-2); padding-block-end: var(--env-space-6); }
 .plan-aside::-webkit-scrollbar-thumb { background-color: transparent; }
 .plan-aside:is(:hover, :focus-within)::-webkit-scrollbar-thumb { background-color: var(--env-color-border-default); }
-.plan-aside:is(:hover, :focus-within)::-webkit-scrollbar-thumb:is(:hover, :active) { background-color: var(--env-color-fg-muted); }
+.plan-aside:is(:hover, :focus-within)::-webkit-scrollbar-thumb:is(:hover, :active) { background-color: var(--env-color-border-default-pressed); }
 .plan-aside[data-scrolls] { overscroll-behavior: contain; }
 .plan-aside-section { display: grid; gap: var(--env-space-2); }
 .plan-aside-heading { display: block; }
@@ -387,7 +352,8 @@ body { margin: 0; }
    length of a book's (tables, code and pictures keep the column's width), the text is a touch larger
    with more room between its lines, a section's heading stands apart from the section before and
    close to its own, and lists, links and code chips stay quiet. */
-.prose { --coord-measure: 72ch; --env-prose-list-item-gap: var(--env-space-2); font-size: calc(var(--env-font-size-body) + 0.0625rem); }
+.prose { --coord-measure: 72ch; font-size: calc(var(--env-font-size-body) + 0.0625rem); }
+.prose .env-prose :where(li + li) { margin-block-start: var(--env-space-2); }
 .prose :where(p, li, blockquote, dd, dt) { font-size: inherit; line-height: 1.65; }
 .prose .env-prose > :where(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6, dl), .prose .request-fold > :where(p, ul, ol) { max-inline-size: var(--coord-measure); }
 .prose .env-prose > :where(h2, h3, h4):not(:first-child) { margin-block-start: var(--env-space-8); }
@@ -429,7 +395,6 @@ body { margin: 0; }
 .file-page .file-name { color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); font-weight: var(--env-font-weight-regular); }
 
 /* Text for assistive technology only. */
-.visually-hidden { position: absolute; inline-size: 0.0625rem; block-size: 0.0625rem; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* Statistics */
 .stat-value { font-variant-numeric: tabular-nums; }
@@ -443,7 +408,7 @@ body { margin: 0; }
 .project-statistics-table { font-variant-numeric: tabular-nums; }
 /* Work over time: a column per day or week, its agent time stacked by model and effort; the time at
    least one agent worked as a line over them; the plans completed marked above a column. */
-.work-chart { position: relative; block-size: 14rem; padding-block: 1.25rem 1.5rem; }
+.work-chart { position: relative; block-size: 14rem; padding-block: 1.25rem var(--env-space-5); }
 .work-chart-bars { display: flex; align-items: stretch; gap: 0.125rem; block-size: 100%; border-block-end: 0.0625rem solid var(--env-color-border-default); }
 .work-chart-column { position: relative; flex: 1; display: flex; flex-direction: column; justify-content: flex-end; min-inline-size: 0; border-radius: 0.1875rem 0.1875rem 0 0; }
 .work-chart-column[data-shown] { background: color-mix(in srgb, var(--env-color-fg-default) 6%, transparent); }
@@ -452,9 +417,9 @@ body { margin: 0; }
 .work-chart-stack > span { flex-basis: 0; min-block-size: 0.0625rem; }
 .work-chart-stack > span + span { box-shadow: inset 0 -0.0625rem 0 var(--env-color-bg-page); }
 /* Plans completed: a ring in the text colour, which no model takes, with their number. */
-.work-chart-completed { position: absolute; inset-inline: 0; margin-block-end: 0.25rem; margin-inline: auto; box-sizing: border-box; inline-size: 1.125rem; block-size: 1.125rem; border: 0.09375rem solid var(--env-color-fg-default); border-radius: 50%; background: var(--env-color-bg-page); color: var(--env-color-fg-default); font-size: 0.6875rem; font-weight: 600; line-height: 0.9375rem; text-align: center; }
-.work-chart-label { position: absolute; inset-block-start: 100%; inset-inline-start: 50%; margin-block-start: 0.25rem; transform: translateX(-50%); color: var(--env-color-fg-muted); font-size: 0.6875rem; white-space: nowrap; }
-.work-chart-line { position: absolute; inset: 1.25rem 0 1.5rem; inline-size: 100%; block-size: calc(100% - 2.75rem); overflow: visible; pointer-events: none; }
+.work-chart-completed { position: absolute; inset-inline: 0; margin-block-end: var(--env-space-1); margin-inline: auto; box-sizing: border-box; inline-size: 1.125rem; block-size: 1.125rem; border: 0.09375rem solid var(--env-color-fg-default); border-radius: 50%; background: var(--env-color-bg-page); color: var(--env-color-fg-default); font-size: 0.6875rem; font-weight: 600; line-height: 0.9375rem; text-align: center; }
+.work-chart-label { position: absolute; inset-block-start: 100%; inset-inline-start: 50%; margin-block-start: var(--env-space-1); transform: translateX(-50%); color: var(--env-color-fg-muted); font-size: 0.6875rem; white-space: nowrap; }
+.work-chart-line { position: absolute; inset: 1.25rem 0 var(--env-space-5); inline-size: 100%; block-size: calc(100% - 2.75rem); overflow: visible; pointer-events: none; }
 .work-chart-line polyline { fill: none; stroke: var(--env-color-fg-default); stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; opacity: 0.7; }
 .work-chart-tip { position: absolute; inset-block-start: 0; z-index: calc(var(--env-z-raised) + 1); display: grid; gap: 0.125rem; inline-size: max-content; max-inline-size: 22rem; padding: var(--env-space-2) var(--env-space-3); border: 0.0625rem solid var(--env-color-border-default); border-radius: var(--env-radius-sm); background: var(--env-color-bg-popup, var(--env-color-bg-page)); box-shadow: 0 0.5rem 1.5rem -0.75rem color-mix(in srgb, var(--env-color-fg-default) 30%, transparent); font-size: var(--env-font-size-body-sm); pointer-events: none; transform: translateX(0.75rem); }
 .work-chart-tip[data-flip] { transform: translateX(calc(-100% - 0.75rem)); }
@@ -490,20 +455,20 @@ body { margin: 0; }
 .plan-statistics-table { font-variant-numeric: tabular-nums; }
 /* The timeline: a lane per session and subagent on one scale of time, working stretches solid,
    waits for the person in amber behind them, now a line at the end. */
-.timeline { position: relative; display: grid; gap: var(--env-space-1); padding-block-start: 1.5rem; --timeline-names: 14rem; }
+.timeline { position: relative; display: grid; gap: var(--env-space-1); padding-block-start: var(--env-space-5); --timeline-names: 14rem; }
 .timeline-axis { position: absolute; inset: 0 0 auto var(--timeline-names); block-size: 100%; pointer-events: none; }
-.timeline-tick { position: absolute; inset-block-start: 0; block-size: 100%; padding-inline-start: 0.25rem; border-inline-start: 0.0625rem solid color-mix(in srgb, var(--env-color-fg-default) 12%, transparent); color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); white-space: nowrap; }
+.timeline-tick { position: absolute; inset-block-start: 0; block-size: 100%; padding-inline-start: var(--env-space-1); border-inline-start: 0.0625rem solid color-mix(in srgb, var(--env-color-fg-default) 12%, transparent); color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); white-space: nowrap; }
 .timeline-lane { display: grid; grid-template-columns: var(--timeline-names) minmax(0, 1fr); align-items: center; min-block-size: 1.5rem; }
 .timeline-lane-name { overflow: hidden; padding-inline-end: var(--env-space-2); font-size: var(--env-font-size-body-sm); text-overflow: ellipsis; white-space: nowrap; }
 .timeline-lane[data-subagent] .timeline-lane-name { padding-inline-start: var(--env-space-4); color: var(--env-color-fg-muted); }
 .timeline-track { position: relative; block-size: 0.875rem; border-radius: var(--env-radius-sm); background: var(--env-color-bg-default); }
 .timeline-bar { position: absolute; inset-block: 0; min-inline-size: 0.125rem; border-radius: 0.125rem; }
-.timeline-bar[data-kind='working'], .timeline-key[data-kind='working'] { background: var(--env-color-fg-success); }
+.timeline-bar[data-kind='working'], .timeline-key[data-kind='working'] { background: var(--env-color-bg-success-emphasis); }
 .timeline-bar[data-kind='waiting'], .timeline-key[data-kind='waiting'] { background: color-mix(in srgb, var(--env-color-fg-warning) 55%, transparent); }
 .timeline-lane[data-subagent] .timeline-bar[data-kind='working'] { background: color-mix(in srgb, var(--env-color-fg-success) 60%, var(--env-color-bg-default)); }
-.timeline-now { position: absolute; inset-block: 1.25rem 0; inset-inline-end: 0; inline-size: 0.125rem; background: var(--env-color-fg-primary); }
-.timeline-key { display: inline-block; inline-size: 0.75rem; block-size: 0.75rem; margin-inline: var(--env-space-2) 0.25rem; border-radius: 0.125rem; vertical-align: -0.0625rem; }
-.timeline-key[data-kind='now'] { inline-size: 0.125rem; background: var(--env-color-fg-primary); }
+.timeline-now { position: absolute; inset-block: 1.25rem 0; inset-inline-end: 0; inline-size: 0.125rem; background: var(--env-color-bg-primary-emphasis); }
+.timeline-key { display: inline-block; inline-size: 0.75rem; block-size: 0.75rem; margin-inline: var(--env-space-2) var(--env-space-1); border-radius: 0.125rem; vertical-align: -0.0625rem; }
+.timeline-key[data-kind='now'] { inline-size: 0.125rem; background: var(--env-color-bg-primary-emphasis); }
 .timeline-legend { margin: 0; font-size: var(--env-font-size-body-sm); }
 /* Exploring the timeline: dragging moves along time, Shift and the wheel zoom; a stretch says on hover what it was. */
 .timeline { cursor: grab; user-select: none; border-radius: var(--env-radius-sm); }
@@ -525,8 +490,8 @@ body { margin: 0; }
 /* A value that says more on hover and focus takes envUI's dotted underline from its Tooltip
    (env-hover-detail); it adds none of its own. A headline figure shows none at rest: dots under
    large text read as a flaw, and its tooltip still opens on hover and focus. */
-.detailed { border-radius: 0.25rem; }
-.stat-value { --env-hover-detail-rest-color: transparent; }
+.detailed { border-radius: var(--env-radius-xs); }
+.stat-value .env-hover-detail:not(:hover, :focus-visible) { background-image: none; }
 .detailed:focus-visible { outline: 0.125rem solid var(--env-color-border-focus); outline-offset: 0.125rem; }
 .breakdown { display: grid; grid-template-columns: auto auto; row-gap: 0.125rem; margin: 0; font-variant-numeric: tabular-nums; }
 .breakdown > div { display: contents; }
@@ -539,7 +504,7 @@ body { margin: 0; }
 .work-statistics { display: grid; gap: var(--env-space-3); font-size: var(--env-font-size-body-sm); }
 .work-statistics-model { display: grid; justify-items: start; gap: 0.125rem; }
 .work-statistics-primary { font-size: var(--env-font-size-body); font-weight: 500; }
-.work-statistics-others { padding-inline-start: calc(1rem + 0.375rem); color: var(--env-color-fg-muted); }
+.work-statistics-others { padding-inline-start: calc(var(--env-space-4) + 0.375rem); color: var(--env-color-fg-muted); }
 .work-statistics-others .nowrap { white-space: nowrap; }
 .work-statistics-facts { display: grid; gap: var(--env-space-2); margin: 0; padding: 0; list-style: none; }
 .work-statistics-facts li { display: flex; align-items: center; gap: var(--env-space-2); }
@@ -552,7 +517,7 @@ body { margin: 0; }
 .row-link { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-2); padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
 .row-link:disabled { cursor: default; color: var(--env-color-fg-muted); }
 .row-link:not(:disabled):hover .row-link-title { text-decoration: underline; }
-.row-link:focus-visible { outline: 0.125rem solid var(--env-color-border-focus); outline-offset: 0.25rem; border-radius: 0.25rem; }
+.row-link:focus-visible { outline: 0.125rem solid var(--env-color-border-focus); outline-offset: 0.25rem; border-radius: var(--env-radius-xs); }
 .row-link-title { font-weight: 500; }
 .row-title { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--env-space-2); }
 
@@ -579,14 +544,12 @@ body { margin: 0; }
 .pairing-permissions { display: grid; gap: var(--env-space-2); margin: 0; padding: 0; border: 0; }
 .field-legend { margin-block-end: var(--env-space-1); padding: 0; font-weight: 500; }
 
-/* Settings: its sections as tabs in a column at the left, the one shown beside them; where the page
-   is narrow, the tabs are a row above it. A section holds its parts one under another, each with its
-   heading. The selected tab is marked in the text's own color, not the accent. */
-.settings-tabs { --env-tabs-selected-content: var(--env-color-fg-default); --env-tabs-indicator: var(--env-color-fg-default); }
-.settings-tabs[data-beside] { flex-direction: row; align-items: start; gap: var(--env-space-7); }
-.settings-tabs[data-beside] > .settings-tab-list { flex: none; inline-size: 11rem; }
-.settings-tabs[data-beside] > .env-tabs-panels { flex: 1; min-inline-size: 0; }
-.settings-tabs:not([data-beside]) > .env-tabs-panels { margin-block-start: var(--env-space-5); }
+/* Settings: its sections as a side list at the left, the one shown beside them; where the page is
+   narrow, a segmented control above it. A section holds its parts one under another, each with its
+   heading. */
+.settings-frame { display: grid; gap: var(--env-space-5); }
+.settings-frame[data-beside] { grid-template-columns: 11rem minmax(0, 1fr); align-items: start; gap: var(--env-space-7); }
+.settings-frame:not([data-beside]) > .settings-sections { justify-self: start; }
 .settings-content { display: grid; gap: var(--env-space-8); min-inline-size: 0; max-inline-size: 46rem; }
 .settings-group { display: grid; gap: var(--env-space-3); min-inline-size: 0; }
 .settings-group-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--env-space-2) var(--env-space-3); }
@@ -597,12 +560,12 @@ body { margin: 0; }
 /* A part within a section, such as Pair a device: the body size in medium, below the section heading. */
 .settings-subheading { margin: var(--env-space-3) 0 0; font-weight: var(--env-font-weight-medium); }
 .settings-group .section-toolbar > .settings-description { flex: 1 1 20rem; }
-/* A setting's row: its title and what it does, and its control at the end, which keeps its width
-   while the text wraps beside it. */
+/* A setting's row: its title and what it does, and its switch or action at the end, which keeps its
+   width while the text wraps beside it. A setting that takes a value is a field with its label above. */
 .settings-row { flex-wrap: nowrap; }
-.settings-row-select { flex: none; inline-size: 13rem; }
-.access-address { inline-size: 17rem; }
-.access-port { flex: none; inline-size: 7rem; }
+.settings-fields { display: grid; gap: var(--env-space-4); }
+.settings-field, .access-address, .access-port { inline-size: min(100%, 24rem); }
+.access-port > .env-text-field-control { inline-size: 7rem; }
 .settings-group .pairing-label { max-inline-size: 36rem; }
 .updates-progress { inline-size: min(100%, 24rem); }
 .updates-failure { color: var(--env-color-fg-danger); }
@@ -634,7 +597,7 @@ body { margin: 0; }
 .onboarding-count { margin: 0; color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); }
 .onboarding-progress { display: flex; gap: var(--env-space-1); margin-block-start: calc(-1 * var(--env-space-3)); }
 .onboarding-progress > span { flex: 1; block-size: 0.25rem; border-radius: 0.125rem; background: var(--env-color-bg-default); }
-.onboarding-progress > span[data-done] { background: var(--env-color-fg-primary); }
+.onboarding-progress > span[data-done] { background: var(--env-color-bg-primary-emphasis); }
 .onboarding-step { display: grid; gap: var(--env-space-4); align-content: start; min-block-size: 20rem; }
 .onboarding-step > svg { justify-self: start; }
 .onboarding-step > p { margin: 0; }
@@ -666,21 +629,18 @@ body { margin: 0; }
 ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
 ::-webkit-scrollbar-button { display: none; }
 ::-webkit-scrollbar-thumb { min-block-size: 2rem; border: 4px solid transparent; border-radius: var(--env-radius-full); background-color: var(--env-color-border-default); background-clip: padding-box; }
-::-webkit-scrollbar-thumb:is(:hover, :active) { border-width: 2px; background-color: var(--env-color-fg-muted); }
-:is(.env-button-group, .env-table-region, .env-tabs-list, textarea.env-text-field-input, .env-tree, .env-command-palette-list) { scrollbar-width: auto; }
+::-webkit-scrollbar-thumb:is(:hover, :active) { border-width: 2px; background-color: var(--env-color-border-default-pressed); }
+:is(.env-button-group, .env-table-region, textarea.env-text-field-input, .env-tree, .env-command-palette-list) { scrollbar-width: auto; }
 
 /* The computer menu: one line per computer, where it is muted at the end; the one this window
    works on marked by the selection's fill, as envUI fills a chosen item, without a check mark. */
 .computer-menu-where { color: var(--env-color-fg-muted); font: var(--env-type-body-sm); }
 .computer-menu-item[aria-current='true'] { background: var(--env-color-bg-neutral-muted-hover); }
 
-/* A project in the breadcrumbs: its avatar, as in the hub and the project menu, before its name. */
-.breadcrumb-project { display: inline-flex; align-items: center; gap: var(--env-space-2); }
-
 /* The hub's filters as one widget: the segmented control's capsule holds Open, Closed and All and
    then the filter menu's button, a segment's height and round, with a selected segment's fill while
    any of its filters is on. */
-.hub-filter-group { display: inline-flex; align-items: center; gap: var(--env-segmented-control-gap, 0.125rem); padding-inline-end: 0.1875rem; border-radius: var(--env-radius-full); background: var(--env-color-bg-neutral-muted); }
+.hub-filter-group { display: inline-flex; align-items: center; gap: 0.125rem; padding-inline-end: 0.1875rem; border-radius: var(--env-radius-full); background: var(--env-color-bg-neutral-muted); }
 .hub-filter-group .env-segmented-control { --env-segmented-control-container: transparent; }
 .hub-filter-group .hub-filters { position: relative; flex: none; inline-size: calc(var(--env-control-height-sm) - 0.375rem); block-size: calc(var(--env-control-height-sm) - 0.375rem); min-inline-size: 0; border-radius: var(--env-radius-full); }
 .hub-filter-group .hub-filters[data-active] { background: var(--env-color-bg-neutral-strong); color: var(--env-color-fg-default); }
@@ -690,11 +650,3 @@ body { margin: 0; }
    that line stays centred in the segment. */
 .env-segmented-control-item:has(.env-segmented-control-item-count) { flex-wrap: wrap; align-content: center; align-items: baseline; }
 
-/* Tables in the light theme: envUI's header band was close to the light page, so a table melted
-   into it. There the band is lighter, so the table's white surface reads against the page, as the
-   dark theme's raised surface does; no extra edges. */
-.env-table { --env-table-band: light-dark(color-mix(in srgb, var(--env-color-bg-neutral-muted) 45%, transparent), var(--env-color-bg-neutral-muted)); }
-/* The hub's controls in the light theme take the tables' white surface, not a gray on the gray page. */
-.hub :is(.hub-project, .hub-statistics) { --env-button-container: light-dark(var(--env-color-bg-raised), var(--env-color-bg-neutral-muted)); }
-.hub-filter-group { background: light-dark(var(--env-color-bg-raised), var(--env-color-bg-neutral-muted)); }
-.hub-filter-group .env-segmented-control { --env-segmented-control-thumb: light-dark(var(--env-color-bg-neutral-muted), var(--env-color-bg-neutral-strong-hover)); }

@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { defineConfig } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 import { defaultClientConditions, searchForWorkspaceRoot, type Plugin } from 'vite';
-import { themeStorageKey } from './shared/theme';
+import { coordTheme } from './shared/theme';
 import { pagePolicy } from './shared/pagePolicy';
 
 // The production policy is also sent as a header by the coord:// protocol (main/windows/protocol.ts).
@@ -32,7 +32,7 @@ async function themeScript() {
   for (let attempt = 0; ; attempt++) {
     try {
       const { createThemeBootstrapScript } = await import('@envsemble/envui/theme-bootstrap');
-      return createThemeBootstrapScript({ storageKey: themeStorageKey });
+      return createThemeBootstrapScript(coordTheme);
     } catch (error) {
       if (attempt >= 40) throw error;
       await new Promise(done => setTimeout(done, 250));

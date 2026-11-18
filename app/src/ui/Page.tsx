@@ -1,8 +1,7 @@
 // A page of the window, on envUI's Page and PageHeader: the trail, the title with what goes beside it
 // (meta) and under it (description), the page's actions and its toolbar; and a page for something gone.
 import type { ReactNode } from 'react';
-import { Column, Page as EnvPage, PageHeader } from '@envsemble/envui';
-import { Code } from '@envsemble/envui/code';
+import { Code, Column, Page as EnvPage, PageHeader } from '@envsemble/envui';
 import { EmptyState } from './EmptyState';
 import { ErrorIcon } from './icons';
 
