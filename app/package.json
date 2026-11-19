@@ -36,7 +36,7 @@
   "devDependencies": {
     "@electron/fuses": "1.8.0",
     "@envsemble/coord": "*",
-    "@envsemble/envui": "file:../../../envui-2.0.0-tarballs/envsemble-envui-2.0.0.tgz",
+    "@envsemble/envui": "^2.0.0",
     "@pierre/diffs": "1.6.4",
     "@pierre/theme": "2.0.0",
     "@playwright/test": "1.64.0",

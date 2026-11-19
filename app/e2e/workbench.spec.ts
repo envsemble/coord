@@ -59,6 +59,7 @@ test("the hub's search button opens the search and it never filters the hub; the
   // A click opens the search; what is typed goes there, and the hub's list stays as it is.
   await trigger.click();
   await expect(popup).toBeVisible();
+  await expect(input).toBeFocused();
   await window.keyboard.type('payment');
   await expect(input).toHaveValue('payment');
   await expect(popup.getByRole('option', { name: /^Saved payment methods/ })).toHaveCount(2);
@@ -69,6 +70,7 @@ test("the hub's search button opens the search and it never filters the hub; the
   // Enter on it opens it again, empty.
   await window.keyboard.press('Enter');
   await expect(input).toHaveValue('');
+  await expect(input).toBeFocused();
   await window.keyboard.type('fulfil harbor');
   await expect(hubRows(window)).toHaveCount(6);
   await popup.getByRole('option', { name: /Order fulfilment model.*Harbor/ }).click();
