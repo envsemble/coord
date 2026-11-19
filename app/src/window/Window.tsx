@@ -26,6 +26,7 @@ import { Hub, type HubFilters } from '../hub/Hub';
 import { NewProjectDialog, type ProjectActions } from '../projects/ProjectDialogs';
 import { Gone, Page } from '../ui/Page';
 import { TitleBarStart, type WindowMenus } from '../titleBar/TitleBar';
+import { ProjectAvatar } from '../projects/ProjectMenu';
 import { revealIds } from '../files/explorerModel';
 import { ReadingContext, WindowContext, type Notify, type OpenOptions, type WindowActions, type WindowReading } from './windowContext';
 import { arrived, liveActivity } from '../plan/agentTime';
@@ -469,7 +470,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   // All plans' statistics: every active project together.
   else if (isPage(placed) && !placed.projectId) content = <Suspense fallback={loadingPage}><AllStatisticsPage revision={statisticsMark} trail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: 'Statistics' }]} />} /></Suspense>;
   else content = <ProjectContent place={placed} folder={readFolder} project={owner} scope={scope} read={read}
-    statisticsTrail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: projectOf(reading)?.name ?? 'Project', onClick: projectOf(reading)?.state === 'archived' ? undefined : () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
+    statisticsTrail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: projectOf(reading)?.name ?? 'Project', start: projectOf(reading) ? <ProjectAvatar project={projectOf(reading)!} /> : undefined, onClick: projectOf(reading)?.state === 'archived' ? undefined : () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
 
   // The plan's files, in the Scaffold's navigation region at the left from a medium width up, while a
   // plan, its pages or one of its files show.
@@ -615,7 +616,7 @@ function PlanFrame({ work, snapshot, children }: { work: Work | null; snapshot: 
   return <div ref={setFrame} className="plan-frame">
     <Panes.Root sized="end" defaultWidth={18} className="plan-frame-panes">
       <Panes.Pane label={work.title} className="plan-frame-page">
-        {!beside && <Sheet aria-label={label} open={openFor === work.id} onOpenChange={open => setOpenFor(open ? work.id : null)}
+        {!beside && <Sheet className="parts-sheet" aria-label={label} open={openFor === work.id} onOpenChange={open => setOpenFor(open ? work.id : null)}
           trigger={<Button variant="secondary" size="sm" className="parts-trigger">Parts</Button>}>{rail}</Sheet>}
         {children}
       </Panes.Pane>

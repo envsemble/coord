@@ -4,7 +4,7 @@ import { DevelopmentApp } from "./DevelopmentApp";
 import "../src/viewer/viewer.css";
 import "../src/canvas/canvas.css";
 
-const theme = defineTheme({ storageKey: "coord-theme" });
+const theme = defineTheme({ storageKey: "coord-theme", selection: "accent" });
 
 createRoot(document.getElementById("root")).render(
   <ThemePreferenceProvider theme={theme} className="coord-page">

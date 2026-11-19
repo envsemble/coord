@@ -9,8 +9,12 @@
 .coord-page,
 .coord-panel {
   --canvas: var(--env-color-bg-page);
-  /* Elements sit on the canvas as surfaces sit on a page. */
-  --surface: var(--env-color-bg-default);
+  /* Elements sit on the canvas as surfaces sit on a page: white boxes in light, which raise them off
+     the white canvas by their edges, and the default surface in dark. */
+  --surface: light-dark(
+    var(--env-color-bg-raised),
+    var(--env-color-bg-default)
+  );
   --text: var(--env-color-fg-default);
   --grid: light-dark(
     var(--env-color-border-muted),

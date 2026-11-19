@@ -3536,7 +3536,7 @@ function useChangeReview({
         {
           content: showing ? "Hide the changes" : "Show every change",
           side: "bottom",
-          children: /* @__PURE__ */ jsxs12(
+          children: /* @__PURE__ */ jsx19(
             Button3,
             {
               variant: showing ? "secondary" : "ghost",
@@ -3544,11 +3544,9 @@ function useChangeReview({
               "aria-pressed": showing,
               "aria-label": `Changes, ${rollup.count}`,
               startIcon: /* @__PURE__ */ jsx19(IconDifference, {}),
+              end: /* @__PURE__ */ jsx19(Badge3, { count: rollup.count }),
               onClick: onToggle,
-              children: [
-                /* @__PURE__ */ jsx19("span", { className: "collapsible-label", children: "Changes" }),
-                /* @__PURE__ */ jsx19(Badge3, { count: rollup.count })
-              ]
+              children: /* @__PURE__ */ jsx19("span", { className: "collapsible-label", children: "Changes" })
             }
           )
         }

@@ -5,7 +5,7 @@ import { ViewerErrorBoundary } from "./viewer/ViewerErrorBoundary";
 
 // The offline file has no host, so envUI owns its theme: the stored choice
 // (key shared with the startup script in buildViewer) or the system theme.
-const theme = defineTheme({ storageKey: "coord-theme" });
+const theme = defineTheme({ storageKey: "coord-theme", selection: "accent" });
 
 createRoot(document.getElementById("root")).render(
   <ThemePreferenceProvider theme={theme} className="coord-page">

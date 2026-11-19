@@ -229,6 +229,7 @@ async function bundleClient() {
     notices,
     themeBootstrap: createThemeBootstrapScript({
       storageKey: THEME_STORAGE_KEY,
+      selection: "accent",
     }),
   };
 }
