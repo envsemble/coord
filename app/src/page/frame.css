@@ -2,4 +2,5 @@
 html, body, #root { block-size: 100%; margin: 0; }
 .page-theme { box-sizing: border-box; min-block-size: 100%; background: var(--env-color-bg-page); color: var(--env-color-fg-default); }
 .page-failed { padding: var(--env-space-5); }
-.coord-page-diagram { position: relative; inline-size: 100%; }
+/* A diagram on a page, framed by a hairline so its canvas stands apart from the page around it. */
+.coord-page-diagram { position: relative; box-sizing: border-box; inline-size: 100%; overflow: hidden; border: var(--env-control-border-width) solid var(--env-color-border-muted); border-radius: var(--env-radius-sm); }

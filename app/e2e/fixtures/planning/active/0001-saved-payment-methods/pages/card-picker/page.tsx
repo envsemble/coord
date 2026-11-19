@@ -23,7 +23,7 @@ export default function CardPicker() {
         <Column gap={2}>
           <Row gap={2} align="center"><IconCreditCard /><Text variant="title">{option.title}</Text>{layout.value === option.key && <Badge tone="success">Chosen</Badge>}</Row>
           <Text>{option.summary}</Text>
-          <Button variant={layout.value === option.key ? 'primary' : 'outline'} disabled={layout.closed} onClick={() => void layout.choose(option.key)}>Choose {option.title}</Button>
+          <Button variant={layout.value === option.key ? 'primary' : 'secondary'} disabled={layout.closed} onClick={() => void layout.choose(option.key)}>Choose {option.title}</Button>
         </Column>
       </Card>)}
     </Row>

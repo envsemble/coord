@@ -175,7 +175,7 @@ html, body, #root { min-block-size: 100%; }
 /* A row: its place in the order, its status, its title over its number and steps. The one shown is
    marked by a bar at its start and its title's weight. */
 .parts-rail-item { position: relative; display: grid; grid-template-columns: 1.25rem auto minmax(0, 1fr); align-items: start; gap: var(--env-space-2); padding-block: var(--env-space-1); }
-.parts-rail-item[aria-current='page']::before { content: ''; position: absolute; inset-block: var(--env-space-1); inset-inline-start: calc(-1 * var(--env-space-2)); inline-size: 0.125rem; border-radius: 0.0625rem; background: var(--env-color-bg-primary-emphasis); }
+.parts-rail-item[aria-current='page']::before { content: ''; position: absolute; inset-block: var(--env-space-1); inset-inline-start: calc(-1 * var(--env-space-2)); inline-size: 0.125rem; border-radius: 0.0625rem; background: var(--env-color-bg-primary-strong); }
 .parts-rail-item[aria-current='page'] .parts-rail-link { font-weight: 500; }
 .parts-rail-item .status-icon { inline-size: 1rem; block-size: 1rem; margin-block-start: 0.125rem; }
 .parts-rail-index { color: var(--env-color-fg-muted); font-variant-numeric: tabular-nums; text-align: end; }
@@ -224,7 +224,7 @@ html, body, #root { min-block-size: 100%; }
    together, so the bar has its own: a light blue, a deep purple and a clear green, apart in hue and
    in lightness. */
 /* stylelint-disable color-no-hex -- the step bar's light-theme colours, which envUI's tokens do not give */
-.step-bar { --step-planning: light-dark(#4f8fe6, var(--env-color-fg-primary)); --step-done: light-dark(#7c3aad, var(--env-color-fg-accent)); --step-doing: light-dark(#1f9d55, var(--env-color-fg-success)); }
+.step-bar { --step-planning: light-dark(#4f8fe6, var(--env-color-fg-primary)); --step-planning-doing: light-dark(color-mix(in srgb, #4f8fe6 72%, var(--env-color-bg-raised)), color-mix(in srgb, var(--env-color-fg-primary) 50%, var(--env-color-bg-raised))); --step-done: light-dark(#7c3aad, var(--env-color-fg-accent)); --step-doing: light-dark(#1f9d55, var(--env-color-fg-success)); }
 /* stylelint-enable color-no-hex */
 .step-bar-done { background: var(--step-done); }
 .step-bar-doing { background: var(--step-doing); }
@@ -260,7 +260,8 @@ html, body, #root { min-block-size: 100%; }
 .step-icon[data-phase='planning'] { color: color-mix(in srgb, var(--env-color-fg-primary) 45%, var(--env-color-fg-muted)); }
 .step-icon[data-phase='planning']:is([data-status='done'], [data-status='doing']) { color: var(--env-color-fg-primary); }
 .step-bar-planning-done { background: var(--step-planning); }
-.step-bar-planning-doing { background: color-mix(in srgb, var(--step-planning) 50%, var(--env-color-bg-raised)); }
+/* A planning step in progress: half the planning blue in dark; more of it in light, so it stays apart from the grey track. */
+.step-bar-planning-doing { background: var(--step-planning-doing); }
 
 /* Work page: the plan, with the work's facts beside it. The diagrams' islands keep a gutter from the edge. */
 /* The plan's page is wider than envUI's large page, for its text and its side column together. */

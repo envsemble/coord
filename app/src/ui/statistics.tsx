@@ -4,9 +4,9 @@ import { Column, Grid, Surface, Text } from '@envsemble/envui';
 import { shownEffort } from './modelColours';
 import { ModelName } from './ModelName';
 
-/** The headline figures, after envUI's key figures pattern: one surface, its figures in even columns. */
+/** The headline figures, after envUI's key figures pattern: one raised surface, its figures in even columns. */
 export function KeyFigures({ label, children }: { label: string; children: ReactNode }) {
-  return <Surface role="group" aria-label={label} className="stats-grid" render={<Grid name="key-figures" columns="repeat(auto-fit, minmax(min(100%, 11rem), 1fr))" gap={5} />}>{children}</Surface>;
+  return <Surface role="group" aria-label={label} background="raised" className="stats-grid" render={<Grid name="key-figures" columns="repeat(auto-fit, minmax(min(100%, 11rem), 1fr))" gap={5} />}>{children}</Surface>;
 }
 
 /** A headline figure: its label, the figure, and a note on how it changed or how it is counted. */

@@ -5,7 +5,7 @@
 // also grant it Manage access, so it can pair and revoke devices itself. In a window on another
 // computer, the section manages that computer's pairings, when this app was granted Manage access there.
 import { useEffect, useState } from 'react';
-import { Alert, Badge, Button, Card, Checkbox, Code, ConfirmButton, Graphic, List, Select, Spinner, Switch, Text, TextField } from '@envsemble/envui';
+import { Alert, Badge, Button, Checkbox, Code, ConfirmButton, Graphic, List, Select, Spinner, Surface, Switch, Text, TextField } from '@envsemble/envui';
 import type { AccessSettings, AccessState, ComputerRef, PairedDevice, PairingLinkView } from '../types';
 import { api } from '../api';
 import { absoluteDate, relativeDate } from '../ui/format';
@@ -99,7 +99,7 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
         : state.managedBy && <Alert tone="warning">Remote access on this computer is managed by {state.managedBy}. Quit it, and Coord takes over here within a few seconds.</Alert>}
 
       {here ? <section className="access-section" aria-label="Network">
-        {/* Each setting applies as it changes: the switch in a row that names it, the fields on a card under it, their labels above. */}
+        {/* Each setting applies as it changes: the switch in a row that names it, the fields on a raised surface under it, their labels above. */}
         <List.Root className="settings-rows" aria-label="Network">
           <List.Item className="settings-row" label="Allow paired devices to connect to this computer"
             description={<span className="access-status" data-state={state.status.listening ? 'on' : state.status.error ? 'error' : 'off'} role="status">
@@ -108,7 +108,7 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
             control={<Switch checked={settings!.network.enabled} disabled={busy || managed}
               onCheckedChange={enabled => void apply(next => ({ ...next, network: { ...next.network, enabled, address: next.network.address ?? address } }))} />} />
         </List.Root>
-        <Card background="default"><div className="settings-fields">
+        <Surface background="raised"><div className="settings-fields">
           <Select className="access-address" label="Reach this computer via" value={address ?? ''} disabled={busy || managed}
             description={chosen?.kind === 'loopback' ? 'Only Coord on this same computer can connect through this address.'
               : chosen?.kind === 'lan' ? 'A local network: the connection is not encrypted.' : 'The network paired devices find this computer on.'}
@@ -116,7 +116,7 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
             items={state.addresses.map(entry => ({ value: entry.address, label: `${entry.label} — ${entry.address}` }))} />
           <TextField className="access-port" label="Port" description="From 1024 to 65535. It applies when you leave the field or press Enter." inputMode="numeric" value={port} disabled={busy || managed}
             onValueChange={value => setPort(value.replace(/[^0-9]/g, '').slice(0, 5))} onValueCommitted={savePort} />
-        </div></Card>
+        </div></Surface>
         {chosen?.kind === 'lan' && <Alert tone="warning">On a local network, the connection is not encrypted. Prefer Tailscale, which encrypts it end to end.</Alert>}
       </section> : <p className="access-status" data-state={state.status.listening ? 'on' : 'off'} role="status">
         {state.status.listening ? `${computer.name} listens on ${state.status.address}:${state.status.port}.` : `Remote access is off on ${computer.name}.`}

@@ -3,7 +3,7 @@
 // is on offer, downloading or ready. Main checks on its own; downloading and restarting are the
 // person's clicks.
 import { useEffect, useState, type ReactNode } from 'react';
-import { Button, Card, List, Progress, Select, Text, Tooltip } from '@envsemble/envui';
+import { Button, List, Progress, Select, Surface, Text, Tooltip } from '@envsemble/envui';
 import type { UpdateChannel, UpdateState } from '../types';
 import { api } from '../api';
 import { relativeDate } from '../ui/format';
@@ -51,7 +51,7 @@ const channels: { value: UpdateChannel; label: string; description: string }[] =
 
 /**
  * Settings › Updates: a setting row with the version, where its update stands and the one action
- * that moves it on, and the channel, a field on a card under it.
+ * that moves it on, and the channel, a field on a raised surface under it.
  */
 export function UpdatesSection() {
   const state = useUpdates();
@@ -68,10 +68,10 @@ export function UpdatesSection() {
     <List.Root className="settings-rows" aria-label="Updates">
       <UpdateStatusRow state={state} />
     </List.Root>
-    {!off && <Card background="default"><Select className="settings-field" label="Channel" value={state.channel}
+    {!off && <Surface background="raised"><Select className="settings-field" label="Channel" value={state.channel}
       description={leavingNightly ? 'This is a nightly build: Coord moves to stable with the next stable release newer than it, never back to an older one.' : channel.description}
       onValueChange={value => { if (value) void api.setUpdateChannel(value as UpdateChannel).catch(() => {}); }}
-      items={channels} /></Card>}
+      items={channels} /></Surface>}
   </>;
 }
 
