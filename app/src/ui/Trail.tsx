@@ -14,7 +14,7 @@ import { ProjectAvatar } from '../projects/ProjectMenu';
 export function Trail({ items, work }: { items: { label: ReactNode; target?: Target }[]; work?: string }) {
   const { open, go, projectId, projectName, snapshot } = useWindow();
   const group = work ? snapshot.work.find(item => item.id === work)?.partOf : null;
-  return <Breadcrumbs className="breadcrumb" items={[
+  return <Breadcrumbs className="breadcrumb" wrap={false} items={[
     { label: 'Plans', onClick: () => go(hubPlace()) },
     { label: <span className="breadcrumb-project"><ProjectAvatar project={{ id: projectId, name: projectName }} />{projectName}</span>, onClick: () => go(hubPlace(projectId)) },
     ...group ? [{ label: workNumber(group), onClick: () => open(workTarget(group)) }] : [],

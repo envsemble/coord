@@ -1,4 +1,4 @@
-// A page of the window, on envUI's Page and PageHeader: the trail, the title with what goes beside it
+// A page of the window, on envUI's Page and PageHeader: the trail above it in the top left, the title with what goes beside it
 // (meta) and under it (description), the page's actions and its toolbar; and a page for something gone.
 import type { ReactNode } from 'react';
 import { Column, Page as EnvPage, PageHeader } from '@envsemble/envui';
@@ -14,10 +14,15 @@ export function Page({ title, breadcrumbs, meta, description, actions, toolbar, 
   width?: 'sm' | 'md' | 'lg' | 'full';
   className?: string; children: ReactNode;
 }) {
-  return <EnvPage className={'page' + (className ? ' ' + className : '')} width={width}
-    header={title ? <PageHeader title={title} breadcrumbs={breadcrumbs} meta={meta} description={description} actions={actions} toolbar={toolbar} controlSize={controlSize} /> : undefined}>
-    <Column gap={5}>{children}</Column>
-  </EnvPage>;
+  // The trail sits in the window's top left, as on a page view and in most apps, not in the page's
+  // centred column, so it stays put whatever the page's width.
+  return <>
+    {breadcrumbs != null && <div className="page-trail">{breadcrumbs}</div>}
+    <EnvPage className={'page' + (className ? ' ' + className : '')} width={width}
+      header={title ? <PageHeader title={title} meta={meta} description={description} actions={actions} toolbar={toolbar} controlSize={controlSize} /> : undefined}>
+      <Column gap={5}>{children}</Column>
+    </EnvPage>
+  </>;
 }
 
 export function Gone({ title, detail }: { title: string; detail: string }) {

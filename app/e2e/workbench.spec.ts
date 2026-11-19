@@ -12,7 +12,7 @@ test.afterEach(async () => { await close(launched); launched = undefined; for (c
 
 const row = (id: string) => `[role="treeitem"][data-id="${id}"]`;
 /** The last step of a work item's trail: its number. */
-const trailEnd = (window: Page) => window.locator('.work-page .breadcrumb [aria-current="page"]');
+const trailEnd = (window: Page) => window.locator('.window-page .breadcrumb [aria-current="page"]');
 const titles = (launchedApp: Launched) => launchedApp.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(item => item.getTitle()));
 const groupRows = (window: Page, group: string) => window.getByRole('region', { name: group }).locator('.hub-row');
 
@@ -73,7 +73,7 @@ test("the hub's search button opens the search and it never filters the hub; the
   await expect(hubRows(window)).toHaveCount(6);
   await popup.getByRole('option', { name: /Order fulfilment model.*Harbor/ }).click();
   await expect(window.locator('.work-page h1')).toHaveText('Order fulfilment model');
-  await expect(window.locator('.work-page .breadcrumb')).toContainText('Harbor');
+  await expect(window.locator('.window-page .breadcrumb')).toContainText('Harbor');
   await goHome(window);
   await window.keyboard.press('Control+P');
   await expect(popup).toBeVisible();
@@ -148,7 +148,7 @@ test("a plan opens from the hub with its summary and its side column, and with i
   // The side column keeps progress, dates and statistics.
   await expect(window.locator('.plan-aside .ledger-progress-summary')).toHaveText('2 of 7 steps done · 5 left');
   await expect(window.locator('.plan-aside .ledger-step')).toHaveCount(7);
-  await expect(window.locator('.work-page .breadcrumb')).toHaveText(/^Plans.*Northwind.*#0001$/);
+  await expect(window.locator('.window-page .breadcrumb')).toHaveText(/^Plans.*Northwind.*#0001$/);
   await expect(trailEnd(window)).toHaveText('#0001');
   // The work it continues opens its ledger, not as a step, and leads to that plan, whose status line and hub row say where it continues.
   const handoff = window.locator('.plan-aside .ledger-steps > .ledger-handoff');
@@ -167,7 +167,7 @@ test("a plan opens from the hub with its summary and its side column, and with i
   await window.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
   // The trail's project leads to the hub filtered to the project, which Back leaves again.
-  await window.locator('.work-page .breadcrumb').getByRole('button', { name: 'Northwind' }).click();
+  await window.locator('.window-page .breadcrumb').getByRole('button', { name: 'Northwind' }).click();
   await expectHub(window, 'Northwind');
   await expect(projectButton(window, 'Northwind')).toBeVisible();
   await window.keyboard.press('Alt+ArrowLeft');
@@ -207,14 +207,14 @@ test('a window shows one place at a time, and shows it again at the next start',
   let { window } = launched;
   await filterHub(window, 'Harbor');
   await openPlan(window, 'Saved payment methods');
-  await expect(window.locator('.work-page .breadcrumb')).toContainText('Harbor');
+  await expect(window.locator('.window-page .breadcrumb')).toContainText('Harbor');
   await window.waitForTimeout(600);
   await close(launched);
 
   launched = await launch({ dataDirectory: home.dataDirectory });
   window = launched.window;
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
-  await expect(window.locator('.work-page .breadcrumb')).toContainText('Harbor');
+  await expect(window.locator('.window-page .breadcrumb')).toContainText('Harbor');
   await expect(trailEnd(window)).toHaveText('#0001');
   await showFiles(window);
 });
@@ -262,7 +262,7 @@ test("the plan's files are beside its pages with the plan's own folder, open a f
   await files.locator(row('f:active/0001-saved-payment-methods/CONTEXT.md')).click();
   await expect(files.locator(row('f:active/0001-saved-payment-methods/CONTEXT.md'))).toHaveAttribute('aria-selected', 'true');
   // The file is on the page as the plan is: under its plan's breadcrumb (Plans, project, plan), not a crumb of its own, its name below its title, with Show in folder beside it.
-  await expect(window.locator('.file-page .breadcrumb')).toHaveText(/^Plans.*Northwind.*#0001$/);
+  await expect(window.locator('.window-page .breadcrumb')).toHaveText(/^Plans.*Northwind.*#0001$/);
   await expect(window.locator('.file-page .file-name')).toHaveText('CONTEXT.md');
   await expect(window.locator('.file-page').getByRole('button', { name: 'Show in folder' })).toBeVisible();
   await expect(window.locator('.file-page .reader .prose')).toBeVisible();
@@ -557,7 +557,7 @@ test("the search shows the host's results grouped by kind with their project, wo
   await expect(palette.getByRole('option').nth(1)).toHaveAttribute('data-highlighted', '');
   await input.press('Enter');
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
-  await expect(window.locator('.work-page .breadcrumb')).toContainText('Harbor');
+  await expect(window.locator('.window-page .breadcrumb')).toContainText('Harbor');
 
   // An answer to an earlier query that comes after a later one's is not shown.
   await window.keyboard.press('Control+P');
