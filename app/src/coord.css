@@ -354,7 +354,7 @@ html, body, #root { min-block-size: 100%; }
 .page-view-trail, .page-trail { padding: var(--env-space-3) var(--env-space-5) 0; }
 .page-trail + .env-page { padding-block-start: var(--env-space-4); }
 /* A project's avatar before its name, as far from it as in the hub and the project menu (the crumb's own gap is a step less). */
-.breadcrumb .env-breadcrumbs-start { margin-inline-end: calc(var(--env-space-2) - var(--env-space-1)); }
+.breadcrumb-project { display: inline-flex; align-items: center; gap: var(--env-space-2); }
 .page-view-body { position: relative; display: flex; flex: 1; flex-direction: column; min-block-size: 0; }
 .page-frame { flex: 1; inline-size: 100%; min-block-size: 0; border: 0; background: var(--env-color-bg-page); }
 .page-view-state { position: absolute; inset: 0; display: grid; place-items: center; padding: var(--env-space-5); }
