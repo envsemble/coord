@@ -85,6 +85,8 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
   const savePort = (text: string) => {
     const value = Number(text);
     if (!settings || value === settings.network.port) return;
+    // A change already applying takes this one too late: the field keeps it, for Enter to try again.
+    if (busy) return false;
     if (!Number.isInteger(value) || value < 1024 || value > 65535) { setError('Choose a port from 1024 to 65535.'); return false; }
     void apply(next => ({ ...next, network: { ...next.network, port: value } }));
   };

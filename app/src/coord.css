@@ -169,6 +169,8 @@ html, body, #root { min-block-size: 100%; }
    would where the panes had the window's height. In a narrower window it is a sheet. */
 .plan-frame-parts .parts-rail { position: sticky; inset-block-start: 0; padding: var(--env-space-6) var(--env-space-4); }
 .plan-frame-panes > .env-panes-pane > .env-panes-body { overflow: visible; }
+/* In a narrower window the rail's pane stays in place, hidden, and the rail is in the sheet. */
+.plan-frame-parts[hidden] { display: none; }
 .parts-trigger { margin: var(--env-space-4) var(--env-space-5) 0; }
 .parts-rail { display: grid; gap: var(--env-space-1); font-size: var(--env-font-size-body-sm); }
 .parts-rail-heading { margin: 0 0 var(--env-space-1); font-weight: 500; }
@@ -391,8 +393,6 @@ html, body, #root { min-block-size: 100%; }
 
 /* A file page: the file name beside its title, quietly, its path on hover. */
 .file-page .file-name { color: var(--env-color-fg-muted); font-size: var(--env-font-size-body-sm); font-weight: var(--env-font-weight-regular); }
-
-/* Text for assistive technology only. */
 
 /* Statistics */
 .stat-value { font-variant-numeric: tabular-nums; }

@@ -602,7 +602,8 @@ function ProjectContent({ place, folder, project, scope, read, statisticsTrail }
  * shows. A diagram fills the window instead.
  */
 function PlanFrame({ work, snapshot, children }: { work: Work | null; snapshot: Snapshot; children: ReactNode }) {
-  const frame = useRef<HTMLDivElement>(null);
+  // The element itself, so the size follows it as it comes and goes with the work's parts.
+  const [frame, setFrame] = useState<HTMLDivElement | null>(null);
   const size = useContainerSize(frame);
   const [openFor, setOpenFor] = useState<string | null>(null);
   const group = partsGroup(work, snapshot);
@@ -610,15 +611,16 @@ function PlanFrame({ work, snapshot, children }: { work: Work | null; snapshot: 
   const label = 'Parts of ' + workNumber(group.id);
   const rail = <PartsRail group={group} shown={work.id} />;
   const beside = size === undefined || !['compact', 'medium'].includes(windowClassOf(size.inlineSize));
-  return <div ref={frame} className="plan-frame">
-    {beside ? <Panes.Root sized="end" defaultWidth={18} className="plan-frame-panes">
-      <Panes.Pane label={work.title} className="plan-frame-page">{children}</Panes.Pane>
-      <Panes.Pane label={label} className="plan-frame-parts">{rail}</Panes.Pane>
-    </Panes.Root> : <>
-      <Sheet aria-label={label} open={openFor === work.id} onOpenChange={open => setOpenFor(open ? work.id : null)}
-        trigger={<Button variant="secondary" size="sm" className="parts-trigger">Parts</Button>}>{rail}</Sheet>
-      {children}
-    </>}
+  // The page keeps its place in the tree in both forms, so crossing the width doesn't remount it.
+  return <div ref={setFrame} className="plan-frame">
+    <Panes.Root sized="end" defaultWidth={18} className="plan-frame-panes">
+      <Panes.Pane label={work.title} className="plan-frame-page">
+        {!beside && <Sheet aria-label={label} open={openFor === work.id} onOpenChange={open => setOpenFor(open ? work.id : null)}
+          trigger={<Button variant="secondary" size="sm" className="parts-trigger">Parts</Button>}>{rail}</Sheet>}
+        {children}
+      </Panes.Pane>
+      <Panes.Pane label={label} className="plan-frame-parts" hidden={!beside}>{beside && rail}</Panes.Pane>
+    </Panes.Root>
   </div>;
 }
 
