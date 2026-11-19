@@ -81,14 +81,14 @@ test('a plan of a project whose folder is not a planning folder at the start sho
   renameSync(path.join(harbor, 'planning.json.away'), path.join(harbor, 'planning.json'));
   launched = await launch({ dataDirectory: home.dataDirectory });
   await expect(launched.window.locator('.work-page h1')).toHaveText('Customer order notifications');
-  await expect(launched.window.locator('.work-page .breadcrumb')).toContainText('Harbor');
+  await expect(launched.window.locator('.window-page .breadcrumb')).toContainText('Harbor');
 });
 
 /** Open a plan of the project Shop from the hub, and see it read from its folder. */
 async function openShopPlan(window: Page, title: string) {
   if (!await window.locator('.hub h1', { hasText: 'Shop' }).count()) await filterHub(window, 'Shop');
   await openPlan(window, title);
-  await expect(window.locator('.work-page .breadcrumb')).toContainText('Shop');
+  await expect(window.locator('.window-page .breadcrumb')).toContainText('Shop');
   await expect(window.locator('.reader .prose')).toContainText('Outcome');
 }
 
@@ -104,7 +104,7 @@ test('a closed window leaves a project it showed open in the others', async () =
   await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows().sort((a, b) => b.id - a.id)[0].close(); });
   await expect.poll(() => windowTitles(app).then(titles => titles.length)).toBe(1);
   await expect(window.locator('.reader .prose')).toContainText('Current checkout');
-  await expect(window.locator('.work-page .breadcrumb')).toContainText('Shop');
+  await expect(window.locator('.window-page .breadcrumb')).toContainText('Shop');
 });
 
 test('a new home starts with the onboarding until it is finished, with no agent connected if none is chosen; the window shows after it, and at the next launch', async () => {
