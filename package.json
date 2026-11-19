@@ -47,8 +47,8 @@
   "devDependencies": {
     "@babel/core": "8.1.2",
     "@babel/eslint-parser": "8.1.2",
-    "@envsemble/eslint-plugin-envui": "^2.0.0",
-    "@envsemble/stylelint-config-envui": "^2.0.0",
+    "@envsemble/eslint-plugin-envui": "2.0.0",
+    "@envsemble/stylelint-config-envui": "2.0.0",
     "eslint": "10.14.0",
     "fflate": "0.8.3",
     "prettier": "3.8.0",

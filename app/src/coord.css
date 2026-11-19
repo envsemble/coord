@@ -175,7 +175,7 @@ html, body, #root { min-block-size: 100%; }
 /* A row: its place in the order, its status, its title over its number and steps. The one shown is
    marked by a bar at its start and its title's weight. */
 .parts-rail-item { position: relative; display: grid; grid-template-columns: 1.25rem auto minmax(0, 1fr); align-items: start; gap: var(--env-space-2); padding-block: var(--env-space-1); }
-.parts-rail-item[aria-current='page']::before { content: ''; position: absolute; inset-block: var(--env-space-1); inset-inline-start: calc(-1 * var(--env-space-2)); inline-size: 0.125rem; border-radius: 0.0625rem; background: var(--env-color-bg-primary-strong); }
+.parts-rail-item[aria-current='page']::before { content: ''; position: absolute; inset-block: var(--env-space-1); inset-inline-start: calc(-1 * var(--env-space-2)); inline-size: 0.125rem; border-radius: 0.0625rem; background: var(--env-color-border-primary-emphasis); }
 .parts-rail-item[aria-current='page'] .parts-rail-link { font-weight: 500; }
 .parts-rail-item .status-icon { inline-size: 1rem; block-size: 1rem; margin-block-start: 0.125rem; }
 .parts-rail-index { color: var(--env-color-fg-muted); font-variant-numeric: tabular-nums; text-align: end; }
