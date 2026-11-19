@@ -90,7 +90,7 @@ body {
 }
 /* The islands float on the canvas as the elements do: the raised surface, white in light. */
 .coord-island {
-  background-color: var(--env-color-bg-raised);
+  --env-surface-container: var(--env-color-bg-raised);
   position: relative;
   display: flex;
   flex-wrap: wrap;

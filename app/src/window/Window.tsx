@@ -470,7 +470,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   // All plans' statistics: every active project together.
   else if (isPage(placed) && !placed.projectId) content = <Suspense fallback={loadingPage}><AllStatisticsPage revision={statisticsMark} trail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: 'Statistics' }]} />} /></Suspense>;
   else content = <ProjectContent place={placed} folder={readFolder} project={owner} scope={scope} read={read}
-    statisticsTrail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: projectOf(reading) ? <span className="breadcrumb-project"><ProjectAvatar project={projectOf(reading)!} />{projectOf(reading)!.name}</span> : 'Project', onClick: projectOf(reading)?.state === 'archived' ? undefined : () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
+    statisticsTrail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: projectOf(reading) ? <><ProjectAvatar project={projectOf(reading)!} />{projectOf(reading)!.name}</> : 'Project', onClick: projectOf(reading)?.state === 'archived' ? undefined : () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
 
   // The plan's files, in the Scaffold's navigation region at the left from a medium width up, while a
   // plan, its pages or one of its files show.
