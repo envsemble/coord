@@ -253,9 +253,6 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   const closeSearch = useCallback(() => setSearch(null), []);
   const [creatingProject, setCreatingProject] = useState(false);
   const [hubFilters, setHubFilters] = useState<HubFilters>({ state: 'open', only: [] });
-  // The groups on the hub whose parts were folded or unfolded from how they start, while the window is open.
-  const [hubFolds, setHubFolds] = useState<ReadonlySet<string>>(new Set());
-  const toggleHubFold = useCallback((key: string) => setHubFolds(current => { const next = new Set(current); if (!next.delete(key)) next.add(key); return next; }), []);
   const projectOf = useCallback((projectId: string | null) => projects?.find(project => project.id === projectId), [projects]);
 
   /** Statistics, from the menu: all plans'. */
@@ -467,7 +464,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   const searchScope = useMemo(() => projectPlace && reading && readSnapshot ? { projectId: reading, snapshot: readSnapshot } : null, [Boolean(projectPlace), reading, readSnapshot]);
 
   let content;
-  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.projectId} filters={hubFilters} setFilters={setHubFilters} folds={hubFolds} toggleFold={toggleHubFold} go={go} notify={notify}
+  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.projectId} filters={hubFilters} setFilters={setHubFilters} go={go} notify={notify}
     computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} newProject={() => setCreatingProject(true)} />;
   else if (isPage(placed) && placed.page === 'settings') content = <SettingsPage section={placed.section} computer={info.computer} go={showSettings} />;
   // All plans' statistics: every active project together.

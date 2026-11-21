@@ -619,24 +619,16 @@ test('a work item made of parts is one entry on the hub, its parts under its row
   launched = await launch({ dataDirectory: home.dataDirectory });
   const { window } = launched;
   await expectHub(window);
-  // The group once, where its parts were listed on their own; its parts in their order, numbered, each with its projects.
-  const parts = window.getByRole('table', { name: 'Parts of Saved payment methods' });
-  await expect(parts.locator('.hub-row-link')).toHaveText(['Order fulfilment model', 'Customer order notifications']);
-  await expect(parts.locator('.hub-row-index')).toHaveText(['1', '2']);
-  await expect(parts.locator('.hub-row').first().locator('.hub-row-project-name')).toHaveText('Harbor');
-  await expect(window.locator('.hub-list > tbody > .hub-row').filter({ has: window.getByRole('link', { name: 'Order fulfilment model', exact: true }) })).toHaveCount(1);
-  // Folded, the group says what waits in it; the fold stays as the hub is left and shown again.
-  const fold = window.getByRole('button', { name: 'Parts of Saved payment methods' });
-  await fold.click();
-  await expect(parts).toHaveCount(0);
-  await expect(hubRows(window, 'Saved payment methods').first().locator('.hub-row-parts')).toHaveText('2 parts · 1 your turn');
-  await openPlan(window, 'Saved payment methods');
-  await goHome(window);
-  await expect(parts).toHaveCount(0);
-  await fold.click();
+  // The group once, its parts under its own row in their order, numbered, each naming its projects where they are not the group's.
+  const group = window.locator('.hub-entry-group');
+  await expect(group.locator('.hub-row-link')).toHaveText(['Saved payment methods', 'Order fulfilment model', 'Customer order notifications']);
+  await expect(group.locator('.hub-row-index')).toHaveText(['1', '2']);
+  await expect(group.locator('.hub-row-part').first().locator('.hub-row-project-name')).toHaveText('Harbor');
+  // Northwind's parts are not listed on their own as well: only Harbor's own plan of that name is.
+  await expect(window.locator('.hub-entry:not(.hub-entry-group)').getByRole('link', { name: 'Order fulfilment model', exact: true })).toHaveCount(1);
   // Harbor's hub has the group whole, as one of its parts is in Harbor; the part's plan names its project.
   await filterHub(window, 'Harbor');
-  await expect(parts.locator('.hub-row-link')).toHaveText(['Order fulfilment model', 'Customer order notifications']);
-  await parts.getByRole('link', { name: 'Order fulfilment model', exact: true }).click();
+  await expect(group.locator('.hub-row-link')).toHaveText(['Saved payment methods', 'Order fulfilment model', 'Customer order notifications']);
+  await group.getByRole('link', { name: 'Order fulfilment model', exact: true }).click();
   await expect(window.locator('.work-status')).toContainText('in Harbor');
 });

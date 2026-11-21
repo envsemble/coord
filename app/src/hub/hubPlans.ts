@@ -251,8 +251,3 @@ export function hubEntryGroups(entries: HubEntry[], state: HubState): HubEntryGr
   return groupOrder.map(id => ({ id, label: groupLabels[id], entries: shown.filter(entry => entryGroup(entry) === id) })).filter(group => group.entries.length);
 }
 
-/** What a group's row says of its parts: how many, how many of them are closed, and how many are the user's turn. */
-export function groupFacts(entry: HubEntry): { count: number; closed: number; turn: number } | null {
-  if (!entry.parts.length) return null;
-  return { count: entry.parts.length, closed: entry.parts.filter(part => part.work.state === 'closed').length, turn: entry.parts.filter(part => part.status.key === 'your_turn').length };
-}

@@ -101,18 +101,15 @@ html, body, #root { min-block-size: 100%; }
 /* A plan's project: its avatar, as in the project menu, then its name. */
 .hub-row-project { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; }
 .hub-row-title + .cell-note { margin-inline-start: calc(1.125rem + var(--env-space-2)); }
-/* A group's fold button and a part's number stand before the status icon: the line under the title starts under the title still. */
-.hub-row-fold { flex: none; margin-inline-start: calc(-1 * var(--env-space-1)); }
-.hub-row-index { flex: none; inline-size: 1.25rem; color: var(--env-color-fg-muted); font: var(--env-type-body-sm); font-variant-numeric: tabular-nums; text-align: center; }
-.hub-row[data-lead='fold'] .hub-row-title + .cell-note { margin-inline-start: calc(1.125rem + 1.75rem + var(--env-space-2) + var(--env-space-1)); }
-.hub-row[data-lead='index'] .hub-row-title + .cell-note { margin-inline-start: calc(1.125rem + 1.25rem + 2 * var(--env-space-2)); }
-.hub-row-parts-turn { color: var(--env-color-fg-warning); }
-/* A group's parts, in the row under its own: a table of their own, set in under the group's title. */
-.hub-parts-cell { padding-block: 0 var(--env-space-3); padding-inline-start: calc(1.75rem + var(--env-space-3)); }
-.hub-parts-row:hover { background: none; }
-/* The parts belong to the row above them: no hairline parts the group from its parts' table. */
-.hub-list.env-table > .env-table-body > .env-table-row.hub-parts-row > .hub-parts-cell,
-.env-table-region[data-narrow-layout='stack'] > .hub-list.env-table > .env-table-body > .env-table-row.hub-parts-row { border-block-start: 0; }
+/* A work item made of parts is one block: a rail down its start edge, from its own row to its last
+   part's, its title a weight heavier, and its parts under it on a surface one quiet step from the
+   rows', set in to its title's edge and numbered, with no line between them. */
+.hub-entry-group > .hub-row > .env-table-cell:first-child { box-shadow: inset 0.1875rem 0 0 var(--env-color-border-default); }
+.hub-entry-group > .hub-row:first-child .hub-row-link { font-weight: var(--env-font-weight-semibold); }
+.hub-row-index { flex: none; inline-size: 1rem; color: var(--env-color-fg-muted); font: var(--env-type-body-sm); font-variant-numeric: tabular-nums; }
+.hub-row-part > .env-table-cell:first-child { padding-inline-start: calc(var(--env-space-4) + 1.125rem + var(--env-space-2)); }
+.hub-row-part .hub-row-title + .cell-note { margin-inline-start: calc(1rem + 1.125rem + 2 * var(--env-space-2)); }
+.hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell { border-block-start: 0; background: var(--env-color-bg-default); }
 /* A row's state line: what the user is to do in amber, what it waits on muted. */
 .hub-row-note { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hub-row-note[data-status='your_turn'] { color: var(--env-color-fg-warning); }

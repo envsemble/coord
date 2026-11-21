@@ -11,7 +11,7 @@
 **Work in several projects**
 
 - **A work item can be in several projects**, and each of its parts in projects of its own: its plan lists them (`projects`, by their planning folders' names), set with `work_create` and `work_update` (`coord work create --project`, `coord work update --project`). The hub's Project column shows every project a plan is in, a project's hub lists the plans that are in it, and the plan page names them.
-- **A group and its parts are one entry on the hub:** the group's row has its parts under it as a table of their own, in their order, each with its state, what it is for, its steps and its agents; a button folds them, and a folded group says how many parts are your turn. The group sits where its most pressing part does.
+- **A group and its parts are one entry on the hub:** the group's row has its parts under it, in their order, set in and numbered, each with its state, what it is for, its steps and its agents; a rail down the side holds them together. The group sits where its most pressing part does.
 - **A session sees the work that is in its project** though another project keeps it: `where` and the session start list it, named with that project (`envui:work-0048`), and the tools and `coord work` commands take that name to change it there.
 
 ## 0.10.0 — Coord on envUI 3 — 2026-11-21
