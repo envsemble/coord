@@ -125,14 +125,16 @@ async function writeAtomically(file: string, text: string | Buffer, mode = 0o644
   if (process.platform !== 'win32') await chmod(file, mode);
 }
 /**
- * The bundle's parts, put under `to` to be renamed into place: the command unpacked when the bundle
- * carries it packed (the Windows app's), copied otherwise, and the plugin and manifests copied.
+ * The bundle's parts, put under `to` to be renamed into place: the command (when `command`) unpacked
+ * when the bundle carries it packed (the Windows app's), copied otherwise, and the plugin and manifests.
  */
-async function stage(bundle: Bundle, to: string, platform: NodeJS.Platform) {
-  const packed = path.join(bundle.directory, packName);
-  if (existsSync(packed)) await unpack(packed, path.join(to, 'command'));
-  else await cp(path.join(bundle.directory, 'command'), path.join(to, 'command'), { recursive: true });
-  if (!complete(path.join(to, 'command'), platform)) throw new Error(`The bundle's command has no bin/coord.js or Node.js: ${bundle.directory}`);
+async function stage(bundle: Bundle, to: string, command: boolean, platform: NodeJS.Platform) {
+  if (command) {
+    const packed = path.join(bundle.directory, packName);
+    if (existsSync(packed)) await unpack(packed, path.join(to, 'command'));
+    else await cp(path.join(bundle.directory, 'command'), path.join(to, 'command'), { recursive: true });
+    if (!complete(path.join(to, 'command'), platform)) throw new Error(`The bundle's command has no bin/coord.js or Node.js: ${bundle.directory}`);
+  }
   for (const part of ['plugin', '.claude-plugin', '.agents']) await cp(path.join(bundle.directory, part), path.join(to, part), { recursive: true });
 }
 /** Remove what an earlier, interrupted copy left (best effort: a file still open on Windows stays until next time). */
@@ -158,9 +160,10 @@ export async function installAgentFolder(bundle: Bundle, folder: string, platfor
     // The bundle is staged beside the folders it goes to, under a temporary name, and each part renamed into place.
     const staged = path.join(folder, temporaryName('.copy-'));
     try {
-      await stage(bundle, staged, platform);
       // A complete folder of this build is already there when only the plugin was missing.
-      if (!complete(command, platform)) {
+      const commandMissing = !complete(command, platform);
+      await stage(bundle, staged, commandMissing, platform);
+      if (commandMissing) {
         await rm(command, { recursive: true, force: true });
         await moveInto(path.join(staged, 'command'), command);
       }

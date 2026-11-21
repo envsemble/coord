@@ -82,7 +82,8 @@ const diagramFiles = relative => !/^(?:development|downloads|scripts|examples|te
  * capture keeps the compiler's own: its lib/*.d.ts are what it type-checks with). Every file costs
  * the installer and the copy into the home time; licences stay.
  */
-const dependencyFiles = relative => !/\.[cm]?tsx?$|\.md$|(?:^|\/)\.|(?:^|\/)(?:readme|changelog|history)(?:\.\w+)?$/i.test(relative);
+const dependencyFiles = relative => /(?:^|\/)(?:licen[cs]e|copying|notice)[^/]*$/i.test(relative)
+  || !/\.[cm]?tsx?$|\.md$|(?:^|\/)\.|(?:^|\/)(?:readme|changelog|history)(?:\.\w+)?$/i.test(relative);
 
 /** Peers of the diagram package that only its standalone viewer loads. */
 const viewerOnly = new Set(['@envsemble/envui']);
