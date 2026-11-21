@@ -109,8 +109,8 @@ function measure(root: Element): Map<Element, Place> {
  * that changed groups, a group that emptied. It is a lifeless copy, out of the page's flow, which
  * the rows after it close over. The copy takes no pointer, focus or name, and leaves with its fade.
  */
-function leave(root: Element, before: Map<Element, Place>, motion: Motion, far: (distance: number) => boolean) {
-  const fade = (copy: HTMLElement, into: Element, top: number) => {
+function leave(root: Element, before: Map<Element, Place>, motion: Motion, far: (distance: number) => boolean, sliding: Map<Element, number>) {
+  const fade = (copy: HTMLElement, into: Element, top: number, along = 0) => {
     copy.classList.add(ghost);
     copy.setAttribute('aria-hidden', 'true');
     copy.inert = true;
@@ -119,6 +119,8 @@ function leave(root: Element, before: Map<Element, Place>, motion: Motion, far: 
     into.prepend(copy);
     const fading = animate(copy, [{ opacity: 1 }, { opacity: 0 }], motion, motion.exit, 'forwards');
     fading.onfinish = fading.oncancel = () => copy.remove();
+    // Its entry still slides (two changes in quick succession): the copy of its parts goes with it.
+    if (along) animate(copy, [{ transform: 'translateY(0)' }, { transform: 'translateY(' + along + 'px)' }], motion, motion.ease, 'forwards');
   };
   for (const [element, was] of before) {
     if (far(was.height)) continue;
@@ -144,7 +146,7 @@ function leave(root: Element, before: Map<Element, Place>, motion: Motion, far: 
       for (const name of ['--hub-group', '--hub-part-surface']) body.style.setProperty(name, lit.getPropertyValue(name));
       table.append(body);
     }
-    fade(table, was.frame, gone[0][1] - before.get(was.frame)!.top - parseFloat(getComputedStyle(was.frame).borderTopWidth));
+    fade(table, was.frame, gone[0][1] - before.get(was.frame)!.top - parseFloat(getComputedStyle(was.frame).borderTopWidth), -(sliding.get(element) ?? 0));
   }
 }
 
@@ -176,14 +178,16 @@ function hold(root: Element, before: Map<Element, Place>, after: Map<Element, Pl
 /**
  * After the list changed: start everything where it showed before (`before`) and let it settle where
  * it is now. Without `before` (other plans are shown), whatever still moved stops and nothing is
- * followed. A redraw that moved nothing leaves what still moves alone. Anything that would travel
- * further than the window is tall is not followed: it is simply there.
+ * followed, and so it is in a window that is not being drawn. A redraw that moved nothing leaves what
+ * still moves alone. Anything that would travel further than the window is tall is not followed: it
+ * is simply there.
  */
 function settle(root: Element, before: Map<Element, Place> | null) {
   const motion = motionOf(root);
   const all = (selector: string) => [...root.querySelectorAll(selector)].filter(element => !element.closest('.' + ghost));
   const stop = () => { let stopped = false; for (const element of all(pieces)) for (const animation of element.getAnimations()) if (animation.id === settling) { animation.cancel(); stopped = true; } return stopped; };
-  if (!before || !motion.moves) {
+  // A window that is not drawn (minimised, covered) gets no frames to move anything in: there the list is simply as it is now.
+  if (!before || !motion.moves || document.visibilityState !== 'visible') {
     stop();
     for (const copy of root.querySelectorAll('.' + ghost)) copy.remove();
     return;
@@ -197,7 +201,6 @@ function settle(root: Element, before: Map<Element, Place> | null) {
   const changed = (was: number, now: number) => !near(was, now) && !far(was - now);
   const after = measure(root);
   if (hold(root, before, after)) return;
-  leave(root, before, motion, far);
   // A frame whose rows changed grows or shrinks to them, and a group that is new opens from nothing: what follows moves with them.
   const resized = new Set<Element | null>();
   for (const frame of all(frames)) {
@@ -219,6 +222,7 @@ function settle(root: Element, before: Map<Element, Place> | null) {
   };
   for (const [group, from] of slide(groups)) animate(group, moved(from, 'transparent'), motion);
   const sliding = new Map(slide(entries));
+  leave(root, before, motion, far, sliding);
   const busy = new Set([...resized, ...[...sliding.keys()].map(entry => entry.closest(frames))]);
   // Only the entries whose way crosses the window (and a little around it) are moved: the others are where they belong at once,
   // unseen, and the page has that many fewer rows to make layers of, which is most of what the first fold waits for.
@@ -242,6 +246,10 @@ function settle(root: Element, before: Map<Element, Place> | null) {
  */
 export class Settled extends Component<{ scene: string; children: ReactNode }> {
   private root = createRef<HTMLDivElement>();
+  /** When the window stops being drawn, what still moves ends at once: it would get no frames to end in. */
+  private hidden = () => { if (document.visibilityState !== 'visible' && this.root.current) settle(this.root.current, null); };
+  override componentDidMount() { document.addEventListener('visibilitychange', this.hidden); }
+  override componentWillUnmount() { document.removeEventListener('visibilitychange', this.hidden); }
   override getSnapshotBeforeUpdate(previous: { scene: string }) { return this.root.current && previous.scene === this.props.scene ? measure(this.root.current) : null; }
   override componentDidUpdate(_previous: unknown, _state: unknown, before: Map<Element, Place> | null) { if (this.root.current) settle(this.root.current, before); }
   override render() { return <Column ref={this.root} gap={5} className="hub-settled">{this.props.children}</Column>; }

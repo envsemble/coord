@@ -231,9 +231,9 @@ const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resol
           : gutter && index === undefined && <span className="hub-row-fold" aria-hidden="true" />}
         {index !== undefined && <Hint content={'Part ' + index}><span className="hub-row-index" aria-label={'Part ' + index}>{index}</span></Hint>}
         <Hint content={status.label}><span className="hub-row-status"><StatusIcon status={status} /></span></Hint>
-        {/* A group's row folds its parts wherever it is clicked: its title is the button that does, stretched over the row, and its number opens its plan. */}
-        {fold ? <Button variant="text" className="hub-row-link hub-row-toggle" data-row-target aria-expanded={fold.open} aria-controls={fold.controls} onClick={toggle}><PlanName title={work.title} summary={work.summary} /></Button>
-          : <Link href="#" underline={false} className="hub-row-link" data-row-target draggable={false} onClick={open}><PlanName title={work.title} summary={work.summary} /></Link>}
+        {/* A group's row folds its parts wherever it is clicked: its title is the button that does, stretched over the row, and its number opens its plan. The summary, which the title's card shows, is also the link's description for assistive technology. */}
+        {fold ? <Button variant="text" className="hub-row-link hub-row-toggle" data-row-target aria-expanded={fold.open} aria-controls={fold.controls} aria-description={work.summary ?? undefined} onClick={toggle}><PlanName title={work.title} summary={work.summary} /></Button>
+          : <Link href="#" underline={false} className="hub-row-link" data-row-target draggable={false} aria-description={work.summary ?? undefined} onClick={open}><PlanName title={work.title} summary={work.summary} /></Link>}
         {/* eslint-disable-next-line envui/no-link-in-clickable-row -- the row folds the group's parts; its plan needs a way in that is no new button, and the number is it */}
         {fold ? <Hint content="Open its plan"><Link href="#" underline={false} className="hub-row-number hub-row-open" draggable={false} onClick={open}>{workNumber(work.id)}</Link></Hint>
           : <span className="hub-row-number">{workNumber(work.id)}</span>}

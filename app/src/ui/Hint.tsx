@@ -35,6 +35,8 @@ let shownAt: Element | null = null;
 let shownText: string | null = null;
 let waitingAt: Element | null = null;
 let waiting = 0, closing = 0, entering = 0, shows = 0;
+/** Where the pointer was last pressed, until it has moved away from there: a click acts, and what it changes under the resting pointer opens no hint. */
+let pressedAt: { x: number; y: number } | null = null;
 const watchers = new Set<() => void>();
 const show = (next: Showing | null) => { showing = next; for (const watcher of watchers) watcher(); };
 const watch = (watcher: () => void) => { watchers.add(watcher); return () => { watchers.delete(watcher); }; };
@@ -45,13 +47,14 @@ export const hints = {
    * there, say) and there is something to show (`hint` may be worked out then). Asked again for the
    * same element, the wait starts over; while its hint shows, nothing changes.
    */
-  wait(element: Element, delay: number, hint: Asked | (() => Asked | null), when: () => boolean) {
+  wait(element: Element, delay: number, hint: Asked | (() => Asked | null), when: () => boolean, byKeyboard = false) {
+    if (pressedAt && !byKeyboard) return;
     if (shownAt === element) { window.clearTimeout(closing); return; }
     window.clearTimeout(waiting);
     waitingAt = element;
     waiting = window.setTimeout(() => {
       waitingAt = null;
-      const asked = element.isConnected && when() ? typeof hint === 'function' ? hint() : hint : null;
+      const asked = element.isConnected && (byKeyboard || !pressedAt) && when() ? typeof hint === 'function' ? hint() : hint : null;
       if (!asked) return;
       window.clearTimeout(closing);
       shownAt = element;
@@ -70,6 +73,8 @@ export const hints = {
     const end = () => { window.cancelAnimationFrame(entering); shownAt = null; if (showing?.open) show({ ...showing, open: false }); else if (showing) show(null); };
     if (after) closing = window.setTimeout(end, after); else end();
   },
+  /** Close the hint that shows and leave a wait alone: the page scrolled (focus that scrolls a row into sight still opens its card). */
+  hide() { if (shownAt) hints.close(shownAt); },
   /** Keep the hint that shows: the pointer went from its element onto the hint itself (a card is read there). */
   keep() { window.clearTimeout(closing); },
   /** Whether the element the hint is for still stands where the hint opened and says what it said: a list may change under it. */
@@ -89,23 +94,33 @@ export const cards = new WeakMap<Element, () => Asked | null>();
  * element it is for, in the page only while it shows. It closes when the page scrolls, a key is
  * pressed, or its element moves, changes its text or leaves the page (a list changing under it), and leaves the page
  * once envUI's fade is over. A card stays while the pointer is on it. Keyboard focus resting on a
- * link opens the card of what it holds (see `cards`).
+ * link opens the card of what it holds (see `cards`). After a press, no hint opens for the pointer
+ * until it has moved away from where it pressed: what a click changes under a resting pointer (a
+ * label that appears there) says nothing unasked.
  */
 export function HintLayer() {
   const shown = useSyncExternalStore(watch, () => showing);
   useEffect(() => {
     const close = () => hints.close();
+    const scrolled = () => hints.hide();
     const focused = (event: FocusEvent) => {
       const link = event.target instanceof Element && event.target.matches(':focus-visible') ? event.target : null;
       const held = link?.querySelector('[data-card]');
       const asked = held && cards.get(held);
-      if (link && held && asked) hints.wait(held, restDelay, asked, () => link.matches(':focus-visible'));
+      if (link && held && asked) hints.wait(held, restDelay, asked, () => link.matches(':focus-visible'), true);
     };
-    window.addEventListener('scroll', close, true);
+    const press = (event: MouseEvent) => { pressedAt = { x: event.clientX, y: event.clientY }; };
+    const move = (event: MouseEvent) => { if (pressedAt && Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) > 4) pressedAt = null; };
+    window.addEventListener('scroll', scrolled, true);
     window.addEventListener('keydown', close, true);
     window.addEventListener('focusin', focused);
     window.addEventListener('focusout', close);
-    return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('keydown', close, true); window.removeEventListener('focusin', focused); window.removeEventListener('focusout', close); };
+    window.addEventListener('pointerdown', press, true);
+    window.addEventListener('pointermove', move, true);
+    return () => {
+      window.removeEventListener('scroll', scrolled, true); window.removeEventListener('keydown', close, true); window.removeEventListener('focusin', focused); window.removeEventListener('focusout', close);
+      window.removeEventListener('pointerdown', press, true); window.removeEventListener('pointermove', move, true);
+    };
   }, []);
   useEffect(() => {
     if (!shown) return;
