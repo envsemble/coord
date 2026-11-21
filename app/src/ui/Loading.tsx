@@ -19,7 +19,7 @@ export function useLongWait(after = quiet) {
 
 export function Loading({ label }: { label: string }) {
   const shown = useLongWait();
-  return <div className="page-state page-loading" aria-busy="true" aria-label={label}>
+  return <div className="page-state page-loading" role="status" aria-busy="true" aria-label={label}>
     {shown && <Spinner size="sm" label={label} showLabel />}
   </div>;
 }

@@ -77,7 +77,7 @@ const oneProjectWidths = [55, 17, 18, 10];
 function HubSkeleton() {
   const long = useLongWait(300);
   return <Page className="hub" title="Plans" controlSize="sm">
-    <section className="hub-group" aria-busy="true" aria-label="Loading the plans">
+    <section className="hub-group" aria-busy="true">
       {long && <Table.Root className="hub-list" aria-label="Loading the plans" skeleton columnWidths={oneProjectWidths}>
         <Table.Head><Table.Row><Table.HeaderCell>Plan</Table.HeaderCell><Table.HeaderCell>Steps</Table.HeaderCell><Table.HeaderCell>Agents</Table.HeaderCell><Table.HeaderCell numeric>Changed</Table.HeaderCell></Table.Row></Table.Head>
         <Table.Body>{[0, 1, 2, 3, 4].map(row => <Table.Row key={row}>

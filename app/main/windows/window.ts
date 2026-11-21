@@ -96,19 +96,28 @@ export class CoordWindow {
       },
     });
     // The window shows once its page has painted. Maximizing shows a window too, so a maximized one
-    // waits as well (maximized at once, Windows drew it blank for a moment before the page), and stays
-    // transparent until the page has drawn itself at the maximized size, so it never shows at its
-    // normal size first. It shows after half a second whatever happens.
+    // waits as well (maximized at once, Windows drew it blank for a moment before the page). On
+    // Windows it also stays transparent until the page has drawn itself at the maximized size, so it
+    // never shows at its normal size first; it shows after half a second whatever happens. (Linux has
+    // no window opacity, and macOS animates the zoom.)
     this.win.once('ready-to-show', () => {
-      if (row.maximized) {
+      if (row.maximized && process.platform !== 'win32') this.win.maximize();
+      else if (row.maximized) {
+        const started = performance.now();
         this.win.setOpacity(0);
         this.win.maximize();
-        const reveal = () => { if (!this.win.isDestroyed()) this.win.setOpacity(1); };
-        const fallback = setTimeout(reveal, 500);
+        let shown = false;
+        const reveal = (how: string) => {
+          if (shown || this.win.isDestroyed()) return;
+          shown = true;
+          this.win.setOpacity(1);
+          context.log.info('Window shown maximized', { how, ms: Math.round(performance.now() - started) });
+        };
+        const fallback = setTimeout(() => reveal('after the longest wait'), 500);
         // The resize (none when the window had the screen's size already), then two frames drawn at it.
         const resized = new Promise<void>(done => { this.win.once('resize', () => done()); setTimeout(done, 150); });
-        void resized.then(() => this.win.isDestroyed() ? undefined : this.win.webContents.executeJavaScript('new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))', true))
-          .catch(() => undefined).finally(() => { clearTimeout(fallback); reveal(); });
+        void resized.then(() => this.win.isDestroyed() ? undefined : this.win.webContents.executeJavaScript('new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))'))
+          .then(() => 'drawn', error => `without waiting: ${(error as Error).message}`).then(how => { clearTimeout(fallback); reveal(how); });
       }
       this.win.show();
       context.log.info('Window ready', { computer: this.computer });
@@ -338,7 +347,10 @@ export class CoordWindow {
 
   /** The window buttons follow the theme and the page zoom (macOS keeps its own traffic lights). */
   updateTitleBar() {
-    if (process.platform !== 'darwin' && !this.win.isDestroyed()) this.win.setTitleBarOverlay(titleBarOverlay(Math.pow(1.2, this.win.webContents.getZoomLevel())));
+    if (this.win.isDestroyed()) return;
+    // What the system shows while the window resizes follows the theme too.
+    this.win.setBackgroundColor(windowBackground());
+    if (process.platform !== 'darwin') this.win.setTitleBarOverlay(titleBarOverlay(Math.pow(1.2, this.win.webContents.getZoomLevel())));
   }
 
   /** Zoom: half a zoom level a step, as Chromium's own, from 25% to 471%; the title bar keeps up. */

@@ -4,7 +4,8 @@
 // the plans completed marked) and its models and effort. From the host's project.statistics; all
 // plans' statistics (every active project together) are the same page, from its projects.statistics.
 import { useEffect, useState, type ReactNode } from 'react';
-import { Alert, Button, Disclosure, IconButton, Popover, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
+import { Alert, Button, Disclosure, IconButton, Popover, SegmentedControl, Table, Text } from '@envsemble/envui';
+import { Loading } from '../ui/Loading';
 import { EmptyState } from '../ui/EmptyState';
 import { InfoIcon, StatisticsIcon } from '../ui/icons';
 import type { ProjectStatistics } from '../types';
@@ -135,7 +136,7 @@ function StatisticsView({ read, revision, trail, scope, all }: {
       </div>
     </Popover>}>
     {shown?.error && <Alert tone="warning">{shown.error}</Alert>}
-    {!shown ? <div className="page-state" aria-busy="true"><Spinner size="lg" label="Reading the statistics" /></div>
+    {!shown ? <Loading label="Reading the statistics" />
       : !statistics ? null
       : statistics.current.agentMs === 0 && statistics.current.plansCompleted === 0 ? <EmptyState className="page-empty" icon={<StatisticsIcon />} title="No work in this period" description={statistics.from ? 'Agents have not reported on ' + scope + ' since ' + absoluteDate(statistics.from) + '.' : 'Agents have not reported on ' + scope + ' yet.'}
         action={periodId !== 'all' ? <Button variant="secondary" onClick={() => setPeriodId('all')}>Show all time</Button> : undefined} />
