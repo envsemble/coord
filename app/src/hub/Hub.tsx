@@ -251,8 +251,8 @@ function rowKey(item: HubItem) {
 
 /**
  * An entry of the hub: a plan's row, and for a work item made of parts, under it while it is
- * unfolded, its parts in their order: rows of the same table, so their columns are the table's, set
- * in on a panel of their own and numbered. A part names its projects only where they are not its
+ * unfolded, its parts in their order: rows of the same table, so their columns are the table's, each
+ * a tile of its own, set in and numbered. A part names its projects only where they are not its
  * group's.
  */
 const HubEntryRows = memo(function HubEntryRows({ entry, open, toggleFold, gutter, showProject, waiting, now, byId, go, resolved, notify }: {
