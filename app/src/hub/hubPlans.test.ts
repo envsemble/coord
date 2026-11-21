@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hubGroups, hubItems, hubRowFacts, hubStatus, inState, lastChange, matchesOnly, partsFacts } from './hubPlans.ts';
+import { hubGroups, hubItems, hubRowFacts, hubStatus, inState, lastChange, matchesOnly, noteParts, partsFacts } from './hubPlans.ts';
 import { compactNumber, duration } from '../ui/format.ts';
 import type { Project, ProjectSummary, ProjectWork } from '../types.ts';
 
@@ -104,6 +104,20 @@ test('work in progress shows its progress, the step being worked on, and what ag
   // What its state is for says more than the step: it takes the step's place.
   const turn = hubRowFacts(work('work-0023', 'implementing', { steps, step: { title: 'Build the hub', status: 'doing', phase: 'implementation' }, turn: { kind: 'your_turn', note: 'Merge example/shop#12', since: null } }));
   assert.deepEqual([turn.size, turn.note, turn.step], ['large', 'Merge example/shop#12', null]);
+});
+
+test('work that waits says since when its state stands; a note names its PRs and commits apart from its text', () => {
+  const waiting = { kind: 'waiting' as const, note: 'CI on example/shop#12', since: '2026-10-14T09:00:00Z' };
+  assert.equal(hubRowFacts(work('work-0023', 'implementing', { turn: waiting })).since, '2026-10-14T09:00:00Z');
+  // Work agents are on has not waited, and blocked work whose plan declares no state does not say since when.
+  assert.equal(hubRowFacts(work('work-0023', 'implementing', { turn: { ...waiting, kind: 'working' } })).since, null);
+  assert.equal(hubRowFacts(work('work-0023', 'blocked', { blocked: 'Waiting for the host' })).since, null);
+  const pull = { kind: 'pull', repository: 'example/shop', value: '12', line: null };
+  assert.deepEqual(noteParts('Merge example/shop#12, then https://github.com/example/shop/pull/12.'),
+    ['Merge ', { text: 'example/shop#12', input: pull }, ', then ', { text: 'https://github.com/example/shop/pull/12', input: pull }, '.']);
+  assert.deepEqual(noteParts('example/shop@4ab195a fixed it'), [{ text: 'example/shop@4ab195a', input: { kind: 'commit', repository: 'example/shop', value: '4ab195a', line: null } }, ' fixed it']);
+  // Files, other work items and a PR that names no repository stay text.
+  assert.deepEqual(noteParts('Read app/src/hub/Hub.tsx:68 for work-0046 and #12'), ['Read app/src/hub/Hub.tsx:68 for work-0046 and #12']);
 });
 
 test('blocked work shows why in place of its step', () => {

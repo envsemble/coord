@@ -1,8 +1,8 @@
 // The hub's plans: every plan of every active project (or of the project it is filtered to), from the
-// project list's summaries, grouped by whose turn their agents say they are: the user's first (the
-// oldest first), then the work agents are on, then work waiting on a PR or something else (or
-// blocked), then later (ready to start, drafts nobody is on, work that says nothing); closed work
-// only when asked for. And what each row says of its plan.
+// project list's summaries, grouped by whose turn their agents say they are: the user's first, then
+// the work agents are on, then work waiting on a PR or something else (or blocked), then later (ready
+// to start, drafts nobody is on, work that says nothing); closed work only when asked for. And what
+// each row says of its plan.
 import type { Project, ProjectWork, ReferenceInput } from '../types';
 import { findReferences } from '../reader/references';
 import { statuses, type StatusLook, type StatusKey } from '../plan/status';

@@ -72,17 +72,17 @@ The window's other commands (New Window, zoom, full screen) keep their shortcuts
 
 ## The hub
 
-The hub lists every plan of the computer's active projects, grouped by whose turn its agents say it is, in this order: **Your turn** (what you are to do: merge a PR, try something, answer questions; the longest waiting first), **Working** (agents planning or implementing it), **Waiting** (on a PR's checks or reviews or something else, or blocked), **Later** (ready to start, drafts nobody is on, and work under way that says nothing, marked **No state**) and, when asked for, **Closed**. The other groups list the latest change first; only groups with plans show. Coord never guesses a status from what sessions do: agents declare it, and the session start points them at what no longer adds up.
+The hub lists every plan of the computer's active projects, grouped by whose turn its agents say it is, in this order: **Your turn** (what you are to do: merge a PR, try something, answer questions), **Working** (agents planning or implementing it), **Waiting** (on a PR's checks or reviews or something else, or blocked), **Later** (ready to start, drafts nobody is on, and work under way that says nothing, marked **No state**) and, when asked for, **Closed**. Every group lists the latest change first; only groups with plans show. Coord never guesses a status from what sessions do: agents declare it, and the session start points them at what no longer adds up.
 
 Its heading line holds the title (**Plans**, or the project's name when filtered), **Statistics** (all plans', or the project's), **Search every project**, the title bar's search in the same style, which opens the search and never filters the list, the project menu (**All projects**, or one active project; see [Projects](#projects)) and the state filter (**Open**, **Closed** or **All**, each with its count). The project chosen is part of the place, so back and forward and a plan's breadcrumb set it.
 
-Every plan is a row; a click anywhere on it opens the plan. A row shows:
+Every plan is a row; a click anywhere on it but on a link opens the plan. A row shows:
 
-- **Plan:** its status icon, title and number; its summary on hover. A part says **Part 2 of #0005**; a work item made of parts says how many it has and how many are closed. Work under way (Your turn, Working, Planning, Waiting, Blocked) has a taller row with what its state is for (what you are to do, in amber; what it waits on), else the step being worked on (**Now:**) or next (**Next:**) in its phase's colour, or, for blocked work, why it is blocked.
+- **Plan:** its status icon, title and number; its summary on hover. A part says **Part 2 of #0005**; a work item made of parts says how many it has and how many are closed. Work under way (Your turn, Working, Planning, Waiting, Blocked) has a taller row with what its state is for (what you are to do, in amber; what it waits on), else the step being worked on (**Now:**) or next (**Next:**) in its phase's colour, or, for blocked work, why it is blocked. A PR, issue or commit that line names (`owner/repo#12`, `owner/repo@4ab195a`, a GitHub URL) links to its page in the browser, a PR with its live state beside it as a mark and a word (open, draft, merged or closed) and its checks; the hub asks about them again when its window comes forward, at most once a minute. Nothing else follows from a PR's state: the row stays where it is.
 - **Project:** the project's name.
 - **Steps:** a bar with the steps done, the planning steps in their own colour, and "N of M"; a draft shows its planning steps. Closed work shows how it ended (**Complete**, **Partially done**, **Superseded** or **Abandoned**), when, and where it was continued.
 - **Agents:** the main model and its reasoning effort (and how many others), agent time as reported (by stage on hover), tokens and, on taller rows, subagents.
-- **Changed:** when it last changed, the date on hover.
+- **Changed:** when it last changed, the date on hover. In **Your turn** and **Waiting** the column is **Waiting**: how long the state has stood (**5 hours**, **3 days**), since when on hover, or a dash when the plan does not say since when.
 
 ## A plan
 

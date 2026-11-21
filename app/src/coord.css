@@ -468,7 +468,7 @@ html, body, #root { min-block-size: 100%; }
    which pushes a one-line note (the status line's) below the text beside it. */
 .pull-mark { margin-inline-start: 0.25em; white-space: nowrap; }
 .pull-mark svg { inline-size: 1em; block-size: 1em; vertical-align: -0.125em; }
-.pull-mark svg + svg { margin-inline-start: 0.125rem; }
+.pull-mark :is(svg, .pull-mark-word) + svg { margin-inline-start: 0.125rem; }
 .pull-mark-word { margin-inline-start: 0.2em; }
 .pull-mark :is(.pull-mark-state, .pull-mark-word)[data-state='open'], .pull-mark-checks[data-checks='passing'] { color: var(--env-color-fg-success); }
 .pull-mark :is(.pull-mark-state, .pull-mark-word)[data-state='draft'], .pull-mark-checks[data-checks='pending'] { color: var(--env-color-fg-muted); }

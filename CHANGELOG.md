@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+**The hub**
+
+- **A row's ask shows its PRs live:** the line under a plan's title (what you are to do, what it waits on, why it is blocked) links each PR, issue or commit it names, and a PR shows its state as a mark and a word (open, draft, merged or closed), as a plan's status line does. The link opens the PR in the browser; the rest of the row still opens the plan. The hub asks again when its window comes forward, so a PR merged meanwhile reads "merged".
+- **How long work has waited:** in **Your turn** and **Waiting** the last column is **Waiting** and says how long the state has stood (5 hours, 3 days), with the date on hover; the other groups keep **Changed**.
+
 ## 0.10.0 — Coord on envUI 3 — 2026-11-21
 
 **Search and the hub**
