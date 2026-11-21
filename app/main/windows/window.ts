@@ -105,6 +105,8 @@ export class CoordWindow {
       else if (row.maximized) {
         const started = performance.now();
         this.win.setOpacity(0);
+        // The resize maximizing makes (none when the window had the screen's size already), then two frames drawn at it.
+        const resized = new Promise<void>(done => { this.win.once('resize', () => done()); setTimeout(done, 150); });
         this.win.maximize();
         let shown = false;
         const reveal = (how: string) => {
@@ -114,8 +116,6 @@ export class CoordWindow {
           context.log.info('Window shown maximized', { how, ms: Math.round(performance.now() - started) });
         };
         const fallback = setTimeout(() => reveal('after the longest wait'), 500);
-        // The resize (none when the window had the screen's size already), then two frames drawn at it.
-        const resized = new Promise<void>(done => { this.win.once('resize', () => done()); setTimeout(done, 150); });
         void resized.then(() => this.win.isDestroyed() ? undefined : this.win.webContents.executeJavaScript('new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))'))
           .then(() => 'drawn', error => `without waiting: ${(error as Error).message}`).then(how => { clearTimeout(fallback); reveal(how); });
       }

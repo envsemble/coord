@@ -185,7 +185,7 @@ export class Updates {
     // With nothing on offer, the next offer is asked about afresh, even when it is the same build.
     if (!to) { this.changesAsked = null; return; }
     const asked = `${to} ${this.status.kind}`;
-    if (!ask || this.changes?.version === to || this.changesAsked === asked) return;
+    if (!ask || this.changes?.version === to || this.changesLoading === to || this.changesAsked === asked) return;
     this.changesAsked = asked;
     this.changesLoading = to;
     ask(this.options.version, to).then(changes => {
