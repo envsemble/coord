@@ -14,6 +14,7 @@ import { api } from '../api';
 import { workTarget } from '../navigation/targets';
 import { referenceKey, type Collected, type Found } from './references';
 import { useWindow } from '../window/windowContext';
+import { Hint } from '../ui/Hint';
 
 /** The host's answers for a document's references, by their key: an answer, null for none, absent while it is asked. */
 export type Resolutions = ReadonlyMap<string, ResolvedReference | null>;
@@ -74,26 +75,20 @@ const pullStates = { open: 'Open', draft: 'Draft', merged: 'Merged', closed: 'Cl
 const checkStates = { passing: 'checks passing', failing: 'checks failing', pending: 'checks running' } as const;
 /**
  * A PR's state as a small mark: open, draft, merged or closed, and its checks when they fail or run.
- * With `word`, where a list is read without hovering, its state is a small tag after the reference
- * in place of the mark (a word of its own, so it reads as a label on the link and not as part of
- * the line), with its checks while the PR is open: once it is merged or closed they say nothing more.
+ * What it stands for shows on hover, at once.
  */
-export function PullMark({ pull, word = false }: { pull: NonNullable<ResolvedReference['pull']>; word?: boolean }) {
+export function PullMark({ pull }: { pull: NonNullable<ResolvedReference['pull']> }) {
   const label = [pullStates[pull.state], pull.checks && checkStates[pull.checks]].filter(Boolean).join(', ');
   const Icon = pull.state === 'merged' ? CallMerge : pull.state === 'closed' ? Cancel : CallSplit;
   const Checks = pull.checks === 'failing' ? Cancel : pull.checks === 'pending' ? Pending : pull.checks === 'passing' ? CheckCircle : null;
-  if (word) {
-    const live = pull.state === 'open' || pull.state === 'draft';
-    return <span className="pull-tag" role="img" aria-label={label} title={label}>{pullStates[pull.state].toLowerCase()}{live && Checks && <Checks className="pull-mark-checks" data-checks={pull.checks!} />}</span>;
-  }
-  return <span className="pull-mark" role="img" aria-label={label} title={label}>
+  return <Hint content={label}><span className="pull-mark" role="img" aria-label={label}>
     <Icon className="pull-mark-state" data-state={pull.state} />{Checks && <Checks className="pull-mark-checks" data-checks={pull.checks!} />}
-  </span>;
+  </span></Hint>;
 }
 
-/** A link of the reader's own: an anchor that runs its action instead of leaving. */
+/** A link of the reader's own: an anchor that runs its action instead of leaving, with what it leads to on hover. */
 function Action({ run, title, children }: { run(): void; title?: string; children: ReactNode }) {
-  return <Link href="#" title={title} onClick={(event: MouseEvent) => { event.preventDefault(); run(); }}>{children}</Link>;
+  return <Hint content={title}><Link href="#" onClick={(event: MouseEvent) => { event.preventDefault(); run(); }}>{children}</Link></Hint>;
 }
 
 /** A reference the reader found: a link once it leads somewhere, plain text until then or when it leads nowhere. */

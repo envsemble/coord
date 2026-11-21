@@ -473,9 +473,8 @@ html, body, #root { min-block-size: 100%; }
 .pull-mark-state[data-state='draft'], .pull-mark-checks[data-checks='pending'] { color: var(--env-color-fg-muted); }
 .pull-mark-state[data-state='merged'] { color: var(--env-color-fg-accent); }
 .pull-mark-state[data-state='closed'], .pull-mark-checks[data-checks='failing'] { color: var(--env-color-fg-danger); }
-/* On the hub a PR's state is a small neutral tag after its reference: a label on the link, apart from the line's own words. */
-.pull-tag { display: inline-flex; align-items: center; gap: 0.2em; margin-inline-start: 0.3em; padding-inline: 0.35em; border-radius: var(--env-radius-xs); background: var(--env-color-bg-neutral-muted); color: var(--env-color-fg-muted); font-size: 0.85em; line-height: 1.4; white-space: nowrap; vertical-align: 0.05em; }
-.pull-tag svg { inline-size: 1em; block-size: 1em; }
+/* On the hub the mark sits above the row's stretched link, as the reference beside it does, so its hint opens on hover. */
+.hub-row-note .pull-mark, .hub-row-blocked .pull-mark { position: relative; z-index: calc(var(--env-z-raised) + 1); }
 /* The first paragraph of a long message, cut to four lines until shown whole. */
 /* A plan's statistics page: its figures, its timeline and its tables. */
 .plan-statistics-page { display: grid; gap: var(--env-space-6); }

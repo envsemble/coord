@@ -12,6 +12,7 @@ import { Fragment, memo, useEffect, useMemo, useState, type MouseEvent } from 'r
 import { Alert, Button, IconButton, Link, Menu, Row, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
 import { IconFilterList } from '@envsemble/envui/icons/FilterList';
 import { EmptyState } from '../ui/EmptyState';
+import { Hint } from '../ui/Hint';
 import { StatisticsIcon, WorkIcon } from '../ui/icons';
 import type { Project, ReferenceInput } from '../types';
 import { api } from '../api';
@@ -128,7 +129,7 @@ function useNoteReferences(items: HubItem[]): ReadonlyMap<string, Resolutions> {
 
 /**
  * What a row's state is for, as text: a PR, issue or commit it names links to its page (a PR with
- * its state beside it, as a word too) once the host says where it leads.
+ * its state beside it, as a mark) once the host says where it leads.
  */
 function Note({ note, resolved, notify }: { note: string; resolved: Resolutions | undefined; notify: Notify }) {
   const parts = useMemo(() => noteParts(note), [note]);
@@ -138,7 +139,7 @@ function Note({ note, resolved, notify }: { note: string; resolved: Resolutions 
     if (!answer?.url) return part.text;
     const url = answer.url;
     const open = (event: MouseEvent) => { event.preventDefault(); api.openExternal(url).catch(error => { if ((error as { code?: string }).code !== 'cancelled') notify((error as Error).message, 'warning'); }); };
-    return <Fragment key={index}><Link href={url} title={answer.pull?.title ?? answer.title ?? url} onClick={open}>{part.text}</Link>{answer.pull && <PullMark pull={answer.pull} word />}</Fragment>;
+    return <Fragment key={index}><Hint content={answer.pull?.title ?? answer.title ?? url}><Link href={url} onClick={open}>{part.text}</Link></Hint>{answer.pull && <PullMark pull={answer.pull} />}</Fragment>;
   })}</>;
 }
 
