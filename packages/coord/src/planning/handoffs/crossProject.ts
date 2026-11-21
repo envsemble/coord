@@ -6,7 +6,7 @@ import type { HandoffLink } from '../types.ts';
 import type { ProjectWork } from '../projects/projectSummary.ts';
 
 /** A listed project: its ID, its planning folder, its name, and its summary (null when it could not be read). */
-export interface ListedProject { projectId: string; folder: string; name: string; summary: { active: ProjectWork[]; closed: ProjectWork[] } | null }
+export interface ListedProject { projectId: string; folder: string; name: string; summary: { active: ProjectWork[]; closed: ProjectWork[]; former?: Record<string, string> } | null }
 
 const caseless = process.platform === 'win32' || process.platform === 'darwin';
 const keyOf = (value: string) => caseless ? value.toLowerCase() : value;
@@ -35,9 +35,11 @@ export function linkHandoffs(projects: ListedProject[]) {
         if (seen.has(key)) return [];
         seen.add(key);
         if (!target) return [{ ...named, projectId: null, projectName: named.project, title: null, state: null, outcome: null }];
-        const found = work(target).find(other => other.id === named.workId);
+        // A former ID leads to the part it now names.
+        const id = target.summary?.former?.[named.workId] ?? named.workId;
+        const found = work(target).find(other => other.id === id);
         if (found) found.continuedIn!.push(link(project, item, item.id));
-        return [link(target, found, named.workId)];
+        return [link(target, found, found ? id : named.workId)];
       });
     }
   }

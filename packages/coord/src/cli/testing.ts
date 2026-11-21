@@ -66,7 +66,7 @@ export const planText = (id: string, title: string, design = 'draft', implementa
   'design_status: ' + design, 'implementation_status: ' + implementation, 'accepted_at: ' + (design === 'accepted' ? '"2026-10-02"' : 'null'), 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', '# ' + title, ''].join('\n');
 
 /** The registry of homeWithPlanning's planning folder, covering these folders. */
-const registryText = (folders: string[]) => JSON.stringify({ schema_version: 2, name: 'shop-planning', folders, work_items: [{ id: 'work-0001', path: 'active/0001-cart', current_plan: 'active/0001-cart/plan.md' }] }, null, 2) + '\n';
+const registryText = (folders: string[]) => JSON.stringify({ schema_version: 3, name: 'shop-planning', folders, work_items: [{ id: 'work-0001', path: 'active/0001-cart', current_plan: 'active/0001-cart/plan.md' }] }, null, 2) + '\n';
 
 /** The folders homeWithPlanning copies, made with Git once per process. */
 const template = path.join(isolated, 'template');

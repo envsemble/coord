@@ -11,6 +11,7 @@ import { IconCheckCircle as CheckCircle } from '@envsemble/envui/icons/CheckCirc
 import { IconPending as Pending } from '@envsemble/envui/icons/Pending';
 import type { ReferenceInput, ResolvedReference } from '../types';
 import { api } from '../api';
+import { writtenWorkId } from '@envsemble/coord/planning/ids';
 import { workTarget } from '../navigation/targets';
 import { referenceKey, type Collected, type Found } from './references';
 import { useWindow } from '../window/windowContext';
@@ -98,7 +99,9 @@ export function ReferenceLink({ found, children }: { found: Found; children: Rea
   const failed = (error: Error) => notify(error.message, 'warning');
   const openUrl = (url: string) => { api.openExternal(url).catch(failed); };
   if (found.kind === 'work') {
-    const item = snapshot.work.find(entry => entry.id === found.work);
+    // By its ID as the registry writes it (work-0023-1 is work-0023), else the part a former ID now names.
+    const written = writtenWorkId(found.work);
+    const item = snapshot.work.find(entry => entry.id === written) ?? snapshot.work.find(entry => written !== null && entry.id === snapshot.former?.[written]);
     return item ? <Action run={() => open(workTarget(item.id))} title={item.title}>{children}</Action> : <>{children}</>;
   }
   // An application's link opens an application of this computer.

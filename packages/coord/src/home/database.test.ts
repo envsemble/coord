@@ -14,7 +14,7 @@ function temporary(t: TestContext) {
 }
 function write(file: string, text: string) { mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, text); }
 function planningFolder(folder: string, name?: string) {
-  write(path.join(folder, 'planning.json'), JSON.stringify({ schema_version: 2, ...name && { name }, folders: [], work_items: [] }));
+  write(path.join(folder, 'planning.json'), JSON.stringify({ schema_version: 3, ...name && { name }, folders: [], work_items: [] }));
   return realpathSync.native(folder);
 }
 const tables = (database: HomeDatabase) => (database.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as { name: string }[]).map(row => row.name);

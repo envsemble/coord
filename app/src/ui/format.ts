@@ -1,4 +1,6 @@
 // Dates: relative in lists, absolute in tooltips. Never raw ISO strings in the UI.
+import { parseWorkId, shownWorkId } from '@envsemble/coord/planning/ids';
+
 function parse(value: string) {
   return new Date(value.length === 10 ? value + 'T12:00:00' : value);
 }
@@ -52,7 +54,10 @@ export function elapsed(value: string | null | undefined, now = Date.now()) {
   return length(Math.floor(seconds / 86400), 'day');
 }
 export function bytes(value: number) { return value < 1024 ? value + ' B' : value < 1048576 ? Math.round(value / 1024) + ' KB' : (value / 1048576).toFixed(1) + ' MB'; }
-export function workNumber(id: string) { return id.replace('work-', '#'); }
+/** A work ID as people read it: its work item's number and its part's (#0032-1, #0032-2). */
+export function workNumber(id: string) { return shownWorkId(id).replace('work-', '#'); }
+/** A work item as a whole, by its number alone: #0032. */
+export function wholeNumber(id: string) { return '#' + (parseWorkId(id)?.number ?? id.replace('work-', '')); }
 export function plural(count: number, word: string, many = word + 's') { return count + ' ' + (count === 1 ? word : many); }
 /** A count compactly, for tokens: 950, 12.9K, 1.2M. */
 export function compactNumber(value: number) {

@@ -49,7 +49,7 @@ test('an open plan follows its folder: a ledger change appears without a refresh
   // A broken planning.json.
   const registry = path.join(home.folder, 'planning.json');
   const good = readFileSync(registry, 'utf8');
-  writeFileSync(registry, '{ "schema_version": 2, "folders": [');
+  writeFileSync(registry, '{ "schema_version": 3, "folders": [');
   await expect(window.locator('.folder-error')).toBeVisible();
   await expect(window.locator('.folder-error')).toContainText('planning.json');
   await expect(window.locator('.work-page h1')).toHaveText('Customer order notifications');

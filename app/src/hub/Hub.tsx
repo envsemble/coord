@@ -3,8 +3,8 @@
 // user's turn first, then work agents are on, then work waiting on something or blocked, in taller
 // rows with what their state is for (or the step worked on), then later work in compact ones, and
 // closed work with how it ended. What a row's state is for links the PRs it names, each with its live
-// state, and work that waits says for how long, in place of when it changed. A part says its place in
-// its group, a group how many of its parts are closed. The project menu (its choice part of the place,
+// state, and work that waits says for how long, in place of when it changed. A work item of several
+// parts is one entry: a row for the whole, which folds, and its parts under it. The project menu (its choice part of the place,
 // so back and forward and a plan's breadcrumb set it), where projects are also made and managed, and a state filter narrow it, on its heading's
 // line with that project's statistics; the search stays in the title bar. One click opens a plan. A connected agent that does not run Coord (Codex not trusting its hooks, say)
 // has a notice above the plans, linking to Settings › Agents, until it does.
@@ -18,8 +18,9 @@ import { Hint } from '../ui/Hint';
 import { StatisticsIcon, WorkIcon } from '../ui/icons';
 import type { Project, ReferenceInput } from '../types';
 import { api } from '../api';
-import { entryInState, entryMatchesOnly, groupFacts, hubEntries, hubEntryGroups, hubOnlyFilters, hubOnlyLabels, hubRowFacts, members, noteParts, partsFacts, projectsOf, waits, type HubEntry, type HubItem, type HubOnly, type HubRowFacts, type HubState } from './hubPlans';
-import { absoluteDate, elapsed, plural, relativeDate, workNumber } from '../ui/format';
+import { entryInState, entryMatchesOnly, groupFacts, hubEntries, hubEntryGroups, hubOnlyFilters, hubOnlyLabels, hubRowFacts, members, noteParts, projectsOf, waits, type HubEntry, type HubItem, type HubOnly, type HubRowFacts, type HubState } from './hubPlans';
+import { parseWorkId } from '@envsemble/coord/planning/ids';
+import { absoluteDate, elapsed, plural, relativeDate, wholeNumber, workNumber } from '../ui/format';
 import { settingsPlace, statisticsPlace, workTarget, type Place } from '../navigation/targets';
 import { ProjectAvatar, ProjectMenu } from '../projects/ProjectMenu';
 import type { ProjectActions } from '../projects/ProjectDialogs';
@@ -218,8 +219,6 @@ const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resol
   const continued = continuation(Boolean(facts.ended), work, project.id);
   // A part in its group's projects has none to name: its title takes that column's room too.
   const wide = index !== undefined && projects !== null && projects.length === 0;
-  // A part listed without its group says whose it is; under its group, its place says so.
-  const parts = index === undefined && work.partOf ? partsFacts(work, project) : null;
   return <Table.Row interactive className={'hub-row' + (large ? ' hub-row-large' : facts.size === 'closed' ? ' hub-row-closed' : '') + (index === undefined ? '' : ' hub-row-part')} data-work={work.id} data-size={facts.size}
     onClick={event => { if (!event.defaultPrevented && !(event.target as Element).closest('a, button') && !window.getSelection()?.toString()) { if (fold) toggle?.(); else open(event); } }}>
     <Table.Cell colSpan={wide ? 2 : undefined} className={wide ? 'hub-row-run' : undefined}>
@@ -233,9 +232,8 @@ const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resol
         {fold ? <Button variant="text" className="hub-row-link hub-row-toggle" data-row-target aria-expanded={fold.open} aria-controls={fold.controls} title={work.summary ?? undefined} onClick={toggle}>{work.title}</Button>
           : <Link href="#" underline={false} className="hub-row-link" data-row-target draggable={false} title={work.summary ?? undefined} onClick={open}>{work.title}</Link>}
         {/* eslint-disable-next-line envui/no-link-in-clickable-row -- the row folds the group's parts; its plan needs a way in that is no new button, and the number is it */}
-        {fold ? <Link href="#" underline={false} className="hub-row-number hub-row-open" draggable={false} title={'Open ' + work.title} onClick={open}>{workNumber(work.id)}</Link>
+        {fold ? <Link href="#" underline={false} className="hub-row-number hub-row-open" draggable={false} title={'Open ' + work.title} onClick={open}>{wholeNumber(work.id)}</Link>
           : <span className="hub-row-number">{workNumber(work.id)}</span>}
-        {parts?.kind === 'part' && <span className="hub-row-parts" data-kind="part">{'Part ' + parts.index + ' of ' + workNumber(parts.group)}</span>}
         {/* Folded away, its parts are said in a word: how many, and how many wait on the user. */}
         {fold && !fold.open && <span className="hub-row-parts" data-kind="group">{plural(fold.count, 'part')}{fold.turn > 0 && <span className="hub-row-parts-turn"> · {fold.turn} your turn</span>}</span>}
       </span>
@@ -266,7 +264,7 @@ const projectsKey = (projects: Project[] | null) => projects ? projects.map(proj
 const rowKeys = new WeakMap<HubItem, string>();
 function rowKey(item: HubItem) {
   let key = rowKeys.get(item);
-  if (key === undefined) rowKeys.set(item, key = JSON.stringify([item.project.id, item.project.name, item.work, item.status.key, partsFacts(item.work, item.project)]));
+  if (key === undefined) rowKeys.set(item, key = JSON.stringify([item.project.id, item.project.name, item.work, item.status.key]));
   return key;
 }
 
@@ -295,7 +293,7 @@ const HubEntryRows = memo(function HubEntryRows({ entry, open, toggleFold, gutte
   return <Table.Body id={facts ? controls : undefined} className={facts ? 'hub-entry hub-entry-group' : 'hub-entry'} data-open={facts && open ? '' : undefined}>
     <HubRow item={item} go={go} projects={showProject ? inProjects(item) : null} waiting={waiting} waited={waited(item)} resolved={resolved} notify={notify}
       gutter={gutter} fold={facts ? { open, controls, ...facts } : undefined} toggle={facts ? toggle : undefined} />
-    {open && parts.map((part, at) => <HubRow key={part.work.id} item={part} index={at + 1} go={go} projects={showProject ? projectsOf(part).join('\n') === own ? [] : inProjects(part) : null}
+    {open && parts.map((part, at) => <HubRow key={part.work.id} item={part} index={parseWorkId(part.work.id)?.part ?? at + 1} go={go} projects={showProject ? projectsOf(part).join('\n') === own ? [] : inProjects(part) : null}
       waiting={waiting} waited={waited(part)} resolved={resolved} notify={notify} />)}
   </Table.Body>;
 }, (before, after) => before.open === after.open && before.toggleFold === after.toggleFold && before.gutter === after.gutter && before.showProject === after.showProject && before.waiting === after.waiting && before.now === after.now

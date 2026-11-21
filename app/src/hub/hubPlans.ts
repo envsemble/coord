@@ -3,6 +3,7 @@
 // the work agents are on, then work waiting on a PR or something else (or blocked), then later (ready
 // to start, drafts nobody is on, work that says nothing); closed work only when asked for. And what
 // each row says of its plan.
+import { parseWorkId } from '@envsemble/coord/planning/ids';
 import type { Project, ProjectWork, ReferenceInput } from '../types';
 import { findReferences } from '../reader/references';
 import { statuses, type StatusLook, type StatusKey } from '../plan/status';
@@ -174,34 +175,18 @@ export function noteParts(note: string): NotePart[] {
   return parts;
 }
 
-/**
- * Where a plan stands among parts, as its row says it: a part is "Part 2 of #0005" (its place in its
- * group's order, of how many); a group says how many parts it has and how many of them are closed.
- */
-export type PartsFacts = { kind: 'part'; group: string; index: number; count: number } | { kind: 'group'; count: number; closed: number };
-export function partsFacts(work: ProjectWork, project: Project): PartsFacts | null {
-  const all = project.summary ? [...project.summary.active, ...project.summary.closed] : [];
-  if (work.partOf) {
-    const group = all.find(item => item.id === work.partOf);
-    const parts = group?.parts ?? [];
-    const index = parts.indexOf(work.id);
-    return group && index >= 0 ? { kind: 'part', group: group.id, index: index + 1, count: parts.length } : null;
-  }
-  if (work.parts?.length) {
-    const known = new Map(all.map(item => [item.id, item]));
-    return { kind: 'group', count: work.parts.length, closed: work.parts.filter(id => known.get(id)?.state === 'closed').length };
-  }
-  return null;
-}
-
 // ---- Entries: a plan on its own, or a group with its parts ---------------------------------------
 
-/** An entry of the hub: a plan on its own, or a work item made of parts with them in their order, closed ones too. */
+/**
+ * An entry of the hub: a plan on its own (a work item of one part), or a work item of several parts:
+ * `item` then stands for the whole (`wholeOf`: what its parts add up to) and `parts` are its parts in
+ * their numbers' order, the first included, closed ones too.
+ */
 export interface HubEntry { item: HubItem; parts: HubItem[] }
 export interface HubEntryGroup { id: HubGroupId; label: string; entries: HubEntry[] }
 
-/** An entry's plans: itself, then its parts. */
-export const members = (entry: HubEntry): HubItem[] => [entry.item, ...entry.parts];
+/** An entry's plans: its parts, or itself when it is one. */
+export const members = (entry: HubEntry): HubItem[] => entry.parts.length ? entry.parts : [entry.item];
 
 /**
  * The projects a plan is in, by their IDs: those its plan lists that the listing has, else the
@@ -212,23 +197,76 @@ export function projectsOf(item: HubItem): string[] {
   return listed.length ? [...new Set(listed)] : [item.project.id];
 }
 
+/** The most pressing of a work item's parts: an open one in the first group there is (the user's turn before work under way, before waiting, before later), the longest in its state first. */
+function pressing(parts: HubItem[]): HubItem {
+  const open = parts.filter(part => part.work.state !== 'closed');
+  const group = groupOrder.find(id => open.some(part => groupOf(part.status.key) === id));
+  const among = open.filter(part => groupOf(part.status.key) === group);
+  return [...among].sort((a, b) => (a.work.turn?.since ?? '\uffff').localeCompare(b.work.turn?.since ?? '\uffff'))[0] ?? parts[0];
+}
+
 /**
- * The hub's entries: every plan of every active project, a group with its parts once (each part
- * under its group, in the group's order, and not on its own), or, filtered to a project, the entries
- * with a plan in that project: a group shows whole when it or any of its parts is in it. A group is
- * work of several parts: work of one part and its part are entries like any other. An archived
- * project, seen only when filtered to, shows the plans it keeps.
+ * A work item of several parts as one row: its first part's title, summary and tags; whose turn it
+ * is as its most pressing part says, without that part's note (the part's own row says it); and its
+ * parts' steps, agents, time and projects added up. It keeps the first part's ID, which stands for
+ * the whole, so opening it opens the first part.
+ */
+export function wholeOf(parts: HubItem[]): HubItem {
+  const first = parts[0], lead = pressing(parts), closed = parts.every(part => part.work.state === 'closed');
+  const sum = (pick: (part: HubItem) => number) => parts.reduce((total, part) => total + pick(part), 0);
+  const stepped = parts.filter(part => part.work.steps);
+  const steps = stepped.length ? {
+    done: sum(part => part.work.steps?.done ?? 0), total: sum(part => part.work.steps?.total ?? 0),
+    planning: { done: sum(part => part.work.steps?.planning.done ?? 0), total: sum(part => part.work.steps?.planning.total ?? 0) },
+  } : null;
+  const measured = parts.flatMap(part => part.work.statistics ? [part.work.statistics] : []);
+  const most = [...measured].sort((a, b) => b.agentMs - a.agentMs)[0];
+  const tokens = measured.some(item => item.tokens !== null) ? measured.reduce((total, item) => total + (item.tokens ?? 0), 0) : null;
+  const stage = (pick: (item: typeof measured[number]) => { agentMs: number; tokens: number | null }) => ({
+    agentMs: measured.reduce((total, item) => total + pick(item).agentMs, 0),
+    tokens: measured.some(item => pick(item).tokens !== null) ? measured.reduce((total, item) => total + (pick(item).tokens ?? 0), 0) : null,
+  });
+  const statistics = most ? {
+    agentMs: measured.reduce((total, item) => total + item.agentMs, 0), activeMs: measured.reduce((total, item) => total + item.activeMs, 0),
+    unmergedMs: measured.reduce((total, item) => total + item.unmergedMs, 0), tokens, primaryModel: most.primaryModel, primaryEffort: most.primaryEffort,
+    // At least the other parts' main models, and no fewer than any one part counted.
+    otherModels: Math.max(new Set(measured.map(item => item.primaryModel).filter(Boolean)).size - 1, ...measured.map(item => item.otherModels)),
+    planning: stage(item => item.planning), implementation: stage(item => item.implementation),
+    subagents: measured.reduce((total, item) => total + item.subagents, 0),
+    lastReport: measured.map(item => item.lastReport ?? '').sort().at(-1) || null,
+  } : null;
+  const dates = (pick: (work: ProjectWork) => string | null) => parts.map(part => pick(part.work) ?? '').sort().at(-1) || null;
+  const turn = lead.work.turn;
+  // Every project a part is in, each once: the row shows them all.
+  const projects = [...new Set(parts.flatMap(projectsOf))].map(projectId => ({ projectId, project: '', projectName: '' }));
+  const work: ProjectWork = {
+    ...first.work, state: closed ? 'closed' : lead.work.state, blocked: null, steps, step: null, statistics,
+    updated: dates(item => item.updated), completed: closed ? dates(item => item.completed) : null,
+    outcome: closed ? parts.every(part => part.work.outcome === 'complete') ? 'complete' : first.work.outcome : null,
+    parts: [], partOf: null, projects,
+  };
+  delete work.turn;
+  if (!closed && turn) work.turn = { kind: turn.kind, note: null, since: turn.since };
+  return { project: first.project, work, status: closed ? hubStatus(work) : lead.status };
+}
+
+/**
+ * The hub's entries: every plan of every active project, a work item of several parts once (its
+ * parts under it, in their numbers' order, and not on their own), or, filtered to a project, the
+ * entries with a plan in that project: a work item of several parts shows whole when any of its
+ * parts is in it. A part whose first part is not listed is an entry on its own. An archived project,
+ * seen only when filtered to, shows the plans it keeps.
  */
 export function hubEntries(projects: Project[], filter: string | null): HubEntry[] {
   const archived = filter !== null && projects.some(project => project.id === filter && project.state !== 'active');
   const items = archived ? hubItems(projects, filter) : hubItems(projects, null);
   const byKey = new Map(items.map(item => [item.project.id + ':' + item.work.id, item]));
-  const groupOf = (item: HubItem) => item.work.partOf ? byKey.get(item.project.id + ':' + item.work.partOf) : undefined;
-  const partsOf = (item: HubItem) => (item.work.parts ?? []).flatMap(id => { const part = byKey.get(item.project.id + ':' + id); return part && groupOf(part) === item ? [part] : []; });
-  // Work of one part is work like any other: only work of several parts is a group, with them under it.
-  const several = (item: HubItem) => { const parts = partsOf(item); return parts.length > 1 ? parts : []; };
-  const partOf = (item: HubItem) => { const group = groupOf(item); return group && several(group).includes(item) ? group : undefined; };
-  const entries = items.filter(item => !partOf(item)).map(item => ({ item, parts: several(item) }));
+  const firstOf = (item: HubItem) => item.work.partOf ? byKey.get(item.project.id + ':' + item.work.partOf) : undefined;
+  const othersOf = (item: HubItem) => (item.work.parts ?? []).flatMap(id => byKey.get(item.project.id + ':' + id) ?? []);
+  const entries = items.filter(item => !firstOf(item)).map(item => {
+    const others = othersOf(item);
+    return others.length ? { item: wholeOf([item, ...others]), parts: [item, ...others] } : { item, parts: [] };
+  });
   return filter === null || archived ? entries : entries.filter(entry => members(entry).some(member => projectsOf(member).includes(filter)));
 }
 

@@ -25,6 +25,7 @@ import { parseFrontmatter } from '../check/check.ts';
 import { documentAnchors, markdownBody, parseMarkdown } from './headings.ts';
 import { headingText, parseable, scanLines } from './markdownScan.ts';
 import { normalTag, tagsOf } from '../work/tags.ts';
+import { parseWorkId } from '../work/ids.ts';
 
 export type SearchKind = 'plan' | 'step' | 'document' | 'heading' | 'diagram' | 'page' | 'element' | 'term' | 'project';
 /**
@@ -36,7 +37,7 @@ export interface SearchHit { kind: SearchKind; title: string; snippet: string | 
 /** A hit with what orders it among others (see compareHits). */
 export interface RankedHit extends SearchHit { tier: number; order: number; changed: number }
 /** A query: its words, folded, and the whole of them; the tags it asks for (`tag:search`). */
-export interface SearchQuery { text: string; words: string[]; number: number | null; tags: string[] }
+export interface SearchQuery { text: string; words: string[]; number: number | null; /** The part asked for with the number (`#0023-2`); without it, every part of the work item. */ part?: number; tags: string[] }
 
 /** Markdown and diagram files larger than this are known by their name only. */
 export const searchFileLimit = 2 * 1024 * 1024;
@@ -80,8 +81,8 @@ export function searchQuery(text: string): SearchQuery | null {
   const whole = rest.join(' ');
   const words = [...new Set(rest.map(word => word.replace(/^#+/, '')).filter(Boolean))];
   if (!words.length && !tags.length) return null;
-  const number = /^#?(?:work-)?(\d{1,9})$/.exec(whole);
-  return { text: whole.replace(/^#+/, ''), words, number: number ? Number(number[1]) : null, tags: [...new Set(tags)] };
+  const number = /^#?(?:work-)?(\d{1,9})(?:-([1-9]\d{0,3}))?$/.exec(whole);
+  return { text: whole.replace(/^#+/, ''), words, number: number ? Number(number[1]) : null, ...number?.[2] && { part: Number(number[2]) }, tags: [...new Set(tags)] };
 }
 
 /**
@@ -99,7 +100,7 @@ interface Field { text: string; folded: string; minimum: number }
 const field = (text: string, minimum = 1): Field => { const composed = text.normalize('NFC'); return { text: composed, folded: fold(composed), minimum }; };
 /** Something the index can find: its titles (any can match), other fields, and text; `elsewhere`: found by its titles as something else (a plan's file as its work item). */
 interface Entry {
-  kind: SearchKind; title: string; names: string[]; fields: Field[]; body: Field | null; number: number | null; elsewhere?: boolean; tags?: string[];
+  kind: SearchKind; title: string; names: string[]; fields: Field[]; body: Field | null; number: number | null; part?: number; elsewhere?: boolean; tags?: string[];
   work: string | null; path: string | null; anchor: string | null; element: string | null; changed: number;
 }
 
@@ -145,7 +146,7 @@ function matchEntry(entry: Entry, query: SearchQuery): RankedHit | null {
   // Asked for tags: only the plans with every one of them; tags alone list them all.
   if (query.tags.length && !query.tags.every(tag => entry.tags?.includes(tag))) return null;
   if (!query.words.length) return hit(4, null);
-  if (entry.number !== null && entry.number === query.number) return hit(0, null);
+  if (entry.number !== null && entry.number === query.number && (query.part === undefined || query.part === entry.part)) return hit(0, null);
   let best: number | null = null;
   for (const name of entry.names) { const tier = titleTier(name, query); if (tier !== null && (best === null || tier < best)) best = tier; }
   if (best !== null) return entry.elsewhere ? null : hit(best, null);
@@ -394,10 +395,11 @@ function gather(files: Map<string, FileRecord>, registry: { work_items?: unknown
     const ledger = files.get(item.path + '/ledger.md');
     const metadata = plan?.parsed.metadata;
     const title = text(metadata?.title) ?? plan?.parsed.title ?? item.path.split('/').at(-1)!;
-    const number = /(\d+)$/.exec(item.id)?.[1] ?? null;
+    // Its work item's number and its part's, as it is shown (0023-2); the number alone finds every part.
+    const id = parseWorkId(item.id), number = id?.number ?? null;
     const summary = text(metadata?.summary), tags = tagsOf(metadata?.tags);
     entries.push({
-      ...base, kind: 'plan', title, names: [fold(title)], fields: [...summary ? [field(summary)] : [], ...tags.length ? [field(tags.join(' '))] : [], ...number === null ? [] : [field(number, 2)]], number: number === null ? null : Number(number),
+      ...base, kind: 'plan', title, names: [fold(title)], fields: [...summary ? [field(summary)] : [], ...tags.length ? [field(tags.join(' '))] : [], ...id === null ? [] : [field(id.number + '-' + id.part, 2)]], number: number === null ? null : Number(number), ...id && { part: id.part },
       work: item.id, path: item.plan, changed: plan?.mtime ?? 0, tags,
     });
     const steps = ledger?.parsed.metadata?.steps;

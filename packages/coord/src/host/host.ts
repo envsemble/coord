@@ -22,6 +22,7 @@ import {
   readRegistry, resolveDocument, setProjectFolders, setRegistryName, WorkError, type LogOptions, type ProjectRow, type ProjectTemplates, type WorkReport,
 } from '../planning/index.ts';
 import { compareHits, PlanningSearch, searchQuery } from '../planning/reading/search.ts';
+import { moveForward } from '../planning/registry/moveForward.ts';
 import { AccessStore, newToken } from './access/access.ts';
 import { hostAddresses } from './access/addresses.ts';
 import {
@@ -583,6 +584,8 @@ export class Host {
   }
   /** What the hub shows of a project's plans: from its planning folder and its reports, with what agents do on its work now. */
   private async summaryOf(row: ProjectRow, activity: ProjectSummary['activity'], reports: Map<string, WorkReport[]> | undefined, now: string): Promise<ProjectSummary | null> {
+    // A folder of the earlier registry version is moved forward first, with this home's rows about it.
+    await moveForward(row.folder, { home: this.options.home }).catch(() => false);
     try { return { ...await projectSummary(row.folder, { reports: reports ?? new Map() }), activity, now }; } catch { return null; }
   }
   /**

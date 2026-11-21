@@ -37,7 +37,8 @@ const patterns: { pattern: RegExp; found(match: RegExpExecArray, code: boolean):
   // A web address (GitHub's PRs, issues and commits resolve; other addresses are left to markdown).
   { pattern: /https?:\/\/[^\s<>()[\]`'"]+/g, found: match => { const input = fromUrl(trimEnd(match[0])); return input ? { kind: 'host', input } : 'skip'; } },
   { pattern: new RegExp('\\b(?:' + appSchemes.join('|') + '):\\/\\/[^\\s<>()[\\]`\'"]+', 'g'), found: match => ({ kind: 'app', url: trimEnd(match[0]) }) },
-  { pattern: /\bwork-\d{4}\b/g, found: match => ({ kind: 'work', work: match[0] }) },
+  // A work ID in any of its forms: work-0023, a later part's work-0023-2, or a former ID.
+  { pattern: /\bwork-\d{4,}(?:-[1-9]\d*)?\b/g, found: match => ({ kind: 'work', work: match[0] }) },
   // envsemble/coord#22: a repository's PR or issue (not a URL's fragment or an HTML entity).
   { pattern: new RegExp('(?<![\\w/&#.-])(' + repository + ')#(\\d{1,7})\\b', 'g'), found: match => ({ kind: 'host', input: { kind: 'pull', repository: match[1], value: match[2], line: null } }) },
   // envsemble/coord@4ab195a: a repository's commit (not an e-mail address).

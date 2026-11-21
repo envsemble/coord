@@ -26,7 +26,7 @@ test('a project is made with its name and folders, and its folders change in pla
   try {
     const row = await createProject(database, { name: 'Shop', folders: [folder + path.sep, folder] }, await readTemplates(templates));
     const text = readFileSync(path.join(row.folder, 'planning.json'), 'utf8');
-    assert.deepEqual(JSON.parse(text), { schema_version: 2, name: 'Shop', folders: [folder], work_items: [] });
+    assert.deepEqual(JSON.parse(text), { schema_version: 3, name: 'Shop', folders: [folder], work_items: [] });
     assert.deepEqual(validatePlanning(row.folder).errors, []);
     assert.match(execFileSync('git', ['-C', row.folder, 'log', '--format=%s'], { encoding: 'utf8' }), /^Create the Shop project\n$/);
     // A project may cover no folder yet; a second one of the same name gets a folder of its own.

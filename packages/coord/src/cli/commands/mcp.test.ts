@@ -71,11 +71,13 @@ test('the MCP server serves the planning-state tools, resolving the planning fol
       assert.equal(created.structuredContent!.workId, 'work-0002');
       assert.deepEqual((await inRoot('work_update', { work: 'work-0002', continues: ['work-0001'] })).structuredContent!.continues, ['work-0001']);
       assert.deepEqual((await inRoot('work_update', { work: 'work-0002', addTags: ['cart'] })).structuredContent!.tags, ['cart']);
-      // A part made in its group, and the group's parts set in order.
+      // A part made in its work item takes its number; work that exists joins one, and its old ID still names it.
       const part = await inRoot('work_create', { title: 'Card form', partOf: 'work-0002' });
-      assert.deepEqual([part.structuredContent!.workId, part.structuredContent!.partOf], ['work-0003', 'work-0002']);
-      assert.deepEqual((await inRoot('work_update', { work: 'work-0002', parts: ['work-0003', 'work-0001'] })).structuredContent!.parts, ['work-0003', 'work-0001']);
-      assert.match((await inRoot('work_update', { work: 'work-0001', parts: ['work-0003'] })).content![0].text, /already a part of work-0002/);
+      assert.deepEqual([part.structuredContent!.workId, part.structuredContent!.partOf, part.structuredContent!.parts], ['work-0002-2', 'work-0002', ['work-0002', 'work-0002-2']]);
+      const joined = await inRoot('work_update', { work: 'work-0001', partOf: 'work-0002-2' });
+      assert.deepEqual([joined.structuredContent!.workId, joined.structuredContent!.formerly], ['work-0002-3', 'work-0001']);
+      assert.equal((await inRoot('work_status', { work: 'work-0001' })).structuredContent!.workId, 'work-0002-3');
+      assert.match((await inRoot('work_update', { work: 'work-0002-2', partOf: 'work-0002' })).content![0].text, /a part of work-0002 already/);
       // A work item named with its project is in that project's planning folder, and says which projects it is in.
       const named = path.basename(root) + ':work-0001';
       assert.deepEqual((await call('work_update', { work: named, projects: [path.basename(root)] })).structuredContent!.projects, [path.basename(root)]);

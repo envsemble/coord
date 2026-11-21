@@ -15,7 +15,7 @@ import { api } from '../api';
 import { documentTarget, hubPlace, isPage, pageAt, pageTarget, placeId, placeProject, scrollKey, settingsPlace, statisticsPlace, workTarget, type Place, type ProjectPlace } from '../navigation/targets';
 import { samePath, siblingProject } from '../reader/links';
 import { canGoBack, canGoForward, currentEntry, keyStep, record, samePlace, startHistory, step } from '../navigation/history';
-import { workNumber } from '../ui/format';
+import { wholeNumber, workNumber } from '../ui/format';
 import { FilesContext, focusPlanFiles, nodeForTarget, placeWork, PlanFiles, type FilesState } from '../files/Explorer';
 import { SearchPopup } from '../navigation/SearchPopup';
 import { SearchButton } from '../navigation/SearchButton';
@@ -610,7 +610,7 @@ function PlanFrame({ work, snapshot, children }: { work: Work | null; snapshot: 
   const [openFor, setOpenFor] = useState<string | null>(null);
   const group = partsGroup(work, snapshot);
   if (!group || !work) return children;
-  const label = 'Parts of ' + workNumber(group.id);
+  const label = 'Parts of ' + wholeNumber(group.id);
   const rail = <PartsRail group={group} shown={work.id} />;
   const beside = size === undefined || !['compact', 'medium'].includes(windowClassOf(size.inlineSize));
   // The page keeps its place in the tree in both forms, so crossing the width doesn't remount it.

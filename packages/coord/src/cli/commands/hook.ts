@@ -25,6 +25,7 @@ import { coordHome } from '../../home/homePath.ts';
 import { harnessOfTranscript } from '../../agents/activity.ts';
 import type { Whereabouts } from '../../planning/projects/findProject.ts';
 import { contradictions } from '../../planning/work/contradictions.ts';
+import { resolveWorkId, workIdSource } from '../../planning/work/ids.ts';
 import type { insertReport } from '../../planning/reports/reports.ts';
 import type { PreparedReport } from '../../planning/reports/recordReport.ts';
 import type { Output } from '../args.ts';
@@ -242,7 +243,7 @@ export function editedFiles(input: HookInput): string[] {
 /** A work item a tool call or a command was about: its ID, the planning folder given with it, and its name with a project (`envui:work-0048`) when it was named so. */
 interface About { workId: string; planningFolder: string | null; named?: string }
 /** A work item as a call names it: its own ID, or one with the project that keeps it before a colon. */
-const namedWork = /^(?:[^:\\/\s][^:\\/]{0,99}:)?(work-[0-9]{4,})$/;
+const namedWork = new RegExp('^(?:[^:\\\\/\\s][^:\\\\/]{0,99}:)?(' + workIdSource + ')$');
 
 /**
  * The work items a shell command changed through the coord command (runsCoordWork): each `coord
@@ -257,9 +258,9 @@ export function shellWork(input: HookInput): About[] {
   const folder = /--planning-dir\s+(?:"([^"]+)"|'([^']+)'|(\S+))/.exec(command);
   const given = folder ? folder[1] ?? folder[2] ?? folder[3] : null;
   const planningFolder = given && path.isAbsolute(given) ? given : null;
-  for (const match of command.matchAll(/\bcoord(?:\.js|\.cmd)?["']?\s+work\s+(?!(?:status|search|report)\b)(?:step\s+\w+\s+|\w+\s+)["']?((?:[^:\\/\s"'][^:\\/\s"']{0,99}:)?(work-[0-9]{4,}))\b/g)) found.push({ workId: match[2], planningFolder, ...match[1] !== match[2] && { named: match[1] } });
+  for (const match of command.matchAll(/\bcoord(?:\.js|\.cmd)?["']?\s+work\s+(?!(?:status|search|report)\b)(?:step\s+\w+\s+|\w+\s+)["']?((?:[^:\\/\s"'][^:\\/\s"']{0,99}:)?(work-[0-9]{4,}(?:-[1-9][0-9]*)?))\b/g)) found.push({ workId: match[2], planningFolder, ...match[1] !== match[2] && { named: match[1] } });
   if (/\bcoord(?:\.js|\.cmd)?["']?\s+work\s+create\b/.test(command)) {
-    for (const text of strings(input.tool_response)) for (const match of text.matchAll(/"workId"\s*:\s*"(work-[0-9]{4,})"/g)) found.push({ workId: match[1], planningFolder });
+    for (const text of strings(input.tool_response)) for (const match of text.matchAll(/"workId"\s*:\s*"(work-[0-9]{4,}(?:-[1-9][0-9]*)?)"/g)) found.push({ workId: match[1], planningFolder });
   }
   return found;
 }
@@ -290,6 +291,11 @@ async function registered(root: string): Promise<Registered[]> {
   const registry = JSON.parse((await readFile(path.join(root, 'planning.json'), 'utf8')).replace(/^﻿/, '')) as { work_items?: Registered[] };
   return Array.isArray(registry.work_items) ? registry.work_items.filter(item => typeof item?.id === 'string' && typeof item.path === 'string') : [];
 }
+/** The ID a name of work leads to in a planning folder (its own, or the part a former ID now names); null when it registers none. */
+async function registeredAs(root: string | null, workId: string): Promise<string | null> {
+  if (root === null) return null;
+  try { return resolveWorkId(JSON.parse((await readFile(path.join(root, 'planning.json'), 'utf8')).replace(/^﻿/, '')), workId); } catch { return null; }
+}
 
 interface LinkRequest { planningFolder: string; workId: string; amending: boolean }
 
@@ -304,19 +310,19 @@ async function postToolUse(input: HookInput, home: string, links: SessionLinks):
     // Where the work is: the project it is named with, else the session's.
     const folderOf = (about: About) => (about.named ? resolveWork({ cwd: input.cwd ?? process.cwd(), home, work: about.named }).then(found => found.root)
       : resolvePlanningFolder({ cwd: input.cwd ?? process.cwd(), home, work: about.workId })).catch(() => null);
-    const registers = async (root: string | null, workId: string) => root !== null && (await registered(root).catch(() => [])).some(item => item.id === workId);
     for (const about of changed) {
-      // A tool's result names the work it changed and where.
+      // A tool's result names the work it changed and where. The link carries the ID as the folder's registry writes it.
       if (tool) {
         const root = about.planningFolder ?? await folderOf(about);
-        if (root) requests.push({ planningFolder: root, workId: about.workId, amending: false });
+        if (root) requests.push({ planningFolder: root, workId: await registeredAs(root, about.workId) ?? about.workId, amending: false });
         continue;
       }
       // The planning folder named, if it registers the work (a shell's path may not be this system's, as Git Bash's /c/…), else the session's.
-      const named = about.planningFolder !== null && await registers(about.planningFolder, about.workId) ? about.planningFolder : null;
+      const named = about.planningFolder !== null && await registeredAs(about.planningFolder, about.workId) !== null ? about.planningFolder : null;
       const root = named ?? await folderOf(about);
       // A work item the planning folder does not register (a mistyped command) links nothing.
-      if (root && (named !== null || await registers(root, about.workId))) requests.push({ planningFolder: root, workId: about.workId, amending: false });
+      const workId = await registeredAs(root, about.workId);
+      if (root && workId !== null) requests.push({ planningFolder: root, workId, amending: false });
     }
   }
   const base = await realpath(homePlanningDirectory(home)).catch(() => null);
