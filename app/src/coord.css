@@ -112,7 +112,9 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 /* A work item made of parts has a button before its icon that folds them away; in a hub with such
    work every row leaves that button's room, so the titles start on one edge and the buttons stand
    alone before them. Its title is a weight heavier. */
-.hub-list { --hub-fold: 1.5rem; --hub-part-surface: light-dark(color-mix(in srgb, var(--env-color-bg-default), var(--env-color-bg-muted)), color-mix(in srgb, var(--env-color-bg-default) 75%, var(--env-color-bg-page))); }
+/* A part's tile is a step darker than the rows: in the light theme a see-through shade, so it stays
+   darker than its group's surface while that lights up under the pointer (which darkens it there). */
+.hub-list { --hub-fold: 1.5rem; --hub-part-surface: light-dark(color-mix(in srgb, var(--env-color-fg-default) 7%, transparent), color-mix(in srgb, var(--env-color-bg-default) 75%, var(--env-color-bg-page))); }
 .hub-row-fold { display: inline-flex; flex: none; align-items: center; justify-content: center; inline-size: var(--hub-fold); margin-inline: calc(-1 * var(--env-space-2)) calc(-1 * var(--env-space-1)); color: var(--env-color-fg-muted); }
 .hub-row-fold svg { inline-size: 1.25rem; block-size: 1.25rem; }
 /* A group's title is the button that folds it, stretched over its row: it reads as the title it is. */
@@ -128,14 +130,16 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 /* A part's title in the Project column's room stops well short of the steps. */
 .hub-row-part > .env-table-cell.hub-row-run { padding-inline-end: var(--env-space-8); }
 .hub-row-part .hub-row-title + .cell-note { margin-inline-start: calc(1rem + 1.125rem + 2 * var(--env-space-2)); }
-/* A work item made of parts lies on a surface a little apart from the plain rows', its own row and
-   the room around its parts' panel alike, so it is told from them folded or not. Its row under the
-   pointer lights up as a row does. */
-.hub-list { --hub-group-surface: color-mix(in srgb, var(--hub-part-surface), var(--env-color-bg-raised)); }
-.hub-list.env-table > .env-table-body.hub-entry-group { --hub-group: var(--hub-group-surface); }
-/* Its row under the pointer lights the whole group's surface, around its parts' tiles too: the row folds all of it. */
-.hub-list.env-table > .env-table-body.hub-entry-group:has(> .env-table-row:not(.hub-row-part):is(:hover, :has(:focus-visible))) { --hub-group: color-mix(in srgb, var(--hub-group-surface), var(--env-color-fg-default) 6%); }
-.hub-list.env-table > .env-table-body.hub-entry-group > .env-table-row { background-color: var(--hub-group); }
+/* A work item made of parts has the plain rows' surface, its own row and the room around its parts'
+   tiles alike: every top-level row of the hub is one colour, and the tiles alone are set apart. Its
+   row under the pointer lights the whole group, around its tiles too, as a row lights up (the
+   table's own hover, which is a little lighter in the dark theme): the row folds all of it. */
+.hub-list { --hub-row-hover: var(--env-color-bg-row-hover); }
+.env-theme[data-env-theme='dark']:not([data-env-contrast='high']) .hub-list { --hub-row-hover: oklch(from var(--env-color-bg-row-hover) l c h / calc(alpha * 0.85)); }
+.hub-list.env-table > .env-table-body.hub-entry-group { --hub-group: transparent; }
+.hub-list.env-table > .env-table-body.hub-entry-group:has(> .env-table-row:not(.hub-row-part):is(:hover, :has(:focus-visible))) { --hub-group: var(--hub-row-hover); }
+/* The group's own row takes it; around a tile its cells paint it, once (the hover is see-through). */
+.hub-list.env-table > .env-table-body.hub-entry-group > .env-table-row:not(.hub-row-part) { background-color: var(--hub-group); }
 /* Its parts are rows of the same table, so they stay in the table's columns, as a list of their own
    under the group's row, the way envUI's List joins its rows: each a tile, a surface one quiet step
    from the rows', set in from both edges of the table and starting under the group's icon, with a
