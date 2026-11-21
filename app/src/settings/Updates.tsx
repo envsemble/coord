@@ -72,7 +72,7 @@ function UpdateCard({ status, state }: { status: Extract<UpdateStatus, { version
   return <Column gap={4} className="update-card">
     <Column gap={1} render={<header />}>
       <div className="update-card-heading">
-        <Text variant="title" tabularNumbers render={<h2 />}>{headings[status.kind]}{status.kind === 'downloading' && ` · ${status.percent}%`}</Text>
+        <Text variant="title" render={<h2 />}>{headings[status.kind]}</Text>
       </div>
       <Text variant="body-sm">
         <Text variant="body-sm" emphasis="default" render={<span />}>Coord {status.version}</Text>{!isNightlyVersion(status.version) && ' · Stable'}
