@@ -112,6 +112,14 @@ test("the hub's search button opens the search and it never filters the hub; the
   await expect(window.getByRole('region', { name: 'Closed' }).locator('.hub-row .handoff-continued')).toHaveText('continued in #0001');
   await state.getByRole('radio', { name: /^All/ }).click();
   await expect(hubRows(window, 'Saved payment methods')).toHaveCount(1);
+  // The filter menu beside it narrows them further: its button, which has a hint, opens its menu.
+  await window.getByRole('button', { name: 'Filters', exact: true }).click();
+  await window.getByRole('menuitemcheckbox', { name: 'Your turn' }).click();
+  await expect(hubRows(window)).toHaveCount(1);
+  await window.keyboard.press('Escape');
+  await window.getByRole('button', { name: 'Filters, 1 on', exact: true }).click();
+  await window.getByRole('menuitem', { name: 'Clear filters' }).click();
+  await expect(hubRows(window)).toHaveCount(4);
   // The state filter stays while the window shows something else.
   await openPlan(window, 'Saved payment methods');
   // On a plan, the title bar's search finds the documents of its project too.

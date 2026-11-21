@@ -1,11 +1,11 @@
 // What the hub's rows say when pointed at. A mark, a number or a date answers almost at once (the
 // Hint's quick delay); text the pointer crosses on its way (a plan's title, a line cut short) answers
-// once the pointer rests. A plan's title opens a card with its whole title and its summary: a
-// paragraph, so it opens from the title's own letters and never from the rest of its row.
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { HoverCard, Text } from '@envsemble/envui';
+// once the pointer rests. A plan's title opens a card with its summary: a paragraph, so it opens from
+// the title's own letters and never from the rest of its row.
+import type { ReactNode } from 'react';
+import { Text } from '@envsemble/envui';
 import type { ProjectWork } from '../types';
-import { cutShort, restDelay } from '../ui/Hint';
+import { cards, cutShort, hints, restDelay, type Asked } from '../ui/Hint';
 import type { HubItem } from './hubPlans';
 
 /** A hint's lines, one under the other; those with nothing to say are left out. */
@@ -31,33 +31,29 @@ export function stepsHint(work: ProjectWork, planningOnly: boolean): ReactNode {
 /** A group's parts, one a line: its place, its title and whose turn it is. */
 export const partLines = (parts: HubItem[]): string[] => parts.map((part, index) => index + 1 + '. ' + part.work.title + ' · ' + part.status.label);
 
-/** The plan's title as its row's link holds it. envUI asks a card's text trigger for a tab stop of its own; this one is inside the row's link, whose focus opens the card. */
-const Words = ({ children }: { children: string }) => children;
+/** How long the card stays once the pointer has left the title: it holds text only, so it clears the rows it covers about as fast as a hint does. */
+const cardLeaves = 100;
+/** The titles a press is on: none opens its card until the pointer has left it. */
+const pressed = new WeakSet<Element>();
 
 /**
- * A plan's title in its row, with a card of its whole title and its summary, above the row (as the
- * hints open), so the row itself and the rows still to read stay in sight. The card opens when the
- * pointer rests on the title's letters (lifted above the link that covers the row, so the rest of the
- * row opens nothing), or when keyboard focus rests on the row's link. A plan without a summary has a
- * card only while its title is cut short.
+ * A plan's title in its row, with a card of its summary above the row (as the hints open), so the row
+ * itself and the rows still to read stay in sight; the card starts with the whole title where the row
+ * cuts it short. The card opens when the pointer has rested half a second on the title's letters
+ * (lifted above the link that covers the row, so the rest of the row opens nothing; every move starts
+ * the wait again), or when keyboard focus rests as long on the row's link. A press never opens it: a
+ * click opens the plan or folds the group, and the card would come up over what the click did. A
+ * plan without a summary has a card only while its title is cut short. The card is the window's one
+ * hint (`hints`), in the page only while it shows: a row costs no more to draw than without it.
  */
 export function PlanName({ title, summary }: { title: string; summary: string | null }) {
-  const [open, setOpen] = useState(false);
-  const name = useRef<HTMLSpanElement>(null);
-  const says = () => Boolean(summary) || cutShort(name.current, name.current?.parentElement);
-  useEffect(() => {
-    const link = name.current?.closest('a, button');
-    if (!link) return;
-    let timer = 0;
-    const focused = () => { if (link.matches(':focus-visible')) timer = window.setTimeout(() => setOpen(says()), restDelay); };
-    const left = () => { window.clearTimeout(timer); setOpen(false); };
-    link.addEventListener('focus', focused);
-    link.addEventListener('blur', left);
-    return () => { window.clearTimeout(timer); link.removeEventListener('focus', focused); link.removeEventListener('blur', left); };
-  }, [summary]);
-  return <HoverCard open={open} onOpenChange={next => setOpen(next && says())} delay={restDelay} side="top" align="start" width="lg" underline={false}
-    trigger={<span ref={name} className="hub-row-name"><Words>{title}</Words></span>}>
-    <Text render={<strong />}>{title}</Text>
-    {summary && <Text emphasis="muted">{summary}</Text>}
-  </HoverCard>;
+  const card = (name: Element) => (): Asked | null => {
+    const cut = cutShort(name, name.parentElement);
+    if (!summary && !cut) return null;
+    return { card: true, side: 'top', align: 'start', content: <>{cut && <Text render={<strong />}>{title}</Text>}{summary && <Text emphasis="muted">{summary}</Text>}</> };
+  };
+  return <span className="hub-row-name" data-card="" ref={name => { if (name) cards.set(name, card(name)); }}
+    onPointerMove={({ currentTarget: name }) => { if (!pressed.has(name)) hints.wait(name, restDelay, card(name), () => name.matches(':hover') && !pressed.has(name)); }}
+    onPointerDown={({ currentTarget: name }) => { pressed.add(name); hints.close(name); }}
+    onPointerLeave={({ currentTarget: name }) => { pressed.delete(name); hints.close(name, cardLeaves); }}>{title}</span>;
 }

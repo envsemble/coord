@@ -4,6 +4,7 @@ import { defaultUiState } from '../shared/contract';
 import { api } from './api';
 import { Scaffold, TopBar, useToast } from '@envsemble/envui';
 import { Loading } from './ui/Loading';
+import { HintLayer } from './ui/Hint';
 import { EmptyState } from './ui/EmptyState';
 import { ErrorIcon } from './ui/icons';
 import { CoordWindow } from './window/Window';
@@ -51,5 +52,5 @@ export default function App() {
     : !info || !ui || onboarding === null ? bare(<Loading label="Starting Coord" />)
     : onboarding ? bare(<Onboarding onDone={() => setOnboarding(false)} />)
     : <CoordWindow info={info} initialUi={ui} />;
-  return <AppActionsContext.Provider value={actions}>{content}{about && <AboutDialog onClose={() => setAbout(false)} onError={warn} />}</AppActionsContext.Provider>;
+  return <AppActionsContext.Provider value={actions}>{content}{about && <AboutDialog onClose={() => setAbout(false)} onError={warn} />}<HintLayer /></AppActionsContext.Provider>;
 }

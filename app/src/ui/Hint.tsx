@@ -1,13 +1,15 @@
-import { cloneElement, useRef, useState, type PointerEvent, type ReactElement, type ReactNode } from 'react';
-import { Tooltip } from '@envsemble/envui';
+import { cloneElement, useEffect, useSyncExternalStore, type PointerEvent, type ReactElement, type ReactNode } from 'react';
+import { HoverCard, Tooltip } from '@envsemble/envui';
 
 /** How long the pointer rests before a hint opens on something pointed at on purpose (a mark, a number, a link): short, since the hint is looked for. */
-const hintDelay = 100;
+export const hintDelay = 100;
 /**
  * How long it rests before more opens over text the pointer crosses on its way elsewhere (a title, a
  * line cut short): long enough that crossing the rows opens nothing, short enough to feel asked for.
  */
 export const restDelay = 500;
+/** How long a hint that closed stays in the page, for envUI's fade. */
+const fadeOut = 200;
 
 /** Whether an element's text is cut short: it runs past its own box, or past the box that clips it (`within`). */
 export function cutShort(element: Element | null, within: Element | null = element): boolean {
@@ -16,27 +18,122 @@ export function cutShort(element: Element | null, within: Element | null = eleme
 }
 
 /** What has a hint of its own inside an element with one: a link, a button, a mark. */
-const inner = 'a, button, [role="img"]';
+const inner = 'a, button, [data-hint]';
+
+type Side = 'top' | 'bottom';
+type Align = 'start' | 'center' | 'end';
+/** What a hint shows and where: a tooltip beside its element, or (`card`) a card for a paragraph. */
+export interface Asked { content: ReactNode; side?: Side; align?: Align; card?: boolean }
+/** The hint the window shows: where its element stood when it opened, and whether it is open (closed, it fades). */
+interface Showing { id: number; box: DOMRect; open: boolean; hint: Asked }
+
+// One hint at a time, for the whole window: the elements only say when the pointer comes and goes,
+// and the window's hint layer (`HintLayer`) shows the one that is due. A list has hints by the
+// hundred; this way a row costs no more to draw than a row without them.
+let showing: Showing | null = null;
+let shownAt: Element | null = null;
+let waitingAt: Element | null = null;
+let waiting = 0, closing = 0, entering = 0, shows = 0;
+const watchers = new Set<() => void>();
+const show = (next: Showing | null) => { showing = next; for (const watcher of watchers) watcher(); };
+const watch = (watcher: () => void) => { watchers.add(watcher); return () => { watchers.delete(watcher); }; };
+
+export const hints = {
+  /**
+   * Open a hint at an element once `delay` has passed, if `when` then holds (the pointer still rests
+   * there, say) and there is something to show (`hint` may be worked out then). Asked again for the
+   * same element, the wait starts over; while its hint shows, nothing changes.
+   */
+  wait(element: Element, delay: number, hint: Asked | (() => Asked | null), when: () => boolean) {
+    if (shownAt === element) { window.clearTimeout(closing); return; }
+    window.clearTimeout(waiting);
+    waitingAt = element;
+    waiting = window.setTimeout(() => {
+      waitingAt = null;
+      const asked = element.isConnected && when() ? typeof hint === 'function' ? hint() : hint : null;
+      if (!asked) return;
+      window.clearTimeout(closing);
+      shownAt = element;
+      // It enters the page closed and opens in the next frame, so envUI's fade plays.
+      show({ id: ++shows, box: element.getBoundingClientRect(), open: false, hint: asked });
+      window.cancelAnimationFrame(entering);
+      entering = window.requestAnimationFrame(() => { if (showing && shownAt === element) show({ ...showing, open: true }); });
+    }, delay);
+  },
+  /** Forget the wait at an element and close its hint, at once or `after` a moment; without an element, whichever hint waits or shows. */
+  close(element?: Element, after = 0) {
+    if (!element || waitingAt === element) { window.clearTimeout(waiting); waitingAt = null; }
+    if (element && shownAt !== element) return;
+    window.clearTimeout(closing);
+    const end = () => { window.cancelAnimationFrame(entering); shownAt = null; if (showing?.open) show({ ...showing, open: false }); else if (showing) show(null); };
+    if (after) closing = window.setTimeout(end, after); else end();
+  },
+};
+
+/** Elements whose card opens when keyboard focus rests on the link around them: what to show, worked out when it opens. */
+export const cards = new WeakMap<Element, () => Asked | null>();
+
+/**
+ * The window's hint: envUI's tooltip (or its hover card) beside an invisible anchor laid over the
+ * element it is for, in the page only while it shows. It closes when the page scrolls or a key is
+ * pressed, and leaves the page once envUI's fade is over. Keyboard focus resting on a link opens the
+ * card of what it holds (see `cards`).
+ */
+export function HintLayer() {
+  const shown = useSyncExternalStore(watch, () => showing);
+  useEffect(() => {
+    const close = () => hints.close();
+    const focused = (event: FocusEvent) => {
+      const link = event.target instanceof Element && event.target.matches(':focus-visible') ? event.target : null;
+      const held = link?.querySelector('[data-card]');
+      const asked = held && cards.get(held);
+      if (link && held && asked) hints.wait(held, restDelay, asked, () => link.matches(':focus-visible'));
+    };
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', close, true);
+    window.addEventListener('focusin', focused);
+    window.addEventListener('focusout', close);
+    return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('keydown', close, true); window.removeEventListener('focusin', focused); window.removeEventListener('focusout', close); };
+  }, []);
+  useEffect(() => {
+    if (!shown || shown.open) return;
+    const timer = window.setTimeout(() => { if (showing === shown) show(null); }, fadeOut);
+    return () => window.clearTimeout(timer);
+  }, [shown]);
+  if (!shown) return null;
+  const { box, hint } = shown;
+  const anchor = <span className="hint-anchor" aria-hidden="true" style={{ left: box.left, top: box.top, width: box.width, height: box.height }} />;
+  const closed = (next: boolean) => { if (!next) hints.close(); };
+  return hint.card ? <HoverCard key={shown.id} open={shown.open} onOpenChange={closed} side={hint.side} align={hint.align} width="lg" underline={false} trigger={anchor}>{hint.content}</HoverCard>
+    : <Tooltip key={shown.id} content={hint.content} open={shown.open} onOpenChange={closed} underline={false} side={hint.side} align={hint.align}>{anchor}</Tooltip>;
+}
 
 /**
  * A short hint on hover and keyboard focus, in place of a native `title`: envUI's tooltip, opening
- * quickly, or once the pointer rests (`rest`) on text it merely crosses. `cut` shows it only while
- * the element's text is cut short, and never beside the hint of a link or a mark inside it. Without
- * anything to say, the element alone. The element is marked `data-hint`, so a row whose link covers
- * it can lift it to the pointer, and gets an empty `title`, so a `title` of something around it does
- * not show beside the hint.
+ * quickly, or once the pointer rests (`rest`) on text it merely crosses. Without anything to say, the
+ * element alone. The element is marked `data-hint`, so a row whose link covers it can lift it to the
+ * pointer, and gets an empty `title`, so a `title` of something around it does not show beside the hint.
+ *
+ * A control (a link, a button) is wrapped in the tooltip, which then also opens on its keyboard focus
+ * and describes it. Plain text and marks only listen for the pointer: resting on one opens its hint
+ * in the window's hint layer (a `rest` hint counts from the pointer's last move); leaving it,
+ * pressing it, scrolling or a key closes it. `cut` shows the hint only while the element's text is
+ * cut short, and never beside the hint of a link or a mark inside it.
  */
 export function Hint({ content, children, rest = false, cut = false, side, align }: {
   content: ReactNode; children: ReactElement<{ title?: string; children?: ReactNode }>;
-  rest?: boolean; cut?: boolean; side?: 'top' | 'bottom'; align?: 'start' | 'center' | 'end';
+  rest?: boolean; cut?: boolean; side?: Side; align?: Align;
 }) {
-  const [open, setOpen] = useState(false);
-  const element = useRef<HTMLElement>(null);
   if (!content) return children;
-  const marked = cloneElement(children, { title: '', 'data-hint': '' } as object);
-  const shared = { content, delay: rest ? restDelay : hintDelay, underline: false, side, align };
-  if (!cut) return <Tooltip {...shared}>{marked}</Tooltip>;
-  const over = (target: EventTarget | null) => { const found = (target as Element).closest(inner); return Boolean(found && found !== element.current && element.current?.contains(found)); };
-  return <Tooltip {...shared} ref={element} open={open} onOpenChange={next => setOpen(next && cutShort(element.current) && !element.current?.querySelector(':is(' + inner + '):hover'))}
-    onPointerOver={(event: PointerEvent) => { if (open && over(event.target)) setOpen(false); }}>{marked}</Tooltip>;
+  if (typeof children.type !== 'string') return <Tooltip content={content} delay={rest ? restDelay : hintDelay} underline={false} side={side} align={align}>{cloneElement(children, { title: '', 'data-hint': '' } as object)}</Tooltip>;
+  const asked = { content, side, align };
+  const over = (event: PointerEvent<HTMLElement>) => {
+    const element = event.currentTarget;
+    // Over a link or a mark inside it, that one's hint is the answer.
+    const within = (event.target as Element).closest(inner);
+    if (within && within !== element && element.contains(within)) { hints.close(element); return; }
+    hints.wait(element, rest ? restDelay : hintDelay, asked, () => element.matches(':hover') && !(cut && !cutShort(element)) && !element.querySelector(':is(' + inner + '):hover'));
+  };
+  const leave = (event: PointerEvent<HTMLElement>) => hints.close(event.currentTarget);
+  return cloneElement(children, { title: '', 'data-hint': '', onPointerOver: over, onPointerMove: rest ? over : undefined, onPointerLeave: leave, onPointerDown: leave } as object);
 }

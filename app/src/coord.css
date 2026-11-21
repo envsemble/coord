@@ -144,6 +144,8 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 .hub-row-status { display: inline-flex; flex: none; }
 /* A hint of several lines: one under the other. */
 .hint-line { display: block; }
+/* Where a hint's element stands while the hint shows: envUI's tooltip or card opens beside this, which takes no pointer. */
+.hint-anchor { position: fixed; pointer-events: none; }
 /* A group's number opens its plan: a link that keeps the number's look until it is pointed at. */
 .hub-row-open, .hub-row-open:is(:hover, :active) { color: var(--env-color-fg-muted); background: none; }
 .hub-row-open:is(:hover, :focus-visible) { text-decoration: underline; }
@@ -151,12 +153,18 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 /* A part's title in the Project column's room stops well short of the steps. */
 .hub-row-part > .env-table-cell.hub-row-run { padding-inline-end: var(--env-space-8); }
 .hub-row-part .hub-row-title + .cell-note { margin-inline-start: calc(1rem + 1.125rem + 2 * var(--env-space-2)); }
-/* The hub's motion says what changed and nothing more (hubMotion.tsx moves the rows). A group shown
-   anew (the hub opening, a filter, another project) fades in quickly, without moving, and so does
-   what a folded group says of its parts. Its wrapper adds no box to the page. */
-.hub-settled { display: contents; }
+/* The hub's motion says what changed and nothing more (hubMotion.tsx moves the rows). What left the
+   list (a group's parts as it folds, a plan that changed groups) fades where it stood, as a copy out
+   of the page's flow (in the groups' column, or in its table's frame) that takes no pointer. What a
+   folded group says of its parts fades in. Other plans (a filter, a project) are shown at once: a
+   fade there would only make the answer to a click later. */
+.hub-settled { position: relative; }
+.hub-settled:empty { display: none; }
+.hub-ghost { position: absolute; inset-inline: 0; pointer-events: none; }
+/* A copy only fades out: it does not arrive. */
+.hub-ghost, .hub-ghost .hub-row-parts[data-kind='group'], .hub-ghost .hub-row-part { animation: none; }
 @keyframes hub-arrive { from { opacity: 0; } }
-.hub-group, .hub-row-parts[data-kind='group'] { animation: hub-arrive var(--env-motion-duration-fast) var(--env-motion-ease-enter); }
+.hub-row-parts[data-kind='group'] { animation: hub-arrive var(--env-motion-duration-fast) var(--env-motion-ease-enter); }
 /* A work item made of parts has the plain rows' surface, its own row and the room around its parts'
    tiles alike: every top-level row of the hub is one colour, and the tiles alone are set apart. Its
    row under the pointer lights the whole group, around its tiles too, as a row lights up (the
@@ -810,8 +818,10 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 
 @media (prefers-reduced-motion: reduce) {
   .step-bar > span { transition: none; }
-  /* The hub's tiles and marks change at once, as envUI's rows then do; what is shown anew still fades. */
+  /* The hub's tiles and marks change at once, as envUI's rows then do. */
   .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part, .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell, .hub-row-fold svg { transition: none; }
+  /* A group's parts, which then do not slide out from under the rows after them, fade in where they are. */
+  .hub-row-part { animation: hub-arrive var(--env-motion-duration-fast) var(--env-motion-ease-enter); }
 }
 /* A document's tables keep readable columns: none narrower than 8 rem, the text wrapping inside it.
    A table with more columns than fit scrolls sideways in envUI's table region instead of crushing them. */

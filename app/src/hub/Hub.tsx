@@ -8,12 +8,12 @@
 // so back and forward and a plan's breadcrumb set it), where projects are also made and managed, and a state filter narrow it, on its heading's
 // line with that project's statistics; the search stays in the title bar. One click opens a plan. A connected agent that does not run Coord (Codex not trusting its hooks, say)
 // has a notice above the plans, linking to Settings › Agents, until it does.
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
-import { Alert, Button, IconButton, Link, Menu, Row, SegmentedControl, Table, Text } from '@envsemble/envui';
+import { Fragment, memo, useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
+import { Alert, Button, IconButton, Link, Menu, Row, SegmentedControl, Table, Text, Tooltip } from '@envsemble/envui';
 import { IconChevronRight } from '@envsemble/envui/icons/ChevronRight';
 import { IconFilterList } from '@envsemble/envui/icons/FilterList';
 import { EmptyState } from '../ui/EmptyState';
-import { Hint } from '../ui/Hint';
+import { Hint, hintDelay } from '../ui/Hint';
 import { StatisticsIcon, WorkIcon } from '../ui/icons';
 import type { Project, ReferenceInput } from '../types';
 import { api } from '../api';
@@ -34,7 +34,7 @@ import { referenceKey } from '../reader/references';
 import type { Notify } from '../window/windowContext';
 import { useLongWait } from '../ui/Loading';
 import { lines, partLines, PlanName, stepsHint } from './hubHints';
-import { Settled, useFoldAway } from './hubMotion';
+import { Settled } from './hubMotion';
 
 /** The hub's state filter, kept while the window is open. */
 /** Open, closed or all, and the filter menu's filters that are on. */
@@ -240,10 +240,10 @@ const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resol
         {/* Folded away, its parts are said in a word: how many, and how many wait on the user. */}
         {fold && !fold.open && <Hint content={lines(...fold.list)}><span className="hub-row-parts" data-kind="group">{plural(fold.count, 'part')}{fold.turn > 0 && <span className="hub-row-parts-turn"> · {fold.turn} your turn</span>}</span></Hint>}
       </span>
-      {/* A line cut short says itself whole once the pointer rests on it; a step says its phase. */}
-      {large && (facts.blocked ? <Hint rest cut align="start" content={'Blocked: ' + facts.blocked}><small className="cell-note hub-row-blocked">Blocked: <Note note={facts.blocked} resolved={resolved} notify={notify} /></small></Hint>
-        : facts.note ? <Hint rest cut align="start" content={facts.note}><small className="cell-note hub-row-note" data-status={status.key}><Note note={facts.note} resolved={resolved} notify={notify} /></small></Hint>
-        : facts.step && <Hint rest align="start" content={lines((facts.step.phase === 'planning' ? 'Planning step' : 'Implementation step') + (facts.step.label === 'Now' ? ', in progress' : ', next to do'), facts.step.title)}>
+      {/* A line cut short says itself whole once the pointer rests on it, under the row so its title stays in sight; a step says its phase. */}
+      {large && (facts.blocked ? <Hint rest cut side="bottom" align="start" content={'Blocked: ' + facts.blocked}><small className="cell-note hub-row-blocked">Blocked: <Note note={facts.blocked} resolved={resolved} notify={notify} /></small></Hint>
+        : facts.note ? <Hint rest cut side="bottom" align="start" content={facts.note}><small className="cell-note hub-row-note" data-status={status.key}><Note note={facts.note} resolved={resolved} notify={notify} /></small></Hint>
+        : facts.step && <Hint rest side="bottom" align="start" content={lines((facts.step.phase === 'planning' ? 'Planning step' : 'Implementation step') + (facts.step.label === 'Now' ? ', in progress' : ', next to do'), facts.step.title)}>
           <small className="cell-note hub-row-step" data-phase={facts.step.phase} data-status={facts.step.label === 'Now' ? 'doing' : 'todo'}>{facts.step.label + ': ' + facts.step.title}</small>
         </Hint>)}
     </Table.Cell>
@@ -293,13 +293,10 @@ const HubEntryRows = memo(function HubEntryRows({ entry, open, toggleFold, gutte
   const inProjects = (plan: HubItem) => projectsOf(plan).flatMap(id => byId.get(id) ?? []);
   const own = projectsOf(item).join('\n');
   const waited = (plan: HubItem) => waits(plan.status.key) ? elapsed(plan.work.turn?.since, now) || null : null;
-  // Folded, its parts stay for the moment they take to fold away.
-  const body = useRef<HTMLTableSectionElement>(null);
-  const shown = useFoldAway(body, open);
-  return <Table.Body ref={body} id={facts ? controls : undefined} className={facts ? 'hub-entry hub-entry-group' : 'hub-entry'} data-open={facts && open ? '' : undefined}>
+  return <Table.Body id={facts ? controls : undefined} className={facts ? 'hub-entry hub-entry-group' : 'hub-entry'} data-open={facts && open ? '' : undefined}>
     <HubRow item={item} go={go} projects={showProject ? inProjects(item) : null} waiting={waiting} waited={waited(item)} resolved={resolved} notify={notify}
       gutter={gutter} fold={facts ? { open, controls, ...facts, list: partLines(parts) } : undefined} toggle={facts ? toggle : undefined} />
-    {shown && parts.map((part, at) => <HubRow key={part.work.id} item={part} index={at + 1} go={go} projects={showProject ? projectsOf(part).join('\n') === own ? [] : inProjects(part) : null}
+    {open && parts.map((part, at) => <HubRow key={part.work.id} item={part} index={at + 1} go={go} projects={showProject ? projectsOf(part).join('\n') === own ? [] : inProjects(part) : null}
       waiting={waiting} waited={waited(part)} resolved={resolved} notify={notify} />)}
   </Table.Body>;
 }, (before, after) => before.open === after.open && before.toggleFold === after.toggleFold && before.gutter === after.gutter && before.showProject === after.showProject && before.waiting === after.waiting && before.now === after.now
@@ -390,7 +387,7 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, n
     {error && <Alert tone="warning">{error}</Alert>}
     {warnings}
     {unread.length > 0 && <Text variant="caption" emphasis="muted" className="hub-note">{unread.map(project => project.name).join(', ')}: the planning folder could not be read.</Text>}
-    {/* When the plans change under the eyes, what stays is followed to its new place; other plans (a project, a filter) fade in. */}
+    {/* When the plans change under the eyes (a group folds, an agent reports), what stays is followed to its new place; other plans (a project, a filter) are shown at once. */}
     <Settled scene={[filter, filters.state, ...filters.only].join(' ')}>{groups.map(group => {
       const waiting = group.id === 'your_turn' || group.id === 'waiting';
       return <section key={group.id} className="hub-group" aria-label={group.label}>
@@ -413,7 +410,8 @@ function FilterMenu({ only, onChange }: { only: readonly HubOnly[]; onChange(onl
   const set = (filter: HubOnly, on: boolean) => onChange(hubOnlyFilters.filter(item => item === filter ? on : only.includes(item)));
   const label = only.length ? 'Filters, ' + only.length + ' on' : 'Filters';
   return <Menu.Root aria-label="Filters" align="end"
-    trigger={<Hint content={label} side="bottom"><IconButton variant="ghost" size="sm" className="hub-filters" aria-label={label} data-active={only.length ? '' : undefined} icon={<IconFilterList />} /></Hint>}>
+    // envUI's own tooltip here, not Hint: the menu gives its trigger the props that open it, and the tooltip passes them on to the button.
+    trigger={<Tooltip content={label} side="bottom" delay={hintDelay} underline={false}><IconButton variant="ghost" size="sm" className="hub-filters" aria-label={label} data-active={only.length ? '' : undefined} icon={<IconFilterList />} /></Tooltip>}>
     <Menu.Group label="Show only">
       {hubOnlyFilters.map(filter => <Menu.CheckboxItem key={filter} checked={only.includes(filter)} onCheckedChange={on => set(filter, on)}>{hubOnlyLabels[filter]}</Menu.CheckboxItem>)}
     </Menu.Group>
