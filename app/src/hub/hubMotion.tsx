@@ -29,6 +29,10 @@ function motionOf(element: Element): Motion {
 
 /** The animations of the change being settled, which `run` then steps frame by frame. */
 let held: Animation[] = [];
+/** How far beyond the window's edges rows are still moved, in CSS pixels: a row's height or so. */
+const around = 64;
+/** The easing of what is taken over while it still moves: it goes on at about the speed it had (twice the average, as in the middle of the standard easing) and settles, where the standard easing would start it again from rest. */
+const onward = 'cubic-bezier(0.25, 0.5, 0.2, 1)';
 function animate(element: Element, keyframes: Keyframe[], motion: Motion, easing = motion.ease, fill: FillMode = 'none') {
   const animation = element.animate(keyframes, { duration: motion.medium, easing, fill });
   animation.id = settling;
@@ -178,7 +182,7 @@ function hold(root: Element, before: Map<Element, Place>, after: Map<Element, Pl
 function settle(root: Element, before: Map<Element, Place> | null) {
   const motion = motionOf(root);
   const all = (selector: string) => [...root.querySelectorAll(selector)].filter(element => !element.closest('.' + ghost));
-  const stop = () => { for (const element of all(pieces)) for (const animation of element.getAnimations()) if (animation.id === settling) animation.cancel(); };
+  const stop = () => { let stopped = false; for (const element of all(pieces)) for (const animation of element.getAnimations()) if (animation.id === settling) { animation.cancel(); stopped = true; } return stopped; };
   if (!before || !motion.moves) {
     stop();
     for (const copy of root.querySelectorAll('.' + ghost)) copy.remove();
@@ -187,8 +191,8 @@ function settle(root: Element, before: Map<Element, Place> | null) {
   const near = (a: number, b: number) => Math.abs(a - b) <= 0.5;
   const shows = measure(root);
   if (shows.size === before.size && [...shows].every(([element, now]) => { const was = before.get(element); return was && near(was.top, now.top) && near(was.height, now.height) && was.rows?.length === now.rows?.length; })) return;
-  // What still moved is taken over from where it shows; copies that still fade go on fading.
-  stop();
+  // What still moved is taken over from where it shows, and goes on without a pause; copies that still fade go on fading.
+  if (stop()) motion.ease = onward;
   const far = (distance: number) => Math.abs(distance) > window.innerHeight;
   const changed = (was: number, now: number) => !near(was, now) && !far(was - now);
   const after = measure(root);
@@ -216,10 +220,15 @@ function settle(root: Element, before: Map<Element, Place> | null) {
   for (const [group, from] of slide(groups)) animate(group, moved(from, 'transparent'), motion);
   const sliding = new Map(slide(entries));
   const busy = new Set([...resized, ...[...sliding.keys()].map(entry => entry.closest(frames))]);
+  // Only the entries whose way crosses the window (and a little around it) are moved: the others are where they belong at once,
+  // unseen, and the page has that many fewer rows to make layers of, which is most of what the first fold waits for.
+  const scroller = scrollerOf(root);
+  const sight = [scroller.scrollTop - around, scroller.scrollTop + scroller.clientHeight + around];
   for (const entry of all(entries)) {
-    const frame = entry.closest(frames);
-    if (!after.has(entry) || !busy.has(frame)) continue;
+    const frame = entry.closest(frames), now = after.get(entry);
+    if (!now || !busy.has(frame)) continue;
     const from = sliding.get(entry);
+    if (Math.max(now.top, now.top + (from ?? 0)) + now.height <= sight[0] || Math.min(now.top, now.top + (from ?? 0)) >= sight[1]) continue;
     // In a table whose rows move, the rows that stay are passed over: a row that is new is uncovered, as a group's parts are when it unfolds.
     animate(entry, from === undefined ? still : moved(from, surfaceOf(frame)), motion);
   }

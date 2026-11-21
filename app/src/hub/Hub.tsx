@@ -222,7 +222,8 @@ const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resol
   // A part listed without its group says whose it is; under its group, its place says so.
   const parts = index === undefined && work.partOf ? partsFacts(work, project) : null;
   return <Table.Row interactive className={'hub-row' + (large ? ' hub-row-large' : facts.size === 'closed' ? ' hub-row-closed' : '') + (index === undefined ? '' : ' hub-row-part')} data-work={work.id} data-size={facts.size}
-    onClick={event => { if (!event.defaultPrevented && !(event.target as Element).closest('a, button') && !window.getSelection()?.toString()) { if (fold) toggle?.(); else open(event); } }}>
+    // A click that ends a selection made by dragging is not a click on the row; what has a hint cannot be selected, so a click there always is.
+    onClick={event => { const on = event.target as Element; if (!event.defaultPrevented && !on.closest('a, button') && (on.closest('[data-hint]') || !window.getSelection()?.toString())) { if (fold) toggle?.(); else open(event); } }}>
     <Table.Cell colSpan={wide ? 2 : undefined} className={wide ? 'hub-row-run' : undefined}>
       <span className="hub-row-title">
         {/* The mark of a row that folds: the row is the button, the chevron only says which way it is. */}

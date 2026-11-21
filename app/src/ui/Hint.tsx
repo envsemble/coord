@@ -32,6 +32,7 @@ interface Showing { id: number; box: DOMRect; open: boolean; hint: Asked }
 // hundred; this way a row costs no more to draw than a row without them.
 let showing: Showing | null = null;
 let shownAt: Element | null = null;
+let shownText: string | null = null;
 let waitingAt: Element | null = null;
 let waiting = 0, closing = 0, entering = 0, shows = 0;
 const watchers = new Set<() => void>();
@@ -54,6 +55,7 @@ export const hints = {
       if (!asked) return;
       window.clearTimeout(closing);
       shownAt = element;
+      shownText = element.textContent;
       // It enters the page closed and opens in the next frame, so envUI's fade plays.
       show({ id: ++shows, box: element.getBoundingClientRect(), open: false, hint: asked });
       window.cancelAnimationFrame(entering);
@@ -70,8 +72,8 @@ export const hints = {
   },
   /** Keep the hint that shows: the pointer went from its element onto the hint itself (a card is read there). */
   keep() { window.clearTimeout(closing); },
-  /** Whether the element the hint is for still stands where the hint opened: a list may change under it. */
-  stands() { const now = shownAt?.isConnected ? shownAt.getBoundingClientRect() : null; return now !== null && showing !== null && Math.abs(now.top - showing.box.top) < 1 && Math.abs(now.left - showing.box.left) < 1; },
+  /** Whether the element the hint is for still stands where the hint opened and says what it said: a list may change under it. */
+  stands() { const now = shownAt?.isConnected ? shownAt.getBoundingClientRect() : null; return now !== null && showing !== null && shownAt!.textContent === shownText && Math.abs(now.top - showing.box.top) < 1 && Math.abs(now.left - showing.box.left) < 1; },
 };
 /** How long a card stays once the pointer has left it and its element: it holds text only, so it clears what it covers about as fast as a hint does, with time enough to cross from the one to the other. */
 export const cardLeaves = 150;
@@ -85,7 +87,7 @@ export const cards = new WeakMap<Element, () => Asked | null>();
 /**
  * The window's hint: envUI's tooltip (or its hover card) beside an invisible anchor laid over the
  * element it is for, in the page only while it shows. It closes when the page scrolls, a key is
- * pressed, or its element moves or leaves the page (a list changing under it), and leaves the page
+ * pressed, or its element moves, changes its text or leaves the page (a list changing under it), and leaves the page
  * once envUI's fade is over. A card stays while the pointer is on it. Keyboard focus resting on a
  * link opens the card of what it holds (see `cards`).
  */

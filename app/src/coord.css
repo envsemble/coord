@@ -91,6 +91,8 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 .hub-empty { min-block-size: 50vh; }
 .hub-note { margin: 0; }
 .hub-group { display: grid; gap: var(--env-space-2); }
+/* A group's table never scrolls down: while its group opens from nothing (hubMotion.tsx) the frame is shorter than its rows, and a scrollbar there would take the columns' room for a moment. */
+.hub-group > .env-table-region { overflow-y: hidden; }
 .hub-group-heading { margin: 0; }
 /* A table per group with the same columns. Plans under way get a second line with where they stand,
    muted (amber while an agent waits for the person): the status icon carries the colour. A click
@@ -167,10 +169,11 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 /* What a folded group says of its parts takes its room as the group folds and gives it back as it
    unfolds, at the fold's pace: the title beside it is cut, or let out, gradually and not at a stroke. */
 .hub-row-parts[data-kind='group'] {
-  overflow: hidden; max-inline-size: 14rem;
-  transition: max-inline-size var(--env-motion-duration-medium) var(--env-motion-ease), padding-inline var(--env-motion-duration-medium) var(--env-motion-ease), margin-inline-start var(--env-motion-duration-medium) var(--env-motion-ease), opacity var(--env-motion-duration-medium) var(--env-motion-ease);
+  /* From no width to its text's own and back (interpolate-size), so the change lasts the whole of the fold whatever the text's length. */
+  overflow: hidden; inline-size: auto; interpolate-size: allow-keywords;
+  transition: inline-size var(--env-motion-duration-medium) var(--env-motion-ease), padding-inline var(--env-motion-duration-medium) var(--env-motion-ease), margin-inline-start var(--env-motion-duration-medium) var(--env-motion-ease), opacity var(--env-motion-duration-medium) var(--env-motion-ease);
 }
-.hub-entry-group[data-open] > .hub-row:not(.hub-row-part) .hub-row-parts[data-kind='group'] { max-inline-size: 0; margin-inline-start: calc(-1 * var(--env-space-2)); padding-inline: 0; opacity: 0; }
+.hub-entry-group[data-open] > .hub-row:not(.hub-row-part) .hub-row-parts[data-kind='group'] { inline-size: 0; margin-inline-start: calc(-1 * var(--env-space-2)); padding-inline: 0; opacity: 0; }
 /* A work item made of parts has the plain rows' surface, its own row and the room around its parts'
    tiles alike: every top-level row of the hub is one colour, and the tiles alone are set apart. Its
    row under the pointer lights the whole group, around its tiles too, as a row lights up (the
