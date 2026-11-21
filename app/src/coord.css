@@ -126,13 +126,24 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
   --hub-part-hover: light-dark(color-mix(in srgb, var(--env-color-bg-raised), var(--env-color-fg-default) 19%), color-mix(in srgb, color-mix(in srgb, var(--env-color-bg-default) 55%, var(--env-color-bg-page)), var(--env-color-fg-default) 21%));
 }
 .hub-row-fold { display: inline-flex; flex: none; align-items: center; justify-content: center; inline-size: var(--hub-fold); margin-inline: calc(-1 * var(--env-space-2)) calc(-1 * var(--env-space-1)); color: var(--env-color-fg-muted); }
-.hub-row-fold svg { inline-size: 1.25rem; block-size: 1.25rem; }
+.hub-row-fold svg { inline-size: 1.25rem; block-size: 1.25rem; transition: transform var(--env-motion-duration-medium) var(--env-motion-ease); }
+/* The mark turns to say which way the group is, as envUI's own disclosure marks do, rather than swap one glyph for another. */
+.hub-entry-group[data-open] > .hub-row:first-child .hub-row-fold svg { transform: rotate(90deg); }
 /* A group's title is the button that folds it, stretched over its row: it reads as the title it is. */
 .hub-row-toggle { flex: 0 1 auto; min-inline-size: 0; max-inline-size: 100%; min-block-size: 0; block-size: auto; margin: 0; padding: 0; border: 0; font: inherit; text-align: start; }
 .hub-row-toggle :is(.env-button-content, .env-button-label) { display: block; overflow: hidden; min-inline-size: 0; text-overflow: ellipsis; white-space: nowrap; }
 .hub-row:has(.hub-row-fold) .hub-row-title + .cell-note { margin-inline-start: calc(var(--hub-fold) - var(--env-space-1) + 1.125rem + var(--env-space-2)); }
 .hub-entry-group > .hub-row:first-child .hub-row-link { font-weight: var(--env-font-weight-semibold); }
 .hub-row-parts-turn { color: var(--env-color-fg-warning); }
+/* What answers when pointed at (an element with a hint, a title's letters) lies above the link that
+   covers its row, so the pointer reaches it; a click on it still reaches the row, which opens the
+   plan or folds the group. Its text is not selected by a click that drags a little, which would
+   keep the row from opening. */
+.hub-row :is([data-hint], .hub-row-name) { position: relative; z-index: calc(var(--env-z-raised) + 1); }
+.hub-row [data-hint]:not(a, button) { user-select: none; }
+.hub-row-status { display: inline-flex; flex: none; }
+/* A hint of several lines: one under the other. */
+.hint-line { display: block; }
 /* A group's number opens its plan: a link that keeps the number's look until it is pointed at. */
 .hub-row-open, .hub-row-open:is(:hover, :active) { color: var(--env-color-fg-muted); background: none; }
 .hub-row-open:is(:hover, :focus-visible) { text-decoration: underline; }
@@ -140,6 +151,12 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 /* A part's title in the Project column's room stops well short of the steps. */
 .hub-row-part > .env-table-cell.hub-row-run { padding-inline-end: var(--env-space-8); }
 .hub-row-part .hub-row-title + .cell-note { margin-inline-start: calc(1rem + 1.125rem + 2 * var(--env-space-2)); }
+/* The hub's motion says what changed and nothing more (hubMotion.tsx moves the rows). A group shown
+   anew (the hub opening, a filter, another project) fades in quickly, without moving, and so does
+   what a folded group says of its parts. Its wrapper adds no box to the page. */
+.hub-settled { display: contents; }
+@keyframes hub-arrive { from { opacity: 0; } }
+.hub-group, .hub-row-parts[data-kind='group'] { animation: hub-arrive var(--env-motion-duration-fast) var(--env-motion-ease-enter); }
 /* A work item made of parts has the plain rows' surface, its own row and the room around its parts'
    tiles alike: every top-level row of the hub is one colour, and the tiles alone are set apart. Its
    row under the pointer lights the whole group, around its tiles too, as a row lights up (the
@@ -162,9 +179,14 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
    of the table's edge, where a quarter circle rounds each corner. (A radius on the cells would cut
    the row's own surface at the corners.) The room under a tile is its cells' border, which shows
    the group's surface. */
+/* A tile's colour is painted by gradients, which do not fade from one colour to the next on their own:
+   registered as a colour it does, for the time and the easing of envUI's rows, so a part under the
+   pointer changes as the rows around it do instead of snapping. */
+@property --hub-tile { syntax: '<color>'; inherits: true; initial-value: transparent; }
 .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part {
   /* The row itself paints nothing, under the pointer either: its cells paint the tile and the room around it. */
   background: none;
+  transition: --hub-tile var(--env-motion-duration-fast) var(--env-motion-ease-enter);
   --hub-tile: var(--hub-part-surface); --hub-fill: linear-gradient(var(--hub-tile), var(--hub-tile));
   /* The list's outer corners follow the table's own: its frame's radius less the tiles' distance from its edge, so the two curves share
      a centre. Where tiles meet, the corners are half as round at most, so the outer ones still read as the list's. */
@@ -184,6 +206,8 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 }
 .env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell {
   border-block-end: var(--hub-tile-gap) solid transparent; background: var(--hub-group) var(--hub-fill) no-repeat;
+  /* The room around a tile lights up with its group's row, at the row's pace. */
+  transition: background-color var(--env-motion-duration-fast) var(--env-motion-ease-enter);
 }
 .env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:last-child > .env-table-cell { border-block-end-width: var(--hub-tiles-below); }
 /* The first and last cells, in three bands (between the corners; beside the top corner; beside the
@@ -260,6 +284,8 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 /* The hub's project menu: the project chosen (its avatar and name) as the trigger, every project in
    the menu with what agents do on it, and the chosen one's actions. */
 .hub-project { max-inline-size: 16rem; }
+/* The chosen project's avatar is taller than the button's line: it takes no more room than the line, so the heading's row is the same height with a project chosen as without, and the plans under it stay where they are. */
+.hub-project .project-avatar { margin-block: calc(-1 * var(--env-space-1)); }
 .hub-project-label { flex: 1; min-inline-size: 0; overflow: hidden; text-align: start; text-overflow: ellipsis; white-space: nowrap; }
 /* A project's avatar: its initials on a small square in the project's own hue (--project-hue), legible in both themes. */
 /* stylelint-disable color-no-hex, declaration-property-value-disallowed-list -- each project's own hue, in both themes */
@@ -595,8 +621,6 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 .pull-mark-state[data-state='draft'], .pull-mark-checks[data-checks='pending'] { color: var(--env-color-fg-muted); }
 .pull-mark-state[data-state='merged'] { color: var(--env-color-fg-accent); }
 .pull-mark-state[data-state='closed'], .pull-mark-checks[data-checks='failing'] { color: var(--env-color-fg-danger); }
-/* On the hub the mark sits above the row's stretched link, as the reference beside it does, so its hint opens on hover. */
-.hub-row-note .pull-mark, .hub-row-blocked .pull-mark { position: relative; z-index: calc(var(--env-z-raised) + 1); }
 /* The first paragraph of a long message, cut to four lines until shown whole. */
 /* A plan's statistics page: its figures, its timeline and its tables. */
 .plan-statistics-page { display: grid; gap: var(--env-space-6); }
@@ -786,6 +810,8 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 
 @media (prefers-reduced-motion: reduce) {
   .step-bar > span { transition: none; }
+  /* The hub's tiles and marks change at once, as envUI's rows then do; what is shown anew still fades. */
+  .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part, .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell, .hub-row-fold svg { transition: none; }
 }
 /* A document's tables keep readable columns: none narrower than 8 rem, the text wrapping inside it.
    A table with more columns than fit scrolls sideways in envUI's table region instead of crushing them. */

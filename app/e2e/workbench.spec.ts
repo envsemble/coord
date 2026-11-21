@@ -39,6 +39,11 @@ test('a window opens on the hub: every plan of every active project, grouped by 
   await expect(window.locator('.work-page h1')).toHaveText('Customer order notifications');
   await window.getByRole('button', { name: 'Back', exact: true }).click();
   await expectHub(window);
+  // So does a click on what answers when pointed at: the line under the title lies above the row's link, for its hint.
+  await groupRows(window, 'Your turn').first().locator('.hub-row-note').click();
+  await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
+  await window.getByRole('button', { name: 'Back', exact: true }).click();
+  await expectHub(window);
   // Plans › All Plans leads back to the hub from anywhere.
   await openPlan(window, 'Order fulfilment model');
   await goHome(window);
@@ -132,9 +137,10 @@ test("a plan opens from the hub with its summary and its side column, and with i
   writeFileSync(plan, readFileSync(plan, 'utf8').replace('## Problem', '## Request (Jacob, 2026-09-07)\n\n> Model how an order is fulfilled before we build it.\n\n### Later\n\nAnd split shipments too.\n\n## Problem\n\nAs [asked later](#later).'));
   launched = await launchProject(home);
   const { window } = launched;
-  // The hub shows the summary on the title's hover, and the steps done with the planning ones in their colour.
+  // The hub shows the summary in a card once the pointer rests on the title, and the steps done with the planning ones in their colour.
   const row = hubRows(window, 'Saved payment methods');
-  await expect(row.getByRole('link')).toHaveAttribute('title', summary);
+  await row.locator('.hub-row-name').hover();
+  await expect(window.locator('.env-hover-card')).toContainText(summary);
   await expect(row.locator('.hub-row-steps')).toHaveText('2 of 7');
   await expect(row.locator('.step-bar-planning-done')).toHaveCount(1);
   await openPlan(window, 'Saved payment methods');

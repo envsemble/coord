@@ -8,10 +8,9 @@
 // so back and forward and a plan's breadcrumb set it), where projects are also made and managed, and a state filter narrow it, on its heading's
 // line with that project's statistics; the search stays in the title bar. One click opens a plan. A connected agent that does not run Coord (Codex not trusting its hooks, say)
 // has a notice above the plans, linking to Settings › Agents, until it does.
-import { Fragment, memo, useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { Alert, Button, IconButton, Link, Menu, Row, SegmentedControl, Table, Text } from '@envsemble/envui';
 import { IconChevronRight } from '@envsemble/envui/icons/ChevronRight';
-import { IconExpandMore } from '@envsemble/envui/icons/ExpandMore';
 import { IconFilterList } from '@envsemble/envui/icons/FilterList';
 import { EmptyState } from '../ui/EmptyState';
 import { Hint } from '../ui/Hint';
@@ -34,23 +33,25 @@ import { askReferences, PullMark, type Resolutions } from '../reader/ReferenceLi
 import { referenceKey } from '../reader/references';
 import type { Notify } from '../window/windowContext';
 import { useLongWait } from '../ui/Loading';
+import { lines, partLines, PlanName, stepsHint } from './hubHints';
+import { Settled, useFoldAway } from './hubMotion';
 
 /** The hub's state filter, kept while the window is open. */
 /** Open, closed or all, and the filter menu's filters that are on. */
 export interface HubFilters { state: HubState; only: readonly HubOnly[] }
 
-/** Steps done of all, the planning steps among them in their own colour, the one in progress showing what agents do. */
-function Progress({ progress, wide }: { progress: NonNullable<HubRowFacts['progress']>; wide?: boolean }) {
+/** Steps done of all, the planning steps among them in their own colour, the one in progress showing what agents do; spelled out (`hint`) when pointed at. */
+function Progress({ progress, wide, hint }: { progress: NonNullable<HubRowFacts['progress']>; wide?: boolean; hint: ReactNode }) {
   const left = progress.total - progress.done - progress.doing;
-  return <span className="hub-row-steps" title={progress.text + ' steps done'}>
+  return <Hint content={hint}><span className="hub-row-steps">
     <StepBar counts={{ total: progress.total, done: progress.done, doing: progress.doing, todo: left, remaining: left + progress.doing }} planning={progress.planning} compact />
     <span className="hub-row-steps-text">{wide ? progress.text : progress.text.replace(' planning', '')}</span>
-  </span>;
+  </span></Hint>;
 }
 
 /**
- * What agents spent on it: the main model and how many others, then agent time (its split by stage on
- * hover), tokens and subagents, as reported.
+ * What agents spent on it: the main model and how many others, then agent time (its split by stage
+ * when pointed at), tokens and subagents, as reported.
  */
 function Spent({ facts }: { facts: HubRowFacts }) {
   const { model, time, tokens, subagents } = facts;
@@ -58,20 +59,20 @@ function Spent({ facts }: { facts: HubRowFacts }) {
   if (!model && !time && !rest) return <span className="muted">—</span>;
   const stages = ([['Planning', time?.planning], ['Implementation', time?.implementation]] as const).flatMap(([label, value]) => value ? [label + ': ' + value] : []);
   return <span className="hub-row-stats">
-    {model && <span className="hub-row-model"><ModelName model={model.id} effort={model.effort} />{model.others > 0 && <span className="muted" title={plural(model.others, 'other model')}>+{model.others}</span>}</span>}
+    {model && <span className="hub-row-model"><ModelName model={model.id} effort={model.effort} hint />{model.others > 0 && <Hint content={plural(model.others, 'other model') + ' took part'}><span className="muted">+{model.others}</span></Hint>}</span>}
     {(time || rest) && <small className="cell-note">
-      {time && <span title={["Every agent's working time, added up", ...stages].join('\n')}>{time.total}</span>}
+      {time && <Hint content={lines("Every agent's working time, added up", ...stages)}><span>{time.total}</span></Hint>}
       {time && rest ? ' · ' + rest : rest}
     </small>}
   </span>;
 }
 
-/** When it last changed, relative, with the date on hover. */
+/** When it last changed, relative, with the date when pointed at. */
 // The column is headed Changed, so a date stands alone ("Oct 8", not "on Oct 8").
-const Changed = ({ value }: { value: string | null }) => value ? <span className="hub-row-updated" title={'Changed ' + absoluteDate(value)}>{relativeDate(value).replace(/^on /, '')}</span> : null;
+const Changed = ({ value }: { value: string | null }) => value ? <Hint content={'Changed ' + absoluteDate(value)}><span className="hub-row-updated">{relativeDate(value).replace(/^on /, '')}</span></Hint> : null;
 
-/** How long work has waited: since its state was set, with the moment on hover; a dash when its plan does not say since when. */
-const Waited = ({ since, waited }: { since: string | null; waited: string | null }) => since && waited ? <span className="hub-row-updated" title={'Since ' + absoluteDate(since)}>{waited}</span> : <span className="muted">—</span>;
+/** How long work has waited: since its state (`state`, as its icon names it) was set, with the moment when pointed at; a dash when its plan does not say since when. */
+const Waited = ({ since, waited, state }: { since: string | null; waited: string | null; state: string }) => since && waited ? <Hint content={state + ' since ' + absoluteDate(since)}><span className="hub-row-updated">{waited}</span></Hint> : <span className="muted">—</span>;
 
 /** The time, told again every minute and when the window comes forward, so how long work has waited stays true while the hub shows. */
 function useNow() {
@@ -153,15 +154,15 @@ function Note({ note, resolved, notify }: { note: string; resolved: Resolutions 
 const columnWidths = [44, 13, 15, 18, 10];
 const oneProjectWidths = [55, 17, 18, 10];
 
-/** A group's parts as its row says them: whether they show, the element that holds them, how many they are and how many are the user's turn. */
-interface Fold { open: boolean; controls: string; count: number; turn: number }
+/** A group's parts as its row says them: whether they show, the element that holds them, how many they are and how many are the user's turn, and each in a line (`list`) for the folded group's hint. */
+interface Fold { open: boolean; controls: string; count: number; turn: number; list: string[] }
 
-/** The projects a plan is in: one with its name, several as their avatars (their names on hover). */
+/** The projects a plan is in: one with its name (whole when pointed at, where it is cut short), several as their avatars (their names when pointed at). */
 function InProjects({ projects }: { projects: Project[] }) {
-  return <span className="hub-row-project" title={projects.map(project => project.name).join(', ')}>
+  return <Hint content={projects.length > 1 ? lines(...projects.map(project => project.name)) : null}><span className="hub-row-project">
     {projects.slice(0, 3).map(project => <ProjectAvatar key={project.id} project={project} />)}
-    {projects.length === 1 ? <span className="hub-row-project-name">{projects[0].name}</span> : projects.length > 3 && <span className="hub-row-project-name">+{projects.length - 3}</span>}
-  </span>;
+    {projects.length === 1 ? <Hint content={projects[0].name} cut><span className="hub-row-project-name">{projects[0].name}</span></Hint> : projects.length > 3 && <span className="hub-row-project-name">+{projects.length - 3}</span>}
+  </span></Hint>;
 }
 
 /**
@@ -186,10 +187,10 @@ function HubSkeleton() {
 /**
  * A plan: the whole row opens it. A plan under way says under its title what its state is for (what
  * the user is to do, what it waits on, why it is blocked), else the step being worked on or next.
- * Its summary shows on the title's hover. The status icon carries the colour; the text stays neutral
+ * Its title opens a card with its summary once the pointer rests on it. The status icon carries the colour; the text stays neutral
  * but for that line, amber on the user's turn. A work item made of parts folds them away at a click
  * anywhere on its row (`fold`; its number opens its plan, its parts open theirs), with a chevron
- * before its icon that says which way it is, and says how many they are while they are folded; the other rows of a
+ * before its icon that turns to say which way it is, and says how many they are while they are folded; the other rows of a
  * hub with such work leave that button's room (`gutter`), so every title starts on one edge and the
  * buttons stand alone. A part among its group's (`index`, its place) starts with its number.
  */
@@ -225,34 +226,34 @@ const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resol
     <Table.Cell colSpan={wide ? 2 : undefined} className={wide ? 'hub-row-run' : undefined}>
       <span className="hub-row-title">
         {/* The mark of a row that folds: the row is the button, the chevron only says which way it is. */}
-        {fold ? <span className="hub-row-fold" aria-hidden="true">{fold.open ? <IconExpandMore /> : <IconChevronRight />}</span>
+        {fold ? <Hint content={(fold.open ? 'Hide its ' : 'Show its ') + plural(fold.count, 'part')}><span className="hub-row-fold" aria-hidden="true"><IconChevronRight /></span></Hint>
           : gutter && index === undefined && <span className="hub-row-fold" aria-hidden="true" />}
-        {index !== undefined && <span className="hub-row-index" aria-label={'Part ' + index}>{index}</span>}
-        <StatusIcon status={status} />
+        {index !== undefined && <Hint content={'Part ' + index}><span className="hub-row-index" aria-label={'Part ' + index}>{index}</span></Hint>}
+        <Hint content={status.label}><span className="hub-row-status"><StatusIcon status={status} /></span></Hint>
         {/* A group's row folds its parts wherever it is clicked: its title is the button that does, stretched over the row, and its number opens its plan. */}
-        {fold ? <Button variant="text" className="hub-row-link hub-row-toggle" data-row-target aria-expanded={fold.open} aria-controls={fold.controls} title={work.summary ?? undefined} onClick={toggle}>{work.title}</Button>
-          : <Link href="#" underline={false} className="hub-row-link" data-row-target draggable={false} title={work.summary ?? undefined} onClick={open}>{work.title}</Link>}
+        {fold ? <Button variant="text" className="hub-row-link hub-row-toggle" data-row-target aria-expanded={fold.open} aria-controls={fold.controls} onClick={toggle}><PlanName title={work.title} summary={work.summary} /></Button>
+          : <Link href="#" underline={false} className="hub-row-link" data-row-target draggable={false} onClick={open}><PlanName title={work.title} summary={work.summary} /></Link>}
         {/* eslint-disable-next-line envui/no-link-in-clickable-row -- the row folds the group's parts; its plan needs a way in that is no new button, and the number is it */}
-        {fold ? <Link href="#" underline={false} className="hub-row-number hub-row-open" draggable={false} title={'Open ' + work.title} onClick={open}>{workNumber(work.id)}</Link>
+        {fold ? <Hint content="Open its plan"><Link href="#" underline={false} className="hub-row-number hub-row-open" draggable={false} onClick={open}>{workNumber(work.id)}</Link></Hint>
           : <span className="hub-row-number">{workNumber(work.id)}</span>}
         {parts?.kind === 'part' && <span className="hub-row-parts" data-kind="part">{'Part ' + parts.index + ' of ' + workNumber(parts.group)}</span>}
         {/* Folded away, its parts are said in a word: how many, and how many wait on the user. */}
-        {fold && !fold.open && <span className="hub-row-parts" data-kind="group">{plural(fold.count, 'part')}{fold.turn > 0 && <span className="hub-row-parts-turn"> · {fold.turn} your turn</span>}</span>}
+        {fold && !fold.open && <Hint content={lines(...fold.list)}><span className="hub-row-parts" data-kind="group">{plural(fold.count, 'part')}{fold.turn > 0 && <span className="hub-row-parts-turn"> · {fold.turn} your turn</span>}</span></Hint>}
       </span>
-      {large && (facts.blocked ? <small className="cell-note hub-row-blocked" title={facts.blocked}>Blocked: <Note note={facts.blocked} resolved={resolved} notify={notify} /></small>
-        : facts.note ? <small className="cell-note hub-row-note" data-status={status.key} title={facts.note}><Note note={facts.note} resolved={resolved} notify={notify} /></small>
-        : facts.step && <small className="cell-note hub-row-step" data-phase={facts.step.phase} data-status={facts.step.label === 'Now' ? 'doing' : 'todo'}
-          title={(facts.step.phase === 'planning' ? 'Planning' : 'Implementation') + ' step'}>
-          {facts.step.label + ': ' + facts.step.title}
-        </small>)}
+      {/* A line cut short says itself whole once the pointer rests on it; a step says its phase. */}
+      {large && (facts.blocked ? <Hint rest cut align="start" content={'Blocked: ' + facts.blocked}><small className="cell-note hub-row-blocked">Blocked: <Note note={facts.blocked} resolved={resolved} notify={notify} /></small></Hint>
+        : facts.note ? <Hint rest cut align="start" content={facts.note}><small className="cell-note hub-row-note" data-status={status.key}><Note note={facts.note} resolved={resolved} notify={notify} /></small></Hint>
+        : facts.step && <Hint rest align="start" content={lines((facts.step.phase === 'planning' ? 'Planning step' : 'Implementation step') + (facts.step.label === 'Now' ? ', in progress' : ', next to do'), facts.step.title)}>
+          <small className="cell-note hub-row-step" data-phase={facts.step.phase} data-status={facts.step.label === 'Now' ? 'doing' : 'todo'}>{facts.step.label + ': ' + facts.step.title}</small>
+        </Hint>)}
     </Table.Cell>
     {projects && !wide && <Table.Cell label="Project"><InProjects projects={projects} /></Table.Cell>}
-    <Table.Cell label={facts.ended ? 'Ended' : 'Steps'}>{facts.ended ? <span className="hub-row-ended">{facts.ended.label}{facts.ended.date && <span className="muted" title={absoluteDate(facts.ended.date)}> {relativeDate(facts.ended.date)}</span>}
+    <Table.Cell label={facts.ended ? 'Ended' : 'Steps'}>{facts.ended ? <span className="hub-row-ended">{facts.ended.label}{facts.ended.date && <Hint content={absoluteDate(facts.ended.date)}><span className="muted"> {relativeDate(facts.ended.date)}</span></Hint>}
       {continued.length > 0 && <small className="cell-note"><ContinuedIn items={continued} open={to => go({ projectId: to.projectId, target: workTarget(to.work) })} /></small>}</span>
-      : facts.progress ? <Progress progress={facts.progress} wide={large} /> : <span className="muted">—</span>}</Table.Cell>
+      : facts.progress ? <Progress progress={facts.progress} wide={large} hint={stepsHint(work, facts.progress.text.endsWith(' planning'))} /> : <span className="muted">—</span>}</Table.Cell>
     <Table.Cell label="Agents"><Spent facts={facts} /></Table.Cell>
     {/* A table of work that waits says for how long; a plan in it that does not wait (a group whose part does, a part beside one) has nothing to say there. */}
-    {waiting ? <Table.Cell label="Waiting" numeric nowrap>{waits(status.key) ? <Waited since={facts.since} waited={waited} /> : <span className="muted" title={facts.changed ? 'Not waiting; changed ' + absoluteDate(facts.changed) : undefined}>—</span>}</Table.Cell>
+    {waiting ? <Table.Cell label="Waiting" numeric nowrap>{waits(status.key) ? <Waited since={facts.since} waited={waited} state={status.label} /> : <Hint content={facts.changed ? 'Not waiting; changed ' + absoluteDate(facts.changed) : null}><span className="muted">—</span></Hint>}</Table.Cell>
       : <Table.Cell label="Changed" numeric nowrap>{facts.changed ? <Changed value={facts.changed} /> : <span className="muted">—</span>}</Table.Cell>}
   </Table.Row>;
 }, (before, after) => before.go === after.go && before.waiting === after.waiting && before.waited === after.waited && before.resolved === after.resolved && before.notify === after.notify && before.index === after.index && before.gutter === after.gutter && before.toggle === after.toggle
@@ -292,10 +293,13 @@ const HubEntryRows = memo(function HubEntryRows({ entry, open, toggleFold, gutte
   const inProjects = (plan: HubItem) => projectsOf(plan).flatMap(id => byId.get(id) ?? []);
   const own = projectsOf(item).join('\n');
   const waited = (plan: HubItem) => waits(plan.status.key) ? elapsed(plan.work.turn?.since, now) || null : null;
-  return <Table.Body id={facts ? controls : undefined} className={facts ? 'hub-entry hub-entry-group' : 'hub-entry'} data-open={facts && open ? '' : undefined}>
+  // Folded, its parts stay for the moment they take to fold away.
+  const body = useRef<HTMLTableSectionElement>(null);
+  const shown = useFoldAway(body, open);
+  return <Table.Body ref={body} id={facts ? controls : undefined} className={facts ? 'hub-entry hub-entry-group' : 'hub-entry'} data-open={facts && open ? '' : undefined}>
     <HubRow item={item} go={go} projects={showProject ? inProjects(item) : null} waiting={waiting} waited={waited(item)} resolved={resolved} notify={notify}
-      gutter={gutter} fold={facts ? { open, controls, ...facts } : undefined} toggle={facts ? toggle : undefined} />
-    {open && parts.map((part, at) => <HubRow key={part.work.id} item={part} index={at + 1} go={go} projects={showProject ? projectsOf(part).join('\n') === own ? [] : inProjects(part) : null}
+      gutter={gutter} fold={facts ? { open, controls, ...facts, list: partLines(parts) } : undefined} toggle={facts ? toggle : undefined} />
+    {shown && parts.map((part, at) => <HubRow key={part.work.id} item={part} index={at + 1} go={go} projects={showProject ? projectsOf(part).join('\n') === own ? [] : inProjects(part) : null}
       waiting={waiting} waited={waited(part)} resolved={resolved} notify={notify} />)}
   </Table.Body>;
 }, (before, after) => before.open === after.open && before.toggleFold === after.toggleFold && before.gutter === after.gutter && before.showProject === after.showProject && before.waiting === after.waiting && before.now === after.now
@@ -386,7 +390,8 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, n
     {error && <Alert tone="warning">{error}</Alert>}
     {warnings}
     {unread.length > 0 && <Text variant="caption" emphasis="muted" className="hub-note">{unread.map(project => project.name).join(', ')}: the planning folder could not be read.</Text>}
-    {groups.map(group => {
+    {/* When the plans change under the eyes, what stays is followed to its new place; other plans (a project, a filter) fade in. */}
+    <Settled scene={[filter, filters.state, ...filters.only].join(' ')}>{groups.map(group => {
       const waiting = group.id === 'your_turn' || group.id === 'waiting';
       return <section key={group.id} className="hub-group" aria-label={group.label}>
         <Text render={<h2 />} variant="title" className="hub-group-heading">{group.label} <span className="muted">{group.entries.length}</span></Text>
@@ -396,7 +401,7 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, n
             showProject={showProject} waiting={waiting} now={now} byId={byId} go={go} resolved={resolved.get(entry.item.project.id)} notify={notify} />)}
         </Table.Root>
       </section>;
-    })}
+    })}</Settled>
     {!groups.length && <EmptyState className="page-empty hub-empty" align="center" icon={<WorkIcon />} title={empty}
       description={filters.only.length ? undefined : filtered ? (filters.state === 'open' ? 'Every plan of ' + filtered.name + ' is closed.' : 'Nothing here for ' + filtered.name + ' yet.') : undefined}
       action={filters.only.length ? <Button variant="secondary" onClick={() => setFilters({ ...filters, only: [] })}>Clear filters</Button> : undefined} />}
@@ -408,7 +413,7 @@ function FilterMenu({ only, onChange }: { only: readonly HubOnly[]; onChange(onl
   const set = (filter: HubOnly, on: boolean) => onChange(hubOnlyFilters.filter(item => item === filter ? on : only.includes(item)));
   const label = only.length ? 'Filters, ' + only.length + ' on' : 'Filters';
   return <Menu.Root aria-label="Filters" align="end"
-    trigger={<IconButton variant="ghost" size="sm" className="hub-filters" aria-label={label} title={label} data-active={only.length ? '' : undefined} icon={<IconFilterList />} />}>
+    trigger={<Hint content={label} side="bottom"><IconButton variant="ghost" size="sm" className="hub-filters" aria-label={label} data-active={only.length ? '' : undefined} icon={<IconFilterList />} /></Hint>}>
     <Menu.Group label="Show only">
       {hubOnlyFilters.map(filter => <Menu.CheckboxItem key={filter} checked={only.includes(filter)} onCheckedChange={on => set(filter, on)}>{hubOnlyLabels[filter]}</Menu.CheckboxItem>)}
     </Menu.Group>
