@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hubGroups, hubItems, hubRowFacts, hubStatus, inState, lastChange, matchesOnly, partsFacts } from './hubPlans.ts';
+import { entryMatchesOnly, groupFacts, hubEntries, hubEntryGroups, hubGroups, hubItems, hubRowFacts, hubStatus, inState, lastChange, matchesOnly, noteParts, projectsOf } from './hubPlans.ts';
 import { compactNumber, duration } from '../ui/format.ts';
 import type { Project, ProjectSummary, ProjectWork } from '../types.ts';
 
@@ -106,6 +106,20 @@ test('work in progress shows its progress, the step being worked on, and what ag
   assert.deepEqual([turn.size, turn.note, turn.step], ['large', 'Merge example/shop#12', null]);
 });
 
+test('work that waits says since when its state stands; a note names its PRs and commits apart from its text', () => {
+  const waiting = { kind: 'waiting' as const, note: 'CI on example/shop#12', since: '2026-10-14T09:00:00Z' };
+  assert.equal(hubRowFacts(work('work-0023', 'implementing', { turn: waiting })).since, '2026-10-14T09:00:00Z');
+  // Work agents are on has not waited, and blocked work whose plan declares no state does not say since when.
+  assert.equal(hubRowFacts(work('work-0023', 'implementing', { turn: { ...waiting, kind: 'working' } })).since, null);
+  assert.equal(hubRowFacts(work('work-0023', 'blocked', { blocked: 'Waiting for the host' })).since, null);
+  const pull = { kind: 'pull', repository: 'example/shop', value: '12', line: null };
+  assert.deepEqual(noteParts('Merge example/shop#12, then https://github.com/example/shop/pull/12.'),
+    ['Merge ', { text: 'example/shop#12', input: pull }, ', then ', { text: 'https://github.com/example/shop/pull/12', input: pull }, '.']);
+  assert.deepEqual(noteParts('example/shop@4ab195a fixed it'), [{ text: 'example/shop@4ab195a', input: { kind: 'commit', repository: 'example/shop', value: '4ab195a', line: null } }, ' fixed it']);
+  // Files, other work items and a PR that names no repository stay text.
+  assert.deepEqual(noteParts('Read app/src/hub/Hub.tsx:68 for work-0046 and #12'), ['Read app/src/hub/Hub.tsx:68 for work-0046 and #12']);
+});
+
 test('blocked work shows why in place of its step', () => {
   const facts = hubRowFacts(work('work-0023', 'blocked', { steps, blocked: 'Waiting for the host', step: { title: 'Build the hub', status: 'doing', phase: 'implementation' } }));
   assert.equal(facts.size, 'large');
@@ -152,13 +166,40 @@ test('a plan last changed on its date, or at its last report when that is the sa
   assert.equal(lastChange(work('work-0001', 'draft')), null);
 });
 
-test('a part says its place in its group, and a group how many of its parts are closed', () => {
+test('a work item of several parts is one entry: a row for the whole and every part under it, in every project one of them is in', () => {
+  const inHarbor = [{ projectId: harbor.id, project: 'harbor', projectName: harbor.name }];
+  const steps = { done: 1, total: 3, planning: { done: 1, total: 1 } };
   const grouped = project('Grouped', 5, {
-    active: [work('work-0005', 'implementing', { parts: ['work-0006', 'work-0007'], partOf: null }), work('work-0007', 'draft', { partOf: 'work-0005' })],
-    closed: [work('work-0006', 'closed', { outcome: 'complete', partOf: 'work-0005' })],
+    active: [
+      work('work-0005', 'implementing', { parts: ['work-0005-2', 'work-0005-3'], partOf: null, updated: '2026-10-01', steps, turn: { kind: 'working', note: 'Building', since: '2026-10-02T09:00:00Z' } }),
+      work('work-0005-3', 'implementing', { partOf: 'work-0005', updated: '2026-10-12', steps, projects: inHarbor, turn: { kind: 'your_turn', note: 'Try it', since: '2026-10-12T09:00:00Z' } }),
+      work('work-0008', 'draft'),
+    ],
+    closed: [work('work-0005-2', 'closed', { outcome: 'complete', partOf: 'work-0005' })],
   });
-  const [group, second] = grouped.summary!.active;
-  assert.deepEqual(partsFacts(group, grouped), { kind: 'group', count: 2, closed: 1 });
-  assert.deepEqual(partsFacts(second, grouped), { kind: 'part', group: 'work-0005', index: 2, count: 2 });
-  assert.equal(partsFacts(coord.summary!.active[0], coord), null);
+  // Every part is under its work item, the first included, in their numbers' order, closed ones too, and none on its own.
+  const entries = hubEntries([grouped, harbor], null);
+  assert.deepEqual(entries.map(entry => [entry.item.work.id, entry.parts.map(part => part.work.id)]), [['work-0005', ['work-0005', 'work-0005-2', 'work-0005-3']], ['work-0008', []], ['work-0001', []]]);
+  // The row for the whole: its first part's title, whose turn it is as its most pressing part says
+  // (without that part's note, which the part's own row says), and its parts' steps added up.
+  const whole = entries[0].item;
+  assert.deepEqual([whole.work.title, whole.status.key, whole.work.turn, whole.work.steps, whole.work.updated],
+    ['Work work-0005', 'your_turn', { kind: 'your_turn', note: null, since: '2026-10-12T09:00:00Z' }, { done: 2, total: 6, planning: { done: 2, total: 2 } }, '2026-10-12']);
+  assert.equal(hubRowFacts(whole.work, whole.status).note, null);
+  // The work item is where its most pressing part is, once, and open while one of its parts is.
+  assert.deepEqual(hubEntryGroups(entries, 'open').map(group => [group.label, group.entries.map(entry => entry.item.work.id)]), [['Your turn', ['work-0005']], ['Later', ['work-0001', 'work-0008']]]);
+  assert.deepEqual(hubEntryGroups(entries, 'closed'), []);
+  assert.deepEqual([groupFacts(entries[0]), groupFacts(entries[1])], [{ count: 3, turn: 1 }, null]);
+  assert.equal(entryMatchesOnly(entries[0], ['your_turn'], Date.parse('2026-10-15T10:00:00Z')), true, 'a filter one of its parts matches keeps the work item');
+  // A part is in the projects its plan lists, else in the one that keeps it; the whole is in all of
+  // its parts'. A project's hub has the work items with a part in it, whole.
+  assert.deepEqual([projectsOf(entries[0].parts[2]), projectsOf(entries[0].parts[0]), projectsOf(whole)], [[harbor.id], [grouped.id], [grouped.id, harbor.id]]);
+  assert.deepEqual(hubEntries([grouped, harbor], harbor.id).map(entry => [entry.item.work.id, entry.parts.length]), [['work-0005', 3], ['work-0001', 0]]);
+  assert.deepEqual(hubEntries([grouped, harbor], grouped.id).map(entry => entry.item.work.id), ['work-0005', 'work-0008']);
+  // All of it closed, it is closed work, complete when every part is.
+  const done = project('Done', 6, { closed: [work('work-0002', 'closed', { outcome: 'complete', parts: ['work-0002-2'], partOf: null }), work('work-0002-2', 'closed', { outcome: 'abandoned', partOf: 'work-0002' })] });
+  assert.deepEqual(hubEntries([done], null).map(entry => [entry.item.work.state, entry.item.work.outcome, entry.item.status.key]), [['closed', 'complete', 'complete']]);
+  // A part whose first part is not listed is an entry on its own.
+  const alone = project('Alone', 7, { active: [work('work-0003-2', 'draft')] });
+  assert.deepEqual(hubEntries([alone], null).map(entry => [entry.item.work.id, entry.parts.length]), [['work-0003-2', 0]]);
 });

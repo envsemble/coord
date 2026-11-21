@@ -33,7 +33,7 @@ function fixture(t: TestContext) {
       accepted_at: null, completed_at: null, supersedes: [], superseded_by: null,
     } as Header,
     registry: {
-      schema_version: 2, name: 'Example', folders: [path.join(root, 'app')],
+      schema_version: 3, name: 'Example', folders: [path.join(root, 'app')],
       work_items: [{ id: 'work-0001', path: 'active/0001-example', current_plan: 'active/0001-example/plan.md' }],
     } as Registry,
     write() {
@@ -159,7 +159,7 @@ test('every ledger header the checker accepts reads the same through the YAML re
   assert.deepEqual(parseFrontmatter(['---', 'steps: [a, b]', '---', ''].join('\n'))!.steps, ['a', 'b']);
 });
 
-test('only the current formats are read: the registry, work items and plan headers of schema version 2', t => {
+test('only the current formats are read: the registry of schema version 3, work items and plan headers of version 2', t => {
   const setup = fixture(t);
   const original = clone(setup.registry), header = clone(setup.header);
   const errorsWith = (change: () => void) => {
@@ -168,7 +168,8 @@ test('only the current formats are read: the registry, work items and plan heade
     setup.write();
     return setup.validate().errors;
   };
-  assert.deepEqual(errorsWith(() => { setup.registry.schema_version = 1; }), ['registry schema_version must be integer 2']);
+  assert.deepEqual(errorsWith(() => { setup.registry.schema_version = 1; }), ['registry schema_version must be integer 3']);
+  assert.match(errorsWith(() => { setup.registry.schema_version = 2; })[0], /moves the folder forward to version 3/);
   assert.ok(errorsWith(() => { setup.registry.repositories = []; }).some(error => error.includes('unknown fields: repositories')));
   assert.ok(errorsWith(() => { delete setup.registry.folders; }).includes('folders must be an array of absolute folder paths'));
   assert.ok(errorsWith(() => { delete setup.registry.name; }).some(error => error.startsWith('name must be')));
@@ -259,24 +260,30 @@ test('continues lists work items: malformed or itself is an error, unknown work 
   assert.ok(warnings.some(item => item.includes('the handoffs form a loop')));
 });
 
-test('parts lists work IDs of this project: malformed, itself or twice is an error; unknown work, a part of two groups and a part with parts are warnings', t => {
+test('a work item is its parts: IDs are written with the number alone for the first part, former IDs lead to registered work, and a plan lists no parts', t => {
   const setup = fixture(t);
-  for (const [parts, message] of [[['shop:work-0002'], 'parts must be a list of work IDs'], [['work-0001'], 'parts names the work item itself'], [['work-0002', 'work-0002'], 'parts lists a work item twice']] as const) {
-    setup.header.parts = [...parts];
-    setup.write();
-    assert.ok(setup.validate().errors.some(item => item.includes(message)), message);
-  }
-  const next = path.join(setup.root, 'active/0002-next');
-  mkdirSync(next, { recursive: true });
-  writeFileSync(path.join(next, 'plan.md'), ['---', 'id: work-0002', 'parts: [work-0003]', '---', ''].join('\n'));
-  setup.registry.work_items.push({ id: 'work-0002', path: 'active/0002-next', current_plan: 'active/0002-next/plan.md' });
-  setup.header.parts = ['work-0002', 'work-0003'];
+  const part = (id: string, folder: string) => {
+    mkdirSync(path.join(setup.root, 'active', folder), { recursive: true });
+    writeFileSync(path.join(setup.root, 'active', folder, 'plan.md'), ['---', 'id: ' + id, '---', ''].join('\n'));
+    setup.registry.work_items.push({ id, path: 'active/' + folder, current_plan: `active/${folder}/plan.md` });
+  };
+  // A later part is registered as work-0001-2; the first part's ID is never written with its 1.
+  part('work-0001-2', '0001-2-second');
+  part('work-0001-1', '0001-1-first');
+  // A part whose work item's first part is missing is only a warning.
+  part('work-0007-2', '0007-2-orphan');
+  setup.registry.former_ids = { 'work-0004': 'work-0001-2', 'work-0001': 'work-0001-2', 'work-0005': 'work-0009' };
+  setup.header.parts = ['work-0001-2'];
+  setup.header.supersedes = ['work-0004'];
   setup.write();
   const { errors, warnings } = setup.validate();
-  assert.ok(!errors.some(item => item.includes('parts')), errors.join('; '));
-  assert.ok(warnings.some(item => item.startsWith('active/0001-example/plan.md: parts lists work-0003, which names no work item')));
-  assert.ok(warnings.some(item => item.startsWith('active/0002-next/plan.md: parts lists work-0003, which work-0001 lists too')));
-  assert.ok(warnings.some(item => item.startsWith('active/0001-example/plan.md: parts lists work-0002, which has parts of its own')));
+  assert.ok(errors.includes('work_items[2] has invalid id'), errors.join('; '));
+  assert.ok(!errors.includes('work_items[1] has invalid id'));
+  assert.ok(errors.includes('former_ids names work-0001, which is a work item'));
+  assert.ok(errors.includes('former_ids leads work-0005 to work-0009, which is not registered'));
+  assert.ok(errors.some(item => item.includes('unknown fields: parts')), 'parts are no longer listed in a plan');
+  assert.ok(!errors.some(item => item.startsWith('active/0001-example/plan.md: supersedes')), 'a former ID names registered work');
+  assert.ok(warnings.includes('work-0007-2 is a part of work-0007, which is not registered'));
 });
 
 test('lifecycle chronology matches the app and preserves unknown dates', t => {

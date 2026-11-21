@@ -1,16 +1,17 @@
-// The parts rail: on the pages of a work item made of parts, and of each of its parts, a column at
-// the right with the group and its parts in their order, numbered, each with its status and how far
-// its steps are. The one shown is marked; each opens with one click.
+// The parts rail: on the pages of each part of a work item of several parts, a column at the right
+// with its parts in their numbers' order, each with its status and how far its steps are. The one
+// shown is marked; each opens with one click.
 import { Text } from '@envsemble/envui';
 import { stepCounts } from '@envsemble/coord/planning/ledger';
 import type { Snapshot, Work } from '../types';
 import { statusOf } from './status';
 import { StatusIcon } from '../ui/badges';
-import { workNumber } from '../ui/format';
+import { parseWorkId } from '@envsemble/coord/planning/ids';
+import { wholeNumber, workNumber } from '../ui/format';
 import { workTarget } from '../navigation/targets';
 import { TargetLink, useWindow } from '../window/windowContext';
 
-/** The group a work item belongs to as the rail shows it: the work item itself when it has parts, else the group listing it. */
+/** The first part of the work item a part belongs to, when the work item has several: it knows the others. */
 export function partsGroup(work: Work | null, snapshot: Snapshot): Work | null {
   if (!work) return null;
   if (work.parts?.length) return work;
@@ -39,14 +40,14 @@ export function PartsRail({ group, shown }: { group: Work; shown: string }) {
       </span>
     </div>;
   };
-  return <nav className="parts-rail" aria-label={'Parts of ' + workNumber(group.id)}>
-    <Text render={<h2 />} variant="body" className="parts-rail-heading">Parts <span className="muted">{group.parts?.length ?? 0}</span></Text>
-    {row(group, null)}
+  const number = (id: string, at: number) => parseWorkId(id)?.part ?? at + 1;
+  return <nav className="parts-rail" aria-label={'Parts of ' + wholeNumber(group.id)}>
+    <Text render={<h2 />} variant="body" className="parts-rail-heading">Parts <span className="muted">{1 + (group.parts?.length ?? 0)}</span></Text>
     <ol className="parts-rail-list">
-      {(group.parts ?? []).map((id, index) => {
+      {[group.id, ...group.parts ?? []].map((id, index) => {
         const part = known.get(id);
-        return <li key={id}>{part ? row(part, index + 1)
-          : <div className="parts-rail-item"><span className="parts-rail-index" aria-hidden="true">{index + 1}</span><span className="parts-rail-text"><span>{workNumber(id)}</span><span className="parts-rail-meta">Not in this project</span></span></div>}</li>;
+        return <li key={id}>{part ? row(part, number(id, index))
+          : <div className="parts-rail-item"><span className="parts-rail-index" aria-hidden="true">{number(id, index)}</span><span className="parts-rail-text"><span>{workNumber(id)}</span><span className="parts-rail-meta">Not in this project</span></span></div>}</li>;
       })}
     </ol>
   </nav>;

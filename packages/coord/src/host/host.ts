@@ -18,10 +18,11 @@ import { bodyLimit } from 'hono/body-limit';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { readFile, stat } from 'node:fs/promises';
 import {
-  canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, handoffsByWork, linkHandoffs, projectStatistics, projectSummary, resolveReferences, storedReports, workDates, workSessions, workTimeline,
+  canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, handoffsByWork, linkHandoffs, linkProjects, projectStatistics, projectSummary, resolveReferences, storedReports, workDates, workSessions, workTimeline,
   readRegistry, resolveDocument, setProjectFolders, setRegistryName, WorkError, type LogOptions, type ProjectRow, type ProjectTemplates, type WorkReport,
 } from '../planning/index.ts';
 import { compareHits, PlanningSearch, searchQuery } from '../planning/reading/search.ts';
+import { moveForward } from '../planning/registry/moveForward.ts';
 import { AccessStore, newToken } from './access/access.ts';
 import { hostAddresses } from './access/addresses.ts';
 import {
@@ -559,6 +560,8 @@ export class Host {
    * handoffs changed (a plan elsewhere that now continues one of theirs), so their plans show them.
    */
   private noteHandoffs(projects: Project[]) {
+    // The projects each work item is in, found among the listed ones.
+    linkProjects(projects.map(project => ({ projectId: project.id, folder: project.path, name: project.name, summary: project.summary ?? null })));
     linkHandoffs(projects.map(project => ({ projectId: project.id, folder: project.path, name: project.name, summary: project.summary ?? null })));
     const before = this.handoffs;
     this.handoffs = new Map(projects.map(project => [folderKey(project.path), handoffsByWork({ projectId: project.id, folder: project.path, name: project.name, summary: project.summary ?? null })]));
@@ -581,6 +584,8 @@ export class Host {
   }
   /** What the hub shows of a project's plans: from its planning folder and its reports, with what agents do on its work now. */
   private async summaryOf(row: ProjectRow, activity: ProjectSummary['activity'], reports: Map<string, WorkReport[]> | undefined, now: string): Promise<ProjectSummary | null> {
+    // A folder of the earlier registry version is moved forward first, with this home's rows about it.
+    await moveForward(row.folder, { home: this.options.home }).catch(() => false);
     try { return { ...await projectSummary(row.folder, { reports: reports ?? new Map() }), activity, now }; } catch { return null; }
   }
   /**

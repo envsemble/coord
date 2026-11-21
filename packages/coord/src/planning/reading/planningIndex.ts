@@ -6,7 +6,8 @@ import { parse } from 'yaml';
 import { createHash } from 'node:crypto';
 import { filesystemCaseSensitive, filesystemNormalizesUnicode } from '../../platform/filesystem.ts';
 import { ledgerStatus } from '../work/ledger.ts';
-import { groupsOfParts, partsOf } from '../work/parts.ts';
+import { firstPartId, formerIds, partsByWorkItem, writtenWorkId } from '../work/ids.ts';
+import { moveForward, registryVersion } from '../registry/moveForward.ts';
 import { stateOf } from '../work/state.ts';
 import { workStatistics } from '../reports/reports.ts';
 import { planningName, type HomeDatabase } from '../../home/database.ts';
@@ -18,7 +19,8 @@ const textExtensions = new Set(['.md', '.txt', '.json', '.yaml', '.yml', '.csv',
 const excludedDirectories = new Set(['node_modules', '__pycache__', 'dist', 'build']);
 const designStates = new Set(['draft', 'accepted', 'superseded', 'abandoned']);
 const implementationStates = new Set(['unknown', 'not_started', 'in_progress', 'partial', 'complete']);
-const workIdentity = /^work-[0-9]{4,}$/;
+/** Whether a value is a work ID as registries write it. */
+const workIdentity = { test: (value: string) => writtenWorkId(value) === value };
 const planFields = ['schema_version', 'kind', 'id', 'title', 'created', 'updated', 'design_status', 'implementation_status', 'accepted_at', 'completed_at', 'supersedes', 'superseded_by'];
 const readableLimit = 4 * 1024 * 1024;
 type HistoricalWork = Pick<Work, 'id' | 'path' | 'currentPlan'>;
@@ -192,12 +194,12 @@ async function files(root: string, directory = root): Promise<string[]> {
   }
   return result;
 }
-/** The work a registry (planning.json's text) registers; none for one that is missing, invalid or not schema version 2. */
+/** The work a registry (planning.json's text) registers; none for one that is missing, invalid or of no version this Coord knows (history has the earlier one). */
 function registrationsIn(source: string | null, locationIdentity: (value: string) => string): HistoricalWork[] {
   if (source === null) return [];
   try {
     const registry = JSON.parse(source.replace(/^﻿/, ''));
-    if (registry?.schema_version !== 2 || !Array.isArray(registry.work_items)) return [];
+    if (![2, registryVersion].includes(registry?.schema_version) || !Array.isArray(registry.work_items)) return [];
     const locations = new Set<string>();
     const identities = new Set<string>();
     const selectedPlans = new Set<string>();
@@ -307,11 +309,13 @@ export async function gitHistory(root: string, currentWork: HistoricalWork[] = [
 export async function loadPlanning(inputRoot: string, options: { home?: string; database?: HomeDatabase | null } = {}): Promise<PlanningIndex> {
   let root: string;
   try { root = await realpath(inputRoot); } catch { throw new PlanningError('The planning folder does not exist. Check --planning-dir.'); }
-  let registry: { schema_version: number; folders: string[]; work_items: { id: string; path: string; current_plan: string | null }[] };
+  // A folder of the earlier registry version is moved forward first.
+  await moveForward(root, { home: options.home }).catch(() => false);
+  let registry: { schema_version: number; folders: string[]; work_items: { id: string; path: string; current_plan: string | null }[]; former_ids?: unknown };
   try { registry = JSON.parse((await readFile(path.join(root, 'planning.json'), 'utf8')).replace(/^\uFEFF/, '')); }
   catch { throw new PlanningError('The planning folder needs a readable planning.json registry.'); }
-  if (!registry || registry.schema_version !== 2 || !Array.isArray(registry.folders) || !Array.isArray(registry.work_items)) {
-    throw new PlanningError('The planning registry must use schema version 2 with folders and work_items.');
+  if (!registry || registry.schema_version !== registryVersion || !Array.isArray(registry.folders) || !Array.isArray(registry.work_items)) {
+    throw new PlanningError(`The planning registry must use schema version ${registryVersion} with folders and work_items.`);
   }
   const caseSensitivePaths = await filesystemCaseSensitive(root);
   const retainedFiles = await files(root);
@@ -322,6 +326,9 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
   const work: Work[] = [];
   const identities = new Set<string>();
   const registeredIds = new Set(registry.work_items.map(item => item?.id));
+  const former = formerIds(registry.former_ids);
+  /** The registered ID a name leads to (its own, or the part a former ID now names), or null. */
+  const led = (value: unknown) => { const written = writtenWorkId(value); return written === null ? null : registeredIds.has(written) ? written : former.get(written) ?? null; };
   const locations = new Set<string>();
   const selectedPlans = new Set<string>();
   // Each work folder and plan is looked up at once; the checks below take the answers in order.
@@ -367,10 +374,9 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
         const missing = planFields.filter(field => !Object.hasOwn(metadata, field));
         if (missing.length) issues.push({ level: 'error', workId: item.id, message: 'Missing plan metadata: ' + missing.join(', ') + '.' });
         if (typeof metadata.title !== 'string' || !metadata.title.trim()) issues.push({ level: 'error', workId: item.id, message: 'The plan title must be a nonempty string.' });
-        if (!Array.isArray(metadata.supersedes) || metadata.supersedes.some(id => typeof id !== 'string' || !registeredIds.has(id) || id === item.id) || new Set(metadata.supersedes).size !== metadata.supersedes.length) issues.push({ level: 'error', workId: item.id, message: 'Supersedes must list unique other registered work IDs.' });
-        if (metadata.superseded_by !== null && (typeof metadata.superseded_by !== 'string' || !registeredIds.has(metadata.superseded_by) || metadata.superseded_by === item.id)) issues.push({ level: 'error', workId: item.id, message: 'Superseded by must identify another registered work item or null.' });
+        if (!Array.isArray(metadata.supersedes) || metadata.supersedes.some(id => led(id) === null || led(id) === item.id) || new Set(metadata.supersedes.map(led)).size !== metadata.supersedes.length) issues.push({ level: 'error', workId: item.id, message: 'Supersedes must list unique other registered work IDs.' });
+        if (metadata.superseded_by !== null && (led(metadata.superseded_by) === null || led(metadata.superseded_by) === item.id)) issues.push({ level: 'error', workId: item.id, message: 'Superseded by must identify another registered work item or null.' });
         entry.title = content.title;
-        entry.parts = partsOf(metadata.parts, item.id);
         entry.state = stateOf(metadata);
         if (typeof metadata.design_status === 'string' && designStates.has(metadata.design_status)) entry.design = metadata.design_status;
         else issues.push({ level: 'error', workId: item.id, message: 'The plan has an unrecognized design status.' });
@@ -395,9 +401,13 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
     }
     work.push(entry);
   }
-  // A part's group is the first work item in the registry that lists it.
-  const groups = groupsOfParts(work);
-  for (const item of work) item.partOf = groups.get(item.id) ?? null;
+  // A work item's parts share its number: the first stands for the whole and knows the others.
+  const partsOf = partsByWorkItem(work.map(item => item.id));
+  for (const item of work) {
+    const first = firstPartId(item.id);
+    item.parts = partsOf.get(item.id) ?? [];
+    item.partOf = first !== null && first !== item.id && registeredIds.has(first) ? first : null;
+  }
   const documents: Document[] = [];
   // The listing has only files inside the root, not through links nor hidden: each is where it is
   // listed. A Markdown document unchanged since the last reading is not read again.
@@ -448,5 +458,5 @@ export async function loadPlanning(inputRoot: string, options: { home?: string; 
   const [history, statistics, name] = await Promise.all([gitHistory(root, work, caseSensitivePaths, normalizationInsensitivePaths), workStatistics(root, work, options), planningName(root)]);
   for (const item of work) item.statistics = statistics[item.id];
   if (!history.available) issues.push({ level: 'warning', message: 'Local planning Git history is unavailable.' });
-  return { root, name, loadedAt: new Date().toISOString(), caseSensitivePaths, normalizationInsensitivePaths, work, documents, issues, history: history.history, gitAvailable: history.available };
+  return { root, name, loadedAt: new Date().toISOString(), caseSensitivePaths, normalizationInsensitivePaths, work, documents, issues, history: history.history, gitAvailable: history.available, ...former.size && { former: Object.fromEntries(former) } };
 }

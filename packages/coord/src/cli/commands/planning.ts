@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   acceptWork, addSteps, proposeSteps, searchWork, coordHome, checkPaths, createProject, createWork, finishWork, findPlanning, homePlanningFolders, planningName,
-  planningFolderOf, readRegistry, readTemplates, removeStep, renameStep, reopenWork, resolvePlanningFolder, setState, setStepStatus, startWork, updateWork, withDatabaseAsync, workStatus,
+  planningFolderOf, readRegistry, readTemplates, removeStep, renameStep, reopenWork, resolvePlanningFolder, resolveWork, setState, setStepStatus, startWork, updateWork, withDatabaseAsync, workStatus,
   type LedgerStepStatus,
 } from '../../planning/index.ts';
 import { parseOptions, positionals, UsageError, wantsHelp, type Output } from '../args.ts';
@@ -15,9 +15,9 @@ import { parseOptions, positionals, UsageError, wantsHelp, type Output } from '.
 export const planningUsage = `  coord where [--cwd <dir>]
   coord project create --name <name> [--folder <folder>...] [--json]
   coord work status <work-id> [--planning-dir <dir>]
-  coord work create --title <title> [--summary <text>] [--slug <slug>] [--continues <work>...] [--tag <tag>...] [--part-of <work-id>] [--planning-dir <dir>]
+  coord work create --title <title> [--summary <text>] [--slug <slug>] [--continues <work>...] [--tag <tag>...] [--part-of <work-id>] [--project <name>...] [--planning-dir <dir>]
   coord work state <work-id> <planning|working|waiting|your_turn|blocked|none> [<note>] [--planning-dir <dir>]
-  coord work update <work-id> [--add-tag <tag>...] [--remove-tag <tag>...] [--continues <work>... | --no-continues] [--parts <work-id>... | --no-parts] [--planning-dir <dir>]
+  coord work update <work-id> [--add-tag <tag>...] [--remove-tag <tag>...] [--continues <work>... | --no-continues] [--part-of <work-id>] [--project <name>... | --no-projects] [--planning-dir <dir>]
   coord work search [<word>...] [--tag <tag>...] [--status open|closed|all] [--planning-dir <dir>]
   coord work accept <work-id> [--planning-dir <dir>]
   coord work start <work-id> [--step <title>...] [--planning-dir <dir>]
@@ -34,6 +34,8 @@ export const planningUsage = `  coord where [--cwd <dir>]
 const usageOf = (command: string) => 'Usage: ' + planningUsage.split('\n').filter(line => line.trim().startsWith(command + ' ') || line.trim() === command).map(line => line.trim()).join('\n       ');
 const print = (out: Output, value: unknown) => out.stdout(JSON.stringify(value));
 const planningDir = (values: Record<string, string>, work: string | null) => resolvePlanningFolder({ planningFolder: values['planning-dir'], cwd: process.cwd(), work });
+/** The planning folder and the work item a command is about: a work ID may name its project (envui:work-0048), which is then where it is. */
+const workOf = (values: Record<string, string>, work: string) => resolveWork({ planningFolder: values['planning-dir'], cwd: process.cwd(), work });
 
 /** `coord where`: the projects (planning folders of the home) this folder belongs to, with their names and active work, and every active project of the home in brief. */
 export async function where(args: string[], out: Output) {
@@ -81,45 +83,50 @@ export async function work(operation: string | undefined, args: string[], out: O
   switch (operation) {
     case 'status': case 'accept': {
       const { positional, values } = parseOptions(args, { values: ['planning-dir'] }, line);
-      const [id] = positionals(positional, ['work-id'], line);
-      const root = await planningDir(values, id);
+      const { root, work: id } = await workOf(values, positionals(positional, ['work-id'], line)[0]);
       print(out, operation === 'status' ? await workStatus(root, id) : await acceptWork(root, id));
       return 0;
     }
     case 'close': {
       const { positional, values, flags } = parseOptions(args, { values: ['planning-dir', 'superseded-by', 'reason'], flags: ['abandoned'] }, line);
-      const [id] = positionals(positional, ['work-id'], line);
+      const [named] = positionals(positional, ['work-id'], line);
       if (flags.has('abandoned') && values['superseded-by']) throw new UsageError('give --superseded-by or --abandoned, not both', line);
       if (flags.has('abandoned') && !values.reason) throw new UsageError('the following arguments are required: --reason (abandoned work says why)', line);
       if (values.reason !== undefined && !flags.has('abandoned') && !values['superseded-by']) throw new UsageError('--reason goes with --abandoned or --superseded-by', line);
       // --superseded-by implies superseded; without either, the work closes as complete.
-      print(out, await finishWork(await planningDir(values, id), id, { outcome: flags.has('abandoned') ? 'abandoned' : values['superseded-by'] ? 'superseded' : 'complete', supersededBy: values['superseded-by'] ?? null, reason: values.reason ?? null }));
+      const { root, work: id } = await workOf(values, named);
+      print(out, await finishWork(root, id, { outcome: flags.has('abandoned') ? 'abandoned' : values['superseded-by'] ? 'superseded' : 'complete', supersededBy: values['superseded-by'] ?? null, reason: values.reason ?? null }));
       return 0;
     }
     case 'state': {
       const { positional, values } = parseOptions(args, { values: ['planning-dir'] }, line);
-      const [id, kind, ...note] = positional;
-      if (!id || !kind) throw new UsageError('the following arguments are required: ' + (id ? 'state' : 'work-id, state'), line);
-      print(out, await setState(await planningDir(values, id), id, { kind: kind === 'none' ? null : kind, note: note.join(' ') || null }));
+      const [named, kind, ...note] = positional;
+      if (!named || !kind) throw new UsageError('the following arguments are required: ' + (named ? 'state' : 'work-id, state'), line);
+      const { root, work: id } = await workOf(values, named);
+      print(out, await setState(root, id, { kind: kind === 'none' ? null : kind, note: note.join(' ') || null }));
       return 0;
     }
     case 'update': {
-      const { positional, values, lists, flags } = parseOptions(args, { values: ['planning-dir'], lists: ['add-tag', 'remove-tag', 'continues', 'parts'], flags: ['no-continues', 'no-parts'] }, line);
-      const [id] = positionals(positional, ['work-id'], line);
+      const { positional, values, lists, flags } = parseOptions(args, { values: ['part-of', 'planning-dir'], lists: ['add-tag', 'remove-tag', 'continues', 'project'], flags: ['no-continues', 'no-projects'] }, line);
+      const [named] = positionals(positional, ['work-id'], line);
       if (flags.has('no-continues') && lists.continues) throw new UsageError('give --continues or --no-continues, not both', line);
-      if (flags.has('no-parts') && lists.parts) throw new UsageError('give --parts or --no-parts, not both', line);
-      print(out, await updateWork(await planningDir(values, id), id, {
+      if (flags.has('no-projects') && lists.project) throw new UsageError('give --project or --no-projects, not both', line);
+      const { root, work: id } = await workOf(values, named);
+      print(out, await updateWork(root, id, {
         addTags: lists['add-tag'], removeTags: lists['remove-tag'],
-        continues: flags.has('no-continues') ? [] : lists.continues, parts: flags.has('no-parts') ? [] : lists.parts,
+        continues: flags.has('no-continues') ? [] : lists.continues, partOf: values['part-of'],
+        projects: flags.has('no-projects') ? [] : lists.project,
       }));
       return 0;
     }
     case 'create': {
-      const { positional, values, lists } = parseOptions(args, { values: ['title', 'summary', 'slug', 'part-of', 'planning-dir'], lists: ['continues', 'tag'] }, line);
+      const { positional, values, lists } = parseOptions(args, { values: ['title', 'summary', 'slug', 'part-of', 'planning-dir'], lists: ['continues', 'tag', 'project'] }, line);
       positionals(positional, [], line);
       if (!values.title) throw new UsageError('the following arguments are required: --title', line);
-      const root = await planningDir(values, null);
-      print(out, await createWork(root, { title: values.title, slug: values.slug ?? null, summary: values.summary ?? null, continues: lists.continues ?? null, tags: lists.tag ?? null, partOf: values['part-of'] ?? null }));
+      // A part goes where its group is: named with its project, in that project's planning folder.
+      const group = values['part-of'] ? await workOf(values, values['part-of']) : null;
+      const root = group?.root ?? await planningDir(values, null);
+      print(out, await createWork(root, { title: values.title, slug: values.slug ?? null, summary: values.summary ?? null, continues: lists.continues ?? null, tags: lists.tag ?? null, partOf: group?.work ?? null, projects: lists.project ?? null }));
       return 0;
     }
     case 'search': {
@@ -130,10 +137,10 @@ export async function work(operation: string | undefined, args: string[], out: O
     }
     case 'start': case 'reopen': {
       const { positional, values, lists } = parseOptions(args, { values: ['planning-dir'], lists: ['step'] }, line);
-      const [id] = positionals(positional, ['work-id'], line);
+      const [named] = positionals(positional, ['work-id'], line);
       // Started without steps, the work adopts its proposed steps.
       if (!lists.step && operation === 'reopen') throw new UsageError('the following arguments are required: --step', line);
-      const root = await planningDir(values, id);
+      const { root, work: id } = await workOf(values, named);
       print(out, operation === 'start' ? await startWork(root, id, { steps: lists.step }) : await reopenWork(root, id, { steps: lists.step! }));
       return 0;
     }
@@ -142,23 +149,27 @@ export async function work(operation: string | undefined, args: string[], out: O
       if (!steps.includes(action)) throw new UsageError('unknown work step command: ' + (action ?? '(none)'), usageOf('coord work step'));
       if (wantsHelp(rest)) { out.stdout(line); return 0; }
       const { positional, values } = parseOptions(rest, { values: ['planning-dir'] }, line);
-      const id = positional[0];
+      const named = positional[0];
+      if (action === 'add' && positional.length < 2) throw new UsageError('the following arguments are required: ' + (named ? 'title' : 'work-id, title'), line);
+      if (action === 'propose' && !named) throw new UsageError('the following arguments are required: work-id', line);
+      if (action === 'set') positionals(positional, ['work-id', 'title', 'status'], line);
+      else if (action === 'rename') positionals(positional, ['work-id', 'title', 'new-title'], line);
+      else if (action === 'remove') positionals(positional, ['work-id', 'title'], line);
+      const { root, work: id } = await workOf(values, named);
       if (action === 'add') {
-        if (positional.length < 2) throw new UsageError('the following arguments are required: ' + (id ? 'title' : 'work-id, title'), line);
-        print(out, await addSteps(await planningDir(values, id), id, positional.slice(1)));
+        print(out, await addSteps(root, id, positional.slice(1)));
       } else if (action === 'propose') {
-        if (!id) throw new UsageError('the following arguments are required: work-id', line);
-        print(out, await proposeSteps(await planningDir(values, id), id, positional.slice(1)));
+        print(out, await proposeSteps(root, id, positional.slice(1)));
       } else if (action === 'set') {
         const [, title, status] = positionals(positional, ['work-id', 'title', 'status'], line);
         if (!['todo', 'doing', 'done'].includes(status)) throw new UsageError('argument status: expected todo, doing or done', line);
-        print(out, await setStepStatus(await planningDir(values, id), id, title, status as LedgerStepStatus));
+        print(out, await setStepStatus(root, id, title, status as LedgerStepStatus));
       } else if (action === 'rename') {
         const [, title, to] = positionals(positional, ['work-id', 'title', 'new-title'], line);
-        print(out, await renameStep(await planningDir(values, id), id, title, to));
+        print(out, await renameStep(root, id, title, to));
       } else {
         const [, title] = positionals(positional, ['work-id', 'title'], line);
-        print(out, await removeStep(await planningDir(values, id), id, title));
+        print(out, await removeStep(root, id, title));
       }
       return 0;
     }

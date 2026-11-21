@@ -10,10 +10,11 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import {
   acceptWork, addSteps, proposeSteps, projectTags, searchWork, createWork, findPlanning, DatabaseVersionError, PlanningNotFoundError, removeStep, renameStep, reopenWork, finishWork,
-  resolvePlanningFolder, setState, setStepStatus, startWork, updateWork, WorkError, workStatus, type LedgerStepStatus,
+  resolvePlanningFolder, resolveWork, setState, setStepStatus, startWork, updateWork, WorkError, workStatus, type LedgerStepStatus,
 } from '../../planning/index.ts';
 import type { Whereabouts } from '../../planning/projects/findProject.ts';
 import type { WorkResult } from '../../planning/work/work.ts';
+import { workIdSource } from '../../planning/work/ids.ts';
 import { agentOfClient, noteActivity } from '../../agents/activity.ts';
 import { coordHome } from '../../home/homePath.ts';
 import { parseOptions, UsageError, wantsHelp, type Output } from '../args.ts';
@@ -31,7 +32,8 @@ const instructions = "Coord keeps plans in projects: planning folders in the Coo
   + 'Change planning state (work items, steps, state, closing) only through these tools; edit plan prose, glossaries and diagrams directly as files in the planning folder. '
   + "Say whose turn a work item is with state, whenever it changes: working while you work on it, your_turn when you stop for the user (with what they are to do), waiting while it waits on a PR's checks or something else, blocked with why; Coord shows it to the user and never guesses it. "
   + 'When work continues other work (follow-ups moved off work that is closing, a next phase), record the handoff with continues. '
-  + 'When one task is better planned as several ordered pieces, each with its own plan and steps, make them its parts (work_create with partOf; work_update). '
+  + 'A work item has a number and is made of parts: work-0023 is its first part (shown #0023-1), work-0023-2 its second. When one task is better planned as several ordered pieces, each with its own plan and steps, make them parts of one work item (work_create with partOf; work_update with partOf for work that exists). '
+  + "When work involves several projects, say which it is in with projects (work_create, work_update), for the whole and for each part; where then lists it in each of them, named project:work-0023 when another project keeps it: give the tools that name. "
   + "Tag work with what it will be searched for later: the release it ships in and the areas it touches, reusing the project's tags (where and work_update count them). "
   + 'Answer questions about past work with work_search. '
   + 'In planning files, write PRs and issues as owner/repo#N and commits as owner/repo@hash (or their URLs), naming the repository yourself, so Coord links them. '
@@ -39,7 +41,11 @@ const instructions = "Coord keeps plans in projects: planning folders in the Coo
 
 const planningFolder = { type: 'string', description: "The project's planning folder, an absolute path; needed only when several projects or none cover your folder." };
 const cwd = { type: 'string', description: "Your folder, when it isn't the session's." };
-const work = { type: 'string', pattern: '^work-[0-9]{4,}$' };
+/** A work item of the project the call works in. */
+const localWork = { type: 'string', pattern: '^' + workIdSource + '$' };
+/** The work item a call is about: also one another project keeps, named with that project. */
+const work = { type: 'string', pattern: '^(?:[^:\\\\/\\s][^:\\\\/]{0,99}:)?' + workIdSource + '$', description: "work-0023 (a work item's first part), work-0023-2 (a later part), or project:work-0023 for work another project keeps (its planning folder's name), as where lists it." };
+const projects = (description: string) => ({ type: 'array', items: { type: 'string' }, description });
 const titles = (description?: string) => ({ type: 'array', items: { type: 'string' }, ...description && { description } });
 const continues = titles("Work items it continues: work-0023, or project:work-0023 in another project (its planning folder's name).");
 const object = (properties: Record<string, unknown>, required: string[] = []) => ({ type: 'object', properties: { ...properties, planningFolder, cwd }, required, additionalProperties: false });
@@ -100,8 +106,8 @@ const tools: Tool[] = [
   {
     name: 'work_create',
     description: 'Ask the user first; only for work big enough to plan. Create a work item: active/NNNN-slug/ with a draft plan.md (its header holds the summary) and a ledger with the planning steps (Understand the request, doing; Settle the design; Write the plan; Accepted). Then write the plan body directly, and keep the summary and planning steps true as the design settles.',
-    inputSchema: object({ title: { type: 'string' }, summary: { type: 'string', description: 'Two or three plain sentences, on one line: what the work is, why, and where it stands.' }, slug: { type: 'string', description: 'Folder name after the number; derived from the title by default.' }, continues, tags: titles('Its first tags, such as ["search"].'), partOf: { ...work, description: "The work item of this project it is a part of; it becomes the last of that group's parts." } }, ['title']),
-    run: (root, input) => createWork(root, { title: input.title as string, slug: (input.slug as string | undefined) ?? null, summary: (input.summary as string | undefined) ?? null, continues: (input.continues as string[] | undefined) ?? null, tags: (input.tags as string[] | undefined) ?? null, partOf: (input.partOf as string | undefined) ?? null }),
+    inputSchema: object({ title: { type: 'string' }, summary: { type: 'string', description: 'Two or three plain sentences, on one line: what the work is, why, and where it stands.' }, slug: { type: 'string', description: 'Folder name after the number; derived from the title by default.' }, continues, tags: titles('Its first tags, such as ["search"].'), partOf: { ...work, description: "The work item it is a part of, named by any of its parts: it becomes that work item's next part (work-0023-3), in its planning folder." }, projects: projects("The projects it is in, by their planning folders' names, such as [\"envui\", \"internal\"], when they are not just the project that keeps it.") }, ['title']),
+    run: (root, input) => createWork(root, { title: input.title as string, slug: (input.slug as string | undefined) ?? null, summary: (input.summary as string | undefined) ?? null, continues: (input.continues as string[] | undefined) ?? null, tags: (input.tags as string[] | undefined) ?? null, partOf: (input.partOf as string | undefined) ?? null, projects: (input.projects as string[] | undefined) ?? null }),
   },
   {
     name: 'state',
@@ -111,9 +117,9 @@ const tools: Tool[] = [
   },
   {
     name: 'work_update',
-    description: "Change a work item's tags (add, remove: lowercase letters, digits, dots and hyphens), the work it continues (replacing it; an empty list records none) or its parts (other work of this project, in order, replacing them; groups are one level deep). Returns its tags and the project's, with counts, when tags change.",
-    inputSchema: object({ work, addTags: titles(), removeTags: titles(), continues, parts: titles('Its parts in order, such as ["work-0034", "work-0035"].') }, ['work']),
-    run: (root, input) => updateWork(root, input.work!, { addTags: input.addTags as string[] | undefined, removeTags: input.removeTags as string[] | undefined, continues: input.continues as string[] | undefined, parts: input.parts as string[] | undefined }),
+    description: "Change a work item's tags (add, remove: lowercase letters, digits, dots and hyphens), the work it continues (replacing it; an empty list records none), the work item it is a part of (it becomes that work item's next part and takes its number; its old ID still names it) or the projects it is in (replacing them; an empty list leaves it in the project that keeps it). Returns its tags and the project's, with counts, when tags change.",
+    inputSchema: object({ work, addTags: titles(), removeTags: titles(), continues, partOf: { ...localWork, description: 'The work item of the same project it becomes a part of, named by any of its parts.' }, projects: projects("The projects it is in, by their planning folders' names, such as [\"envui\", \"internal\"].") }, ['work']),
+    run: (root, input) => updateWork(root, input.work!, { addTags: input.addTags as string[] | undefined, removeTags: input.removeTags as string[] | undefined, continues: input.continues as string[] | undefined, partOf: input.partOf as string | undefined, projects: input.projects as string[] | undefined }),
   },
     {
     name: 'work_search', description: "Find the project's work items, archived included, by tags (all of them) and words in their titles, summaries and tags.",
@@ -145,7 +151,7 @@ const tools: Tool[] = [
   {
     name: 'work_close',
     description: "Close the work and move it to archive/, with its outcome: complete (refused with the open items unless every step is done and nothing is blocked), abandoned (with the reason, which goes into the plan's Outcome) or superseded (supersededBy names the replacement). Close once the outcome is reached; ask the user first unless they handed you the work to finish without them.",
-    inputSchema: object({ work, outcome: { type: 'string', enum: ['complete', 'abandoned', 'superseded'] }, supersededBy: { ...work, description: 'The work item that replaces it.' }, reason: { type: 'string' } }, ['work']),
+    inputSchema: object({ work, outcome: { type: 'string', enum: ['complete', 'abandoned', 'superseded'] }, supersededBy: { ...localWork, description: 'The work item of the same project that replaces it.' }, reason: { type: 'string' } }, ['work']),
     run: (root, input) => finishWork(root, input.work!, { outcome: (input.outcome as 'complete' | 'abandoned' | 'superseded' | undefined) ?? null, supersededBy: (input.supersededBy as string | undefined) ?? null, reason: (input.reason as string | undefined) ?? null }),
   },
     {
@@ -177,7 +183,7 @@ function shaped(name: string, value: unknown) {
   const { statistics: _, changed, warnings, ...status } = value as WorkResult;
   const notes = warnings.length ? { warnings } : {};
   if (ledgerTools.has(name)) return { planningFolder: status.planningFolder, workId: status.workId, steps: status.steps, progress: status.progress, blocked: status.blocked, ...notes };
-  if (name === 'work_update' && (value as { projectTags?: unknown }).projectTags && !('continues' in (value as object)) && !('parts' in (value as object))) return { planningFolder: status.planningFolder, workId: status.workId, tags: status.tags, projectTags: (value as unknown as { projectTags: unknown }).projectTags, ...notes };
+  if (name === 'work_update' && (value as { projectTags?: unknown }).projectTags && !('continues' in (value as object)) && !('partOf' in (value as object)) && !('projects' in (value as object))) return { planningFolder: status.planningFolder, workId: status.workId, tags: status.tags, projectTags: (value as unknown as { projectTags: unknown }).projectTags, ...notes };
   return { ...status, changed, ...notes };
 }
 
@@ -190,8 +196,15 @@ export async function callTool(name: string, input: Arguments) {
   if (!tool) return { isError: true, content: [{ type: 'text', text: 'Unknown tool: ' + name }] };
   try {
     const base = input.cwd && path.isAbsolute(input.cwd) ? input.cwd : process.cwd();
-    const root = homeTools.has(name) ? '' : await resolvePlanningFolder({ planningFolder: input.planningFolder, cwd: base, work: input.work ?? null });
-    const value = shaped(name, await tool.run(root, { ...input, cwd: base }));
+    // The work item the call is about says where it is: named with its project (project:work-0023), it is in that project's planning folder; a new part goes where its group is.
+    const about = typeof input.work === 'string' ? 'work' : name === 'work_create' && typeof input.partOf === 'string' ? 'partOf' : null;
+    let root = '';
+    const given: Arguments = { ...input, cwd: base };
+    if (!homeTools.has(name)) {
+      if (about) { const found = await resolveWork({ planningFolder: input.planningFolder, cwd: base, work: input[about] as string }); root = found.root; given[about] = found.work; }
+      else root = await resolvePlanningFolder({ planningFolder: input.planningFolder, cwd: base, work: null });
+    }
+    const value = shaped(name, await tool.run(root, given));
     return { content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: value as Record<string, unknown> };
   } catch (error) {
     if (!(error instanceof WorkError || error instanceof PlanningNotFoundError || error instanceof DatabaseVersionError)) throw error;

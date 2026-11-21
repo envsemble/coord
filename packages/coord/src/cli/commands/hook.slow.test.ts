@@ -50,7 +50,7 @@ test('a hook process given bad input exits 0 and prints nothing; a session start
 
 test('a PostToolUse with nothing to do is answered before the hook loads; one that edits a planning file is not', t => {
   const home = path.join(temporary(t), 'home'), env = { ...environment, COORD_HOME: home };
-  write(path.join(home, 'planning', 'shop', 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Shop', folders: [], work_items: [] }));
+  write(path.join(home, 'planning', 'shop', 'planning.json'), JSON.stringify({ schema_version: 3, name: 'Shop', folders: [], work_items: [] }));
   const edit = (file: string) => coord(['hook', 'PostToolUse'], { env, input: JSON.stringify({ session_id: session, cwd: home, tool_name: 'Edit', tool_input: { file_path: file } }) });
   // The hook itself would open the home database; answered early, nothing is.
   assert.deepEqual(Object.values(edit(path.join(home, 'src.ts'))), [0, '', '']);

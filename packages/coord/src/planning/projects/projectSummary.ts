@@ -8,11 +8,13 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseFrontmatter } from '../check/check.ts';
 import type { HomeDatabase } from '../../home/database.ts';
-import type { HandoffLink, WorkState } from '../types.ts';
+import type { HandoffLink, ProjectLink, WorkState } from '../types.ts';
+import { projectsOf } from '../work/projects.ts';
 import { stateOf } from '../work/state.ts';
 import { handoffsOf } from '../handoffs/handoffs.ts';
 import { tagsOf } from '../work/tags.ts';
-import { groupsOfParts, partsOf } from '../work/parts.ts';
+import { compareWorkIds, firstPartId, formerIds, partsByWorkItem } from '../work/ids.ts';
+import { moveForward } from '../registry/moveForward.ts';
 import { runProgram } from '../../platform/run.ts';
 import { storedReports, summarizeReports, type WorkReport } from '../reports/reports.ts';
 
@@ -48,10 +50,15 @@ export interface ProjectWork {
    */
   continues?: HandoffLink[]; continuedIn?: HandoffLink[];
   /**
-   * The work items this one is made of (its plan's `parts`: well-formed work IDs of this project, in
-   * order, each once), and the group that lists it among its parts (the first in the registry, should several), or null.
+   * Its work item's other parts, on the first part (the IDs that share its number, in their numbers'
+   * order), and on each of those the first part, which stands for the whole; else none and null.
    */
   parts?: string[]; partOf?: string | null;
+  /**
+   * The projects it is in, when its plan lists them (`projects`), as the home has them (the project
+   * list links each: `linkProjects`); absent when it lists none: it is then in the project that keeps it.
+   */
+  projects?: ProjectLink[];
   /** Whose turn it is, as its plan declares (its `state`); absent when it declares none, and on closed work. */
   turn?: WorkState;
 }
@@ -83,6 +90,8 @@ export interface ProjectSummary {
   closed: ProjectWork[];
   /** When its planning folder last changed: the time of its last commit (ISO 8601), null outside Git. */
   updated: string | null;
+  /** The registry's former IDs: each an ID that work had before it became a part, and the ID it has now. */
+  former?: Record<string, string>;
 }
 
 const BOM = String.fromCharCode(0xfeff);
@@ -132,6 +141,7 @@ async function workOf(root: string, entry: { id: string; path: string; current_p
   const counted = (list: Step[]) => ({ done: list.filter(step => step?.status === 'done').length, total: list.length });
   // Whose turn it is, as the plan declares; left out when it declares none, and on closed work.
   const turn = closed || !planHeader ? null : stateOf(planHeader);
+  const projects = projectsOf(planHeader?.projects);
   return {
     ...turn && { turn },
     id: entry.id, title: text(planHeader?.title) ?? entry.path.split('/').at(-1)!, state, blocked,
@@ -141,8 +151,10 @@ async function workOf(root: string, entry: { id: string; path: string; current_p
     // As the plan names them; linkHandoffs finds them in the home's projects, and the work continuing this.
     continues: handoffsOf(planHeader?.continues).references.map((item): HandoffLink => ({ projectId: null, project: item.project ?? '', projectName: '', workId: item.workId, title: null, state: null, outcome: null })),
     continuedIn: [],
-    // Its parts as the plan lists them; projectSummary finds each part's group.
-    parts: partsOf(planHeader?.parts, entry.id), partOf: null,
+    // projectSummary finds its work item's parts.
+    parts: [], partOf: null,
+    // The projects its plan lists, by name; linkProjects finds them among the home's projects.
+    ...projects.length && { projects: projects.map((project): ProjectLink => ({ projectId: null, project, projectName: project })) },
   };
 }
 
@@ -152,8 +164,10 @@ async function workOf(root: string, entry: { id: string; path: string; current_p
  * work item has its statistics; reports that cannot be read count as none.
  */
 export async function projectSummary(root: string, options: { database?: HomeDatabase; projectRowId?: number; reports?: Map<string, WorkReport[]> } = {}): Promise<ProjectSummary> {
+  // A folder of the earlier registry version is moved forward first.
+  await moveForward(root).catch(() => false);
   const source = await readFile(path.join(root, 'planning.json'), 'utf8');
-  const registry = JSON.parse(source.startsWith(BOM) ? source.slice(1) : source) as { work_items?: unknown } | null;
+  const registry = JSON.parse(source.startsWith(BOM) ? source.slice(1) : source) as { work_items?: unknown; former_ids?: unknown } | null;
   if (!registry || typeof registry !== 'object' || Array.isArray(registry)) throw new Error('planning.json is not an object.');
   const entries = (Array.isArray(registry.work_items) ? registry.work_items : []).filter(entry => typeof entry?.id === 'string' && typeof entry.path === 'string');
   // Every work item's reports in one query.
@@ -163,13 +177,17 @@ export async function projectSummary(root: string, options: { database?: HomeDat
   }
   const [active, closed] = await Promise.all(['active/', 'archive/'].map(location =>
     Promise.all(entries.filter(entry => entry.path.startsWith(location)).map(entry => workOf(root, entry, location === 'archive/', reports.get(entry.id) ?? [])))));
-  // A part's group is the first in the registry that lists it.
+  // A work item's parts share its number: the first stands for the whole and knows the others.
   const byId = new Map([...active, ...closed].map(item => [item.id, item]));
-  const groups = groupsOfParts(entries.map(entry => byId.get(entry.id)).filter(item => item !== undefined));
-  for (const item of byId.values()) item.partOf = groups.get(item.id) ?? null;
+  const parts = partsByWorkItem(byId.keys());
+  for (const item of byId.values()) {
+    const first = firstPartId(item.id);
+    item.parts = parts.get(item.id) ?? [];
+    item.partOf = first !== null && first !== item.id && byId.has(first) ? first : null;
+  }
   // The latest change first; on the same day, the later registration.
-  const number = (id: string) => Number(/[0-9]+$/.exec(id)?.[0] ?? 0);
-  closed.sort((a, b) => (b.updated ?? '').localeCompare(a.updated ?? '') || number(b.id) - number(a.id));
+  closed.sort((a, b) => (b.updated ?? '').localeCompare(a.updated ?? '') || compareWorkIds(b.id, a.id));
   const updated = await runProgram('git', ['-C', root, 'log', '-1', '--format=%cI'], { timeout: 10_000 }).then(({ stdout }) => stdout.trim() || null, () => null);
-  return { active, closed, updated };
+  const former = formerIds(registry.former_ids);
+  return { active, closed, updated, ...former.size && { former: Object.fromEntries(former) } };
 }

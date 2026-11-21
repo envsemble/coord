@@ -10,7 +10,7 @@ import { filesystemCaseSensitive, filesystemNormalizesUnicode } from '../../plat
 import { header, readerFixture as fixture, relativeDocumentPath } from '../testing.ts';
 
 /** A registry of these work items. */
-const registry = (items: object[]) => JSON.stringify({ schema_version: 2, name: 'Example', folders: [], work_items: items });
+const registry = (items: object[]) => JSON.stringify({ schema_version: 3, name: 'Example', folders: [], work_items: items });
 
 test('the work folder\'s ledger reports its status; a nested one is not the main record, and an invalid one leaves it unknown', async () => {
   const setup = await fixture();
@@ -169,9 +169,9 @@ test('Windows BOM registries load, and registries of another schema fail before 
     await writeFile(path.join(setup.root, 'notes/example/lesson.md'), '# A lesson');
     await writeFile(path.join(setup.root, 'planning.json'), '\uFEFF' + registry([]));
     assert.equal((await loadPlanning(setup.root)).documents.find(file => file.path === 'notes/example/lesson.md')?.category, 'document');
-    for (const old of [{ schema_version: 1, folders: [], work_items: [] }, { schema_version: 2, work_items: [] }]) {
+    for (const old of [{ schema_version: 1, folders: [], work_items: [] }, { schema_version: 3, work_items: [] }]) {
       await writeFile(path.join(setup.root, 'planning.json'), JSON.stringify(old));
-      await assert.rejects(loadPlanning(setup.root), /schema version 2/);
+      await assert.rejects(loadPlanning(setup.root), /schema version 3/);
     }
   } finally { await setup.cleanup(); }
 });
@@ -289,10 +289,16 @@ test('normalized plan health reports missing or contradictory metadata while kee
       assert.ok((await readDocument(setup.root, 'active/0001-example/plan.md')).body.includes('Preserve this body.'));
       assert.equal(await readFile(filename, 'utf8'), source);
     }
-    // Its parts, the work IDs each once and in order, and each part's group.
-    await writeFile(filename, original.replace('supersedes: []', 'supersedes: [work-0002]\nparts: ["work-0002", nope, "work-0002"]'));
+    // A work item's parts share its number: the first knows the others, each of them the first; a
+    // former ID (work that joined a work item) still names its work, here in `supersedes`.
+    await writeFile(filename, original.replace('supersedes: []', 'supersedes: [work-0002]'));
+    const registryFile = path.join(setup.root, 'planning.json');
+    await writeFile(registryFile, JSON.stringify({ ...JSON.parse(await readFile(registryFile, 'utf8')), former_ids: { 'work-0002': 'work-0001-2' } }).replace('"id":"work-0002"', '"id":"work-0001-2"'));
+    const second = path.join(setup.root, JSON.parse(await readFile(registryFile, 'utf8')).work_items[1].current_plan);
+    await writeFile(second, (await readFile(second, 'utf8')).replace('id: work-0002', 'id: work-0001-2'));
     const loaded = await loadPlanning(setup.root);
-    assert.equal(loaded.issues.filter(issue => issue.level === 'error').length, 0);
-    assert.deepEqual(loaded.work.map(item => [item.id, item.parts, item.partOf]), [['work-0001', ['work-0002'], null], ['work-0002', [], 'work-0001']]);
+    assert.deepEqual(loaded.issues.filter(issue => issue.level === 'error'), []);
+    assert.deepEqual(loaded.work.map(item => [item.id, item.parts, item.partOf]), [['work-0001', ['work-0001-2'], null], ['work-0001-2', [], 'work-0001']]);
+    assert.deepEqual(loaded.former, { 'work-0002': 'work-0001-2' });
   } finally { await setup.cleanup(); }
 });
