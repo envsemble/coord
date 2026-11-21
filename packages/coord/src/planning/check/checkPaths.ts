@@ -7,6 +7,7 @@ import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import coord from '@envsemble/coord-diagrams';
 import { validatePlanning } from './check.ts';
+import { moveForward } from '../registry/moveForward.ts';
 import { buildPage, listPages, pageFile, pageOf, readPageFile } from '../pages/pages.ts';
 
 export interface CheckResult {
@@ -97,6 +98,8 @@ export async function checkPaths(paths: string[]): Promise<CheckResult[]> {
   }
   const results: CheckResult[] = outside.map(target => ({ planningFolder: path.resolve(target), files: [], errors: [target + ': not inside a planning folder (no planning.json above it)'], warnings: [] }));
   for (const [root, group] of groups) {
+    // A folder of the earlier registry version is moved forward first.
+    await moveForward(root).catch(() => false);
     const { errors, warnings } = validatePlanning(root);
     const about = (message: string) => {
       if (group.whole) return true;

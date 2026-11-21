@@ -11,10 +11,10 @@ test.afterEach(async () => { await close(launched); launched = undefined; for (c
 const shows = (window: Page) => window.locator('.hub h1, .work-page h1, .file-page .file-name, .diagrams .diagram-title').first();
 /** The last step of a work item's trail: its number. */
 const trailEnd = (window: Page) => window.locator('.window-page .breadcrumb [aria-current="page"]');
-/** Shows the work item Saved payment methods (#0001), or Customer order notifications (#0003). */
+/** Shows the work item Saved payment methods (#0001-1), or Customer order notifications (#0003-1). */
 async function showsPlan(window: Page, plan: 'payments' | 'notifications') {
   await expect(shows(window)).toHaveText(plan === 'payments' ? 'Saved payment methods' : 'Customer order notifications');
-  await expect(trailEnd(window)).toHaveText(plan === 'payments' ? '#0001' : '#0003');
+  await expect(trailEnd(window)).toHaveText(plan === 'payments' ? '#0001-1' : '#0003-1');
 }
 
 /** The mouse's back (3) or forward (4) button, pressed and released over the page; true when the release was taken. */

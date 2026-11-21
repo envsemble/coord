@@ -115,6 +115,6 @@ test('a project made outside the app appears when its planning.json comes, a mom
   const folder = path.join(data, 'planning', 'by-hand');
   mkdirSync(folder);
   await until(() => (host as unknown as { unfinishedProjects: Map<string, number> }).unfinishedProjects.has('by-hand'));
-  writeFileSync(path.join(folder, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'By hand', folders: [], work_items: [] }));
+  writeFileSync(path.join(folder, 'planning.json'), JSON.stringify({ schema_version: 3, name: 'By hand', folders: [], work_items: [] }));
   await until(() => owner.lists.some(list => list.some(project => project.name === 'By hand')), 10000, () => owner.lists.map(list => list.map(project => project.name)));
 });

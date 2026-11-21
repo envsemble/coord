@@ -19,7 +19,7 @@ function temporary(t: TestContext) {
 function write(file: string, text: string) { mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, text); }
 const plan = (status: string, more = '') => `---\nkind: plan\nimplementation_status: ${status}\n${more}---\n\n# Plan\n`;
 const ledger = (blocked: string | null, steps = 'steps: []\n') => `---\nschema_version: 2\nkind: ledger\nblocked: ${blocked === null ? 'null' : JSON.stringify(blocked)}\n${steps}---\n\n# Ledger\n`;
-const item = (folder: string, plan = folder + '/plan.md') => ({ id: 'work-' + folder.slice(-4), path: folder, current_plan: plan });
+const item = (folder: string, plan = folder + '/plan.md', id = 'work-' + folder.slice(-4)) => ({ id, path: folder, current_plan: plan });
 
 /**
  * A planning folder: being implemented, blocked while implemented, blocked, planned, unreadable, a
@@ -27,8 +27,10 @@ const item = (folder: string, plan = folder + '/plan.md') => ({ id: 'work-' + fo
  */
 function planningFolder(root: string) {
   write(path.join(root, 'planning.json'), '\ufeff' + JSON.stringify({
-    schema_version: 2, name: 'Shop', folders: [],
-    work_items: [item('active/0001'), item('active/0002'), item('active/0003'), item('active/0004'), item('active/0005'), item('active/0006', '../outside/plan.md'), item('archive/0007'), item('active/0008'), item('active/0009'), item('archive/0010'), item('archive/0011')],
+    schema_version: 3, name: 'Shop', folders: [],
+    work_items: [item('active/0001'), item('active/0002'), item('active/0003'), item('active/0004'), item('active/0005'), item('active/0006', '../outside/plan.md'), item('archive/0007'), item('active/0008', undefined, 'work-0009-2'), item('active/0009'), item('archive/0010', undefined, 'work-0009-3'), item('archive/0011')],
+    // The second part had a number of its own before it joined the work item.
+    former_ids: { 'work-0008': 'work-0009-2' },
   }));
   write(path.join(root, 'active/0001/plan.md'), plan('in_progress', 'title: Saved cards\nsummary: "Cards saved at checkout. Half done."\nupdated: "2026-10-03"\n'));
   write(path.join(root, 'active/0001/ledger.md'), ledger(null, 'steps:\n  - title: "Design"\n    status: done\n    phase: planning\n  - title: "Store"\n    status: done\n  - title: "Show"\n    status: doing\n'));
@@ -45,7 +47,7 @@ function planningFolder(root: string) {
   write(path.join(root, 'outside/plan.md'), plan('in_progress'));
   write(path.join(root, 'archive/0007/plan.md'), plan('in_progress'));
   write(path.join(root, 'active/0008/plan.md'), plan('not_started', 'title: Gift cards\ndesign_status: draft\ncontinues: [work-0001, "app:work-0002"]\n'));
-  write(path.join(root, 'active/0009/plan.md'), plan('partial', 'title: Returns\ndesign_status: draft\nparts: [work-0008, "work-0010", nope, work-0008]\n'));
+  write(path.join(root, 'active/0009/plan.md'), plan('partial', 'title: Returns\ndesign_status: draft\n'));
   write(path.join(root, 'archive/0007/ledger.md'), ledger('Blocked long ago'));
 }
 
@@ -63,16 +65,17 @@ test('a project\'s summary lists its active work with where each item stands', a
       { id: 'work-0002', title: '0002', state: 'blocked', blocked: 'Waiting for the acquirer', ...none, ...unstepped },
       { id: 'work-0003', title: '0003', state: 'blocked', blocked: 'Waiting for review', ...none, ...unstepped },
       other('work-0004', '0004', unstepped), other('work-0005'), other('work-0006'),
-      { id: 'work-0008', title: 'Gift cards', state: 'draft', blocked: null, ...none, continues: [handoff('', 'work-0001'), handoff('app', 'work-0002')], partOf: 'work-0009' },
-      // Its parts as the plan lists them, the work IDs each once; each part knows its group.
-      other('work-0009', 'Returns', { parts: ['work-0008', 'work-0010'] }),
+      { id: 'work-0009-2', title: 'Gift cards', state: 'draft', blocked: null, ...none, continues: [handoff('', 'work-0001'), handoff('app', 'work-0002')], partOf: 'work-0009' },
+      // A work item's parts share its number: the first knows the others, in their numbers' order, and each of them the first.
+      other('work-0009', 'Returns', { parts: ['work-0009-2', 'work-0009-3'] }),
     ],
     closed: [
       { id: 'work-0011', title: 'Coupons', state: 'closed', blocked: null, ...none, updated: '2026-09-30', outcome: 'abandoned' },
-      { id: 'work-0010', title: 'Wish list', state: 'closed', blocked: null, ...none, updated: '2026-09-20', outcome: 'complete', completed: '2026-09-20', partOf: 'work-0009' },
+      { id: 'work-0009-3', title: 'Wish list', state: 'closed', blocked: null, ...none, updated: '2026-09-20', outcome: 'complete', completed: '2026-09-20', partOf: 'work-0009' },
       { id: 'work-0007', title: '0007', state: 'closed', blocked: null, ...none, ...unstepped },
     ],
     updated: null,
+    former: { 'work-0008': 'work-0009-2' },
   }, 'blocked comes first, then implementing, then a draft plan (one done in part is not a draft); a blank blocker, a header that does not parse, a missing ledger and a plan outside the folder leave an item as other; closed work comes latest changed first (completed_at without updated), with how it ended and never blocked; outside Git there is no last change');
 });
 
@@ -100,7 +103,7 @@ test('a folder without a readable registry has no summary, and odd entries in on
 test('each work item has the step being worked on or next, and what agents spent on it, from all the project\'s reports at once', async t => {
   const home = temporary(t);
   const root = path.join(home, 'planning', 'shop');
-  write(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Shop', folders: [], work_items: [item('active/0001'), item('active/0002'), item('active/0003'), item('archive/0004')] }));
+  write(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 3, name: 'Shop', folders: [], work_items: [item('active/0001'), item('active/0002'), item('active/0003'), item('archive/0004')] }));
   write(path.join(root, 'active/0001/plan.md'), plan('in_progress', 'title: Saved cards\n'));
   write(path.join(root, 'active/0001/ledger.md'), ledger(null, 'steps:\n  - title: "Design"\n    status: done\n    phase: planning\n  - title: "Store"\n    status: todo\n  - title: "Show"\n    status: doing\n'));
   write(path.join(root, 'active/0002/plan.md'), plan('not_started', 'title: Gift cards\ndesign_status: draft\n'));
@@ -214,7 +217,7 @@ test('a plan waits for the person once while its sessions wait at once, and no l
 test('a project\'s statistics put time on the days it was worked, by model and effort, with the plans completed', async t => {
   const directory = temporary(t);
   const root = path.join(directory, 'shop');
-  write(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Shop', folders: [], work_items: [item('archive/0001'), item('active/0002')] }));
+  write(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 3, name: 'Shop', folders: [], work_items: [item('archive/0001'), item('active/0002')] }));
   write(path.join(root, 'archive/0001/plan.md'), plan('complete', 'title: Saved cards\ndesign_status: accepted\ncreated: "2026-10-11"\naccepted_at: "2026-10-12"\ncompleted_at: "2026-10-14"\n'));
   write(path.join(root, 'active/0002/plan.md'), plan('not_started', 'title: Gift cards\n'));
   const database = HomeDatabase.open(path.join(directory, 'home'));
@@ -237,7 +240,7 @@ test('a project\'s statistics put time on the days it was worked, by model and e
     assert.deepEqual(statistics.models, [{ model: 'claude-opus', effort: 'high', agentMs: 4 * 3_600_000, tokens: 100 }]);
     // All plans: another project's work-0001 is its own plan, and the figures add up.
     const appRoot = path.join(directory, 'app');
-    write(path.join(appRoot, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'App', folders: [], work_items: [item('active/0001')] }));
+    write(path.join(appRoot, 'planning.json'), JSON.stringify({ schema_version: 3, name: 'App', folders: [], work_items: [item('active/0001')] }));
     write(path.join(appRoot, 'active/0001/plan.md'), plan('in_progress', 'title: Checkout app\n'));
     const app = database.addProject(appRoot, 'App');
     insertReport(database, app.id, 'work-0001', createReport({ model: 'claude-opus', session: 's2', at: local(13, 12), stage: 'implementation', measured: {

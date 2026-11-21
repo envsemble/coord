@@ -9,16 +9,16 @@ import { readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { agreed, ledgerStatus } from '../work/ledger.ts';
 import { isTag, tagLimit } from '../work/tags.ts';
-import { isWorkId } from '../work/parts.ts';
+import { firstPartId, formerIds, writtenWorkId } from '../work/ids.ts';
+import { isProjectName, projectKey } from '../work/projects.ts';
 import { stateProblems } from '../work/state.ts';
 import { tableProblems } from './tables.ts';
 import { HandoffGraph, handoffsOf, handoffText } from '../handoffs/handoffs.ts';
 
 const planFields = ['schema_version', 'kind', 'id', 'title', 'created', 'updated', 'design_status', 'implementation_status', 'accepted_at', 'completed_at', 'supersedes', 'superseded_by'];
 /** The registry's fields, and a work item's. */
-const registryFields = ['schema_version', 'name', 'folders', 'work_items'];
+const registryFields = ['schema_version', 'name', 'folders', 'work_items', 'former_ids'];
 const workFields = ['id', 'path', 'current_plan'];
-const workIdentity = /^work-[0-9]{4,}$/;
 const designStates = new Set(['draft', 'accepted', 'superseded', 'abandoned']);
 const implementationStates = new Set(['unknown', 'not_started', 'in_progress', 'partial', 'complete']);
 const dateFields = new Set(['created', 'updated', 'accepted_at', 'completed_at']);
@@ -36,9 +36,9 @@ export type Metadata = Record<string, MetadataValue>;
 /** In a ledger header, `steps` holds a block list of flat mappings. */
 const ledgerEntryLists = ['steps'];
 /** Fields that may start a block list of scalars on the following lines. */
-const scalarListFields = new Set(['supersedes', 'continues', 'tags', 'parts']);
+const scalarListFields = new Set(['supersedes', 'continues', 'tags', 'parts', 'projects']);
 /** The plan header's optional fields. */
-const optionalPlanFields = ['summary', 'continues', 'tags', 'parts', 'state', 'state_note', 'state_since'];
+const optionalPlanFields = ['summary', 'continues', 'tags', 'projects', 'state', 'state_note', 'state_since'];
 
 /** A metadata header the checker cannot certify; the message names the offending construct. */
 export class FrontmatterError extends Error {
@@ -290,7 +290,7 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
   try { registry = JSON.parse(readText(path.join(root, 'planning.json'))); }
   catch (error) { return { errors: ['planning.json: ' + (error as Error).message], warnings }; }
   if (!isObject(registry)) return { errors: ['planning.json must be an object'], warnings };
-  if (registry.schema_version !== 2) errors.push('registry schema_version must be integer 2');
+  if (registry.schema_version !== 3) errors.push(registry.schema_version === 2 ? 'registry schema_version is 2: any coord command, or the app, moves the folder forward to version 3' : 'registry schema_version must be integer 3');
   const unknown = Object.keys(registry).filter(field => !registryFields.includes(field));
   if (unknown.length) errors.push('planning.json has unknown fields: ' + unknown.join(', '));
   // The project's name, which the app shows.
@@ -332,15 +332,14 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
 
   const workIds = new Set<string>(), locations = new Set<string>();
   const plans: { pointer: string; metadata: Metadata; workId: unknown; location: unknown }[] = [];
-  /** The plans whose parts are well formed, in the registry's order. */
-  const groups: { prefix: string; workId: string; parts: string[] }[] = [];
   /** Per work ID, the ledger's open items: steps not done, and blocked. */
   const openItems = new Map<string, number>();
   workItems.forEach((entry, index) => {
     const label = `work_items[${index}]`;
     if (!isObject(entry)) { errors.push(label + ' must be an object'); return; }
     const workId = entry.id;
-    if (typeof workId !== 'string' || !workIdentity.test(workId)) errors.push(label + ' has invalid id');
+    // An ID as registries write it: work-0034, or work-0034-2 for a later part (never work-0034-1).
+    if (typeof workId !== 'string' || writtenWorkId(workId) !== workId) errors.push(label + ' has invalid id');
     else if (workIds.has(workId)) errors.push('duplicate work id: ' + workId);
     else workIds.add(workId);
     const location = contained(entry.path, label + '.path');
@@ -365,6 +364,21 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     plans.push({ pointer: String(pointer), metadata, workId, location: entry.path });
   });
 
+  // Former IDs: each a work ID no work item has now, leading to one that is registered.
+  const former = formerIds(registry.former_ids);
+  if (registry.former_ids !== undefined) {
+    if (!isObject(registry.former_ids) || Object.keys(registry.former_ids).length !== former.size) errors.push('former_ids must map former work IDs to the IDs they now name, such as {"work-0047": "work-0046-2"}');
+    for (const [old, now] of former) {
+      if (workIds.has(old)) errors.push('former_ids names ' + old + ', which is a work item');
+      if (!workIds.has(now)) errors.push('former_ids leads ' + old + ' to ' + now + ', which is not registered');
+    }
+  }
+  /** Whether a value names a registered work item, by its ID or a former one. */
+  const registered = (value: unknown) => { const written = writtenWorkId(value); return written !== null && (workIds.has(written) || workIds.has(former.get(written) ?? '')); };
+  /** The registered ID a name leads to. */
+  const led = (value: unknown) => { const written = writtenWorkId(value); return written === null ? null : workIds.has(written) ? written : former.get(written) ?? null; };
+  // A later part belongs to a work item, whose first part is registered.
+  for (const workId of workIds) { const first = firstPartId(workId); if (first !== workId && first !== null && !workIds.has(first)) warnings.push(`${workId} is a part of ${first}, which is not registered`); }
   for (const { pointer, metadata, workId, location } of plans) {
     const prefix = pointer + ': ';
     const missing = planFields.filter(field => !Object.hasOwn(metadata, field)).sort();
@@ -403,11 +417,19 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
       if (!Array.isArray(tags) || !tags.every(isTag)) errors.push(prefix + `tags must be a list of tags: lowercase letters, digits, dots and hyphens, at most ${tagLimit} characters, such as ["0.8.0", "search"]`);
       else if (new Set(tags).size !== tags.length) errors.push(prefix + 'tags lists a tag twice');
     }
+    // The projects it is in: projects of the home by their planning folders' names, each once; one
+    // that names no project is only a warning (the project may be made, or the folder checked alone).
+    const projects = metadata.projects;
+    if (projects !== undefined && projects !== null) {
+      if (!Array.isArray(projects) || !projects.every(isProjectName)) errors.push(prefix + 'projects must be a list of projects by their planning folders\' names, such as ["envui", "internal"]');
+      else if (new Set((projects as string[]).map(projectKey)).size !== projects.length) errors.push(prefix + 'projects lists a project twice');
+      else for (const project of projects as string[]) if (!handoffs.folder(root, { project, workId: 'work-0000' })) warnings.push(prefix + 'projects lists ' + project + ', which names no project of the home');
+    }
     const replaced = metadata.supersedes;
-    if (!Array.isArray(replaced) || replaced.some(item => typeof item !== 'string' || !workIds.has(item))) errors.push(prefix + 'supersedes must list registered work IDs');
-    else if (new Set(replaced as Scalar[]).size !== replaced.length || (replaced as Scalar[]).includes(workId as string)) errors.push(prefix + 'supersedes contains duplicate or self IDs');
+    if (!Array.isArray(replaced) || replaced.some(item => !registered(item))) errors.push(prefix + 'supersedes must list registered work IDs');
+    else if (new Set(replaced.map(led)).size !== replaced.length || replaced.map(led).includes(workId as string)) errors.push(prefix + 'supersedes contains duplicate or self IDs');
     const replacement = metadata.superseded_by;
-    if (replacement !== null && replacement !== undefined && (typeof replacement !== 'string' || !workIds.has(replacement) || replacement === workId)) {
+    if (replacement !== null && replacement !== undefined && (!registered(replacement) || led(replacement) === workId)) {
       errors.push(prefix + 'superseded_by must identify another registered work item or null');
     }
     // The work it continues (handoffs): here or in another project of the home, never itself; one
@@ -415,34 +437,11 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     if (metadata.continues !== undefined && metadata.continues !== null) {
       const { references, invalid } = handoffsOf(metadata.continues);
       if (invalid.length) errors.push(prefix + 'continues must list work items, such as work-0023, or project:work-0023 for another project of the home');
-      else if (references.some(item => item.workId === workId && handoffs.folder(root, item) === root)) errors.push(prefix + 'continues names the work item itself');
+      else if (references.some(item => led(item.workId) === workId && handoffs.folder(root, item) === root)) errors.push(prefix + 'continues names the work item itself');
       else {
         for (const item of references) if (!handoffs.exists(root, item)) warnings.push(prefix + 'continues ' + handoffText(item) + ', which names no work item');
         if (typeof workId === 'string' && handoffs.inLoop(root, workId)) warnings.push(prefix + 'continues work that continues it: the handoffs form a loop');
       }
-    }
-    // The work it is made of (parts): work items of this project, in order, never itself or twice;
-    // one that names no work item is only a warning (the part may be registered later).
-    const parts = metadata.parts;
-    if (parts !== undefined && parts !== null) {
-      if (!Array.isArray(parts) || !parts.every(isWorkId)) errors.push(prefix + 'parts must be a list of work IDs of this project, such as ["work-0034", "work-0035"]');
-      else if ((parts as string[]).includes(workId as string)) errors.push(prefix + 'parts names the work item itself');
-      else if (new Set(parts).size !== parts.length) errors.push(prefix + 'parts lists a work item twice');
-      else {
-        for (const part of parts as string[]) if (!workIds.has(part)) warnings.push(prefix + 'parts lists ' + part + ', which names no work item in this project');
-        if (typeof workId === 'string') groups.push({ prefix, workId, parts: parts as string[] });
-      }
-    }
-  }
-  // Groups are one level deep, and a part belongs to one group: both only warnings.
-  const partsByGroup = new Map(groups.map(group => [group.workId, group.parts]));
-  const groupOf = new Map<string, string>();
-  for (const { prefix, workId, parts } of groups) {
-    for (const part of parts) {
-      const other = groupOf.get(part);
-      if (other) warnings.push(prefix + 'parts lists ' + part + ', which ' + other + ' lists too: a part belongs to one group');
-      else groupOf.set(part, workId);
-      if (partsByGroup.get(part)?.length) warnings.push(prefix + 'parts lists ' + part + ', which has parts of its own: groups are one level deep');
     }
   }
 

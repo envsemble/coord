@@ -186,7 +186,7 @@ const planText = (id: string, body: string, completed: string | null = null) => 
 function repository(t: TestContext) {
   const root = mkdtempSync(path.join(tmpdir(), 'coord-statistics-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const register = (folder: string) => writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Example', folders: [], work_items: [{ id: 'work-0001', path: folder, current_plan: folder + '/plan.md' }] }, null, 2) + '\n');
+  const register = (folder: string) => writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 3, name: 'Example', folders: [], work_items: [{ id: 'work-0001', path: folder, current_plan: folder + '/plan.md' }] }, null, 2) + '\n');
   return { root, register };
 }
 

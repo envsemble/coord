@@ -7,6 +7,7 @@ import path from 'node:path';
 import { folderKey, HomeDatabase, projectOf, type ProjectRow } from '../../home/database.ts';
 import { absoluteFolder } from '../check/check.ts';
 import { setRegistryMember } from '../registry/registryText.ts';
+import { registryVersion } from '../registry/moveForward.ts';
 import { runProgram } from '../../platform/run.ts';
 import { homePlanningDirectory } from '../../home/home.ts';
 import { slugOf, WorkError, writeText } from '../work/work.ts';
@@ -67,7 +68,7 @@ export async function createProject(database: HomeDatabase, request: { name: str
       if (file.includes('/') || file.includes('\\') || file === 'planning.json') continue;
       await writeFile(path.join(folder, file), text);
     }
-    const registry = { schema_version: 2, name, folders, work_items: [] };
+    const registry = { schema_version: registryVersion, name, folders, work_items: [] };
     await writeFile(path.join(folder, 'planning.json'), JSON.stringify(registry, null, 2) + '\n');
     await git(folder, ['init', '-q']);
     await git(folder, ['add', '-A']);

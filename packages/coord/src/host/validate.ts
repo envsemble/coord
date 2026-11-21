@@ -3,6 +3,7 @@
 // object keys are dropped, never passed through. The desktop app reuses the generic ones for the
 // messages its windows send (app/shared/validate.ts).
 import type { AccessSettings, MethodName, Methods, PairRequest } from './contract.ts';
+import { workIdSource } from '../planning/work/ids.ts';
 
 export class ValidationError extends Error {}
 export type Validator<T> = (value: unknown, at?: string) => T;
@@ -74,7 +75,7 @@ export function argumentsOf(validators: Validator<unknown>[], values: unknown[])
 /** A planning-relative POSIX path as the reader reports it. Containment is checked again where files are read. */
 export const relativePath = string({ min: 1, max: pathLimit, pattern: /^(?![\\/])(?![a-zA-Z]:)(?!.*(?:^|\/)\.\.(?:\/|$)).+$/ });
 export const absolutePath = string({ min: 1, max: pathLimit });
-export const workId = string({ min: 6, max: 32, pattern: /^work-[0-9]{4,}$/ });
+export const workId = string({ min: 6, max: 32, pattern: new RegExp('^' + workIdSource + '$') });
 /** A moment as clients send it: an ISO time with its zone. */
 export const isoTime = string({ min: 20, max: 40, pattern: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/ });
 /** A diagram file's path in its work folder, relative and inside it. */

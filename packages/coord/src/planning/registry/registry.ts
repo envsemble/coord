@@ -3,13 +3,17 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { absoluteFolder } from '../check/check.ts';
+import { moveForward } from './moveForward.ts';
 
 export interface RegistryEntry { id?: unknown; path?: unknown; current_plan?: unknown }
 /** A planning folder's work items and folders (the absolute paths of this computer's form; `coord check` warns of the others), as planning.json lists them. */
-export async function readRegistry(root: string): Promise<{ work_items: RegistryEntry[]; folders: string[] }> {
+export async function readRegistry(root: string): Promise<{ work_items: RegistryEntry[]; folders: string[]; former_ids?: unknown }> {
+  // A folder of the earlier registry version is moved forward first.
+  await moveForward(root).catch(() => false);
   const registry = JSON.parse((await readFile(path.join(root, 'planning.json'), 'utf8')).replace(/^\uFEFF/, ''));
   return {
     work_items: Array.isArray(registry?.work_items) ? registry.work_items : [],
     folders: Array.isArray(registry?.folders) ? registry.folders.filter(absoluteFolder) : [],
+    former_ids: registry?.former_ids,
   };
 }
