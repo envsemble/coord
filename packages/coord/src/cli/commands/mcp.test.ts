@@ -76,6 +76,10 @@ test('the MCP server serves the planning-state tools, resolving the planning fol
       assert.deepEqual([part.structuredContent!.workId, part.structuredContent!.partOf], ['work-0003', 'work-0002']);
       assert.deepEqual((await inRoot('work_update', { work: 'work-0002', parts: ['work-0003', 'work-0001'] })).structuredContent!.parts, ['work-0003', 'work-0001']);
       assert.match((await inRoot('work_update', { work: 'work-0001', parts: ['work-0003'] })).content![0].text, /already a part of work-0002/);
+      // A work item named with its project is in that project's planning folder, and says which projects it is in.
+      const named = path.basename(root) + ':work-0001';
+      assert.deepEqual((await call('work_update', { work: named, projects: [path.basename(root)] })).structuredContent!.projects, [path.basename(root)]);
+      assert.match((await call('work_status', { work: 'nowhere:work-0001' })).content![0].text, /names no project of the Coord home/);
       assert.match(readFileSync(path.join(root, 'active/0001-cart/ledger.md'), 'utf8'), /status: done/);
       // A reason alone is refused, not dropped; naming the work that supersedes it implies superseded.
       assert.match((await inRoot('work_close', { work: 'work-0001', reason: 'Replaced' })).content![0].text, /no reason or replacement/);
