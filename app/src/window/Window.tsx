@@ -5,8 +5,9 @@
 // project's statistics or Settings. A plan and its pages have the plan's own files at their left,
 // and the parts of the work it belongs to in a rail at their right.
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { Alert, Breadcrumbs, Button, Panes, Popover, Scaffold, Sheet, Spinner, TopBar, useContainerSize, useToast, windowClassOf } from '@envsemble/envui';
+import { Alert, Breadcrumbs, Button, Panes, Popover, Scaffold, Sheet, TopBar, useContainerSize, useToast, windowClassOf } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
+import { Loading } from '../ui/Loading';
 import { ErrorIcon, WarningIcon } from '../ui/icons';
 import type { MenuCommand } from '../../shared/contract';
 import type { Issue, LoadedUi, OpenProjectChange, Project, ProjectChangeRequest, SettingsSection, Snapshot, SnapshotWork, Target, Work, WindowInfo } from '../types';
@@ -39,7 +40,7 @@ const WorkStatisticsPage = lazy(() => import('../statistics/WorkStatisticsPage')
 const ProjectStatisticsPage = lazy(() => import('../statistics/ProjectStatisticsPage').then(module => ({ default: module.ProjectStatisticsPage })));
 const AllStatisticsPage = lazy(() => import('../statistics/ProjectStatisticsPage').then(module => ({ default: module.AllStatisticsPage })));
 /** What shows while a page that loads when first shown arrives. */
-const loadingPage = <div className="page-state" aria-busy="true"><Spinner size="lg" label="Loading" /></div>;
+const loadingPage = <Loading label="Loading" />;
 
 const toastTones = { info: 'neutral', warning: 'info', danger: 'danger' } as const;
 
@@ -561,7 +562,7 @@ function ProjectContent({ place, folder, project, scope, read, statisticsTrail }
     return frame(<EmptyState className="page-empty" icon={<ErrorIcon />} title={change?.status === 'missing' ? 'This project’s folder was moved or deleted' : 'This project can’t be read'}
       description={<>{(project?.path ?? folder?.snapshot?.root) && <bdi className="folder-problem-path">{project?.path ?? folder?.snapshot?.root}</bdi>} {change?.error ?? folder?.failure} Coord reads it again as soon as it can.</>} />);
   }
-  if (!scope || !read || !folder?.snapshot) return frame(<div className="page-state" aria-busy="true"><Spinner size="lg" label={'Reading ' + (project?.name ?? 'the project')} /></div>);
+  if (!scope || !read || !folder?.snapshot) return frame(<Loading label={'Reading ' + (project?.name ?? 'the project')} />);
   const snapshot = folder.snapshot;
   let content;
   if (isPage(place)) content = <Suspense fallback={loadingPage}><ProjectStatisticsPage trail={statisticsTrail} /></Suspense>;
@@ -569,7 +570,7 @@ function ProjectContent({ place, folder, project, scope, read, statisticsTrail }
     const { target } = place as ProjectPlace;
     if (target.kind === 'work' || target.kind === 'diagram') {
       const item = snapshot.work.find(entry => entry.id === target.work);
-      content = !item ? <div className="page-state" aria-busy="true"><Spinner size="lg" label="Reading the plan" /></div>
+      content = !item ? <Loading label="Reading the plan" />
         : target.kind === 'diagram' ? <div className="work-page is-diagrams"><Suspense fallback={loadingPage}><DiagramsView key={item.id} work={item} target={target} /></Suspense></div>
         : <PlanFrame work={item} snapshot={snapshot}>{target.view === 'statistics' ? <Suspense fallback={loadingPage}><WorkStatisticsPage work={item} /></Suspense> : <PlanPage work={item} snapshot={snapshot} target={target} />}</PlanFrame>;
     } else if (pageAt(target.path, snapshot)) {

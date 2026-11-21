@@ -10,6 +10,8 @@ files:
   - out/**
   - "!out/**/*.map"
   - package.json
+  # Source maps and type declarations of dependencies, which nothing loads: every file costs an update's install time.
+  - "!node_modules/**/*.{map,d.ts}"
   # Only the diagram package's runtime files (its development pages and tooling are not needed).
   - "!node_modules/@envsemble/coord-diagrams/{development,downloads,scripts,examples,tests,index.html,vite.config.mjs,tsconfig.contracts.json}"
 # No asar archive: diagram preparation runs esbuild (a native binary) over the diagram package's

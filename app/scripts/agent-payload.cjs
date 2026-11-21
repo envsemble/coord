@@ -77,11 +77,13 @@ const commandFiles = relative => /^(?:bin|src|templates)(?:\/|$)/.test(relative)
 const diagramFiles = relative => !/^(?:development|downloads|scripts|examples|tests)(?:\/|$)|^(?:index\.html|vite\.config\.mjs|tsconfig\.contracts\.json)$/.test(relative);
 
 /**
- * A dependency's files without its type declarations and read-me files, which nothing loads (the
- * TypeScript capture keeps the compiler's own: its lib/*.d.ts are what it type-checks with). Fewer
- * files make the copy into the home quicker; licences stay.
+ * A dependency's files without what nothing loads: TypeScript (its sources and type declarations,
+ * which Node does not run from node_modules), Markdown, and its tools' dot-files (the TypeScript
+ * capture keeps the compiler's own: its lib/*.d.ts are what it type-checks with). Every file costs
+ * the installer and the copy into the home time; licences stay.
  */
-const dependencyFiles = relative => !/\.d\.[cm]?ts$|(?:^|\/)(?:readme|changelog|history)(?:\.\w+)?$/i.test(relative);
+const dependencyFiles = relative => /(?:^|\/)(?:licen[cs]e|copying|notice)[^/]*$/i.test(relative)
+  || !/\.[cm]?tsx?$|\.md$|(?:^|\/)\.|(?:^|\/)(?:readme|changelog|history)(?:\.\w+)?$/i.test(relative);
 
 /** Peers of the diagram package that only its standalone viewer loads. */
 const viewerOnly = new Set(['@envsemble/envui']);
@@ -192,4 +194,39 @@ exports.assemble = function assemble(repository, destination, version, runtime) 
   const build = version + '-' + hash.digest('hex').slice(0, 12);
   fs.writeFileSync(path.join(destination, 'build.json'), JSON.stringify({ version, build }, null, 2) + '\n');
   return { build, files, bytes };
+};
+
+/**
+ * Pack an assembled payload's command into one file, command.pack, in place of its command/ folder:
+ * the Windows installer spends its time per file, and the command's thousands of small files made
+ * every update minutes slower. The plugin and the marketplace manifests stay folders, which the app
+ * reads in place. The app unpacks the command into the agent folder (main/agent/agentPack.ts, which
+ * describes the format).
+ */
+exports.packCommand = function packCommand(directory) {
+  const command = path.join(directory, 'command');
+  const files = [];
+  const walk = relative => {
+    for (const entry of fs.readdirSync(path.join(command, relative), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) {
+      const name = relative ? relative + '/' + entry.name : entry.name;
+      if (entry.isDirectory()) walk(name);
+      else if (entry.isFile()) files.push(name);
+    }
+  };
+  walk('');
+  const index = files.map(name => { const stat = fs.statSync(path.join(command, name)); return { path: name, size: stat.size, mode: stat.mode & 0o777 }; });
+  const header = Buffer.from(JSON.stringify(index));
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(header.length);
+  const target = path.join(directory, 'command.pack');
+  const out = fs.openSync(target + '.tmp', 'w');
+  const write = buffer => { for (let written = 0; written < buffer.length;) written += fs.writeSync(out, buffer, written); };
+  try {
+    write(length);
+    write(header);
+    for (const name of files) write(fs.readFileSync(path.join(command, name)));
+  } finally { fs.closeSync(out); }
+  fs.renameSync(target + '.tmp', target);
+  fs.rmSync(command, { recursive: true, force: true });
+  return { files: files.length };
 };

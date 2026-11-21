@@ -1,10 +1,12 @@
 // The agent folder and the PATH entry, without Electron or the agents' commands.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { installAgentFolder, launchers, needsCopy, readState, recordAgent } from './agentFolder.ts';
+import { unpack } from './agentPack.ts';
 import { commandPaths, pointPluginAtCommand } from './pluginCommands.ts';
 import { fakeBundle, fakePlugin } from './testing.ts';
 import { mergedPath, pathKey, withoutPathEntry, withPathEntry } from './userPath.ts';
@@ -12,6 +14,7 @@ import { chosenProgram } from './programs.ts';
 import { agentCheck } from './verify.ts';
 
 const temporary = () => mkdtempSync(path.join(tmpdir(), 'coord-agent-'));
+const { packCommand } = createRequire(import.meta.url)('../../scripts/agent-payload.cjs') as { packCommand: (directory: string) => { files: number } };
 
 test('the launchers run the build\'s command on its Node.js, by paths relative to themselves', () => {
   const [sh, cmd] = launchers('1.0.0-a', 'win32');
@@ -30,6 +33,9 @@ test('the launchers run the build\'s command on its Node.js, by paths relative t
 test('the agent folder takes a new build whole, writes its launchers, and keeps the previous command', async () => {
   const directory = temporary(), folder = path.join(directory, 'home', 'agent');
   const first = fakeBundle(path.join(directory, 'one'), '1.0.0-aaa'), second = fakeBundle(path.join(directory, 'two'), '1.0.0-bbb');
+  // The Windows app carries its command packed into one file; the update below comes from one.
+  packCommand(second.directory);
+  assert.deepEqual(readdirSync(second.directory).sort(), ['.agents', '.claude-plugin', 'build.json', 'command.pack', 'plugin']);
   assert.equal(needsCopy(null, folder, first.build, 'linux'), true);
 
   const installed = await installAgentFolder(first, folder, 'linux');
@@ -57,6 +63,14 @@ test('the agent folder takes a new build whole, writes its launchers, and keeps 
   assert.deepEqual(readdirSync(path.join(folder, 'command')).sort(), ['1.0.0-aaa', '1.0.0-bbb']);
   assert.deepEqual(readdirSync(folder).filter(name => name.startsWith('.') && !['.claude-plugin', '.agents'].includes(name)), [], 'no temporary folders left');
   assert.match(readFileSync(path.join(folder, 'bin', 'coord'), 'utf8'), /1\.0\.0-bbb/);
+  assert.equal(readFileSync(path.join(folder, 'command', '1.0.0-bbb', 'bin', 'coord.js'), 'utf8'), 'console.log("coord");\n');
+  if (process.platform !== 'win32') assert.equal(statSync(path.join(folder, 'command', '1.0.0-bbb', 'runtime', 'node')).mode & 0o777, statSync(path.join(first.directory, 'command', 'runtime', 'node')).mode & 0o777);
+  // A pack naming a file outside its folder is refused.
+  const index = Buffer.from(JSON.stringify([{ path: '../escaped', size: 0, mode: 0o644 }])), length = Buffer.alloc(4);
+  length.writeUInt32BE(index.length);
+  writeFileSync(path.join(directory, 'bad.pack'), Buffer.concat([length, index]));
+  await assert.rejects(unpack(path.join(directory, 'bad.pack'), path.join(directory, 'bad')), /no index of files inside it/);
+  assert.equal(existsSync(path.join(directory, 'escaped')), false);
   // The next one lets the oldest go.
   await installAgentFolder(fakeBundle(path.join(directory, 'three'), '1.0.0-ccc'), folder, 'linux');
   assert.deepEqual(readdirSync(path.join(folder, 'command')).sort(), ['1.0.0-bbb', '1.0.0-ccc']);

@@ -53,6 +53,24 @@ function themeStartup(): Plugin {
   };
 }
 
+// The icons some module imports statically (the window's own, and those envUI's components use), as
+// the renderer's build finds them; the rest only a page's frame loads, on demand (codeSplitting below).
+const isIcon = (id: string) => /[\\/]envui[\\/](?:dist|src)[\\/]icons[\\/]/.test(id);
+const iconsImported = new Set<string>();
+function staticIcons(): Plugin {
+  return {
+    name: 'coord-static-icons',
+    buildStart() { iconsImported.clear(); },
+    buildEnd() {
+      for (const id of this.getModuleIds()) {
+        // envUI's index of icons imports them all, and only the frame's list of icons reaches it.
+        if (isIcon(id)) continue;
+        for (const imported of this.getModuleInfo(id)?.importedIds ?? []) if (isIcon(imported)) iconsImported.add(imported);
+      }
+    },
+  };
+}
+
 // `npm run dev:envui` links a local envUI checkout and sets ENVUI_SOURCE: the renderer then reads
 // envUI's source through its `envui-source` export condition, so library edits reload at once.
 const envUISource = process.env.ENVUI_SOURCE === '1';
@@ -85,10 +103,29 @@ export default defineConfig({
     publicDir: resolve(import.meta.dirname, '../packages/diagrams/assets'),
     // Minified: the window parses less as it starts (electron-vite leaves the renderer unminified).
     // The window, and the frame each page runs in.
-    build: { minify: true, rolldownOptions: { input: { index: resolve(import.meta.dirname, 'index.html'), 'page-frame': resolve(import.meta.dirname, 'page-frame.html') } } },
+    build: {
+      minify: true,
+      rolldownOptions: {
+        input: { index: resolve(import.meta.dirname, 'index.html'), 'page-frame': resolve(import.meta.dirname, 'page-frame.html') },
+        // A page can import any of envUI's 4,000 icons (page/frame.tsx), and each would be a file of
+        // its own: installing an update writes, copies and removes every file, so the icons only pages
+        // load go into chunks of about 100 kB. Icons the window or envUI imports itself stay out of
+        // them, so the window loads none of these chunks as it starts.
+        output: {
+          codeSplitting: {
+            groups: [{
+              name: id => isIcon(id) && !iconsImported.has(id) ? 'page-icons' : null,
+              maxSize: 100_000,
+              // Only the icons themselves: their Icon component and React stay where the window has them.
+              includeDependenciesRecursively: false,
+            }],
+          },
+        },
+      },
+    },
     resolve: { dedupe: ['react', 'react-dom'], ...(envUISource && { conditions: ['envui-source', ...defaultClientConditions] }) },
     ...(envUISource && { optimizeDeps: { exclude: ['@envsemble/envui'] } }),
     ...(envUIRoot && { server: { fs: { allow: [searchForWorkspaceRoot(import.meta.dirname), envUIRoot] } } }),
-    plugins: [react(), contentSecurityPolicy(), themeStartup()],
+    plugins: [react(), contentSecurityPolicy(), themeStartup(), staticIcons()],
   },
 });
