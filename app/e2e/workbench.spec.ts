@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { setState, updateWork } from '@envsemble/coord/planning';
 import {
   addProject, applicationMenu, close, closeMenus, expectArchived, expectHub, expectProjects, titleButton, filesSidebar, filterHub, goHome, hubRows, launch, launchProject, openPlan,
   openProjectMenu, pageScroll, settledScroll, listedProjects, projectAction, projectButton, projectDetails, projectHome, removeDirectory, restoreProject, searchPopup, showFiles, temporaryDirectory, titleBar, type Launched,
@@ -604,4 +605,42 @@ test('the side column of a plan stays still while the page scrolls, and scrolls 
   await window.waitForTimeout(400);
   expect(await pageScroll(window)).toBe(page);
   expect(Math.abs(await top() - resting)).toBeLessThan(1);
+});
+
+test('a work item made of parts is one entry on the hub, its parts under its row, in every project one of them is in', async () => {
+  const home = projectHome();
+  homes.push(home.dataDirectory);
+  addProject(home.dataDirectory, 'harbor', 'Harbor');
+  // Northwind's Saved payment methods is made of two parts: the first is in Harbor alone, the second in both projects.
+  await updateWork(home.folder, 'work-0001', { parts: ['work-0002', 'work-0003'] });
+  await updateWork(home.folder, 'work-0002', { projects: ['harbor'] });
+  await updateWork(home.folder, 'work-0003', { projects: ['northwind', 'harbor'] });
+  await setState(home.folder, 'work-0002', { kind: 'your_turn', note: 'Try the picker' });
+  launched = await launch({ dataDirectory: home.dataDirectory });
+  const { window } = launched;
+  await expectHub(window);
+  // The group once, its parts under its own row in their order, numbered, each naming its projects where they are not the group's.
+  const group = window.locator('.hub-entry-group');
+  await expect(group.locator('.hub-row-link')).toHaveText(['Saved payment methods', 'Order fulfilment model', 'Customer order notifications']);
+  await expect(group.locator('.hub-row-index')).toHaveText(['1', '2']);
+  await expect(group.locator('.hub-row-part').first().locator('.hub-row-project-name')).toHaveText('Harbor');
+  // Northwind's parts are not listed on their own as well: only Harbor's own plan of that name is.
+  await expect(window.locator('.hub-entry:not(.hub-entry-group)').getByRole('link', { name: 'Order fulfilment model', exact: true })).toHaveCount(1);
+  // Folded, the group says what waits in it, and stays folded as the hub is left and shown again.
+  const fold = group.getByRole('button', { name: 'Saved payment methods', exact: true });
+  await fold.click();
+  await expect(group.locator('.hub-row-part')).toHaveCount(0);
+  await expect(group.locator('.hub-row-parts')).toHaveText('2 parts · 1 your turn');
+  // Its number opens its plan; back on the hub it is folded still, and a click on its row, anywhere, unfolds it.
+  await group.getByRole('link', { name: '#0001', exact: true }).click();
+  await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
+  await goHome(window);
+  await expect(group.locator('.hub-row-part')).toHaveCount(0);
+  await group.locator('.hub-row').first().click({ position: { x: 700, y: 20 } });
+  await expect(group.locator('.hub-row-part')).toHaveCount(2);
+  // Harbor's hub has the group whole, as one of its parts is in Harbor; the part's plan names its project.
+  await filterHub(window, 'Harbor');
+  await expect(group.locator('.hub-row-link')).toHaveText(['Saved payment methods', 'Order fulfilment model', 'Customer order notifications']);
+  await group.getByRole('link', { name: 'Order fulfilment model', exact: true }).click();
+  await expect(window.locator('.work-status')).toContainText('in Harbor');
 });

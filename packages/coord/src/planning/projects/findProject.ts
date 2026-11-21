@@ -13,6 +13,8 @@ import { ledgerStatus, stepCounts, stepSummary } from '../work/ledger.ts';
 import { coordHome, homePlanningFolders } from '../../home/home.ts';
 import { folderKey, inactiveProjectFolders, planningName } from '../../home/database.ts';
 import { stateOf } from '../work/state.ts';
+import { inProject, projectKey, projectsOf } from '../work/projects.ts';
+import { parseHandoff } from '../handoffs/handoffs.ts';
 import type { LedgerStep, WorkState } from '../types.ts';
 
 export interface ActiveWork {
@@ -23,6 +25,13 @@ export interface ActiveWork {
   steps: LedgerStep[]; progress: string | null; blocked: string | null;
   /** The state its plan declares (whose turn it is), and the plan's and the ledger's last updates. */
   state: WorkState | null; updated: string | null; ledgerUpdated: string | null;
+  /** The projects it is in, by their planning folders' names, when its plan lists them (`projects`). */
+  projects?: string[];
+  /**
+   * Set on work another project keeps that is in this one: that project's planning folder, where its
+   * plan and ledger are. Its `workId` then names that project too (`envui:work-0048`), as the tools take it.
+   */
+  planningFolder?: string;
   /** Why the plan or ledger could not be read, when it could not. */
   problem?: string;
 }
@@ -32,7 +41,10 @@ export interface PlanningMatch {
   project: string;
   /** How the folder matched: by being in one of the project's folders, or inside the planning folder. */
   via: ('folder' | 'inside')[];
-  /** The project's active work. */
+  /**
+   * The project's active work: what it keeps, then the active work other projects keep that is in
+   * this one (its plan's `projects` names it), each with its `planningFolder`.
+   */
   work: ActiveWork[];
 }
 /** One active work item in brief: its title and states, without its steps. */
@@ -83,6 +95,8 @@ async function activeWork(root: string, item: RegistryEntry): Promise<ActiveWork
         work.implementationStatus = typeof plan.implementation_status === 'string' ? plan.implementation_status : null;
         work.state = stateOf(plan);
         work.updated = typeof plan.updated === 'string' ? plan.updated : null;
+        const projects = projectsOf(plan.projects);
+        if (projects.length) work.projects = projects;
       }
     }
     const ledgerText = await readFile(path.join(root, work.path, 'ledger.md'), 'utf8').catch(() => null);
@@ -110,6 +124,8 @@ export async function findPlanning(cwd: string, options: { home?: string } = {})
   const resolvedCwd = await realpath(cwd).catch(() => path.resolve(cwd));
   const candidates: (PlanningMatch & { depth: number })[] = [];
   const projects: ProjectBrief[] = [];
+  /** Every active project's active work, by its planning folder. */
+  const everyWork: { root: string; work: ActiveWork[] }[] = [];
   const inactive = await inactiveProjectFolders(home);
   // A folder's path segments, its root counting as one, so that `/` is a folder like any other.
   const depthOf = (folder: string) => folder.split(/[\\/]+/).filter(Boolean).length + 1;
@@ -133,17 +149,49 @@ export async function findPlanning(cwd: string, options: { home?: string } = {})
     const active = registry.work_items.filter(item => typeof item?.id === 'string' && typeof item.path === 'string' && item.path.startsWith('active/'));
     const work = await Promise.all(active.map(item => activeWork(root, item)));
     const project = await planningName(root);
+    everyWork.push({ root, work });
     projects.push({ planningFolder: root, project, folders: registry.folders, match: false, work: work.map(brief) });
-    if (via.size) candidates.push({ planningFolder: root, project, via: [...via], work, depth: level });
+    if (via.size) candidates.push({ planningFolder: root, project, via: [...via], work: [...work], depth: level });
   }
   // The deepest folder (or the planning folder itself) decides: only the projects with the deepest one the session is in match.
   const deepest = Math.max(0, ...candidates.map(candidate => candidate.depth));
   const matches = candidates.filter(candidate => candidate.depth === deepest).map(({ depth: _, ...match }) => match);
+  // With its own work, a matching project lists the active work other projects keep that is in it,
+  // named with the project that keeps it, so the tools reach it there.
+  for (const match of matches) {
+    const name = path.basename(match.planningFolder);
+    for (const keeper of everyWork) {
+      if (keeper.root === match.planningFolder) continue;
+      for (const item of keeper.work) {
+        if (item.projects && inProject(item.projects, path.basename(keeper.root), name)) match.work.push({ ...item, workId: path.basename(keeper.root) + ':' + item.workId, planningFolder: keeper.root });
+      }
+    }
+  }
   for (const project of projects) {
     project.match = matches.some(match => match.planningFolder === project.planningFolder);
     if (project.match) delete project.work;
   }
   return { cwd: resolvedCwd, home, matches, projects };
+}
+
+/**
+ * The planning folder and the work item an operation is about. A work item named with its project
+ * (`envui:work-0048`, by the project's planning folder's name) is in that project of the home,
+ * wherever the session is; a planning folder given as well must be that project's. A bare work ID
+ * is in the planning folder given, else the one the folder `cwd` belongs to.
+ */
+export async function resolveWork(options: { planningFolder?: string | null; cwd?: string; home?: string; work: string }): Promise<{ root: string; work: string }> {
+  const named = parseHandoff(options.work);
+  if (!named?.project) return { root: await resolvePlanningFolder({ ...options, work: options.work }), work: options.work };
+  const home = options.home ?? coordHome();
+  let found: string | null = null;
+  for (const folder of await homePlanningFolders(home)) if (projectKey(path.basename(folder)) === projectKey(named.project)) found = await realpath(folder).catch(() => folder);
+  if (!found) throw new PlanningNotFoundError(`${options.work} names no project of the Coord home (${home}): the name before the colon is a project's planning folder's name.`);
+  if (options.planningFolder) {
+    const given = await realpath(path.resolve(options.planningFolder)).catch(() => path.resolve(options.planningFolder!));
+    if (folderKey(given) !== folderKey(found)) throw new PlanningNotFoundError(`${options.work} is in ${found}, not in the planning folder given (${given}): give one or the other.`);
+  }
+  return { root: found, work: named.workId };
 }
 
 /**

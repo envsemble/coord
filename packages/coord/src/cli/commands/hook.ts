@@ -203,9 +203,12 @@ export function sessionContext(where: Whereabouts): string {
       const doing = item.steps.filter(step => step.status === 'doing').map(step => step.title);
       const state = [item.designStatus, item.implementationStatus].filter(Boolean).join(', ');
       const turn = item.state ? `; ${item.state.kind === 'your_turn' ? 'your turn' : item.state.kind}${item.state.note ? ': ' + item.state.note : ''}` : '';
-      lines.push(`- ${item.workId} "${item.title}"${state ? ' (' + state + ')' : ''}: ${item.progress}${doing.length ? '; doing: ' + doing.join('; ') : ''}${item.blocked ? '; BLOCKED: ' + item.blocked : turn}. Plan: ${item.plan ?? item.path}`);
+      // Work another project keeps has its plan in that project's planning folder.
+      const plan = item.planningFolder ? path.join(item.planningFolder, ...(item.plan ?? item.path).split('/')) : item.plan ?? item.path;
+      lines.push(`- ${item.workId} "${item.title}"${state ? ' (' + state + ')' : ''}: ${item.progress}${doing.length ? '; doing: ' + doing.join('; ') : ''}${item.blocked ? '; BLOCKED: ' + item.blocked : turn}. Plan: ${plan}`);
     }
     if (match.work.length > 10) lines.push(`- …and ${match.work.length - 10} more (Coord tool where).`);
+    if (match.work.some(item => item.planningFolder)) lines.push('Work named with a project (such as envui:work-0048) is in this project too, but that project keeps it: give the Coord tools that name.');
   }
   // What no longer adds up in the projects' work, for the agent to bring up and fix.
   const found = where.matches.flatMap(match => contradictions(match.work).map(line => (where.matches.length > 1 ? match.project + ': ' : '') + line));
@@ -236,19 +239,25 @@ export function editedFiles(input: HookInput): string[] {
   return [...new Set(files.map(file => path.resolve(base, file)))];
 }
 
+/** A work item a tool call or a command was about: its ID, the planning folder given with it, and its name with a project (`envui:work-0048`) when it was named so. */
+interface About { workId: string; planningFolder: string | null; named?: string }
+/** A work item as a call names it: its own ID, or one with the project that keeps it before a colon. */
+const namedWork = /^(?:[^:\\/\s][^:\\/]{0,99}:)?(work-[0-9]{4,})$/;
+
 /**
  * The work items a shell command changed through the coord command (runsCoordWork): each `coord
- * work <operation> <work-id>` in its input, and for `coord work create` the work item its output
- * names; with the planning folder its `--planning-dir` names, when that is a full path.
+ * work <operation> <work-id>` in its input (also named with its project, `envui:work-0048`), and for
+ * `coord work create` the work item its output names; with the planning folder its
+ * `--planning-dir` names, when that is a full path.
  */
-export function shellWork(input: HookInput): { workId: string; planningFolder: string | null }[] {
+export function shellWork(input: HookInput): About[] {
   if (!runsCoordWork(input)) return [];
   const command = strings(input.tool_input).join('\n');
-  const found: { workId: string; planningFolder: string | null }[] = [];
+  const found: About[] = [];
   const folder = /--planning-dir\s+(?:"([^"]+)"|'([^']+)'|(\S+))/.exec(command);
   const given = folder ? folder[1] ?? folder[2] ?? folder[3] : null;
   const planningFolder = given && path.isAbsolute(given) ? given : null;
-  for (const match of command.matchAll(/\bcoord(?:\.js|\.cmd)?["']?\s+work\s+(?!(?:status|search|report)\b)(?:step\s+\w+\s+|\w+\s+)(work-[0-9]{4,})\b/g)) found.push({ workId: match[1], planningFolder });
+  for (const match of command.matchAll(/\bcoord(?:\.js|\.cmd)?["']?\s+work\s+(?!(?:status|search|report)\b)(?:step\s+\w+\s+|\w+\s+)["']?((?:[^:\\/\s"'][^:\\/\s"']{0,99}:)?(work-[0-9]{4,}))\b/g)) found.push({ workId: match[2], planningFolder, ...match[1] !== match[2] && { named: match[1] } });
   if (/\bcoord(?:\.js|\.cmd)?["']?\s+work\s+create\b/.test(command)) {
     for (const text of strings(input.tool_response)) for (const match of text.matchAll(/"workId"\s*:\s*"(work-[0-9]{4,})"/g)) found.push({ workId: match[1], planningFolder });
   }
@@ -256,7 +265,7 @@ export function shellWork(input: HookInput): { workId: string; planningFolder: s
 }
 
 /** The work item a Coord tool call was about: from its input, else from its result. */
-function toolWork(input: HookInput): { workId: string; planningFolder: string | null } | null {
+function toolWork(input: HookInput): About | null {
   const toolInput = (input.tool_input ?? {}) as Record<string, unknown>;
   let workId = typeof toolInput.work === 'string' ? toolInput.work : null;
   let planningFolder = typeof toolInput.planningFolder === 'string' ? toolInput.planningFolder : null;
@@ -271,7 +280,9 @@ function toolWork(input: HookInput): { workId: string; planningFolder: string | 
   const response = input.tool_response as { workId?: unknown; planningFolder?: unknown } | undefined;
   if (!workId && typeof response?.workId === 'string') workId = response.workId;
   if (!planningFolder && typeof response?.planningFolder === 'string') planningFolder = response.planningFolder;
-  return workId && /^work-[0-9]{4,}$/.test(workId) ? { workId, planningFolder } : null;
+  // Named with its project, it is that project's work: the result says in which planning folder.
+  const own = workId === null ? null : namedWork.exec(workId)?.[1] ?? null;
+  return own ? { workId: own, planningFolder, ...own !== workId && { named: workId! } } : null;
 }
 
 interface Registered { id: string; path: string; current_plan: string | null }
@@ -289,18 +300,21 @@ async function postToolUse(input: HookInput, home: string, links: SessionLinks):
   const tool = changesWork(input.tool_name ?? '', isDevVariant());
   const changed = tool ? [toolWork(input)].filter(about => about !== null) : shellWork(input);
   if (changed.length) {
-    const { resolvePlanningFolder } = await import('../../planning/projects/findProject.ts');
+    const { resolvePlanningFolder, resolveWork } = await import('../../planning/projects/findProject.ts');
+    // Where the work is: the project it is named with, else the session's.
+    const folderOf = (about: About) => (about.named ? resolveWork({ cwd: input.cwd ?? process.cwd(), home, work: about.named }).then(found => found.root)
+      : resolvePlanningFolder({ cwd: input.cwd ?? process.cwd(), home, work: about.workId })).catch(() => null);
     const registers = async (root: string | null, workId: string) => root !== null && (await registered(root).catch(() => [])).some(item => item.id === workId);
     for (const about of changed) {
       // A tool's result names the work it changed and where.
       if (tool) {
-        const root = about.planningFolder ?? await resolvePlanningFolder({ cwd: input.cwd ?? process.cwd(), home, work: about.workId }).catch(() => null);
+        const root = about.planningFolder ?? await folderOf(about);
         if (root) requests.push({ planningFolder: root, workId: about.workId, amending: false });
         continue;
       }
       // The planning folder named, if it registers the work (a shell's path may not be this system's, as Git Bash's /c/…), else the session's.
       const named = about.planningFolder !== null && await registers(about.planningFolder, about.workId) ? about.planningFolder : null;
-      const root = named ?? await resolvePlanningFolder({ cwd: input.cwd ?? process.cwd(), home, work: about.workId }).catch(() => null);
+      const root = named ?? await folderOf(about);
       // A work item the planning folder does not register (a mistyped command) links nothing.
       if (root && (named !== null || await registers(root, about.workId))) requests.push({ planningFolder: root, workId: about.workId, amending: false });
     }

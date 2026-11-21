@@ -5,6 +5,7 @@
 // `updated`, and changes files the way a careful person would (only the lines that change). Nothing
 // is committed: agents commit planning changes themselves.
 import { randomUUID } from 'node:crypto';
+import { existsSync, readdirSync } from 'node:fs';
 import { mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseFrontmatter, type Metadata } from '../check/check.ts';
@@ -13,6 +14,7 @@ import { HandoffGraph, parseHandoff, type HandoffReference } from '../handoffs/h
 import { agreed, ledgerStatus, ledgerStepStatuses, stepCounts, stepSummary } from './ledger.ts';
 import { normalTag, tagCounts, tagsOf } from './tags.ts';
 import { isWorkId, partsOf } from './parts.ts';
+import { isProjectName, projectKey, projectsOf } from './projects.ts';
 import { appendRegistryEntries, RegistryFormatError, updateRegistryEntry } from '../registry/registryText.ts';
 import { stepLimit, workStatistics } from '../reports/reports.ts';
 import { isStateKind, stateKinds, stateNeedsNote, stateNoteLimit, stateOf } from './state.ts';
@@ -30,6 +32,8 @@ export interface WorkStatus {
   summary: string | null;
   /** The plan's `tags`: the release it ships in and the areas it touches. */
   tags: string[];
+  /** The projects it is in, by their planning folders' names, when its plan lists them (`projects`); without them it is in the project that keeps it. */
+  projects?: string[];
   location: 'active' | 'archive' | 'other';
   plan: string;
   designStatus: string | null; implementationStatus: string | null;
@@ -174,8 +178,9 @@ export async function workStatus(root: string, workId: string): Promise<WorkStat
 async function describe(loaded: Loaded): Promise<WorkStatus> {
   const { entry, planMetadata: plan } = loaded;
   const statistics = (await workStatistics(loaded.root, [{ id: entry.id, path: entry.path, currentPlan: loaded.plan, completed: text(plan.completed_at) }]).catch(() => ({})) as Record<string, { reports: number; agentMs: number; tokens: number | null; primaryModel: string | null }>)[entry.id];
+  const projects = projectsOf(plan.projects);
   return {
-    planningFolder: loaded.root, workId: entry.id, title: text(plan.title) ?? path.posix.basename(entry.path), summary: text(plan.summary)?.trim() || null, tags: tagsOf(plan.tags), path: entry.path, location: locationOf(entry.path),
+    planningFolder: loaded.root, workId: entry.id, title: text(plan.title) ?? path.posix.basename(entry.path), summary: text(plan.summary)?.trim() || null, tags: tagsOf(plan.tags), ...projects.length && { projects }, path: entry.path, location: locationOf(entry.path),
     plan: loaded.plan,
     designStatus: text(plan.design_status), implementationStatus: text(plan.implementation_status),
     created: text(plan.created), updated: text(plan.updated), acceptedAt: text(plan.accepted_at), completedAt: text(plan.completed_at),
@@ -345,6 +350,31 @@ async function checkedParts(root: string, values: unknown, groupId: string): Pro
   return written;
 }
 
+/** The home's projects by their planning folders' names: the folders beside this one that have a registry. */
+function homeProjects(root: string): string[] {
+  const planning = path.dirname(root);
+  try { return readdirSync(planning, { withFileTypes: true }).filter(entry => entry.isDirectory() && !entry.name.startsWith('.') && existsSync(path.join(planning, entry.name, 'planning.json'))).map(entry => entry.name).sort((a, b) => a.localeCompare(b)); }
+  catch { return []; }
+}
+
+/**
+ * The projects a work item is in, as its header writes them: each a project of the home, by its
+ * planning folder's name as the folder spells it, each once. An empty list records none: the work
+ * is then in the project that keeps it.
+ */
+function checkedProjects(root: string, values: unknown): string[] {
+  if (!Array.isArray(values)) throw new WorkError('Give the projects as a list of their planning folders\' names, such as ["envui", "internal"].');
+  const known = homeProjects(root);
+  const written: string[] = [];
+  for (const value of values) {
+    const name = typeof value === 'string' ? value.trim() : value;
+    const found = isProjectName(name) ? known.find(project => projectKey(project) === projectKey(name)) : undefined;
+    if (!found) throw new WorkError(`${JSON.stringify(value)} names no project of the home: name each by its planning folder's name${known.length ? ' (' + known.join(', ') + ')' : ''}.`);
+    if (!written.includes(found)) written.push(found);
+  }
+  return written;
+}
+
 /** The longest plan summary: a few sentences, on one header line. */
 export const summaryLimit = 1000;
 
@@ -371,9 +401,10 @@ const implementationStep = (step: LedgerStep) => !step.phase;
  * Create and register a work item: the next unused number across active, archived and registered
  * work, `active/NNNN-slug/plan.md` with a draft plan header (with its summary, when given), its
  * ledger with the planning steps, and its planning.json entry. With `partOf`, a work item of this
- * project, it becomes the last of that group's parts.
+ * project, it becomes the last of that group's parts. With `projects`, it is in those projects of
+ * the home rather than in the one that keeps it.
  */
-export async function createWork(input: string, request: { title: string; slug?: string | null; summary?: string | null; continues?: string[] | null; tags?: string[] | null; partOf?: string | null }, options: OperationOptions = {}): Promise<WorkResult & { partOf?: string }> {
+export async function createWork(input: string, request: { title: string; slug?: string | null; summary?: string | null; continues?: string[] | null; tags?: string[] | null; partOf?: string | null; projects?: string[] | null }, options: OperationOptions = {}): Promise<WorkResult & { partOf?: string }> {
   const today = dateOf(options);
   const title = oneLine(request.title, 'The title');
   const summary = request.summary == null || String(request.summary).trim() === '' ? null : oneLine(request.summary, 'The summary', summaryLimit);
@@ -381,6 +412,7 @@ export async function createWork(input: string, request: { title: string; slug?:
   const registry = await registryOf(root);
   const continues = request.continues?.length ? checkedHandoffs(root, request.continues, null) : [];
   const tags = request.tags?.length ? checkedTags(request.tags) : [];
+  const projects = request.projects?.length ? checkedProjects(root, request.projects) : [];
   // The group it is a part of, which must not be a part itself: groups are one level deep.
   let group: Loaded | null = null;
   if (request.partOf != null && String(request.partOf).trim() !== '') {
@@ -400,7 +432,7 @@ export async function createWork(input: string, request: { title: string; slug?:
   try { registryText = appendRegistryEntries(registry.text, 'work_items', [{ id: workId, path: location, current_plan: plan }]); }
   catch (error) { if (error instanceof RegistryFormatError) throw new WorkError(error.message); throw error; }
   const planText = ['---', 'schema_version: 2', 'kind: plan', 'id: ' + workId, 'title: ' + JSON.stringify(title), ...summary ? ['summary: ' + JSON.stringify(summary)] : [],
-    `created: "${today}"`, `updated: "${today}"`, 'design_status: draft', 'implementation_status: not_started', 'accepted_at: null', 'completed_at: null', 'supersedes: []', 'superseded_by: null', ...continues.length ? ['continues: ' + yamlValue('continues', continues)] : [], ...tags.length ? ['tags: ' + yamlValue('tags', tags)] : [],
+    `created: "${today}"`, `updated: "${today}"`, 'design_status: draft', 'implementation_status: not_started', 'accepted_at: null', 'completed_at: null', 'supersedes: []', 'superseded_by: null', ...continues.length ? ['continues: ' + yamlValue('continues', continues)] : [], ...tags.length ? ['tags: ' + yamlValue('tags', tags)] : [], ...projects.length ? ['projects: ' + yamlValue('projects', projects)] : [],
     ...Object.entries(stateHeader('planning', null, options)).map(([field, value]) => field + ': ' + yamlValue(field, value)), '---', '', '# ' + title, ''].join('\n');
   await mkdir(file(root, location), { recursive: true });
   try {
@@ -569,6 +601,18 @@ export async function setParts(input: string, workId: string, parts: string[], o
 }
 
 /**
+ * Set the projects a work item is in (its header's `projects`), replacing what was recorded. An
+ * empty list records none: the work is then in the project that keeps it.
+ */
+export async function setProjects(input: string, workId: string, projects: string[], options: OperationOptions = {}) {
+  const loaded = await load(input, workId);
+  const written = checkedProjects(loaded.root, projects);
+  // A plan that never listed projects stays without the field when none are given.
+  const changed = !written.length && loaded.planMetadata.projects === undefined ? [] : [await writePlan(loaded, { projects: written }, dateOf(options))];
+  return { ...await result(loaded.root, workId, changed), projects: written };
+}
+
+/**
  * Declare whose turn the work is (the plan's `state`, `state_note` and `state_since`), or none with
  * a null kind. Blocked keeps the ledger's `blocked` as its reason, which every other state clears.
  */
@@ -587,16 +631,17 @@ export async function setState(root: string, workId: string, request: { kind: st
   return result(loaded.root, workId, changed);
 }
 
-/** Change a work item's tags, the work it continues and its parts, each only when given. */
-export async function updateWork(root: string, workId: string, request: { addTags?: string[]; removeTags?: string[]; continues?: string[]; parts?: string[] }, options: OperationOptions = {}): Promise<WorkResult & { projectTags?: Record<string, number> }> {
-  const { addTags, removeTags, continues, parts } = request;
-  if (addTags === undefined && removeTags === undefined && continues === undefined && parts === undefined) throw new WorkError('Give what changes: tags to add or remove, the work it continues, or its parts.');
+/** Change a work item's tags, the work it continues, its parts and the projects it is in, each only when given. */
+export async function updateWork(root: string, workId: string, request: { addTags?: string[]; removeTags?: string[]; continues?: string[]; parts?: string[]; projects?: string[] }, options: OperationOptions = {}): Promise<WorkResult & { projectTags?: Record<string, number> }> {
+  const { addTags, removeTags, continues, parts, projects } = request;
+  if (addTags === undefined && removeTags === undefined && continues === undefined && parts === undefined && projects === undefined) throw new WorkError('Give what changes: tags to add or remove, the work it continues, its parts, or the projects it is in.');
   const changed = new Set<string>();
   let last: (WorkResult & { projectTags?: Record<string, number> }) | null = null;
   if (addTags !== undefined || removeTags !== undefined) last = await tagWork(root, workId, { add: addTags, remove: removeTags }, options);
   for (const item of last?.changed ?? []) changed.add(item);
   if (continues !== undefined) { const done = await setContinues(root, workId, continues, options); for (const item of done.changed) changed.add(item); last = { ...done, projectTags: last?.projectTags }; }
   if (parts !== undefined) { const done = await setParts(root, workId, parts, options); for (const item of done.changed) changed.add(item); last = { ...done, projectTags: last?.projectTags }; }
+  if (projects !== undefined) { const done = await setProjects(root, workId, projects, options); for (const item of done.changed) changed.add(item); last = { ...done, projectTags: last?.projectTags }; }
   return { ...last!, changed: [...changed] };
 }
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+**The hub**
+
+- **A row's ask shows its PRs live:** the line under a plan's title (what you are to do, what it waits on, why it is blocked) links each PR, issue or commit it names, and a PR shows its state as a small mark after it, as on the plan's page (open, draft, merged or closed, and its checks). The link opens the PR in the browser; the rest of the row still opens the plan. The hub asks again when its window comes forward, so a PR merged meanwhile shows as merged.
+- **Hints open quickly:** what a reference leads to and what a PR's mark stands for show in a tooltip of the app's own as soon as the pointer rests on them, on the hub and in a plan, in place of the system's slower one.
+- **How long work has waited:** in **Your turn** and **Waiting** the last column is **Waiting** and says how long the state has stood (5 hours, 3 days), with the date on hover; the other groups keep **Changed**.
+
+**Work in several projects**
+
+- **A work item can be in several projects**, and each of its parts in projects of its own: its plan lists them (`projects`, by their planning folders' names), set with `work_create` and `work_update` (`coord work create --project`, `coord work update --project`). The hub's Project column shows every project a plan is in, a project's hub lists the plans that are in it, and the plan page names them.
+- **A group and its parts are one entry on the hub:** the group's row has its parts under it, in their order, set in and numbered, each with its state, what it is for, its steps and its agents, as a list of tiles of their own, so groups that follow each other stay apart. A click on the group's row folds its parts away (its number opens its plan, a part's row the part), and a folded group says how many parts it has and how many are your turn. Work of one part is listed like any other work. The group sits where its most pressing part does.
+- **A session sees the work that is in its project** though another project keeps it: `where` and the session start list it, named with that project (`envui:work-0048`), and the tools and `coord work` commands take that name to change it there.
+
 ## 0.10.0 — Coord on envUI 3 — 2026-11-21
 
 **Search and the hub**

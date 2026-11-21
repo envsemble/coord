@@ -465,7 +465,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   const searchScope = useMemo(() => projectPlace && reading && readSnapshot ? { projectId: reading, snapshot: readSnapshot } : null, [Boolean(projectPlace), reading, readSnapshot]);
 
   let content;
-  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.projectId} filters={hubFilters} setFilters={setHubFilters} go={go}
+  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.projectId} filters={hubFilters} setFilters={setHubFilters} go={go} notify={notify}
     computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} newProject={() => setCreatingProject(true)} />;
   else if (isPage(placed) && placed.page === 'settings') content = <SettingsPage section={placed.section} computer={info.computer} go={showSettings} />;
   // All plans' statistics: every active project together.

@@ -8,7 +8,8 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseFrontmatter } from '../check/check.ts';
 import type { HomeDatabase } from '../../home/database.ts';
-import type { HandoffLink, WorkState } from '../types.ts';
+import type { HandoffLink, ProjectLink, WorkState } from '../types.ts';
+import { projectsOf } from '../work/projects.ts';
 import { stateOf } from '../work/state.ts';
 import { handoffsOf } from '../handoffs/handoffs.ts';
 import { tagsOf } from '../work/tags.ts';
@@ -52,6 +53,11 @@ export interface ProjectWork {
    * order, each once), and the group that lists it among its parts (the first in the registry, should several), or null.
    */
   parts?: string[]; partOf?: string | null;
+  /**
+   * The projects it is in, when its plan lists them (`projects`), as the home has them (the project
+   * list links each: `linkProjects`); absent when it lists none: it is then in the project that keeps it.
+   */
+  projects?: ProjectLink[];
   /** Whose turn it is, as its plan declares (its `state`); absent when it declares none, and on closed work. */
   turn?: WorkState;
 }
@@ -132,6 +138,7 @@ async function workOf(root: string, entry: { id: string; path: string; current_p
   const counted = (list: Step[]) => ({ done: list.filter(step => step?.status === 'done').length, total: list.length });
   // Whose turn it is, as the plan declares; left out when it declares none, and on closed work.
   const turn = closed || !planHeader ? null : stateOf(planHeader);
+  const projects = projectsOf(planHeader?.projects);
   return {
     ...turn && { turn },
     id: entry.id, title: text(planHeader?.title) ?? entry.path.split('/').at(-1)!, state, blocked,
@@ -143,6 +150,8 @@ async function workOf(root: string, entry: { id: string; path: string; current_p
     continuedIn: [],
     // Its parts as the plan lists them; projectSummary finds each part's group.
     parts: partsOf(planHeader?.parts, entry.id), partOf: null,
+    // The projects its plan lists, by name; linkProjects finds them among the home's projects.
+    ...projects.length && { projects: projects.map((project): ProjectLink => ({ projectId: null, project, projectName: project })) },
   };
 }
 

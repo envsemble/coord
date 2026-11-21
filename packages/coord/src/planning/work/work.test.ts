@@ -8,7 +8,7 @@ import path from 'node:path';
 import { validatePlanning } from '../check/check.ts';
 import { checkPaths, fileCheckers } from '../check/checkPaths.ts';
 import { remoteRepository } from '../references/remotes.ts';
-import { acceptWork, addSteps, archiveWork, proposeSteps, projectTags, searchWork, tagWork, closeWork, createWork, setContinues, setParts, planningLedger, removeStep, renameStep, reopenWork, setState, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
+import { acceptWork, addSteps, archiveWork, proposeSteps, projectTags, searchWork, tagWork, closeWork, createWork, setContinues, setParts, planningLedger, removeStep, renameStep, reopenWork, setState, setStepStatus, startWork, updateWork, WorkError, workStatus } from './work.ts';
 import { git, plan, planningFolder, read, temporary, today, write } from '../testing.ts';
 
 const errorsOf = (root: string) => validatePlanning(root).errors;
@@ -420,4 +420,26 @@ test('coord check warns about an active plan without a summary, and refuses one 
   writeFileSync(path.join(root, 'active/0002-other/plan.md'), plan('work-0002'));
   await archiveWork(root, 'work-0002', { disposition: 'abandoned', supersededBy: null, reason: 'Not needed.' }, today);
   assert.deepEqual(warned(), []);
+});
+
+test('a work item is in the projects its plan lists: projects of the home, by their planning folders\' names', async t => {
+  const directory = temporary(t);
+  const root = planningFolder(directory, 'main');
+  planningFolder(directory, 'harbor');
+  // Each once, as its folder spells it; the project that keeps the work is listed like any other.
+  const created = await createWork(root, { title: 'Across projects', projects: ['harbor', 'main', caseless ? 'HARBOR' : 'harbor'] }, today);
+  assert.deepEqual(created.projects, ['harbor', 'main']);
+  assert.ok(read(root, created.plan).includes('\nprojects: ["harbor", "main"]\n'));
+  assert.deepEqual(errorsOf(root), []);
+  assert.deepEqual((await updateWork(root, 'work-0001', { projects: ['harbor'] }, today)).projects, ['harbor']);
+  await assert.rejects(updateWork(root, 'work-0001', { projects: ['nowhere'] }, today), /"nowhere" names no project of the home: .*\(harbor, main\)/);
+  // No projects: it is in the project that keeps it again.
+  await updateWork(root, 'work-0001', { projects: [] }, today);
+  assert.equal((await workStatus(root, 'work-0001')).projects, undefined);
+  assert.equal((await updateWork(root, 'work-0002', { projects: [] }, today)).changed.length, 0, 'a plan that never listed projects is left as it is');
+  // The check takes names only, and warns of one that names no project of the home.
+  write(path.join(root, 'active/0002-other/plan.md'), plan('work-0002', { projects: '["nowhere"]' }));
+  assert.ok(validatePlanning(root).warnings.some(message => /projects lists nowhere, which names no project of the home/.test(message)));
+  write(path.join(root, 'active/0002-other/plan.md'), plan('work-0002', { projects: '["a/b"]' }));
+  assert.ok(errorsOf(root).some(message => /projects must be a list of projects/.test(message)));
 });

@@ -18,7 +18,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { readFile, stat } from 'node:fs/promises';
 import {
-  canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, handoffsByWork, linkHandoffs, projectStatistics, projectSummary, resolveReferences, storedReports, workDates, workSessions, workTimeline,
+  canonicalProjectFolderSync, createProject, folderKey, HomeDatabase, homePlanningDirectory, homePlanningFolders, isPlanningFolder, planningName, projectOf, handoffsByWork, linkHandoffs, linkProjects, projectStatistics, projectSummary, resolveReferences, storedReports, workDates, workSessions, workTimeline,
   readRegistry, resolveDocument, setProjectFolders, setRegistryName, WorkError, type LogOptions, type ProjectRow, type ProjectTemplates, type WorkReport,
 } from '../planning/index.ts';
 import { compareHits, PlanningSearch, searchQuery } from '../planning/reading/search.ts';
@@ -559,6 +559,8 @@ export class Host {
    * handoffs changed (a plan elsewhere that now continues one of theirs), so their plans show them.
    */
   private noteHandoffs(projects: Project[]) {
+    // The projects each work item is in, found among the listed ones.
+    linkProjects(projects.map(project => ({ projectId: project.id, folder: project.path, name: project.name, summary: project.summary ?? null })));
     linkHandoffs(projects.map(project => ({ projectId: project.id, folder: project.path, name: project.name, summary: project.summary ?? null })));
     const before = this.handoffs;
     this.handoffs = new Map(projects.map(project => [folderKey(project.path), handoffsByWork({ projectId: project.id, folder: project.path, name: project.name, summary: project.summary ?? null })]));
