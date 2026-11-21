@@ -307,7 +307,7 @@ export async function openProjectStatistics(window: Page, name = 'Northwind') {
   if (!await projectButton(window, name).count()) await filterHub(window, name);
   await window.locator('.hub').getByRole('button', { name: 'Statistics', exact: true }).click();
   await expect(window.locator('.statistics-page h1')).toHaveText('Statistics');
-  await expect(window.locator('.page-trail .breadcrumb')).toHaveText(new RegExp('^Plans.*' + name + '.*Statistics$'));
+  await expect(window.locator('.window-page .breadcrumb')).toHaveText(new RegExp('^Plans.*' + name + '.*Statistics$'));
 }
 
 /** The element the window's content scrolls in, below the title bar. */

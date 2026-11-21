@@ -10,7 +10,7 @@ test.afterEach(async () => { await close(launched); launched = undefined; for (c
 /** What the window shows: the hub, a work item, a file or a diagram. */
 const shows = (window: Page) => window.locator('.hub h1, .work-page h1, .file-page .file-name, .diagrams .diagram-title').first();
 /** The last step of a work item's trail: its number. */
-const trailEnd = (window: Page) => window.locator('.page-trail .breadcrumb [aria-current="page"]');
+const trailEnd = (window: Page) => window.locator('.window-page .breadcrumb [aria-current="page"]');
 /** Shows the work item Saved payment methods (#0001), or Customer order notifications (#0003). */
 async function showsPlan(window: Page, plan: 'payments' | 'notifications') {
   await expect(shows(window)).toHaveText(plan === 'payments' ? 'Saved payment methods' : 'Customer order notifications');
@@ -162,12 +162,12 @@ test('a link into a sibling project in the home opens there; one to a folder no 
   const { window } = launched;
   await filterHub(window, 'Harbor');
   await openPlan(window, 'Saved payment methods');
-  await expect(window.locator('.page-trail .breadcrumb')).toContainText('Harbor');
+  await expect(window.locator('.window-page .breadcrumb')).toContainText('Harbor');
   await expect(window.locator('.prose .outside-reference', { hasText: 'nothing' })).toBeVisible();
   await window.locator('.prose').getByRole('link', { name: 'the fulfilment model' }).click();
   await expect(window.locator('.work-page h1')).toHaveText('Order fulfilment model');
   // A place of that project: the Files sidebar shows that plan's files.
-  await expect(window.locator('.page-trail .breadcrumb')).toContainText('Northwind');
+  await expect(window.locator('.window-page .breadcrumb')).toContainText('Northwind');
   await expect((await showFiles(window)).locator('[role="treeitem"][data-id="f:active/0002-order-fulfilment-model/plan.md"]')).toBeVisible();
 });
 

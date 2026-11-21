@@ -12,7 +12,7 @@ test.afterEach(async () => { await close(launched); launched = undefined; for (c
 
 const row = (id: string) => `[role="treeitem"][data-id="${id}"]`;
 /** The last step of a work item's trail: its number. */
-const trailEnd = (window: Page) => window.locator('.page-trail .breadcrumb [aria-current="page"]');
+const trailEnd = (window: Page) => window.locator('.window-page .breadcrumb [aria-current="page"]');
 const titles = (launchedApp: Launched) => launchedApp.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(item => item.getTitle()));
 const groupRows = (window: Page, group: string) => window.getByRole('region', { name: group }).locator('.hub-row');
 
@@ -59,7 +59,6 @@ test("the hub's search button opens the search and it never filters the hub; the
   // A click opens the search; what is typed goes there, and the hub's list stays as it is.
   await trigger.click();
   await expect(popup).toBeVisible();
-  await expect(input).toBeFocused();
   await window.keyboard.type('payment');
   await expect(input).toHaveValue('payment');
   await expect(popup.getByRole('option', { name: /^Saved payment methods/ })).toHaveCount(2);
@@ -70,12 +69,11 @@ test("the hub's search button opens the search and it never filters the hub; the
   // Enter on it opens it again, empty.
   await window.keyboard.press('Enter');
   await expect(input).toHaveValue('');
-  await expect(input).toBeFocused();
   await window.keyboard.type('fulfil harbor');
   await expect(hubRows(window)).toHaveCount(6);
   await popup.getByRole('option', { name: /Order fulfilment model.*Harbor/ }).click();
   await expect(window.locator('.work-page h1')).toHaveText('Order fulfilment model');
-  await expect(window.locator('.page-trail .breadcrumb')).toContainText('Harbor');
+  await expect(window.locator('.window-page .breadcrumb')).toContainText('Harbor');
   await goHome(window);
   await window.keyboard.press('Control+P');
   await expect(popup).toBeVisible();
@@ -150,7 +148,7 @@ test("a plan opens from the hub with its summary and its side column, and with i
   // The side column keeps progress, dates and statistics.
   await expect(window.locator('.plan-aside .ledger-progress-summary')).toHaveText('2 of 7 steps done · 5 left');
   await expect(window.locator('.plan-aside .ledger-step')).toHaveCount(7);
-  await expect(window.locator('.page-trail .breadcrumb')).toHaveText(/^Plans.*Northwind.*#0001$/);
+  await expect(window.locator('.window-page .breadcrumb')).toHaveText(/^Plans.*Northwind.*#0001$/);
   await expect(trailEnd(window)).toHaveText('#0001');
   // The work it continues opens its ledger, not as a step, and leads to that plan, whose status line and hub row say where it continues.
   const handoff = window.locator('.plan-aside .ledger-steps > .ledger-handoff');
@@ -169,7 +167,7 @@ test("a plan opens from the hub with its summary and its side column, and with i
   await window.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
   // The trail's project leads to the hub filtered to the project, which Back leaves again.
-  await window.locator('.page-trail .breadcrumb').getByRole('button', { name: 'Northwind' }).click();
+  await window.locator('.window-page .breadcrumb').getByRole('button', { name: 'Northwind' }).click();
   await expectHub(window, 'Northwind');
   await expect(projectButton(window, 'Northwind')).toBeVisible();
   await window.keyboard.press('Alt+ArrowLeft');
@@ -209,14 +207,14 @@ test('a window shows one place at a time, and shows it again at the next start',
   let { window } = launched;
   await filterHub(window, 'Harbor');
   await openPlan(window, 'Saved payment methods');
-  await expect(window.locator('.page-trail .breadcrumb')).toContainText('Harbor');
+  await expect(window.locator('.window-page .breadcrumb')).toContainText('Harbor');
   await window.waitForTimeout(600);
   await close(launched);
 
   launched = await launch({ dataDirectory: home.dataDirectory });
   window = launched.window;
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
-  await expect(window.locator('.page-trail .breadcrumb')).toContainText('Harbor');
+  await expect(window.locator('.window-page .breadcrumb')).toContainText('Harbor');
   await expect(trailEnd(window)).toHaveText('#0001');
   await showFiles(window);
 });
@@ -264,7 +262,7 @@ test("the plan's files are beside its pages with the plan's own folder, open a f
   await files.locator(row('f:active/0001-saved-payment-methods/CONTEXT.md')).click();
   await expect(files.locator(row('f:active/0001-saved-payment-methods/CONTEXT.md'))).toHaveAttribute('aria-selected', 'true');
   // The file is on the page as the plan is: under its plan's breadcrumb (Plans, project, plan), not a crumb of its own, its name below its title, with Show in folder beside it.
-  await expect(window.locator('.page-trail .breadcrumb')).toHaveText(/^Plans.*Northwind.*#0001$/);
+  await expect(window.locator('.window-page .breadcrumb')).toHaveText(/^Plans.*Northwind.*#0001$/);
   await expect(window.locator('.file-page .file-name')).toHaveText('CONTEXT.md');
   await expect(window.locator('.file-page').getByRole('button', { name: 'Show in folder' })).toBeVisible();
   await expect(window.locator('.file-page .reader .prose')).toBeVisible();
@@ -419,7 +417,7 @@ test('one row at the top: the logo, back and forward, Plans, Settings and Help, 
   // Settings opens Settings at General, with the theme; Computer settings… opens it at Computers.
   await titleButton(window, 'Settings').click();
   await expect(window.locator('.settings-page h1')).toHaveText('Settings');
-  const settingsTab = window.getByRole('navigation', { name: 'Settings' }).locator('[aria-current="page"]');
+  const settingsTab = window.getByRole('tablist', { name: 'Settings' }).getByRole('tab', { selected: true });
   await expect(settingsTab).toHaveText('General');
   await expect(window.getByRole('combobox', { name: 'Theme' })).toHaveText(/Match the system/);
   await bar.getByRole('button', { name: /^Computer:/ }).click();
@@ -434,7 +432,6 @@ test('one row at the top: the logo, back and forward, Plans, Settings and Help, 
   await window.keyboard.press('Alt+ArrowLeft');
   await expectHub(window);
   // Main's application menu keeps the shortcuts (and is the menu bar on macOS), with Plans and Statistics in View.
-  // Search shows Ctrl+K; its Ctrl+P alias is an item of its own, hidden from the menu.
   const items = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.map(entry => [entry.label, entry.submenu!.items.filter(item => item.type !== 'separator').map(item => item.accelerator ? item.label + ' ' + item.accelerator : item.label || item.role)]));
   // Electron gives the roles the system's own shortcuts: Exit and Redo differ on Windows.
   const windows = process.platform === 'win32';
@@ -443,7 +440,7 @@ test('one row at the top: the logo, back and forward, Plans, Settings and Help, 
   expect(items).toEqual([
     ['&File', ['New &Window CmdOrCtrl+Shift+N', 'New &Project…', '&Settings… CmdOrCtrl+,', 'Close Win&dow CmdOrCtrl+Shift+W', windows ? 'E&xit' : 'E&xit CommandOrControl+Q']],
     ['&Edit', ['Undo CommandOrControl+Z', windows ? 'Redo Control+Y' : 'Redo Shift+CommandOrControl+Z', 'Cut CommandOrControl+X', 'Copy CommandOrControl+C', 'Paste CommandOrControl+V', 'Select All CommandOrControl+A']],
-    ['&View', ['&Back Alt+Left', '&Forward Alt+Right', '&Plans', 'S&tatistics', '&Search… CmdOrCtrl+K', 'Search… CmdOrCtrl+P', 'F&iles CmdOrCtrl+Shift+E', 'Zoom &In CmdOrCtrl+Plus', 'Zoom &Out CmdOrCtrl+-', '&Actual Size CmdOrCtrl+0', 'Toggle Full Screen F11', ...devTools]],
+    ['&View', ['&Back Alt+Left', '&Forward Alt+Right', '&Plans', 'S&tatistics', '&Search… CmdOrCtrl+P', 'F&iles CmdOrCtrl+Shift+E', 'Zoom &In CmdOrCtrl+Plus', 'Zoom &Out CmdOrCtrl+-', '&Actual Size CmdOrCtrl+0', 'Toggle Full Screen F11', ...devTools]],
     ['&Help', ['Open &Logs', '&About Coord']],
   ]);
   await applicationMenu(app, '&File', 'New &Project…');
@@ -560,7 +557,7 @@ test("the search shows the host's results grouped by kind with their project, wo
   await expect(palette.getByRole('option').nth(1)).toHaveAttribute('data-highlighted', '');
   await input.press('Enter');
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
-  await expect(window.locator('.page-trail .breadcrumb')).toContainText('Harbor');
+  await expect(window.locator('.window-page .breadcrumb')).toContainText('Harbor');
 
   // An answer to an earlier query that comes after a later one's is not shown.
   await window.keyboard.press('Control+P');

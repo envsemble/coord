@@ -28,14 +28,14 @@ test('each project has its statistics, from the hub filtered to it, under a brea
   await openStatistics(window, 'Northwind');
   // Another project's: its breadcrumb leads back to its plans, and Back returns to its statistics.
   await openStatistics(window, 'Harbor');
-  await window.locator('.page-trail .breadcrumb').getByRole('button', { name: 'Harbor', exact: true }).click();
+  await window.locator('.window-page .breadcrumb').getByRole('button', { name: 'Harbor', exact: true }).click();
   await expectHub(window, 'Harbor');
   await window.getByRole('button', { name: 'Back', exact: true }).click();
-  await expect(window.locator('.page-trail .breadcrumb')).toContainText('Harbor');
+  await expect(window.locator('.window-page .breadcrumb')).toContainText('Harbor');
   // The hub of every project leads to all plans'.
   await goHome(window);
   await window.locator('.hub').getByRole('button', { name: 'Statistics', exact: true }).click();
-  await expect(window.locator('.page-trail .breadcrumb')).toHaveText(/^Plans.*Statistics$/);
+  await expect(window.locator('.window-page .breadcrumb')).toHaveText(/^Plans.*Statistics$/);
   await window.getByRole('radiogroup', { name: 'Period' }).getByRole('radio', { name: 'All time' }).click();
   await expect(window.locator('.statistics-page .stat').first()).toContainText('Agent time');
 
