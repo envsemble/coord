@@ -74,14 +74,20 @@ const pullStates = { open: 'Open', draft: 'Draft', merged: 'Merged', closed: 'Cl
 const checkStates = { passing: 'checks passing', failing: 'checks failing', pending: 'checks running' } as const;
 /**
  * A PR's state as a small mark: open, draft, merged or closed, and its checks when they fail or run.
- * With `word`, its state is also written beside the mark, where a list is read without hovering.
+ * With `word`, where a list is read without hovering, its state is a small tag after the reference
+ * in place of the mark (a word of its own, so it reads as a label on the link and not as part of
+ * the line), with its checks while the PR is open: once it is merged or closed they say nothing more.
  */
 export function PullMark({ pull, word = false }: { pull: NonNullable<ResolvedReference['pull']>; word?: boolean }) {
   const label = [pullStates[pull.state], pull.checks && checkStates[pull.checks]].filter(Boolean).join(', ');
   const Icon = pull.state === 'merged' ? CallMerge : pull.state === 'closed' ? Cancel : CallSplit;
   const Checks = pull.checks === 'failing' ? Cancel : pull.checks === 'pending' ? Pending : pull.checks === 'passing' ? CheckCircle : null;
+  if (word) {
+    const live = pull.state === 'open' || pull.state === 'draft';
+    return <span className="pull-tag" role="img" aria-label={label} title={label}>{pullStates[pull.state].toLowerCase()}{live && Checks && <Checks className="pull-mark-checks" data-checks={pull.checks!} />}</span>;
+  }
   return <span className="pull-mark" role="img" aria-label={label} title={label}>
-    <Icon className="pull-mark-state" data-state={pull.state} />{word && <span className="pull-mark-word" data-state={pull.state}>{pullStates[pull.state].toLowerCase()}</span>}{Checks && <Checks className="pull-mark-checks" data-checks={pull.checks!} />}
+    <Icon className="pull-mark-state" data-state={pull.state} />{Checks && <Checks className="pull-mark-checks" data-checks={pull.checks!} />}
   </span>;
 }
 

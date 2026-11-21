@@ -468,12 +468,14 @@ html, body, #root { min-block-size: 100%; }
    which pushes a one-line note (the status line's) below the text beside it. */
 .pull-mark { margin-inline-start: 0.25em; white-space: nowrap; }
 .pull-mark svg { inline-size: 1em; block-size: 1em; vertical-align: -0.125em; }
-.pull-mark :is(svg, .pull-mark-word) + svg { margin-inline-start: 0.125rem; }
-.pull-mark-word { margin-inline-start: 0.2em; }
-.pull-mark :is(.pull-mark-state, .pull-mark-word)[data-state='open'], .pull-mark-checks[data-checks='passing'] { color: var(--env-color-fg-success); }
-.pull-mark :is(.pull-mark-state, .pull-mark-word)[data-state='draft'], .pull-mark-checks[data-checks='pending'] { color: var(--env-color-fg-muted); }
-.pull-mark :is(.pull-mark-state, .pull-mark-word)[data-state='merged'] { color: var(--env-color-fg-accent); }
-.pull-mark :is(.pull-mark-state, .pull-mark-word)[data-state='closed'], .pull-mark-checks[data-checks='failing'] { color: var(--env-color-fg-danger); }
+.pull-mark svg + svg { margin-inline-start: 0.125rem; }
+.pull-mark-state[data-state='open'], .pull-mark-checks[data-checks='passing'] { color: var(--env-color-fg-success); }
+.pull-mark-state[data-state='draft'], .pull-mark-checks[data-checks='pending'] { color: var(--env-color-fg-muted); }
+.pull-mark-state[data-state='merged'] { color: var(--env-color-fg-accent); }
+.pull-mark-state[data-state='closed'], .pull-mark-checks[data-checks='failing'] { color: var(--env-color-fg-danger); }
+/* On the hub a PR's state is a small neutral tag after its reference: a label on the link, apart from the line's own words. */
+.pull-tag { display: inline-flex; align-items: center; gap: 0.2em; margin-inline-start: 0.3em; padding-inline: 0.35em; border-radius: var(--env-radius-xs); background: var(--env-color-bg-neutral-muted); color: var(--env-color-fg-muted); font-size: 0.85em; line-height: 1.4; white-space: nowrap; vertical-align: 0.05em; }
+.pull-tag svg { inline-size: 1em; block-size: 1em; }
 /* The first paragraph of a long message, cut to four lines until shown whole. */
 /* A plan's statistics page: its figures, its timeline and its tables. */
 .plan-statistics-page { display: grid; gap: var(--env-space-6); }
