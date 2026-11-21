@@ -105,7 +105,11 @@ html, body, #root { min-block-size: 100%; }
    work every row leaves that button's room, so the titles start on one edge and the buttons stand
    alone before them. Its title is a weight heavier. */
 .hub-list { --hub-fold: 1.5rem; --hub-part-surface: light-dark(color-mix(in srgb, var(--env-color-bg-default), var(--env-color-bg-muted)), color-mix(in srgb, var(--env-color-bg-default) 75%, var(--env-color-bg-page))); }
-.hub-row-fold { flex: none; inline-size: var(--hub-fold); min-inline-size: var(--hub-fold); margin-inline: calc(-1 * var(--env-space-2)) calc(-1 * var(--env-space-1)); }
+.hub-row-fold { display: inline-flex; flex: none; align-items: center; justify-content: center; inline-size: var(--hub-fold); margin-inline: calc(-1 * var(--env-space-2)) calc(-1 * var(--env-space-1)); color: var(--env-color-fg-muted); }
+.hub-row-fold svg { inline-size: 1.25rem; block-size: 1.25rem; }
+/* A group's title is the button that folds it, stretched over its row: it reads as the title it is. */
+.hub-row-toggle { flex: 0 1 auto; min-inline-size: 0; max-inline-size: 100%; min-block-size: 0; block-size: auto; margin: 0; padding: 0; border: 0; font: inherit; text-align: start; }
+.hub-row-toggle :is(.env-button-content, .env-button-label) { display: block; overflow: hidden; min-inline-size: 0; text-overflow: ellipsis; white-space: nowrap; }
 .hub-row:has(.hub-row-fold) .hub-row-title + .cell-note { margin-inline-start: calc(var(--hub-fold) - var(--env-space-1) + 1.125rem + var(--env-space-2)); }
 .hub-entry-group > .hub-row:first-child .hub-row-link { font-weight: var(--env-font-weight-semibold); }
 .hub-row-parts-turn { color: var(--env-color-fg-warning); }
@@ -120,8 +124,10 @@ html, body, #root { min-block-size: 100%; }
    the room around its parts' panel alike, so it is told from them folded or not. Its row under the
    pointer lights up as a row does. */
 .hub-list { --hub-group-surface: color-mix(in srgb, var(--hub-part-surface), var(--env-color-bg-raised)); }
-.hub-list.env-table > .env-table-body.hub-entry-group > .env-table-row { background-color: var(--hub-group-surface); }
-.hub-list.env-table > .env-table-body.hub-entry-group > .env-table-row:not(.hub-row-part):is(:hover, :has(:focus-visible)) { background-color: color-mix(in srgb, var(--hub-group-surface), var(--env-color-fg-default) 6%); }
+.hub-list.env-table > .env-table-body.hub-entry-group { --hub-group: var(--hub-group-surface); }
+/* Its row under the pointer lights the whole group's surface, around its parts' tiles too: the row folds all of it. */
+.hub-list.env-table > .env-table-body.hub-entry-group:has(> .env-table-row:not(.hub-row-part):is(:hover, :has(:focus-visible))) { --hub-group: color-mix(in srgb, var(--hub-group-surface), var(--env-color-fg-default) 6%); }
+.hub-list.env-table > .env-table-body.hub-entry-group > .env-table-row { background-color: var(--hub-group); }
 /* Its parts are rows of the same table, so they stay in the table's columns, as a list of their own
    under the group's row, the way envUI's List joins its rows: each a tile, a surface one quiet step
    from the rows', set in from both edges of the table and starting under the group's icon, with a
@@ -151,7 +157,7 @@ html, body, #root { min-block-size: 100%; }
   --hub-tile-gap: calc(var(--env-space-1) / 2); --hub-tiles-below: var(--env-space-3);
 }
 .env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell {
-  border-block-end: var(--hub-tile-gap) solid transparent; background: var(--hub-group-surface) var(--hub-fill) no-repeat;
+  border-block-end: var(--hub-tile-gap) solid transparent; background: var(--hub-group) var(--hub-fill) no-repeat;
 }
 .env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:last-child > .env-table-cell { border-block-end-width: var(--hub-tiles-below); }
 /* The first and last cells, in three bands: beside the top corner, between the corners, beside the bottom corner; and the two corners. */

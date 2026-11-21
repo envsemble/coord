@@ -627,7 +627,7 @@ test('a work item made of parts is one entry on the hub, its parts under its row
   // Northwind's parts are not listed on their own as well: only Harbor's own plan of that name is.
   await expect(window.locator('.hub-entry:not(.hub-entry-group)').getByRole('link', { name: 'Order fulfilment model', exact: true })).toHaveCount(1);
   // Folded, the group says what waits in it, and stays folded as the hub is left and shown again.
-  const fold = window.getByRole('button', { name: 'Parts of Saved payment methods' });
+  const fold = group.getByRole('button', { name: 'Saved payment methods', exact: true });
   await fold.click();
   await expect(group.locator('.hub-row-part')).toHaveCount(0);
   await expect(group.locator('.hub-row-parts')).toHaveText('2 parts · 1 your turn');

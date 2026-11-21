@@ -167,9 +167,9 @@ function InProjects({ projects }: { projects: Project[] }) {
  * A plan: the whole row opens it. A plan under way says under its title what its state is for (what
  * the user is to do, what it waits on, why it is blocked), else the step being worked on or next.
  * Its summary shows on the title's hover. The status icon carries the colour; the text stays neutral
- * but for that line, amber on the user's turn. A work item made of parts has a button before its
- * icon that folds them away (`fold`), as a click anywhere on its row does (its number opens its
- * plan, its parts open theirs), and says how many they are while they are; the other rows of a
+ * but for that line, amber on the user's turn. A work item made of parts folds them away at a click
+ * anywhere on its row (`fold`; its number opens its plan, its parts open theirs), with a chevron
+ * before its icon that says which way it is, and says how many they are while they are folded; the other rows of a
  * hub with such work leave that button's room (`gutter`), so every title starts on one edge and the
  * buttons stand alone. A part among its group's (`index`, its place) starts with its number.
  */
@@ -204,12 +204,13 @@ const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resol
     onClick={event => { if (!event.defaultPrevented && !(event.target as Element).closest('a, button') && !window.getSelection()?.toString()) { if (fold) toggle?.(); else open(event); } }}>
     <Table.Cell colSpan={wide ? 2 : undefined} className={wide ? 'hub-row-run' : undefined}>
       <span className="hub-row-title">
-        {fold ? <IconButton variant="ghost" size="sm" className="hub-row-fold" data-row-target icon={fold.open ? <IconExpandMore /> : <IconChevronRight />} aria-label={'Parts of ' + work.title} aria-expanded={fold.open} aria-controls={fold.controls} onClick={toggle} />
+        {/* The mark of a row that folds: the row is the button, the chevron only says which way it is. */}
+        {fold ? <span className="hub-row-fold" aria-hidden="true">{fold.open ? <IconExpandMore /> : <IconChevronRight />}</span>
           : gutter && index === undefined && <span className="hub-row-fold" aria-hidden="true" />}
         {index !== undefined && <span className="hub-row-index" aria-label={'Part ' + index}>{index}</span>}
         <StatusIcon status={status} />
-        {/* A group's row folds its parts wherever it is clicked: its title is no link, and its number opens its plan. */}
-        {fold ? <span className="hub-row-link" title={work.summary ?? undefined}>{work.title}</span>
+        {/* A group's row folds its parts wherever it is clicked: its title is the button that does, stretched over the row, and its number opens its plan. */}
+        {fold ? <Button variant="text" className="hub-row-link hub-row-toggle" data-row-target aria-expanded={fold.open} aria-controls={fold.controls} title={work.summary ?? undefined} onClick={toggle}>{work.title}</Button>
           : <Link href="#" underline={false} className="hub-row-link" data-row-target draggable={false} title={work.summary ?? undefined} onClick={open}>{work.title}</Link>}
         {/* eslint-disable-next-line envui/no-link-in-clickable-row -- the row folds the group's parts; its plan needs a way in that is no new button, and the number is it */}
         {fold ? <Link href="#" underline={false} className="hub-row-number hub-row-open" draggable={false} title={'Open ' + work.title} onClick={open}>{workNumber(work.id)}</Link>
