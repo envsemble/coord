@@ -52,7 +52,7 @@ const listed = 8;
 function UpdateChangesCard({ version, lead, state }: { version: string; lead: string; state: UpdateState }) {
   const { changes } = state;
   const shown = changes?.changes.slice(0, listed) ?? [];
-  return <Column gap={3} className="update-card">
+  return <Column gap={3}>
     <Column gap={1}>
       <Text variant="title" render={<strong />}>Coord {version}</Text>
       <Text variant="body-sm">{lead}</Text>

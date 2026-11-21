@@ -13,23 +13,42 @@ interface Compare { html_url: string; total_commits: number; commits: CompareCom
 
 /**
  * The comparison's steps along the branch, newest first: from its newest commit, each commit's first
- * parent, which leaves out the commits inside a merged pull request.
+ * parent, which leaves out the commits inside a merged pull request. A merge that brings pull
+ * requests of its own (a release merging dev into main) is replaced by its steps, and a merge that
+ * brings nothing new (main merged back into a release) is left out.
  */
 export function readChanges(compare: Compare, version: string): UpdateChanges {
   const bySha = new Map(compare.commits.map(commit => [commit.sha, commit]));
+  const taken = new Set<string>();
+  // One line of history: from `sha`, each first parent in the comparison not taken by a newer line.
+  const line = (sha: string | undefined) => {
+    const commits: CompareCommit[] = [];
+    for (let commit = bySha.get(sha ?? ''); commit && !taken.has(commit.sha); commit = bySha.get(commit.parents[0]?.sha ?? '')) {
+      taken.add(commit.sha);
+      commits.push(commit);
+    }
+    return commits;
+  };
   const changes: UpdateChange[] = [];
-  for (let commit = compare.commits.at(-1); commit && changes.length < kept; commit = bySha.get(commit.parents[0]?.sha ?? '')) {
-    changes.push(change(commit));
-    // A commit is never its own ancestor, but a malformed answer must not loop.
-    bySha.delete(commit.sha);
-  }
+  const steps = (commits: CompareCommit[]) => {
+    for (const commit of commits) {
+      if (changes.length >= kept) return;
+      if (commit.parents.length < 2) { changes.push(change(commit)); continue; }
+      const side = line(commit.parents[1]!.sha);
+      if (side.some(merged => pullRequest(merged))) steps(side);
+      else if (pullRequest(commit) || side.length) changes.push(change(commit));
+    }
+  };
+  steps(line(compare.commits.at(-1)?.sha));
   return { version, changes, commits: compare.total_commits, url: compare.html_url };
 }
 
+/** GitHub's merge commit: "Merge pull request #59 from owner/branch", then the pull request's title. */
+const pullRequest = (commit: CompareCommit) => /^Merge pull request #(\d+) from (\S+)/.exec(commit.commit.message);
+
 function change(commit: CompareCommit): UpdateChange {
   const lines = commit.commit.message.split('\n').map(line => line.trim()).filter(Boolean);
-  // GitHub's merge commit: "Merge pull request #59 from owner/branch", then the pull request's title.
-  const merge = /^Merge pull request #(\d+) from (\S+)/.exec(lines[0] ?? '');
+  const merge = pullRequest(commit);
   if (merge) return { title: lines[1] ?? merge[2]!, sha: commit.sha, pull: Number(merge[1]) };
   return { title: lines[0] ?? commit.sha.slice(0, 7), sha: commit.sha, pull: null };
 }

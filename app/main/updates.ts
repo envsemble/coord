@@ -54,9 +54,9 @@ export class Updates {
   private channel: UpdateChannel;
   private status: UpdateStatus;
   private timer: ReturnType<typeof setTimeout> | null = null;
-  /** The changes of the last build offered, and the build whose changes are being asked for. */
+  /** The changes of the last build offered, and the build and stage of the update they were last asked for. */
   private changes: UpdateChanges | null = null;
-  private changesFor: string | null = null;
+  private changesAsked: string | null = null;
 
   constructor(options: UpdatesOptions) {
     this.options = options;
@@ -171,17 +171,23 @@ export class Updates {
     this.askForChanges();
   }
 
-  /** Ask once what the build on offer changes; a failed answer is asked for again when its update moves on. */
+  /**
+   * Ask what the build on offer changes, once for each stage of its update (offered, downloading,
+   * downloaded): a failed answer is asked for again at the next stage, not at each step of a download.
+   */
   private askForChanges() {
     const ask = this.options.changes;
     const to = 'version' in this.status ? this.status.version : null;
-    if (!ask || !to || this.changes?.version === to || this.changesFor === to) return;
-    this.changesFor = to;
+    const asked = `${to} ${this.status.kind}`;
+    if (!ask || !to || this.changes?.version === to || this.changesAsked === asked) return;
+    this.changesAsked = asked;
     ask(this.options.version, to).then(changes => {
+      // An answer for a build no longer on offer is dropped.
+      if (!('version' in this.status) || this.status.version !== to) return;
       this.changes = changes;
-      if ('version' in this.status && this.status.version === to) this.options.onChange(this.state());
+      this.options.onChange(this.state());
     }, error => {
       this.options.log.warn('Could not read what the update changes', { version: to, message: shortMessage(error) });
-    }).finally(() => { if (this.changesFor === to) this.changesFor = null; });
+    });
   }
 }

@@ -65,6 +65,12 @@ test('an update is offered, downloaded and installed only when asked, and a fail
   assert.equal(engine.installed, null);
   assert.deepEqual((await app.download()).status, { kind: 'ready', version: '0.9.1' });
   assert.deepEqual([app.state().changes, asked], [changes, ['0.9.0...0.9.1']]);
+  // Changes GitHub cannot give are asked for again at each stage of the update, not at each step of its download.
+  let failures = 0;
+  const { updates: unanswered } = updates('0.9.0', fakeEngine(() => answer()), null, async () => { failures++; throw new Error('Not Found'); });
+  await unanswered.check();
+  await unanswered.download();
+  assert.equal(failures, 3);
   assert.ok(states.some(state => state.status.kind === 'downloading' && state.status.percent === 42));
   // A check while one is downloaded keeps it ready.
   assert.equal((await app.check()).status.kind, 'ready');

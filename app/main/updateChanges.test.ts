@@ -24,3 +24,24 @@ test("an update's changes are the branch's own steps, newest first, with a merge
     ],
   });
 });
+
+test('a release merged into main lists the pull requests it brings, not itself, and leaves out merges that bring nothing', () => {
+  const commit = (sha: string, parents: string[], message: string) => ({ sha, parents: parents.map(parent => ({ sha: parent })), commit: { message } });
+  const { changes } = readChanges({
+    html_url: 'https://github.com/envsemble/coord/compare/v0.9.0...v0.10.0',
+    total_commits: 8,
+    commits: [
+      commit('d1', ['base'], 'A commit on dev'),
+      commit('e1', ['base'], 'Inside the envUI pull request'),
+      commit('d2', ['d1', 'e1'], 'Merge pull request #63 from envsemble/envui-3\n\nCoord on envUI 3'),
+      commit('s1', ['base'], 'The site'),
+      commit('m2', ['base', 's1'], 'Merge pull request #60 from envsemble/site\n\nSite: current screenshots'),
+      commit('r1', ['d2', 'm2'], 'Merge main into the 0.10.0 release'),
+      commit('r2', ['r1'], 'Release 0.10.0'),
+      commit('m3', ['m2', 'r2'], 'Merge pull request #65 from envsemble/release-0.10.0\n\nRelease 0.10.0'),
+    ],
+  }, '0.10.0');
+  assert.deepEqual(changes.map(change => change.pull ? `#${change.pull} ${change.title}` : change.title), [
+    'Release 0.10.0', '#63 Coord on envUI 3', 'A commit on dev', '#60 Site: current screenshots',
+  ]);
+});
