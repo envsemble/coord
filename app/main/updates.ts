@@ -13,7 +13,7 @@ export interface UpdaterEngine {
   allowDowngrade: boolean;
   autoDownload: boolean;
   autoInstallOnAppQuit: boolean;
-  checkForUpdates(): Promise<{ isUpdateAvailable?: boolean; updateInfo: { version: string } } | null>;
+  checkForUpdates(): Promise<{ isUpdateAvailable?: boolean; updateInfo: { version: string; releaseDate?: string } } | null>;
   downloadUpdate(): Promise<unknown>;
   quitAndInstall(isSilent?: boolean, isForceRunAfter?: boolean): void;
   on(event: 'download-progress', listener: (progress: { percent: number }) => void): unknown;
@@ -57,6 +57,7 @@ export class Updates {
   /** The changes of the last build offered, and the build and stage of the update they were last asked for. */
   private changes: UpdateChanges | null = null;
   private changesAsked: string | null = null;
+  private changesLoading: string | null = null;
 
   constructor(options: UpdatesOptions) {
     this.options = options;
@@ -86,7 +87,10 @@ export class Updates {
   state(): UpdateState {
     // Changes belong to the build on offer, downloading or downloaded, and to no other.
     const offered = 'version' in this.status ? this.status.version : null;
-    return { version: this.options.version, channel: this.channel, status: this.status, changes: this.changes?.version === offered ? this.changes : null };
+    return {
+      version: this.options.version, channel: this.channel, status: this.status,
+      changes: this.changes?.version === offered ? this.changes : null, changesLoading: offered !== null && this.changesLoading === offered,
+    };
   }
 
   /** Check soon after start, then every few hours while Coord runs. */
@@ -111,8 +115,8 @@ export class Updates {
       const result = await engine.checkForUpdates();
       // The channel changed while this check ran: its answer is the other channel's.
       if (this.channel !== channel) { this.status = { kind: 'idle', checkedAt: null }; return this.check(); }
-      const version = result?.updateInfo.version;
-      this.set(result?.isUpdateAvailable && version ? { kind: 'available', version } : { kind: 'idle', checkedAt: new Date().toISOString() });
+      const version = result?.updateInfo.version, released = result?.updateInfo.releaseDate;
+      this.set(result?.isUpdateAvailable && version ? { kind: 'available', version, ...released && { released } } : { kind: 'idle', checkedAt: new Date().toISOString() });
     } catch (error) {
       this.options.log.warn('Update check failed', { channel: this.channel, message: shortMessage(error) });
       this.set({ kind: 'failed', message: shortMessage(error) });
@@ -123,12 +127,12 @@ export class Updates {
   /** Download the build on offer. */
   async download(): Promise<UpdateState> {
     if (!this.engine || this.status.kind !== 'available') return this.state();
-    const { version } = this.status;
-    this.set({ kind: 'downloading', version, percent: 0 });
+    const { version, released } = this.status;
+    this.set({ kind: 'downloading', version, ...released && { released }, percent: 0 });
     try {
       await this.engine.downloadUpdate();
       this.options.log.info('Update downloaded', { version });
-      this.set({ kind: 'ready', version });
+      this.set({ kind: 'ready', version, ...released && { released } });
     } catch (error) {
       this.options.log.warn('Update download failed', { version, message: shortMessage(error) });
       this.set({ kind: 'failed', message: shortMessage(error) });
@@ -167,8 +171,8 @@ export class Updates {
 
   private set(status: UpdateStatus) {
     this.status = status;
-    this.options.onChange(this.state());
     this.askForChanges();
+    this.options.onChange(this.state());
   }
 
   /**
@@ -183,13 +187,16 @@ export class Updates {
     const asked = `${to} ${this.status.kind}`;
     if (!ask || this.changes?.version === to || this.changesAsked === asked) return;
     this.changesAsked = asked;
+    this.changesLoading = to;
     ask(this.options.version, to).then(changes => {
       // An answer for a build no longer on offer is dropped.
-      if (!('version' in this.status) || this.status.version !== to) return;
-      this.changes = changes;
-      this.options.onChange(this.state());
+      if ('version' in this.status && this.status.version === to) this.changes = changes;
     }, error => {
       this.options.log.warn('Could not read what the update changes', { version: to, message: shortMessage(error) });
+    }).finally(() => {
+      if (this.changesLoading !== to) return;
+      this.changesLoading = null;
+      if ('version' in this.status && this.status.version === to) this.options.onChange(this.state());
     });
   }
 }

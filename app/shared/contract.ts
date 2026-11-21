@@ -171,19 +171,23 @@ export const updateChannels = ['stable', 'nightly'] as const;
 export type UpdateChannel = typeof updateChannels[number];
 /** Whether a version is a nightly build's (`0.9.1-nightly.20261114.42`): its updates follow the nightly channel, and its title bar says Nightly. */
 export const isNightlyVersion = (version: string) => /-nightly\./.test(version);
+/** The repository whose releases Coord updates from (electron-builder.yml's publish), and a release's page there. */
+export const releaseRepository = 'envsemble/coord';
+export const releasePage = (version: string) => `https://github.com/${releaseRepository}/releases/tag/v${encodeURIComponent(version)}`;
 /**
  * Where the installed app's update stands: off for this run (a development or test build, or a
  * Linux build not run as its AppImage, with why), nothing to do (`checkedAt`: the last check that
  * found nothing, null before one), checking, a newer build on offer, downloading it, downloaded and
- * ready to restart into, or the last step failed (a message fit to show).
+ * ready to restart into (with when its release was published, when the update file says), or the
+ * last step failed (a message fit to show).
  */
 export type UpdateStatus =
   | { kind: 'off'; reason: string }
   | { kind: 'idle'; checkedAt: string | null }
   | { kind: 'checking' }
-  | { kind: 'available'; version: string }
-  | { kind: 'downloading'; version: string; percent: number }
-  | { kind: 'ready'; version: string }
+  | { kind: 'available'; version: string; released?: string }
+  | { kind: 'downloading'; version: string; released?: string; percent: number }
+  | { kind: 'ready'; version: string; released?: string }
   | { kind: 'failed'; message: string };
 /** One change an update brings: a merged pull request (with its number) or a commit made on the branch itself. */
 export interface UpdateChange { title: string; sha: string; pull: number | null }
@@ -193,9 +197,13 @@ export interface UpdateChange { title: string; sha: string; pull: number | null 
  * comparison's page; or, when GitHub no longer has the running build's tag (old nightlies are
  * removed), no steps, no count and the update's release page.
  */
-export interface UpdateChanges { version: string; changes: UpdateChange[]; commits: number | null; url: string }
-/** The running build's version, the channel it follows, its update, and that update's changes once GitHub answers. */
-export interface UpdateState { version: string; channel: UpdateChannel; status: UpdateStatus; changes: UpdateChanges | null }
+/** `partial` when GitHub's list, or the steps kept of it, stop short of the whole comparison. */
+export interface UpdateChanges { version: string; changes: UpdateChange[]; commits: number | null; url: string; partial?: boolean }
+/**
+ * The running build's version, the channel it follows, its update, and that update's changes once
+ * GitHub answers (`changesLoading` while it is asked).
+ */
+export interface UpdateState { version: string; channel: UpdateChannel; status: UpdateStatus; changes: UpdateChanges | null; changesLoading: boolean }
 
 /** What the menu's About Coord shows. */
 export interface AboutInfo {

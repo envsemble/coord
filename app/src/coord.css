@@ -599,10 +599,24 @@ html, body, #root { min-block-size: 100%; }
 .access-address { inline-size: 17rem; }
 .access-port { flex: none; inline-size: 7rem; }
 .settings-group .pairing-label { max-inline-size: 36rem; }
-.updates-progress { inline-size: min(100%, 24rem); }
 .updates-failure { color: var(--env-color-fg-danger); }
-/* The update button's card: the update's changes as a short bulleted list. */
-.update-changes { display: grid; gap: var(--env-space-1); margin: 0; padding-inline-start: var(--env-space-4); }
+/* The update button: while it downloads, its percentage, at one width as the number grows. */
+.update-progress-button { min-inline-size: 5.25rem; font-variant-numeric: tabular-nums; }
+/* Its card, on envUI's popup surface: one width whatever it holds, the changes as rows with their pull
+   request at the end, and the comparison on GitHub. */
+.update-card { inline-size: min(26rem, calc(100vw - 3rem)); }
+.update-card-heading :is(h2, h3), .update-card-caption :is(h2, h3) { margin: 0; }
+.update-card-caption h3 { font-weight: 500; }
+.update-card-changes { padding-inline: var(--env-space-2); }
+.update-card-heading, .update-card-caption { display: flex; align-items: baseline; justify-content: space-between; gap: var(--env-space-3); }
+.update-changes { display: grid; gap: var(--env-space-2); margin: 0; padding: 0; list-style: none; max-block-size: min(20rem, 45vh); overflow-y: auto; }
+.update-changes > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--env-space-2); align-items: baseline; }
+.update-change-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.update-change-ref { color: var(--env-color-fg-muted); white-space: nowrap; }
+.update-card-loading { display: flex; align-items: center; gap: var(--env-space-2); color: var(--env-color-fg-muted); }
+.update-card-link svg { inline-size: 1em; block-size: 1em; margin-inline-start: var(--env-space-1); vertical-align: -0.125em; }
+.updates-percent { font-variant-numeric: tabular-nums; }
+.updates-changes-line { display: block; }
 
 /* The agents on this computer: each one's mark and name over its status, its action at the end of the
    row. One not on this computer is greyed, with its install link; a change on its way shows in its row. */

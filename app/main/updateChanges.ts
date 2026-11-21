@@ -1,10 +1,8 @@
 // What an update changes: GitHub's comparison of the running build's tag with the update's
 // (v0.9.1-nightly.20261116.5...v0.9.1-nightly.20261119.12), read as the branch's own steps. A merged
 // pull request is one step, under its title; a commit made on the branch itself is one too.
-import type { UpdateChange, UpdateChanges } from '../shared/contract.ts';
+import { releasePage, releaseRepository, type UpdateChange, type UpdateChanges } from '../shared/contract.ts';
 
-/** The repository whose releases Coord updates from (electron-builder.yml's publish). */
-export const releaseRepository = 'envsemble/coord';
 /** The most steps kept: the card shows the newest, and the comparison's page has them all. */
 const kept = 50;
 
@@ -31,10 +29,13 @@ export function readChanges(compare: Compare, version: string): UpdateChanges {
     return commits;
   };
   const changes: UpdateChange[] = [];
+  // Past the most kept, the walk goes on only to learn whether a further step would have been listed.
+  let cut = false;
+  const keep = (commit: CompareCommit) => { if (changes.length < kept) changes.push(change(commit)); else cut = true; };
   const steps = (commits: CompareCommit[]) => {
     for (const commit of commits) {
-      if (changes.length >= kept) return;
-      if (commit.parents.length < 2) { changes.push(change(commit)); continue; }
+      if (cut) return;
+      if (commit.parents.length < 2) { keep(commit); continue; }
       const side = line(commit.parents[1]!.sha);
       // A release or a sync (a pull request from dev, main or a release-<version> branch), or a merge
       // between branches, is expanded into the pull requests it brings; a feature's pull request stays
@@ -43,11 +44,11 @@ export function readChanges(compare: Compare, version: string): UpdateChanges {
       if (side.some(merged => pullRequest(merged)) && (!merge || /^(?:dev$|main$|release[-/]v?\d)/.test(merge[2]!.split('/').slice(1).join('/')))) steps(side);
       // A pull request whose commits are all on the branch already (main merged back into dev) brings
       // nothing; when GitHub cut the comparison short, its commits may only be missing from it.
-      else if (side.length || (pullRequest(commit) && truncated)) changes.push(change(commit));
+      else if (side.length || (pullRequest(commit) && truncated)) keep(commit);
     }
   };
   steps(line(compare.commits.at(-1)?.sha));
-  return { version, changes, commits: compare.total_commits, url: compare.html_url };
+  return { version, changes, commits: compare.total_commits, url: compare.html_url, ...(truncated || cut) && { partial: true } };
 }
 
 /** GitHub's merge commit: "Merge pull request #59 from owner/branch", then the pull request's title. */
@@ -67,7 +68,7 @@ export async function fetchChanges(from: string, to: string, fetcher: typeof fet
     signal: AbortSignal.timeout(15_000),
   });
   // An old nightly's tag is removed after a while: the update's own release still says what it has.
-  if (response.status === 404) return { version: to, changes: [], commits: null, url: `https://github.com/${releaseRepository}/releases/tag/v${encodeURIComponent(to)}` };
+  if (response.status === 404) return { version: to, changes: [], commits: null, url: releasePage(to) };
   if (!response.ok) throw new Error(`GitHub answered ${response.status} comparing v${from} with v${to}.`);
   return readChanges(await response.json() as Compare, to);
 }

@@ -6,7 +6,7 @@ import { Updates, type UpdaterEngine, type UpdatesOptions } from './updates.ts';
 import type { UpdateState } from '../shared/contract.ts';
 
 /** electron-updater's AppUpdater as far as Coord uses it, answering with what the test gives it. */
-function fakeEngine(answer: () => Promise<{ isUpdateAvailable: boolean; updateInfo: { version: string } }>) {
+function fakeEngine(answer: () => Promise<{ isUpdateAvailable: boolean; updateInfo: { version: string; releaseDate?: string } }>) {
   const listeners = new Map<string, (value: never) => void>();
   const engine = {
     channel: null as string | null, allowPrerelease: true, allowDowngrade: true, autoDownload: true, autoInstallOnAppQuit: true,
@@ -52,18 +52,18 @@ test('a build follows its own channel until another is chosen, and never moves t
 });
 
 test('an update is offered, downloaded and installed only when asked, and a failure shows as one line', async () => {
-  let answer: () => Promise<{ isUpdateAvailable: boolean; updateInfo: { version: string } }> = async () => ({ isUpdateAvailable: true, updateInfo: { version: '0.9.1' } });
+  let answer: () => Promise<{ isUpdateAvailable: boolean; updateInfo: { version: string; releaseDate?: string } }> = async () => ({ isUpdateAvailable: true, updateInfo: { version: '0.9.1', releaseDate: '2026-11-19T20:28:52.286Z' } });
   const engine = fakeEngine(() => answer());
   // What the update changes is asked for once, for the build on offer, and stays with it.
   const asked: string[] = [];
   const changes = { version: '0.9.1', changes: [{ title: 'Faster updates', sha: 'abc1234', pull: 7 }], commits: 3, url: 'https://github.com/envsemble/coord/compare/v0.9.0...v0.9.1' };
   const { updates: app, states } = updates('0.9.0', engine, null, async (from, to) => { asked.push(`${from}...${to}`); return changes; });
-  assert.deepEqual((await app.check()).status, { kind: 'available', version: '0.9.1' });
+  assert.deepEqual((await app.check()).status, { kind: 'available', version: '0.9.1', released: '2026-11-19T20:28:52.286Z' });
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(app.state().changes, changes);
   assert.deepEqual(states.at(-1)?.changes, changes);
   assert.equal(engine.installed, null);
-  assert.deepEqual((await app.download()).status, { kind: 'ready', version: '0.9.1' });
+  assert.deepEqual((await app.download()).status, { kind: 'ready', version: '0.9.1', released: '2026-11-19T20:28:52.286Z' });
   assert.deepEqual([app.state().changes, asked], [changes, ['0.9.0...0.9.1']]);
   // Changes GitHub cannot give are asked for again at each stage of the update, not at each step of its download.
   let failures = 0;
