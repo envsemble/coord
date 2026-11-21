@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { CommandPalette, type CommandPaletteItem } from '@envsemble/envui';
+import { CommandPalette, type CommandPaletteGroup, type CommandPaletteItem } from '@envsemble/envui';
 import { DiagramIcon, FileIcon, FolderIcon, LedgerIcon, PageIcon, PlanIcon, SearchIcon, SettingsIcon, StatisticsIcon, WorkIcon } from '../ui/icons';
 import type { DiagramIndexEntry, Project, SearchKind, SearchResult, Snapshot, Target } from '../types';
 import { api } from '../api';
@@ -13,6 +13,18 @@ import { StatusIcon } from '../ui/badges';
 import type { HubItem } from '../hub/hubPlans';
 
 interface Entry extends QuickItem, Omit<SearchEntry, 'kind'> { icon: ReactNode; state?: string }
+/** A row of the palette with the heading it goes under. */
+type Grouped = CommandPaletteItem & { group: string };
+/** The palette's groups: each run of rows with the same heading, in the order they come. */
+function paletteGroups(rows: readonly Grouped[]): CommandPaletteGroup[] {
+  const groups: { label: string; items: CommandPaletteItem[] }[] = [];
+  for (const { group, ...row } of rows) {
+    const last = groups.at(-1);
+    if (last?.label === group) last.items.push(row);
+    else groups.push({ label: group, items: [row] });
+  }
+  return groups;
+}
 /** The prefixes that narrow the search to a kind (`step: release`), and the kinds each keeps. */
 const narrowers: Record<string, SearchKind[]> = {
   plan: ['plan'], step: ['step'], doc: ['document', 'heading', 'page'], diagram: ['diagram', 'element'], term: ['term'], project: ['project'],
@@ -174,39 +186,40 @@ export function SearchPopup({ hostId, projects, open, query, setQuery, onChoose,
     });
   }, [entries, words, kinds, tagged, asked, found, projects, plans]);
   const byId = useMemo(() => new Map(results.map(entry => [entry.id, entry])), [results]);
-  const item = (entry: { id: string; label: string; detail: string; snippet?: string | null; group: string; icon: ReactNode; state?: string | null }): CommandPaletteItem => ({
+  const item = (entry: { id: string; label: string; detail: string; snippet?: string | null; group: string; icon: ReactNode; state?: string | null }): Grouped => ({
     // One line of title: a long one ends in an ellipsis, so more results fit in view.
-    id: entry.id, label: <span className="search-label" title={entry.label}>{marked(entry.label, words)}</span>, textValue: [entry.label, entry.state, entry.detail, entry.snippet].filter(Boolean).join(', '), icon: entry.icon, group: entry.group,
+    id: entry.id, label: <span className="search-label" title={entry.label}>{marked(entry.label, words)}</span>, textValue: [entry.label, entry.state, entry.detail, entry.snippet].filter(Boolean).join(', '), start: entry.icon, group: entry.group,
     // One line of where it is; the words it was found in under it, marked, only when the search found it in its text.
     description: entry.detail || entry.snippet ? <><span className="search-where">{entry.detail}</span>{entry.snippet && <span className="search-snippet">{marked(entry.snippet, words)}</span>}</> : undefined,
     // A plan's state at the row's end, where it does not crowd where the plan is.
     end: entry.state ? <span className="search-state">{entry.state}</span> : undefined,
   });
   const goTo = pages.filter(page => words && !kinds && rankItems([{ id: page.id, kind: 'work', label: page.label, detail: 'Go to' }], words).length);
-  const items: CommandPaletteItem[] = [
+  const items: Grouped[] = [
     ...results.map(entry => 'more' in entry
-      ? { id: entry.id, label: entry.label, textValue: entry.label, icon: <MoreIcon />, group: entry.group, className: 'search-more' }
+      ? { id: entry.id, label: entry.label, textValue: entry.label, start: <MoreIcon />, group: entry.group, className: 'search-more' }
       // A plan says its state at its end; its steps, documents and diagrams say it only when the plan is
       // closed, where it tells something: the open ones come first already.
       : item({ ...entry,
         icon: icons.get(entry.id) ?? (entry.key && plans.get(entry.key)?.icon) ?? kindIcons[entry.kind], state: entry.kind === 'plan' ? (entry.key ? plans.get(entry.key)?.state : null) : entry.plan && plans.get(entry.plan)?.penalty ? plans.get(entry.plan)?.state : null })),
-    ...goTo.map(page => ({ id: page.id, label: page.label, textValue: 'Go to ' + page.label, icon: page.icon, group: 'Go to' })),
+    ...goTo.map(page => ({ id: page.id, label: page.label, textValue: 'Go to ' + page.label, start: page.icon, group: 'Go to' })),
   ];
 
   // A prefix's values, as it is typed (tag:, tag:0.9, project:): the user's tags, the most used first,
   // and their projects, so the prefixes the tip shows lead somewhere at once.
   const picking = /^(tag|project):(\S*)$/i.exec(text);
-  const values: CommandPaletteItem[] = useMemo(() => {
+  const values: Grouped[] = useMemo(() => {
     if (!picking) return [];
     const part = picking[2]!.toLowerCase();
     if (picking[1]!.toLowerCase() === 'project') return projects.filter(each => each.state === 'active' && hasWords(each.name, part || each.name))
-      .map(each => ({ id: 'project:' + each.id, label: each.name, textValue: each.name, icon: <FolderIcon />, group: 'Projects', end: <span className="search-state">{plural(hubItems([each], each.id).filter(plan => plan.work.state !== 'closed').length, 'open plan')}</span> }));
+      .map(each => ({ id: 'project:' + each.id, label: each.name, textValue: each.name, start: <FolderIcon />, group: 'Projects', end: <span className="search-state">{plural(hubItems([each], each.id).filter(plan => plan.work.state !== 'closed').length, 'open plan')}</span> }));
     const counts = new Map<string, number>();
     for (const plan of hubItems(projects, null)) for (const tag of plan.work.tags ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1);
     return [...counts].filter(([tag]) => tag.toLowerCase().startsWith(part)).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12)
-      .map(([tag, count]) => ({ id: 'tag:' + tag, label: <code className="search-try">tag:{tag}</code>, textValue: 'tag ' + tag, icon: <SearchIcon />, group: 'Tags', end: <span className="search-state">{plural(count, 'plan')}</span> }));
+      .map(([tag, count]) => ({ id: 'tag:' + tag, label: <code className="search-try">tag:{tag}</code>, textValue: 'tag ' + tag, start: <SearchIcon />, group: 'Tags', end: <span className="search-state">{plural(count, 'plan')}</span> }));
   }, [picking?.[0], projects]);
   const shownItems = [...values.filter(value => value.id !== 'tag:' + tagged), ...items];
+  const shownGroups = paletteGroups(shownItems);
   // A prefix with nothing after it says what to type, not that nothing matched.
   const waiting = prefix && !words && !picking ? 'Type words to find ' + kindNames[narrowers[prefix]![0]!] : null;
 
@@ -258,7 +271,7 @@ export function SearchPopup({ hostId, projects, open, query, setQuery, onChoose,
       // The state is said by the group's heading where it is the group's.
       return item({ id: 'suggested:' + group + ':' + plan.project.id + ':' + plan.work.id, label: plan.work.title, detail: planWhere(plan), group, icon: <StatusIcon status={plan.status} decorative />, state: plan.status.label === group ? null : plan.status.label });
     });
-    const tryItems = tries.map(example => ({ id: 'try:' + example.query, label: <code className="search-try">{example.query}</code>, textValue: example.query + ', ' + example.finds, description: example.finds, icon: <SearchIcon />, group: 'Try' }));
+    const tryItems = tries.map(example => ({ id: 'try:' + example.query, label: <code className="search-try">{example.query}</code>, textValue: example.query + ', ' + example.finds, description: example.finds, start: <SearchIcon />, group: 'Try' }));
     // What was opened lately, as it is now: a plan with its state; one no longer listed is left out.
     const lately = recent.filter(each => each.kind !== 'plan' || (each.key && plans.has(each.key))).map(each => {
       if (each.key) shown.add(each.key);
@@ -272,13 +285,14 @@ export function SearchPopup({ hostId, projects, open, query, setQuery, onChoose,
       ...(lately.length >= 3 ? [] : tryItems),
       ...take(hubGroups(all, 'open').find(group => group.id === 'your_turn')?.items ?? [], 'Your turn', 3),
       ...(lately.length >= 3 ? tryItems : []),
-      ...pages.map(page => ({ id: page.id, label: page.label, textValue: 'Go to ' + page.label, icon: page.icon, group: 'Go to' })),
+      ...pages.map(page => ({ id: page.id, label: page.label, textValue: 'Go to ' + page.label, start: page.icon, group: 'Go to' })),
     ];
   }, [projects, tries, recent, plans]);
+  const suggestedGroups = useMemo(() => paletteGroups(suggestions), [suggestions]);
   const suggested = useMemo(() => new Map(hubItems(projects, null).map(plan => [plan.project.id + ':' + plan.work.id, plan])), [projects]);
 
   return <CommandPalette open onOpenChange={value => { if (!value) onClose(); }} className="search-popup" aria-label="Search" closeOnAction={false}
-    inputValue={query} onInputValueChange={setQuery} items={shownItems} suggestedItems={suggestions} placeholder="Search everything, or narrow with tag:, step:, doc:…"
+    inputValue={query} onInputValueChange={setQuery} items={shownGroups} suggestedItems={suggestedGroups} placeholder="Search everything, or narrow with tag:, step:, doc:…"
     hints={[{ keys: ['Enter'], label: 'Open' }, { keys: ['Esc'], label: 'Close' }]}
     // While the host is asked, the field says so, and "No matches" waits for its answer.
     loading={Boolean(asked) && !waiting && found?.query !== asked}

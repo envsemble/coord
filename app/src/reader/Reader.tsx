@@ -90,7 +90,7 @@ function FoldedSection({ id, children }: { id: string; children?: ReactNode }) {
 function FoldToggle({ id, children }: { id?: string; children?: ReactNode }) {
   const folds = useContext(FoldsContext);
   if (!folds || !id) return children;
-  return <Button variant="text" className="request-fold-toggle" aria-expanded={folds.open.has(id)} startIcon={<ChevronRightIcon className="request-fold-icon" />} onClick={() => folds.toggle(id)}>{children}</Button>;
+  return <Button variant="text" className="request-fold-toggle" aria-expanded={folds.open.has(id)} start={<ChevronRightIcon className="request-fold-icon" />} onClick={() => folds.toggle(id)}>{children}</Button>;
 }
 
 export function Reader({ file, snapshot, anchor, references = noReferences, hideTitle, plan = false }: {
@@ -194,7 +194,7 @@ export function Reader({ file, snapshot, anchor, references = noReferences, hide
     };
   }, [names, hideTitle, linkKey, file.path, open, projectId, sibling, openPath]);
   const reveal = () => { api.reveal(projectId, file.path).catch(failure => notify(failure.message, 'warning')); };
-  const revealButton = remote ? null : <Button variant="text" startIcon={<FolderOpenIcon />} onClick={reveal} title="Show this file in your file manager">Show in folder</Button>;
+  const revealButton = remote ? null : <Button variant="text" start={<FolderOpenIcon />} onClick={reveal} title="Show this file in your file manager">Show in folder</Button>;
 
   return <article className="reader" ref={article}>
     {error ? <EmptyState icon={<FileIcon />} title="Unable to open this file" description={error} action={revealButton} />

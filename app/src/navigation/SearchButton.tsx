@@ -8,7 +8,7 @@ import { modifierKey } from '../titleBar/TitleBar';
  * on every page.
  */
 export function SearchButton({ platform, onClick, label = 'Search', className }: { platform: string; onClick(): void; label?: string; className?: string }) {
-  return <Button variant="secondary" className={'search-button' + (className ? ' ' + className : '')} startIcon={<SearchIcon />} end={<span className="search-button-keys"><Kbd keys={[modifierKey(platform), 'K']} /></span>}
+  return <Button variant="secondary" className={'search-button' + (className ? ' ' + className : '')} start={<SearchIcon />} end={<span className="search-button-keys"><Kbd keys={[modifierKey(platform), 'K']} /></span>}
     onClick={onClick} aria-label={label} aria-haspopup="dialog" aria-keyshortcuts={platform === 'darwin' ? 'Meta+K Meta+P' : 'Control+K Control+P'}>
     <span className="search-button-label">{label}</span>
   </Button>;

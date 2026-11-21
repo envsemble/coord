@@ -35,7 +35,7 @@ export function SettingsPage({ section, computer, go }: { section: SettingsSecti
         ? <NavigationDrawer aria-label="Settings" className="settings-sections" background="page"
           destinations={sections.map(item => ({ id: item.id, label: item.label, icon: item.icon, current: item.id === shown.id, onClick: () => go(item.id) }))} />
         : <SegmentedControl aria-label="Settings" className="settings-sections" value={shown.id} onValueChange={value => go(value as SettingsSection)}
-          items={sections.map(item => ({ value: item.id, label: item.label, icon: item.icon }))} />}
+          items={sections.map(item => ({ value: item.id, label: item.label, start: item.icon }))} />}
       <div className="settings-content">{shown.content}</div>
     </div>
   </Page>;

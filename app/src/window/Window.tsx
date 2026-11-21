@@ -631,7 +631,7 @@ function Health({ issues, open }: { issues: Issue[]; open(work: string): void })
   const errors = issues.some(issue => issue.level === 'error');
   const label = issues.length + ' record health ' + (issues.length === 1 ? 'note' : 'notes');
   return <Popover aria-label="Record health" title="Record health" width="lg"
-    trigger={<Button variant="ghost" className={'health-button' + (errors ? ' has-errors' : '')} startIcon={<WarningIcon />} aria-label={label}>{issues.length}</Button>}>
+    trigger={<Button variant="ghost" className={'health-button' + (errors ? ' has-errors' : '')} start={<WarningIcon />} aria-label={label}>{issues.length}</Button>}>
     {close => <ul className="health-list">{issues.map((issue, index) => <li key={index} data-level={issue.level}>
       <WarningIcon className="health-icon" />
       <span>{issue.workId && <><Button variant="text" underline className="health-link" onClick={() => { close(); open(issue.workId!); }}>{workNumber(issue.workId)}</Button>{' '}</>}{issue.message}</span>

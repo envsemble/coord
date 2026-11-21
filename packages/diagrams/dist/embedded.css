@@ -235,7 +235,7 @@
   place-items: center;
   width: 1.125rem;
   height: 1.125rem;
-  border-radius: 0.3125rem;
+  border-radius: var(--env-radius-xs);
   background: color-mix(in srgb, var(--change-color) 16%, transparent);
   color: var(--change-color);
   font: 600 0.8125rem / 1 var(--coord-font-code);
@@ -324,7 +324,7 @@
 .coord-panel .change-row-text {
   display: grid;
   flex: 1;
-  gap: 0.125rem;
+  gap: calc(var(--env-space-1) / 2);
   min-width: 0;
 }
 .coord-panel .change-row-title {
@@ -354,7 +354,7 @@
   color: var(--change-color);
 }
 .coord-panel .change-token-glyph {
-  margin-inline-end: 0.125rem;
+  margin-inline-end: calc(var(--env-space-1) / 2);
   font-weight: 500;
 }
 .coord-panel .change-token.more {

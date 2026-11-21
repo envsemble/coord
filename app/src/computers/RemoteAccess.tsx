@@ -4,7 +4,7 @@
 // code, and revokes paired devices. A paired device gets the whole computer; the pairing link may
 // also grant it Manage access, so it can pair and revoke devices itself. In a window on another
 // computer, the section manages that computer's pairings, when this app was granted Manage access there.
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Badge, Button, Checkbox, Code, ConfirmButton, Graphic, List, Select, Spinner, Switch, Text, TextField } from '@envsemble/envui';
 import type { AccessSettings, AccessState, ComputerRef, PairedDevice, PairingLinkView } from '../types';
 import { api } from '../api';
@@ -17,7 +17,6 @@ const platforms: Record<string, string> = { win32: 'Windows', linux: 'Linux', da
 export const remoteAccessTitle = (computer: ComputerRef) => 'Devices that can reach ' + computer.name;
 
 export function RemoteAccess({ computer }: { computer: ComputerRef }) {
-  const id = useId();
   const here = computer.hostId === null;
   const [state, setState] = useState<AccessState | null>(null);
   const [devices, setDevices] = useState<PairedDevice[] | null>(null);
@@ -110,18 +109,14 @@ export function RemoteAccess({ computer }: { computer: ComputerRef }) {
             </span>}
             control={<Switch checked={settings!.network.enabled} disabled={busy || managed}
               onCheckedChange={enabled => void apply(next => ({ ...next, network: { ...next.network, enabled, address: next.network.address ?? address } }))} />} />
-          <List.Item className="settings-row" label={<span id={id + '-via'}>Reach this computer via</span>}
-            description={<span id={id + '-via-detail'}>{chosen?.kind === 'loopback' ? 'Only Coord on this same computer can connect through this address.'
-              : chosen?.kind === 'lan' ? 'A local network: the connection is not encrypted.' : 'The network paired devices find this computer on.'}</span>}
-            end={
-              // eslint-disable-next-line envui/no-field-in-list-row -- Coord's settings are rows that name and describe the control at their end
-              <Select className="settings-row-select access-address" aria-labelledby={id + '-via'} aria-describedby={id + '-via-detail'} value={address ?? ''} disabled={busy || managed}
+          <List.Item className="settings-row" label="Reach this computer via"
+            description={chosen?.kind === 'loopback' ? 'Only Coord on this same computer can connect through this address.'
+              : chosen?.kind === 'lan' ? 'A local network: the connection is not encrypted.' : 'The network paired devices find this computer on.'}
+            control={<Select className="settings-row-select access-address" value={address ?? ''} disabled={busy || managed}
                 onValueChange={value => { if (value) void apply(next => ({ ...next, network: { ...next.network, address: value } })); }}
                 items={state.addresses.map(entry => ({ value: entry.address, label: `${entry.label} — ${entry.address}` }))} />} />
-          <List.Item className="settings-row" label={<span id={id + '-port'}>Port</span>} description={<span id={id + '-port-detail'}>From 1024 to 65535. It applies when you leave the field or press Enter.</span>}
-            end={
-              // eslint-disable-next-line envui/no-field-in-list-row -- Coord's settings are rows that name and describe the control at their end
-              <TextField className="access-port" aria-labelledby={id + '-port'} aria-describedby={id + '-port-detail'} inputMode="numeric" value={port} disabled={busy || managed}
+          <List.Item className="settings-row" label="Port" description="From 1024 to 65535. It applies when you leave the field or press Enter."
+            control={<TextField className="access-port" inputMode="numeric" value={port} disabled={busy || managed}
                 onValueChange={value => setPort(value.replace(/[^0-9]/g, '').slice(0, 5))} onValueCommitted={savePort} />} />
         </List.Root>
         {chosen?.kind === 'lan' && <Alert tone="warning">On a local network, the connection is not encrypted. Prefer Tailscale, which encrypts it end to end.</Alert>}

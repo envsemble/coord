@@ -25,7 +25,7 @@ export function downloadData(
   setTimeout(() => URL.revokeObjectURL(href), 10_000);
 }
 
-/** The standalone viewer's downloads: `{ key, label, description, icon, onSelect }` items. */
+/** The standalone viewer's downloads: `{ key, label, description, icon, onSelect }` items, each icon at the start of its row. */
 export function ExportMenu({ items }) {
   return (
     <Menu.Root
@@ -43,7 +43,7 @@ export function ExportMenu({ items }) {
         <Menu.Item
           key={item.key}
           className={item.key}
-          icon={item.icon}
+          start={item.icon}
           description={item.description}
           onClick={item.onSelect}
         >

@@ -108,7 +108,7 @@ export function AgentWarnings({ agents, action }: { agents: readonly AgentState[
 
 /** Open an agent's install page in the browser. */
 function InstallButton({ agent }: { agent: AgentState }) {
-  return <Button variant="secondary" endIcon={<NewWindowIcon />} onClick={() => { api.openExternal(agentInstallPages[agent.id]).catch(() => undefined); }}>Install {agentNames[agent.id]}</Button>;
+  return <Button variant="secondary" end={<NewWindowIcon />} onClick={() => { api.openExternal(agentInstallPages[agent.id]).catch(() => undefined); }}>Install {agentNames[agent.id]}</Button>;
 }
 
 /**

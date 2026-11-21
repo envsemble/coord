@@ -22,7 +22,7 @@ export function FilePage({ file, snapshot, anchor }: { file: Document; snapshot:
   const name = <span className="file-name" title={file.path}>{file.name}</span>;
   return <Page className="file-page" width="md" title={file.title === file.name ? name : file.title} meta={file.title === file.name ? undefined : name}
     breadcrumbs={<Trail work={owner?.id} items={owner ? [{ label: workNumber(owner.id), target: workTarget(owner.id) }] : []} />}
-    actions={!remote && <Button variant="secondary" size="sm" startIcon={<FolderOpenIcon />} onClick={reveal} title="Show this file in your file manager">Show in folder</Button>}>
+    actions={!remote && <Button variant="secondary" size="sm" start={<FolderOpenIcon />} onClick={reveal} title="Show this file in your file manager">Show in folder</Button>}>
     <Reader key={file.path} file={file} snapshot={snapshot} anchor={anchor} references={references} hideTitle={file.title} />
   </Page>;
 }

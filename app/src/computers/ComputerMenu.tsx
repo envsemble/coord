@@ -38,19 +38,19 @@ export function ComputerMenu({ current, onError, onSettings }: { current: Comput
   const [open, setOpen] = useState(false);
   const { computers } = useComputers(open, onError);
   return <Menu.Root aria-label={'Computer: ' + current.name} align="start" open={open} onOpenChange={setOpen}
-    trigger={<Button variant="ghost" className="computer-trigger" startIcon={<ComputerIcon />} endIcon={<UnfoldMore />} aria-label={'Computer: ' + current.name}><span className="computer-trigger-label">{current.name}</span></Button>}>
+    trigger={<Button variant="ghost" className="computer-trigger" start={<ComputerIcon />} end={<UnfoldMore />} aria-label={'Computer: ' + current.name}><span className="computer-trigger-label">{current.name}</span></Button>}>
     {/* One line per computer: its name, and where it is at the end (This computer, or its address);
         the one this window works on keeps the selection's fill. A computer that can't be chosen says
         why under its name. */}
-    {computers === null ? <Menu.Item disabled icon={<Spinner size="sm" label="" />}>Checking computers…</Menu.Item>
+    {computers === null ? <Menu.Item disabled start={<Spinner size="sm" label="" />}>Checking computers…</Menu.Item>
       : computers.map(computer => {
         const chosen = (computer.hostId ?? 'local') === (current.hostId ?? 'local');
-        return <Menu.Item key={computer.hostId ?? 'local'} className="computer-menu-item" icon={<ComputerIcon />} disabled={computer.status !== 'online'}
+        return <Menu.Item key={computer.hostId ?? 'local'} className="computer-menu-item" start={<ComputerIcon />} disabled={computer.status !== 'online'}
           aria-current={chosen ? 'true' : undefined} description={statusLabels[computer.status] ?? undefined}
           end={<span className="computer-menu-where">{describe(computer)}</span>} onClick={() => switchTo(computer, current, false, onError)}>{computer.name}</Menu.Item>;
       })}
     <Menu.Separator />
-    <Menu.Item icon={<SettingsIcon />} onClick={onSettings}>Computer settings…</Menu.Item>
+    <Menu.Item start={<SettingsIcon />} onClick={onSettings}>Computer settings…</Menu.Item>
   </Menu.Root>;
 }
 
@@ -87,7 +87,7 @@ export function OtherComputers({ current }: { current: ComputerRef }) {
   return <>
     <div className="section-toolbar">
       <Text variant="body-sm" emphasis="muted" className="settings-description">The computers this one is paired with. Choose one in the computer menu to work on it in this window.</Text>
-      <Button variant="secondary" className="other-computers-connect" startIcon={<AddIcon />} onClick={() => setConnecting(true)}>Connect to Another Coord…</Button>
+      <Button variant="secondary" className="other-computers-connect" start={<AddIcon />} onClick={() => setConnecting(true)}>Connect to Another Coord…</Button>
     </div>
     {paired === null ? <Spinner label="Checking computers" />
       : !paired.length ? <Text emphasis="muted">Not paired with another computer yet.</Text>

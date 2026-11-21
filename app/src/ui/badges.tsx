@@ -24,7 +24,7 @@ export function StatusIcon({ status, decorative = false, ...props }: { status: S
 }
 
 export function StatusBadge({ status }: { status: StatusLook }) {
-  return <Badge className="state-label" tone={statusTones[status.tone]} variant="soft" icon={<StatusIcon status={status} decorative />}>{status.label}</Badge>;
+  return <Badge className="state-label" tone={statusTones[status.tone]} variant="soft" start={<StatusIcon status={status} decorative />}>{status.label}</Badge>;
 }
 
 export function ProvenanceBadge({ provenance, title }: { provenance: Provenance; title?: string }) {

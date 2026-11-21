@@ -9,7 +9,7 @@ export function DownloadLink({ data, filename, type, children, ...props }) {
     <Button
       {...props}
       variant="text"
-      startIcon={<DownloadIcon />}
+      start={<DownloadIcon />}
       {...(href ? { href, download: filename } : { disabled: true })}
     >
       {children}

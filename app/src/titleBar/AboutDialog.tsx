@@ -23,7 +23,7 @@ export function AboutDialog({ onClose, onError }: { onClose(): void; onError(mes
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }} className="about-dialog"
     title={<span className="about-dialog-title"><CoordMark size={40} label="" />Coord</span>} description={'Version ' + about.version}
     actions={<>
-      <Button variant="secondary" startIcon={<FolderOpenIcon />} onClick={openLogs}>Open Logs</Button>
+      <Button variant="secondary" start={<FolderOpenIcon />} onClick={openLogs}>Open Logs</Button>
       <CopyButton text={details} label="Copy Details" />
     </>}>
     <Text>Plans, models and shared understanding for agents and the people they work with.</Text>
