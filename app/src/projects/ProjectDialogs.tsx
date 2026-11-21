@@ -66,7 +66,7 @@ function FolderList({ value, onChange, disabled, computer }: { value: string[]; 
       description={<bdi className="folder-list-path" title={folder}>{folder}</bdi>}
       end={<Tooltip content="Remove"><IconButton variant="ghost" size="sm" icon={<CloseIcon />} aria-label={'Remove ' + (folderName(folder) || folder)} disabled={disabled} onClick={() => onChange(value.filter(item => item !== folder))} /></Tooltip>} />)}
     </List.Root>}
-    <Button variant="outline" className="folder-list-add" fullWidth startIcon={<AddFolderIcon />} disabled={disabled} onClick={add}>Add folder</Button>
+    <Button variant="outline" className="folder-list-add" fullWidth start={<AddFolderIcon />} disabled={disabled} onClick={add}>Add folder</Button>
     {error && <Alert tone="danger" announce>{error}</Alert>}
   </section>;
 }
@@ -97,7 +97,7 @@ export function NewProjectDialog({ computer, local, onClose, onCreated }: { comp
     description={local ? 'Add the folders where you work on it, such as its repositories. An agent working in one of them keeps its plans in this project.' : <>Its folders are chosen in Coord on {computer}, from the project menu of its plans.</>}
     closeLabel="Cancel" actions={<Button variant="primary" type="submit" form="new-project" pending={busy} disabled={!ready}>Create project</Button>}>
     <form id="new-project" className="dialog-form" onSubmit={event => { event.preventDefault(); if (ready) void create(); }}>
-      <TextField label="Project name" placeholder="Project name" startIcon={<FolderIcon />} value={name} onValueChange={value => { setName(value); setNamed(Boolean(value)); }} autoFocus maxLength={100} disabled={busy} />
+      <TextField label="Project name" placeholder="Project name" start={<FolderIcon />} value={name} onValueChange={value => { setName(value); setNamed(Boolean(value)); }} autoFocus maxLength={100} disabled={busy} />
       {local && <FolderList value={folders} onChange={chooseFolders} disabled={busy} computer={computer} />}
       {error && <Alert tone="danger" announce>{error}</Alert>}
     </form>
@@ -144,7 +144,7 @@ export function FoldersDialog({ project, computer, local, onClose, onChange }: {
   });
   const remove = (folder: string) => run(async () => project.folders.filter(item => item !== folder));
   return <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }} width="lg" title={project.name + ': folders'} closeLabel="Close"
-    actions={local ? <Button variant="secondary" startIcon={<AddIcon />} disabled={busy} onClick={() => void add()}>Add folder…</Button> : undefined}>
+    actions={local ? <Button variant="secondary" start={<AddIcon />} disabled={busy} onClick={() => void add()}>Add folder…</Button> : undefined}>
     <div className="dialog-form project-details">
       <section><Text render={<h3 />} variant="caption" className="project-details-heading">Planning folder</Text><bdi className="project-details-path">{project.path}</bdi></section>
       <section>

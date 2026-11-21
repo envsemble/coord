@@ -169,7 +169,8 @@ test('an element dragged stays where it was put, in the arrangement beside the d
     const apart = async () => {
       const [a, b] = await Promise.all([node(window, 'Carrier').locator('.node-box').boundingBox(), node(window, 'Warehouse').locator('.node-box').boundingBox()]);
       const scale = a!.width / Number(await node(window, 'Carrier').locator('.node-box').getAttribute('width'));
-      return [Math.round((a!.x - b!.x) / scale), Math.round((a!.y - b!.y) / scale)];
+      // Plus 0, so a distance that rounds to -0 equals one that rounds to 0.
+      return [Math.round((a!.x - b!.x) / scale) + 0, Math.round((a!.y - b!.y) / scale) + 0];
     };
     const automatic = await apart();
     await expect(window.getByRole('button', { name: 'Reset layout' })).toHaveCount(0);

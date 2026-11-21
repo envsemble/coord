@@ -2,7 +2,7 @@
 // it follows (stable or nightly), and the title bar's update button, which shows only while a newer build
 // is on offer, downloading or ready. Main checks on its own; downloading and restarting are the
 // person's clicks.
-import { useEffect, useId, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Button, List, Progress, Select, Text, Tooltip } from '@envsemble/envui';
 import type { UpdateChannel, UpdateState } from '../types';
 import { api } from '../api';
@@ -30,15 +30,15 @@ export function UpdateButton() {
   const status = state?.status;
   if (status?.kind === 'available') {
     return <Tooltip content={`Coord ${status.version} is out`} side="bottom">
-      <Button size="sm" variant="primary" startIcon={<UpdateIcon />} onClick={run(api.downloadUpdate)}>Update</Button>
+      <Button size="sm" variant="primary" start={<UpdateIcon />} onClick={run(api.downloadUpdate)}>Update</Button>
     </Tooltip>;
   }
   if (status?.kind === 'downloading') {
-    return <Button size="sm" variant="secondary" startIcon={<UpdateIcon />} pending aria-label={`Downloading Coord ${status.version}, ${status.percent}%`}>{status.percent}%</Button>;
+    return <Button size="sm" variant="secondary" start={<UpdateIcon />} pending aria-label={`Downloading Coord ${status.version}, ${status.percent}%`}>{status.percent}%</Button>;
   }
   if (status?.kind === 'ready') {
     return <Tooltip content={`Restart into Coord ${status.version}`} side="bottom">
-      <Button size="sm" variant="primary" startIcon={<UpdateIcon />} onClick={run(api.installUpdate)}>Restart to update</Button>
+      <Button size="sm" variant="primary" start={<UpdateIcon />} onClick={run(api.installUpdate)}>Restart to update</Button>
     </Tooltip>;
   }
   return null;
@@ -54,7 +54,6 @@ const channels: { value: UpdateChannel; label: string; description: string }[] =
  * action that moves it on, and the channel, chosen at the row's end.
  */
 export function UpdatesSection() {
-  const id = useId();
   const state = useUpdates();
   if (!state) return null;
   const channel = channels.find(item => item.value === state.channel) ?? channels[0];
@@ -68,11 +67,11 @@ export function UpdatesSection() {
     </Text>}
     <List.Root className="settings-rows" aria-label="Updates">
       <UpdateStatusRow state={state} />
-      {!off && <List.Item className="settings-row" label={<span id={id + '-title'}>Channel</span>}
-        description={<span id={id + '-detail'}>{leavingNightly ? 'This is a nightly build: Coord moves to stable with the next stable release newer than it, never back to an older one.' : channel.description}</span>}
-        end={<Select className="settings-row-select" aria-labelledby={id + '-title'} aria-describedby={id + '-detail'} value={state.channel}
-          onValueChange={value => { if (value) void api.setUpdateChannel(value as UpdateChannel).catch(() => {}); }}
-          items={channels} />} />}
+      {!off && <List.Item className="settings-row" label="Channel"
+        description={leavingNightly ? 'This is a nightly build: Coord moves to stable with the next stable release newer than it, never back to an older one.' : channel.description}
+        control={<Select className="settings-row-select" value={state.channel}
+            onValueChange={value => { if (value) void api.setUpdateChannel(value as UpdateChannel).catch(() => {}); }}
+            items={channels} />} />}
     </List.Root>
   </>;
 }
@@ -91,14 +90,14 @@ function UpdateStatusRow({ state }: { state: UpdateState }) {
     case 'checking': detail = 'Checking…'; action = checkButton('Check now'); break;
     case 'available':
       detail = `Coord ${status.version} is out.`;
-      action = <Button variant="primary" startIcon={<UpdateIcon />} onClick={run(api.downloadUpdate)}>Download</Button>;
+      action = <Button variant="primary" start={<UpdateIcon />} onClick={run(api.downloadUpdate)}>Download</Button>;
       break;
     case 'downloading':
       detail = <Progress className="updates-progress" label={`Downloading Coord ${status.version}`} value={status.percent} valueText={`${status.percent}%`} />;
       break;
     case 'ready':
       detail = `Coord ${status.version} is downloaded.`;
-      action = <Button variant="primary" startIcon={<UpdateIcon />} onClick={run(api.installUpdate)}>Restart to update</Button>;
+      action = <Button variant="primary" start={<UpdateIcon />} onClick={run(api.installUpdate)}>Restart to update</Button>;
       break;
     case 'failed':
       detail = <span className="updates-failure">{status.message}</span>;

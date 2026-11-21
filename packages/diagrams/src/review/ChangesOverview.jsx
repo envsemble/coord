@@ -69,7 +69,6 @@ function ChangeRow({ row, active, onSelect, onHover }) {
     );
   return (
     <li>
-      {/* eslint-disable-next-line envui/no-html-elements -- a change row: its name is the whole summary (mark, name, kind, changed members), and the list's arrow keys move between rows; List.Item names its target by the label alone */}
       <button
         type="button"
         className="change-row"

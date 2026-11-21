@@ -154,7 +154,6 @@ function Timeline({ timeline, sessions, live }: { timeline: WorkTimeline; sessio
           </div>
         </div>)}
         {end >= now - 1000 && <span className="timeline-now" aria-hidden="true" />}
-        {/* eslint-disable-next-line envui/no-html-elements -- the tip follows the pointer along the timeline; Tooltip anchors to one element */}
         {tip && <div className="timeline-tip" role="tooltip" data-flip={tip.x > (chart.current?.clientWidth ?? 0) - 320 ? '' : undefined} style={{ left: tip.x, top: tip.y }}>
           <strong>{stretchLabels[tip.kind]}</strong>
           <span>{absoluteDate(tip.from)} – {absoluteDate(tip.to)} · {duration(Math.max(0, Date.parse(tip.to) - Date.parse(tip.from)))}</span>

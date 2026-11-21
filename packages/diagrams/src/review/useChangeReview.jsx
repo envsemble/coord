@@ -91,11 +91,11 @@ export function useChangeReview({
             className="changes-toggle"
             aria-pressed={showing}
             aria-label={`Changes, ${rollup.count}`}
-            startIcon={<ProposalIcon />}
+            start={<ProposalIcon />}
+            end={<Badge count={rollup.count} />}
             onClick={onToggle}
           >
             <span className="collapsible-label">Changes</span>
-            <Badge count={rollup.count} />
           </Button>
         </Tooltip>
         <ToolButton

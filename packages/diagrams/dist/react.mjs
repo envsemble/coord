@@ -2496,7 +2496,7 @@ function ExportMenu({ items }) {
         Menu.Item,
         {
           className: item.key,
-          icon: item.icon,
+          start: item.icon,
           description: item.description,
           onClick: item.onSelect,
           children: item.label
@@ -2514,7 +2514,7 @@ function Island({ label, className = "", children, ...props }) {
   return /* @__PURE__ */ jsx10(
     Surface,
     {
-      background: "default",
+      background: "raised",
       radius: "full",
       padding: 1,
       render: /* @__PURE__ */ jsx10(Toolbar.Root, { "aria-label": label, size: "sm" }),
@@ -2704,7 +2704,7 @@ function ProvenanceLabel({ document: document2 }) {
     Badge,
     {
       tone: provenance.tone,
-      icon: /* @__PURE__ */ jsx13(ProvenanceIcon, { provenance, profile: document2?.profile }),
+      start: /* @__PURE__ */ jsx13(ProvenanceIcon, { provenance, profile: document2?.profile }),
       children: provenance.label
     }
   );
@@ -2901,7 +2901,7 @@ function DownloadLink({ data, filename, type, children, ...props }) {
     {
       ...props,
       variant: "text",
-      startIcon: /* @__PURE__ */ jsx15(IconDownload, {}),
+      start: /* @__PURE__ */ jsx15(IconDownload, {}),
       ...href ? { href, download: filename } : { disabled: true },
       children
     }
@@ -3536,19 +3536,17 @@ function useChangeReview({
         {
           content: showing ? "Hide the changes" : "Show every change",
           side: "bottom",
-          children: /* @__PURE__ */ jsxs12(
+          children: /* @__PURE__ */ jsx19(
             Button3,
             {
               variant: showing ? "secondary" : "ghost",
               className: "changes-toggle",
               "aria-pressed": showing,
               "aria-label": `Changes, ${rollup.count}`,
-              startIcon: /* @__PURE__ */ jsx19(IconDifference, {}),
+              start: /* @__PURE__ */ jsx19(IconDifference, {}),
+              end: /* @__PURE__ */ jsx19(Badge3, { count: rollup.count }),
               onClick: onToggle,
-              children: [
-                /* @__PURE__ */ jsx19("span", { className: "collapsible-label", children: "Changes" }),
-                /* @__PURE__ */ jsx19(Badge3, { count: rollup.count })
-              ]
+              children: /* @__PURE__ */ jsx19("span", { className: "collapsible-label", children: "Changes" })
             }
           )
         }

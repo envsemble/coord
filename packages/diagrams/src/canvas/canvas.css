@@ -9,8 +9,12 @@
 .coord-page,
 .coord-panel {
   --canvas: var(--env-color-bg-page);
-  /* Elements sit on the canvas as surfaces sit on a page. */
-  --surface: var(--env-color-bg-default);
+  /* Elements sit on the canvas as surfaces sit on a page: white boxes in light, which raise them off
+     the white canvas by their edges, and the default surface in dark. */
+  --surface: light-dark(
+    var(--env-color-bg-raised),
+    var(--env-color-bg-default)
+  );
   --text: var(--env-color-fg-default);
   --grid: light-dark(
     var(--env-color-border-muted),
@@ -66,7 +70,7 @@
 /* The grid is drawn in the diagram's own coordinates, which are pixels:
    camera.js scales it with the camera and steps its density from these
    sizes (GRID_OVERHANG is the inset). */
-/* stylelint-disable unit-disallowed-list -- diagram coordinates are pixels */
+/* stylelint-disable envui/no-px, envui/no-off-scale-values -- diagram coordinates are pixels */
 .canvas-grid {
   position: absolute;
   inset: -64px;
@@ -75,7 +79,7 @@
   background-size: 20px 20px;
   will-change: transform;
 }
-/* stylelint-enable unit-disallowed-list */
+/* stylelint-enable envui/no-px, envui/no-off-scale-values */
 /* An element that can be dragged shows it; one being dragged follows the
    hand. */
 #canvas.arrangeable .node {

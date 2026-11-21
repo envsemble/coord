@@ -5,8 +5,7 @@
 // afterwards. Back and Next (Finish at the end) are buttons; each step's heading takes focus as it
 // shows, so a screen reader starts reading it.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Button, Text } from '@envsemble/envui';
-import { Code } from '@envsemble/envui/code';
+import { Alert, Button, Code, Text } from '@envsemble/envui';
 import { CoordMark } from '@envsemble/coord-diagrams/mark';
 import { agentNames } from '../../shared/contract';
 import type { AgentId } from '../types';

@@ -14,16 +14,10 @@
     0 0.5rem 1.5rem -0.5rem
       oklch(from var(--env-color-bg-page) calc(l * 0.2) c h / 0.28);
   --coord-gutter: var(--env-space-3);
-  /* Code in panels: envUI's code typeface and size, which its code
-     styles define, with the same values where the host loads none. */
-  --coord-font-code: var(
-    --env-code-font-family,
-    ui-monospace,
-    "Cascadia Code",
-    Consolas,
-    monospace
-  );
-  --coord-font-size-code: var(--env-code-font-size, 0.8125rem);
+  /* Code in panels: the typeface and size of envUI's Code, which keeps
+     them to itself. */
+  --coord-font-code: ui-monospace, "Cascadia Code", Consolas, monospace;
+  --coord-font-size-code: 0.8125rem;
 }
 body {
   margin: 0;
@@ -94,7 +88,9 @@ body {
 .coord-section-heading {
   font-size: calc(var(--env-font-size-title) - 0.125rem);
 }
+/* The islands float on the canvas as the elements do: the raised surface, white in light. */
 .coord-island {
+  --env-surface-container: var(--env-color-bg-raised);
   position: relative;
   display: flex;
   flex-wrap: wrap;
@@ -239,7 +235,7 @@ body {
   place-items: center;
   width: 1.125rem;
   height: 1.125rem;
-  border-radius: 0.3125rem;
+  border-radius: var(--env-radius-xs);
   background: color-mix(in srgb, var(--change-color) 16%, transparent);
   color: var(--change-color);
   font: 600 0.8125rem / 1 var(--coord-font-code);
@@ -328,7 +324,7 @@ button.change-row[aria-current="true"] {
 .change-row-text {
   display: grid;
   flex: 1;
-  gap: 0.125rem;
+  gap: calc(var(--env-space-1) / 2);
   min-width: 0;
 }
 .change-row-title {
@@ -358,7 +354,7 @@ button.change-row[aria-current="true"] {
   color: var(--change-color);
 }
 .change-token-glyph {
-  margin-inline-end: 0.125rem;
+  margin-inline-end: calc(var(--env-space-1) / 2);
   font-weight: 500;
 }
 .change-token.more {
@@ -396,7 +392,7 @@ button.change-row[aria-current="true"] {
    the line's height, so the sentence keeps its line spacing. */
 .inline-action {
   --env-control-height: 1lh;
-  --env-button-touch-height: 0rem;
+  --env-control-height-touch: 1lh;
   vertical-align: baseline;
 }
 .example-list {
@@ -459,7 +455,7 @@ button.change-row[aria-current="true"] {
 }
 
 /* Narrow panels (embedded cards, phones): tighter gutters, full-width panes. */
-@container coord-viewer (max-width: 640px) {
+@container coord-viewer (max-width: 40rem) {
   .coord-overlay-top {
     --coord-gutter: var(--env-space-2);
     gap: var(--env-space-1);
@@ -486,7 +482,7 @@ button.change-row[aria-current="true"] {
     display: none;
   }
 }
-@container coord-viewer (max-width: 420px) {
+@container coord-viewer (max-width: 26.25rem) {
   .provenance-detail,
   .island-provenance {
     display: none;

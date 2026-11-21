@@ -16,7 +16,7 @@ export function Trail({ items, work }: { items: { label: ReactNode; target?: Tar
   const group = work ? snapshot.work.find(item => item.id === work)?.partOf : null;
   return <Breadcrumbs className="breadcrumb" wrap={false} items={[
     { label: 'Plans', onClick: () => go(hubPlace()) },
-    { label: <span className="breadcrumb-project"><ProjectAvatar project={{ id: projectId, name: projectName }} />{projectName}</span>, onClick: () => go(hubPlace(projectId)) },
+    { label: <><ProjectAvatar project={{ id: projectId, name: projectName }} />{projectName}</>, onClick: () => go(hubPlace(projectId)) },
     ...group ? [{ label: workNumber(group), onClick: () => open(workTarget(group)) }] : [],
     ...items.map(item => ({ label: item.label, onClick: item.target ? () => open(item.target!) : undefined })),
   ]} />;

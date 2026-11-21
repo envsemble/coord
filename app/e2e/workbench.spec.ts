@@ -59,6 +59,7 @@ test("the hub's search button opens the search and it never filters the hub; the
   // A click opens the search; what is typed goes there, and the hub's list stays as it is.
   await trigger.click();
   await expect(popup).toBeVisible();
+  await expect(input).toBeFocused();
   await window.keyboard.type('payment');
   await expect(input).toHaveValue('payment');
   await expect(popup.getByRole('option', { name: /^Saved payment methods/ })).toHaveCount(2);
@@ -69,6 +70,7 @@ test("the hub's search button opens the search and it never filters the hub; the
   // Enter on it opens it again, empty.
   await window.keyboard.press('Enter');
   await expect(input).toHaveValue('');
+  await expect(input).toBeFocused();
   await window.keyboard.type('fulfil harbor');
   await expect(hubRows(window)).toHaveCount(6);
   await popup.getByRole('option', { name: /Order fulfilment model.*Harbor/ }).click();
@@ -417,7 +419,7 @@ test('one row at the top: the logo, back and forward, Plans, Settings and Help, 
   // Settings opens Settings at General, with the theme; Computer settings… opens it at Computers.
   await titleButton(window, 'Settings').click();
   await expect(window.locator('.settings-page h1')).toHaveText('Settings');
-  const settingsTab = window.getByRole('tablist', { name: 'Settings' }).getByRole('tab', { selected: true });
+  const settingsTab = window.getByRole('navigation', { name: 'Settings' }).locator('[aria-current="page"]');
   await expect(settingsTab).toHaveText('General');
   await expect(window.getByRole('combobox', { name: 'Theme' })).toHaveText(/Match the system/);
   await bar.getByRole('button', { name: /^Computer:/ }).click();
@@ -432,6 +434,7 @@ test('one row at the top: the logo, back and forward, Plans, Settings and Help, 
   await window.keyboard.press('Alt+ArrowLeft');
   await expectHub(window);
   // Main's application menu keeps the shortcuts (and is the menu bar on macOS), with Plans and Statistics in View.
+  // Search shows Ctrl+K; its Ctrl+P alias is an item of its own, hidden from the menu.
   const items = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.map(entry => [entry.label, entry.submenu!.items.filter(item => item.type !== 'separator').map(item => item.accelerator ? item.label + ' ' + item.accelerator : item.label || item.role)]));
   // Electron gives the roles the system's own shortcuts: Exit and Redo differ on Windows.
   const windows = process.platform === 'win32';
@@ -440,7 +443,7 @@ test('one row at the top: the logo, back and forward, Plans, Settings and Help, 
   expect(items).toEqual([
     ['&File', ['New &Window CmdOrCtrl+Shift+N', 'New &Project…', '&Settings… CmdOrCtrl+,', 'Close Win&dow CmdOrCtrl+Shift+W', windows ? 'E&xit' : 'E&xit CommandOrControl+Q']],
     ['&Edit', ['Undo CommandOrControl+Z', windows ? 'Redo Control+Y' : 'Redo Shift+CommandOrControl+Z', 'Cut CommandOrControl+X', 'Copy CommandOrControl+C', 'Paste CommandOrControl+V', 'Select All CommandOrControl+A']],
-    ['&View', ['&Back Alt+Left', '&Forward Alt+Right', '&Plans', 'S&tatistics', '&Search… CmdOrCtrl+P', 'F&iles CmdOrCtrl+Shift+E', 'Zoom &In CmdOrCtrl+Plus', 'Zoom &Out CmdOrCtrl+-', '&Actual Size CmdOrCtrl+0', 'Toggle Full Screen F11', ...devTools]],
+    ['&View', ['&Back Alt+Left', '&Forward Alt+Right', '&Plans', 'S&tatistics', '&Search… CmdOrCtrl+K', 'Search… CmdOrCtrl+P', 'F&iles CmdOrCtrl+Shift+E', 'Zoom &In CmdOrCtrl+Plus', 'Zoom &Out CmdOrCtrl+-', '&Actual Size CmdOrCtrl+0', 'Toggle Full Screen F11', ...devTools]],
     ['&Help', ['Open &Logs', '&About Coord']],
   ]);
   await applicationMenu(app, '&File', 'New &Project…');
