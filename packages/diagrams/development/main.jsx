@@ -11,7 +11,11 @@ const themeStorage = { storageKey: "coord-theme" };
 function Themed({ children }) {
   const storedTheme = useStoredThemePreference(themeStorage);
   return (
-    <ThemePreferenceProvider theme={theme} {...storedTheme} className="coord-page">
+    <ThemePreferenceProvider
+      theme={theme}
+      {...storedTheme}
+      className="coord-page"
+    >
       {children}
     </ThemePreferenceProvider>
   );
