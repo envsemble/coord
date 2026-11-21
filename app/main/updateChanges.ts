@@ -36,11 +36,11 @@ export function readChanges(compare: Compare, version: string): UpdateChanges {
       if (changes.length >= kept) return;
       if (commit.parents.length < 2) { changes.push(change(commit)); continue; }
       const side = line(commit.parents[1]!.sha);
-      // A release (a pull request from dev or a release-<version> branch) or a merge between branches
-      // is expanded into the pull requests it brings; a feature's pull request stays one step, even
-      // with pull requests of its own inside.
+      // A release or a sync (a pull request from dev, main or a release-<version> branch), or a merge
+      // between branches, is expanded into the pull requests it brings; a feature's pull request stays
+      // one step, even with pull requests of its own inside.
       const merge = pullRequest(commit);
-      if (side.some(merged => pullRequest(merged)) && (!merge || /^(?:dev$|release[-/]v?\d)/.test(merge[2]!.split('/').slice(1).join('/')))) steps(side);
+      if (side.some(merged => pullRequest(merged)) && (!merge || /^(?:dev$|main$|release[-/]v?\d)/.test(merge[2]!.split('/').slice(1).join('/')))) steps(side);
       // A pull request whose commits are all on the branch already (main merged back into dev) brings
       // nothing; when GitHub cut the comparison short, its commits may only be missing from it.
       else if (side.length || (pullRequest(commit) && truncated)) changes.push(change(commit));
