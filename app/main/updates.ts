@@ -178,8 +178,10 @@ export class Updates {
   private askForChanges() {
     const ask = this.options.changes;
     const to = 'version' in this.status ? this.status.version : null;
+    // With nothing on offer, the next offer is asked about afresh, even when it is the same build.
+    if (!to) { this.changesAsked = null; return; }
     const asked = `${to} ${this.status.kind}`;
-    if (!ask || !to || this.changes?.version === to || this.changesAsked === asked) return;
+    if (!ask || this.changes?.version === to || this.changesAsked === asked) return;
     this.changesAsked = asked;
     ask(this.options.version, to).then(changes => {
       // An answer for a build no longer on offer is dropped.

@@ -220,10 +220,11 @@ exports.packCommand = function packCommand(directory) {
   length.writeUInt32BE(header.length);
   const target = path.join(directory, 'command.pack');
   const out = fs.openSync(target + '.tmp', 'w');
+  const write = buffer => { for (let written = 0; written < buffer.length;) written += fs.writeSync(out, buffer, written); };
   try {
-    fs.writeSync(out, length);
-    fs.writeSync(out, header);
-    for (const name of files) fs.writeSync(out, fs.readFileSync(path.join(command, name)));
+    write(length);
+    write(header);
+    for (const name of files) write(fs.readFileSync(path.join(command, name)));
   } finally { fs.closeSync(out); }
   fs.renameSync(target + '.tmp', target);
   fs.rmSync(command, { recursive: true, force: true });
