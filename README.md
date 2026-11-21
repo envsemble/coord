@@ -5,7 +5,7 @@
 </picture>
 
 [![CI](https://github.com/envsemble/coord/actions/workflows/ci.yml/badge.svg)](https://github.com/envsemble/coord/actions/workflows/ci.yml)
-[![Version 0.9.0](https://img.shields.io/badge/version-0.9.0-blue)](CHANGELOG.md)
+[![Version 0.10.0](https://img.shields.io/badge/version-0.10.0-blue)](CHANGELOG.md)
 [![MIT license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 **Coord is where your coding agents' plans live.** When you design something with an agent, the plan, its steps, the decisions behind it and the diagrams that explain it are written into a planning folder on your computer instead of disappearing with the chat. Every agent session that works in your project finds them again, keeps them current as it works, and you follow all of it in one desktop app.
