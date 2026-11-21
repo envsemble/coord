@@ -37,6 +37,23 @@ const batch = 500;
 /** How long before the host is asked once more about PRs whose state it did not have yet (it fetches them meanwhile). */
 const pullRetry = 4000;
 /**
+ * Ask the host about a project's references, in batches, and once more about PRs whose state it was
+ * still fetching; `answered` gets each batch's answers by their keys. Returns how to stop asking.
+ */
+export function askReferences(projectId: string, inputs: ReferenceInput[], answered: (answers: (readonly [string, ResolvedReference | null])[]) => void): () => void {
+  let current = true;
+  const timers: number[] = [];
+  const ask = (items: ReferenceInput[], again: boolean) => api.resolveReferences(projectId, items).then(answers => {
+    if (!current) return;
+    answered(items.map((input, index) => [referenceKey(input), answers[index] ?? null] as const));
+    const pending = items.filter((input, index) => input.kind === 'pull' && answers[index]?.url && !answers[index]?.pull);
+    if (again && pending.length) timers.push(window.setTimeout(() => { void ask(pending, false); }, pullRetry));
+  }, () => undefined);
+  for (let index = 0; index < inputs.length; index += batch) void ask(inputs.slice(index, index + batch), true);
+  return () => { current = false; timers.forEach(timer => window.clearTimeout(timer)); };
+}
+
+/**
  * Resolve a document's references once it shows, in batches; asked again only when they change, and
  * once more for PRs whose state the host was still fetching.
  */
@@ -46,16 +63,7 @@ export function useResolvedReferences(inputs: ReferenceInput[]): Resolutions {
   const key = inputs.map(referenceKey).join('\n');
   useEffect(() => {
     if (!inputs.length) { setResolved(new Map()); return; }
-    let current = true;
-    const timers: number[] = [];
-    const ask = (items: ReferenceInput[], again: boolean) => api.resolveReferences(projectId, items).then(answers => {
-      if (!current) return;
-      setResolved(previous => new Map([...previous, ...items.map((input, index) => [referenceKey(input), answers[index] ?? null] as const)]));
-      const pending = items.filter((input, index) => input.kind === 'pull' && answers[index]?.url && !answers[index]?.pull);
-      if (again && pending.length) timers.push(window.setTimeout(() => { void ask(pending, false); }, pullRetry));
-    }, () => undefined);
-    for (let index = 0; index < inputs.length; index += batch) void ask(inputs.slice(index, index + batch), true);
-    return () => { current = false; timers.forEach(timer => window.clearTimeout(timer)); };
+    return askReferences(projectId, inputs, answers => setResolved(previous => new Map([...previous, ...answers])));
   }, [projectId, key]);
   return resolved;
 }
@@ -64,13 +72,16 @@ export const ReferencesContext = createContext<{ resolved: Resolutions }>({ reso
 
 const pullStates = { open: 'Open', draft: 'Draft', merged: 'Merged', closed: 'Closed' } as const;
 const checkStates = { passing: 'checks passing', failing: 'checks failing', pending: 'checks running' } as const;
-/** A PR's state as a small mark: open, draft, merged or closed, and its checks when they fail or run. */
-export function PullMark({ pull }: { pull: NonNullable<ResolvedReference['pull']> }) {
+/**
+ * A PR's state as a small mark: open, draft, merged or closed, and its checks when they fail or run.
+ * With `word`, its state is also written beside the mark, where a list is read without hovering.
+ */
+export function PullMark({ pull, word = false }: { pull: NonNullable<ResolvedReference['pull']>; word?: boolean }) {
   const label = [pullStates[pull.state], pull.checks && checkStates[pull.checks]].filter(Boolean).join(', ');
   const Icon = pull.state === 'merged' ? CallMerge : pull.state === 'closed' ? Cancel : CallSplit;
   const Checks = pull.checks === 'failing' ? Cancel : pull.checks === 'pending' ? Pending : pull.checks === 'passing' ? CheckCircle : null;
   return <span className="pull-mark" role="img" aria-label={label} title={label}>
-    <Icon className="pull-mark-state" data-state={pull.state} />{Checks && <Checks className="pull-mark-checks" data-checks={pull.checks!} />}
+    <Icon className="pull-mark-state" data-state={pull.state} />{word && <span className="pull-mark-word" data-state={pull.state}>{pullStates[pull.state].toLowerCase()}</span>}{Checks && <Checks className="pull-mark-checks" data-checks={pull.checks!} />}
   </span>;
 }
 

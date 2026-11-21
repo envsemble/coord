@@ -2,19 +2,21 @@
 // project, grouped by whose turn its agents say it is, a table each with the same columns: the
 // user's turn first, then work agents are on, then work waiting on something or blocked, in taller
 // rows with what their state is for (or the step worked on), then later work in compact ones, and
-// closed work with how it ended. A part says its place in its group, a group how many of its parts
-// are closed. The project menu (its choice part of the place, so back and forward and a plan's
+// closed work with how it ended. What a row's state is for links the PRs it names, each with its live
+// state, and work that waits says for how long, in place of when it changed. A part says its place in
+// its group, a group how many of its parts are closed. The project menu (its choice part of the place, so back and forward and a plan's
 // breadcrumb set it), where projects are also made and managed, and a state filter narrow it, on its heading's
 // line with that project's statistics; the search stays in the title bar. One click opens a plan. A connected agent that does not run Coord (Codex not trusting its hooks, say)
 // has a notice above the plans, linking to Settings › Agents, until it does.
-import { memo, useMemo, type MouseEvent } from 'react';
+import { memo, useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { Alert, Button, IconButton, Link, Menu, Row, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
 import { IconFilterList } from '@envsemble/envui/icons/FilterList';
 import { EmptyState } from '../ui/EmptyState';
 import { StatisticsIcon, WorkIcon } from '../ui/icons';
-import type { Project } from '../types';
-import { hubGroups, hubItems, hubOnlyFilters, hubOnlyLabels, hubRowFacts, inState, matchesOnly, partsFacts, type HubItem, type HubOnly, type HubRowFacts, type HubState } from './hubPlans';
-import { absoluteDate, plural, relativeDate, workNumber } from '../ui/format';
+import type { Project, ReferenceInput } from '../types';
+import { api } from '../api';
+import { hubGroups, hubItems, hubOnlyFilters, hubOnlyLabels, hubRowFacts, inState, matchesOnly, noteParts, partsFacts, waits, type HubItem, type HubOnly, type HubRowFacts, type HubState } from './hubPlans';
+import { absoluteDate, elapsed, plural, relativeDate, workNumber } from '../ui/format';
 import { settingsPlace, statisticsPlace, workTarget, type Place } from '../navigation/targets';
 import { ProjectAvatar, ProjectMenu } from '../projects/ProjectMenu';
 import type { ProjectActions } from '../projects/ProjectDialogs';
@@ -25,6 +27,9 @@ import { ModelName } from '../ui/ModelName';
 import { continuation } from '../plan/handoffs';
 import { ContinuedIn } from '../plan/HandoffLinks';
 import { Page } from '../ui/Page';
+import { askReferences, PullMark, type Resolutions } from '../reader/ReferenceLink';
+import { referenceKey } from '../reader/references';
+import type { Notify } from '../window/windowContext';
 
 /** The hub's state filter, kept while the window is open. */
 /** Open, closed or all, and the filter menu's filters that are on. */
@@ -61,6 +66,67 @@ function Spent({ facts }: { facts: HubRowFacts }) {
 // The column is headed Changed, so a date stands alone ("Oct 8", not "on Oct 8").
 const Changed = ({ value }: { value: string | null }) => value ? <span className="hub-row-updated" title={'Changed ' + absoluteDate(value)}>{relativeDate(value).replace(/^on /, '')}</span> : null;
 
+/** How long work has waited: since its state was set, with the moment on hover. */
+const Waited = ({ since }: { since: string | null }) => since ? <span className="hub-row-updated" title={'Since ' + absoluteDate(since)}>{elapsed(since)}</span> : <span className="muted">—</span>;
+
+/** How often, at most, the hub asks again about what its rows reference as its window comes forward (the host keeps a PR's state that long). */
+const askAgainAfter = 60_000;
+/**
+ * What the rows' notes reference (PRs, issues, commits), resolved by the host, by project: each
+ * project's in one request, as a document's are, asked when they change and again when the window
+ * comes forward, so a PR merged meanwhile shows as merged.
+ */
+function useNoteReferences(items: HubItem[]): ReadonlyMap<string, Resolutions> {
+  const [resolved, setResolved] = useState<ReadonlyMap<string, Resolutions>>(new Map());
+  const [asked, setAsked] = useState(0);
+  const wanted = useMemo(() => {
+    const byProject = new Map<string, Map<string, ReferenceInput>>();
+    for (const { project, work, status } of items) {
+      const note = hubRowFacts(work, status).note;
+      for (const part of note ? noteParts(note) : []) {
+        if (typeof part === 'string') continue;
+        if (!byProject.has(project.id)) byProject.set(project.id, new Map());
+        byProject.get(project.id)!.set(referenceKey(part.input), part.input);
+      }
+    }
+    return [...byProject].map(([projectId, inputs]) => ({ projectId, inputs: [...inputs.values()] }));
+  }, [items]);
+  const key = wanted.map(({ projectId, inputs }) => projectId + '\n' + inputs.map(referenceKey).join('\n')).join('\n\n');
+  useEffect(() => {
+    const stops = wanted.map(({ projectId, inputs }) => askReferences(projectId, inputs, answers => setResolved(previous => {
+      const before = previous.get(projectId);
+      // Kept as it was when the answers say nothing new, so the rows are not drawn again.
+      if (before && answers.every(([reference, answer]) => JSON.stringify(before.get(reference)) === JSON.stringify(answer))) return previous;
+      return new Map([...previous, [projectId, new Map([...before ?? [], ...answers])]]);
+    })));
+    return () => stops.forEach(stop => stop());
+  }, [key, asked]);
+  useEffect(() => {
+    if (!key) return;
+    let last = Date.now();
+    const again = () => { if (Date.now() - last >= askAgainAfter) { last = Date.now(); setAsked(count => count + 1); } };
+    window.addEventListener('focus', again);
+    return () => window.removeEventListener('focus', again);
+  }, [key]);
+  return resolved;
+}
+
+/**
+ * What a row's state is for, as text: a PR, issue or commit it names links to its page (a PR with
+ * its state beside it, as a word too) once the host says where it leads.
+ */
+function Note({ note, resolved, notify }: { note: string; resolved: Resolutions | undefined; notify: Notify }) {
+  const parts = useMemo(() => noteParts(note), [note]);
+  return <>{parts.map((part, index) => {
+    if (typeof part === 'string') return part;
+    const answer = resolved?.get(referenceKey(part.input));
+    if (!answer?.url) return part.text;
+    const url = answer.url;
+    const open = (event: MouseEvent) => { event.preventDefault(); api.openExternal(url).catch(error => { if ((error as { code?: string }).code !== 'cancelled') notify((error as Error).message, 'warning'); }); };
+    return <span key={index} className="hub-row-reference"><Link href={url} title={answer.pull?.title ?? answer.title ?? url} onClick={open}>{part.text}</Link>{answer.pull && <PullMark pull={answer.pull} word />}</span>;
+  })}</>;
+}
+
 /**
  * Plan, project, progress, agents, changed: the same widths in every group, so the columns line up.
  * With one project shown, its name would repeat on every row: the column goes, and Plan takes its room.
@@ -74,7 +140,7 @@ const oneProjectWidths = [55, 17, 18, 10];
  * Its summary shows on the title's hover. The status icon carries the colour; the text stays neutral
  * but for that line, amber on the user's turn.
  */
-const HubRow = memo(function HubRow({ item, go, showProject }: { item: HubItem; go(place: Place): void; showProject: boolean }) {
+const HubRow = memo(function HubRow({ item, go, showProject, resolved, notify }: { item: HubItem; go(place: Place): void; showProject: boolean; resolved: Resolutions | undefined; notify: Notify }) {
   const { work, project, status } = item;
   const facts = hubRowFacts(work, status);
   const open = (event: MouseEvent) => { event.preventDefault(); go({ projectId: project.id, target: workTarget(work.id) }); };
@@ -92,7 +158,7 @@ const HubRow = memo(function HubRow({ item, go, showProject }: { item: HubItem; 
         {parts && <span className="hub-row-parts" data-kind={parts.kind}>{parts.kind === 'part' ? 'Part ' + parts.index + ' of ' + workNumber(parts.group) : plural(parts.count, 'part') + (parts.closed ? ' · ' + parts.closed + ' closed' : '')}</span>}
       </span>
       {large && (facts.blocked ? <small className="cell-note hub-row-blocked">Blocked: {facts.blocked}</small>
-        : facts.note ? <small className="cell-note hub-row-note" data-status={status.key} title={facts.note}>{facts.note}</small>
+        : facts.note ? <small className="cell-note hub-row-note" data-status={status.key} title={facts.note}><Note note={facts.note} resolved={resolved} notify={notify} /></small>
         : facts.step && <small className="cell-note hub-row-step" data-phase={facts.step.phase} data-status={facts.step.label === 'Now' ? 'doing' : 'todo'}
           title={(facts.step.phase === 'planning' ? 'Planning' : 'Implementation') + ' step'}>
           {facts.step.label + ': ' + facts.step.title}
@@ -103,9 +169,10 @@ const HubRow = memo(function HubRow({ item, go, showProject }: { item: HubItem; 
       {continued.length > 0 && <small className="cell-note"><ContinuedIn items={continued} open={to => go({ projectId: to.projectId, target: workTarget(to.work) })} /></small>}</span>
       : facts.progress ? <Progress progress={facts.progress} wide={large} /> : <span className="muted">—</span>}</Table.Cell>
     <Table.Cell label="Agents"><Spent facts={facts} /></Table.Cell>
-    <Table.Cell label="Changed" numeric nowrap>{facts.changed ? <Changed value={facts.changed} /> : <span className="muted">—</span>}</Table.Cell>
+    {waits(status.key) ? <Table.Cell label="Waiting" numeric nowrap><Waited since={facts.since} /></Table.Cell>
+      : <Table.Cell label="Changed" numeric nowrap>{facts.changed ? <Changed value={facts.changed} /> : <span className="muted">—</span>}</Table.Cell>}
   </Table.Row>;
-}, (before, after) => before.go === after.go && before.showProject === after.showProject && rowKey(before.item) === rowKey(after.item));
+}, (before, after) => before.go === after.go && before.showProject === after.showProject && before.resolved === after.resolved && before.notify === after.notify && rowKey(before.item) === rowKey(after.item));
 
 /** What a row shows of its plan, as text: a row whose plan reads the same in a new listing is not drawn again. */
 const rowKeys = new WeakMap<HubItem, string>();
@@ -115,8 +182,8 @@ function rowKey(item: HubItem) {
   return key;
 }
 
-export function Hub({ projects, error, filter: asked, filters, setFilters, go, computer, local, actions, newProject }: {
-  projects: Project[] | null; error: string; filter: string | null; filters: HubFilters; setFilters(filters: HubFilters): void; go(place: Place): void;
+export function Hub({ projects, error, filter: asked, filters, setFilters, go, notify, computer, local, actions, newProject }: {
+  projects: Project[] | null; error: string; filter: string | null; filters: HubFilters; setFilters(filters: HubFilters): void; go(place: Place): void; notify: Notify;
   /** The window's computer, its name, and whether it is this one (whose folders can be chosen), for the project menu. */
   computer: string; local: boolean;
   actions: ProjectActions;
@@ -128,6 +195,7 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, c
   // The filter menu's filters narrow the plans before Open, Closed and All count and group them.
   const items = useMemo(() => hubItems(projects ?? [], filter).filter(item => matchesOnly(item, filters.only, Date.now())), [projects, filter, filters.only]);
   const groups = useMemo(() => hubGroups(items, filters.state), [items, filters.state]);
+  const resolved = useNoteReferences(items);
   const counts = useMemo(() => ({ open: items.filter(item => inState(item, 'open')).length, closed: items.filter(item => inState(item, 'closed')).length, all: items.length }), [items]);
   const filtered = projects?.find(project => project.id === filter);
   const showProject = new Set(items.map(item => item.project.id)).size > 1;
@@ -167,8 +235,8 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, c
     {groups.map(group => <section key={group.id} className="hub-group" aria-label={group.label}>
       <Text render={<h2 />} variant="title" className="hub-group-heading">{group.label} <span className="muted">{group.items.length}</span></Text>
       <Table.Root className="hub-list" aria-label={group.label} narrowLayout="stack" stackBelow="46rem" columnWidths={showProject ? columnWidths : oneProjectWidths}>
-        <Table.Head><Table.Row><Table.HeaderCell>Plan</Table.HeaderCell>{showProject && <Table.HeaderCell>Project</Table.HeaderCell>}<Table.HeaderCell>{group.id === 'closed' ? 'Ended' : 'Steps'}</Table.HeaderCell><Table.HeaderCell>Agents</Table.HeaderCell><Table.HeaderCell numeric>Changed</Table.HeaderCell></Table.Row></Table.Head>
-        <Table.Body>{group.items.map(item => <HubRow key={item.project.id + ':' + item.work.id} item={item} go={go} showProject={showProject} />)}</Table.Body>
+        <Table.Head><Table.Row><Table.HeaderCell>Plan</Table.HeaderCell>{showProject && <Table.HeaderCell>Project</Table.HeaderCell>}<Table.HeaderCell>{group.id === 'closed' ? 'Ended' : 'Steps'}</Table.HeaderCell><Table.HeaderCell>Agents</Table.HeaderCell><Table.HeaderCell numeric>{group.id === 'your_turn' || group.id === 'waiting' ? 'Waiting' : 'Changed'}</Table.HeaderCell></Table.Row></Table.Head>
+        <Table.Body>{group.items.map(item => <HubRow key={item.project.id + ':' + item.work.id} item={item} go={go} showProject={showProject} resolved={resolved.get(item.project.id)} notify={notify} />)}</Table.Body>
       </Table.Root>
     </section>)}
     {!groups.length && <EmptyState className="page-empty hub-empty" align="center" icon={<WorkIcon />} title={empty}

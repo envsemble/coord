@@ -3,7 +3,8 @@
 // oldest first), then the work agents are on, then work waiting on a PR or something else (or
 // blocked), then later (ready to start, drafts nobody is on, work that says nothing); closed work
 // only when asked for. And what each row says of its plan.
-import type { Project, ProjectWork } from '../types';
+import type { Project, ProjectWork, ReferenceInput } from '../types';
+import { findReferences } from '../reader/references';
 import { statuses, type StatusLook, type StatusKey } from '../plan/status';
 import { aiModel, type Provider } from '../ui/aiModels';
 import { compactNumber, duration, plural } from '../ui/format';
@@ -103,6 +104,8 @@ export interface HubRowFacts {
   ended: { label: string; date: string | null } | null;
   /** When it last changed: its plan's date, or the last agent report when that is the same day or later. */
   changed: string | null;
+  /** Since when its state stands, on work that is the user's turn, waits or is blocked: how long it has waited. */
+  since: string | null;
 }
 
 /** The size of a plan's row: by its status. */
@@ -144,7 +147,31 @@ export function hubRowFacts(work: ProjectWork, status = hubStatus(work)): HubRow
     subagents: size === 'large' && statistics?.subagents ? plural(statistics.subagents, 'subagent') : null,
     ended: size === 'closed' ? { label: status.label, date: work.completed } : null,
     changed: lastChange(work),
+    since: waits(status.key) ? work.turn?.since ?? null : null,
   };
+}
+
+/** Whether work in this status waits (on the user, on something else, or blocked): its row says since when, in place of when it changed. */
+export const waits = (key: StatusKey) => { const group = groupOf(key); return group === 'your_turn' || group === 'waiting'; };
+
+/** A part of a row's note: text, or a PR, issue or commit it names, for the host to resolve. */
+export type NotePart = string | { text: string; input: ReferenceInput };
+/**
+ * A state's note as the hub shows it: plain text, with the PRs, issues and commits it names apart, so
+ * each links to its page and a PR shows its state. Other references (files, work items) stay text:
+ * the row opens the plan.
+ */
+export function noteParts(note: string): NotePart[] {
+  const parts: NotePart[] = [];
+  let at = 0;
+  for (const { start, end, found } of findReferences(note)) {
+    if (found.kind !== 'host' || found.input.kind === 'path') continue;
+    if (start > at) parts.push(note.slice(at, start));
+    parts.push({ text: note.slice(start, end), input: found.input });
+    at = end;
+  }
+  if (at < note.length) parts.push(note.slice(at));
+  return parts;
 }
 
 /**

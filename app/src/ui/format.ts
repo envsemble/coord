@@ -35,6 +35,22 @@ export function relativeDate(value: string | null | undefined, now = Date.now())
   if (magnitude < 86400 * 30) return relativeFormat.format(Math.round(seconds / 86400), 'day');
   return 'on ' + shortDate(value);
 }
+const lengthFormats = new Map<string, Intl.NumberFormat>();
+const length = (count: number, unit: 'minute' | 'hour' | 'day') => {
+  if (!lengthFormats.has(unit)) lengthFormats.set(unit, new Intl.NumberFormat(undefined, { style: 'unit', unit, unitDisplay: 'long' }));
+  return lengthFormats.get(unit)!.format(count);
+};
+/** How long it has been since a moment, as a length of time in whole units: "12 minutes", "3 hours", "7 days". */
+export function elapsed(value: string | null | undefined, now = Date.now()) {
+  if (!value) return '';
+  const date = parse(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const seconds = Math.max(0, Math.floor((now - date.getTime()) / 1000));
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return length(Math.floor(seconds / 60), 'minute');
+  if (seconds < 86400) return length(Math.floor(seconds / 3600), 'hour');
+  return length(Math.floor(seconds / 86400), 'day');
+}
 export function bytes(value: number) { return value < 1024 ? value + ' B' : value < 1048576 ? Math.round(value / 1024) + ' KB' : (value / 1048576).toFixed(1) + ' MB'; }
 export function workNumber(id: string) { return id.replace('work-', '#'); }
 export function plural(count: number, word: string, many = word + 's') { return count + ' ' + (count === 1 ? word : many); }
