@@ -348,8 +348,8 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, n
   const counts = useMemo(() => ({ open: entries.filter(entry => entryInState(entry, 'open')).length, closed: entries.filter(entry => entryInState(entry, 'closed')).length, all: entries.length }), [entries]);
   const filtered = projects?.find(project => project.id === filter);
   const byId = useMemo(() => new Map((projects ?? []).map(project => [project.id, project])), [projects]);
-  // The Project column shows when the plans listed are in more than one project.
-  const showProject = useMemo(() => new Set(entries.flatMap(entry => projectsOf(entry.item))).size > 1, [entries]);
+  // The Project column shows when the plans listed, parts included, are in more than one project.
+  const showProject = useMemo(() => new Set(entries.flatMap(members).flatMap(projectsOf)).size > 1, [entries]);
   // Work made of parts has a fold button before its icon: every row then leaves its room.
   const gutter = useMemo(() => entries.some(entry => entry.parts.length > 0), [entries]);
   const [folded, toggleFold] = useFolded();

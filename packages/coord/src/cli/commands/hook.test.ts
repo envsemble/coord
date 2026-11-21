@@ -176,6 +176,12 @@ test('hooks give the session its planning context, check and link planning edits
   assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002', 'work-0003'], 'reads, unregistered work and edits link nothing');
   await shell(`cd somewhere && coord work step set work-0004 "Understand the request" done --planning-dir "${root}"`);
   assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002', 'work-0003', 'work-0004']);
+  // Work named with the project that keeps it, as a session of another project names it, links as well: from a tool and from a shell.
+  for (const title of ['Taxes', 'Tips']) await run(['work', 'create', '--title', title, '--planning-dir', root], { env });
+  const named = (workId: string) => path.basename(root) + ':' + workId;
+  await hook('PostToolUse', { tool_name: 'mcp__plugin_coord_coord__state', tool_input: { work: named('work-0005') }, tool_response: [{ type: 'text', text: JSON.stringify({ workId: 'work-0005', planningFolder: root }) }] });
+  await shell(`coord work state ${named('work-0006')} working`);
+  assert.deepEqual(links().map(item => item.workId).slice(4), ['work-0005', 'work-0006']);
   assert.ok(!existsSync(path.join(root, 'active', '0001-cart', '.coord')), 'nothing is written into the planning folder');
   assert.equal((await run(['check', root], { env })).status, 0);
 });
