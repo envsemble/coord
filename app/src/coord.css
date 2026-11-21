@@ -107,9 +107,9 @@ html, body, #root { min-block-size: 100%; }
    its own, short of the lines above and below it, so two groups in a row stay two. */
 .hub-entry-group > .hub-row > .env-table-cell:first-child {
   --hub-rail: linear-gradient(var(--env-color-border-default), var(--env-color-border-default));
-  background-image: var(--hub-rail); background-repeat: no-repeat; background-size: 0.1875rem 100%; background-position: 0.125rem 0; background-origin: border-box;
+  background-image: var(--hub-rail); background-repeat: no-repeat; background-size: 0.1875rem 100%; background-position: 0.25rem 0; background-origin: border-box;
 }
-.hub-entry-group > .hub-row:first-child > .env-table-cell:first-child { background-size: 0.1875rem calc(100% - 0.5rem); background-position: 0.125rem 100%; }
+.hub-entry-group > .hub-row:first-child > .env-table-cell:first-child { background-size: 0.1875rem calc(100% - 0.5rem); background-position: 0.25rem 100%; }
 .hub-entry-group > .hub-row:last-child > .env-table-cell:first-child { background-size: 0.1875rem calc(100% - 0.5rem); }
 .hub-entry-group > .hub-row:first-child .hub-row-link { font-weight: var(--env-font-weight-semibold); }
 .hub-row-index { flex: none; inline-size: 1rem; color: var(--env-color-fg-muted); font: var(--env-type-body-sm); font-variant-numeric: tabular-nums; }
@@ -120,8 +120,8 @@ html, body, #root { min-block-size: 100%; }
 /* The parts' surface: lighter than the header in light, and above the page in dark. */
 .hub-list { --hub-part-surface: light-dark(color-mix(in srgb, var(--env-color-bg-default), var(--env-color-bg-muted)), color-mix(in srgb, var(--env-color-bg-default) 75%, var(--env-color-bg-page))); }
 .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell { border-block-start: 0; background-color: var(--hub-part-surface); }
-/* The group's surface begins at its own row, halfway to its parts', where its rail begins; a little room parts one part from the next. */
-.hub-entry-group > .hub-row:first-child > .env-table-cell { background-color: color-mix(in srgb, var(--hub-part-surface), var(--env-color-bg-raised)); }
+/* The group's surface begins at its own row, part of the way to its parts', where its rail begins; room parts one part from the next. */
+.hub-entry-group > .hub-row:first-child > .env-table-cell { background-color: light-dark(color-mix(in srgb, var(--hub-part-surface) 66%, var(--env-color-bg-raised)), color-mix(in srgb, var(--hub-part-surface), var(--env-color-bg-raised))); }
 .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part + .hub-row-part > .env-table-cell { border-block-start: 0.5rem solid transparent; }
 /* A row's state line: what the user is to do in amber, what it waits on muted. */
 .hub-row-note { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
