@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Open in Coord</title>
+    <meta name="description" content="Opens a work item in Coord on this computer." />
+    <meta name="robots" content="noindex" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="theme-color" content="#1e1f21" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+      /* The page that forwards a link to the app: a few lines in the site's dark theme, with no font or framework to load. */
+      :root { color-scheme: dark; font-family: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif; background: #1e1f21; color: #e8eaee; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; }
+      main { width: min(100% - 2.5rem, 32rem); }
+      h1 { font-size: 1.375rem; font-weight: 600; margin: 0 0 0.5rem; }
+      p { margin: 0 0 1rem; color: #bdbfc3; line-height: 1.5; }
+      a { color: inherit; }
+      .open { display: inline-block; padding: 0.5rem 0.875rem; border: 1px solid #5d6166; border-radius: 0.5rem; background: #28292b; color: #e8eaee; text-decoration: none; }
+      .open:hover { background: #383a3d; }
+      .quiet { color: #93969b; font-size: 0.875rem; }
+      [hidden] { display: none; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 id="title">Open in Coord</h1>
+      <p id="what" hidden></p>
+      <p id="go" hidden><a id="open" class="open" href="/">Open in Coord</a></p>
+      <p id="none" hidden>This link names no work item. A link to work looks like <code>coord.envsemble.com/open#project/0032-1</code>.</p>
+      <p class="quiet">Coord opens the work on this computer, when it is installed and has that project. <a href="/">Get Coord</a>. What follows the # in this page's address stays in your browser: it is never sent to a server.</p>
+    </main>
+    <script type="module" src="/src/open.ts"></script>
+  </body>
+</html>

@@ -13,7 +13,7 @@ function planningFolder(directory: string) {
   const root = path.join(directory, 'planning');
   const work = path.join(root, 'active/0001-example');
   mkdirSync(work, { recursive: true });
-  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'planning', folders: [], work_items: [{ id: 'work-0001', path: 'active/0001-example', current_plan: 'active/0001-example/plan.md' }] }));
+  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 3, name: 'planning', folders: [], work_items: [{ id: 'work-0001', path: 'active/0001-example', current_plan: 'active/0001-example/plan.md' }] }));
   writeFileSync(path.join(work, 'plan.md'), ['---', 'schema_version: 2', 'kind: plan', 'id: work-0001', 'title: Example work', 'created: "2026-10-01"', 'updated: "2026-10-02"', 'design_status: accepted', 'implementation_status: in_progress', 'accepted_at: "2026-10-02"', 'completed_at: null', 'supersedes: []', 'superseded_by: null', '---', '', '# Example work', ''].join('\n'));
   writeFileSync(path.join(work, 'ledger.md'), planningLedger('work-0001', '2026-10-01', [{ title: 'Build it', status: 'doing' }]));
   writeFileSync(path.join(root, 'README.md'), '# Planning\n');

@@ -2,6 +2,8 @@
 
 The page at coord.envsemble.com: one dark page with what Coord is, a download button for Windows and one for Linux (the newest stable build), a link to the newest nightly, and a screenshot of a plan. It is a static page built with Vite and React, without envUI: the download buttons are the familiar store-style ones. It asks GitHub for the newest releases of `envsemble/coord` in the visitor's browser (`src/releases.ts`), so a new release needs no new build of the site.
 
+Beside it, `/open` (`open.html`, `src/open.ts`) forwards a link to work to the app: `coord.envsemble.com/open#coord/0032-2` becomes `coord://open/coord/0032-2`, which the installed app is registered for. It is a file like the rest: nothing runs on a server, and what follows the `#` never leaves the browser. It shares the link's rules with the app (`packages/coord/src/planning/work/links.ts`).
+
 ## Run it locally
 
 From the repository's root, after `npm ci`:

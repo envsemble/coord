@@ -21,7 +21,7 @@ test('a page opens in place from its plan link, Files and search, saves a choice
   await expect(window.locator('.plan-files [role="treeitem"][data-id="d:active/0001-saved-payment-methods/pages"] .attention-dot')).toBeVisible();
   // The plan's link reads as a page and opens it in place, under the plan's breadcrumb, marked in Files.
   await window.locator('.prose .page-link', { hasText: 'the card picker' }).click();
-  await expect(window.locator('.page-view .breadcrumb')).toContainText('#0001');
+  await expect(window.locator('.page-view .breadcrumb')).toContainText('#0001-1');
   await expect(window.locator('.plan-files [role="treeitem"][data-id="d:active/0001-saved-payment-methods/pages/card-picker"]')).toHaveAttribute('aria-selected', 'true');
   const frame = window.frameLocator('iframe.page-frame');
   // Built on the stack: envUI, an icon, its data, the Coord tools and the work item's diagram.

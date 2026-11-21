@@ -23,7 +23,7 @@ test('references lead to GitHub by the owner/repo they name, and paths to files 
   writeFileSync(path.join(workspace, 'README.md'), '# Workspace\n');
   const root = path.join(directory, 'planning');
   mkdirSync(root);
-  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Shop', folders: [workspace], work_items: [] }));
+  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 3, name: 'Shop', folders: [workspace], work_items: [] }));
   const hash = '4ab195a0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6';
   const none = { url: null, file: null, repository: null, pull: null, title: null };
   assert.deepEqual(await resolveReferences(root, [

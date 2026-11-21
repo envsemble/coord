@@ -2,25 +2,25 @@
 
 A work item is a folder, `active/0001-example-change/` or under `archive/`, with `plan.md` and `ledger.md` at its root. The folder name identifies the work; the files keep these names. `plan.md` is where a reviewer starts: its body has no required sections or style, and says the outcome, scope, edge cases, consequential choices, dependencies and completion checks at the detail the work needs.
 
-## Registry version 2
+## Registry version 3
 
-`planning.json` is a JSON object with exactly `schema_version: 2`, `name`, `folders` and `work_items`:
+`planning.json` is a JSON object with `schema_version: 3`, `name`, `folders`, `work_items` and, when work has joined another work item, `former_ids`:
 
 - `name` names the project (nonempty, at most 100 characters).
 - `folders` lists the absolute paths of the folders the project covers on this computer, possibly none. A session in one of them, or inside one, belongs to this project (the deepest wins when projects' folders nest), and so does a session in this planning folder.
 - `work_items` lists every work item, active and archived:
 
-| Field          | Contract                                                                               |
-| -------------- | -------------------------------------------------------------------------------------- |
-| `id`           | Unique stable `work-` ID with at least four zero-padded digits, such as `work-0001`.   |
-| `path`         | POSIX-style path of the work folder, relative to this folder, inside it, with no `..`. |
-| `current_plan` | The work folder's `plan.md`: `<path>/plan.md`.                                         |
+| Field          | Contract                                                                                                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`           | Unique stable `work-` ID: the work item's number, at least four zero-padded digits, and for every part after the first its part number: `work-0001`, `work-0001-2`. |
+| `path`         | POSIX-style path of the work folder, relative to this folder, inside it, with no `..`.                                                                              |
+| `current_plan` | The work folder's `plan.md`: `<path>/plan.md`.                                                                                                                      |
 
-Every registered folder and plan exists. The registry holds locations only: status lives in the plan's header.
+Every registered folder and plan exists. The registry holds locations only: status lives in the plan's header. A work item is made of parts that share its number: `work-0001` is its first part (shown `#0001-1`), `work-0001-2` its second. `former_ids` maps the ID work had before it became a part of another work item to the ID it has now, such as `{"work-0007": "work-0001-3"}`: the old ID still names it and is never given again. Coord moves a registry of version 2 forward by itself.
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "name": "Example",
   "folders": ["/home/example/work/example"],
   "work_items": [
@@ -52,14 +52,14 @@ A plan starts with a YAML block delimited by `---`; [plan-frontmatter.md](plan-f
 | `completed_at`          | ISO date string of the implementation's completion, otherwise null; it requires `implementation_status: complete`. Completion is not merge or release.                                                                                                                                                                                                                                                    |
 | `supersedes`            | Array of the work IDs this work replaces, possibly empty.                                                                                                                                                                                                                                                                                                                                                 |
 | `superseded_by`         | The work ID that replaces this work, or null.                                                                                                                                                                                                                                                                                                                                                             |
-| `tags`                  | Optional list of tags, each lowercase letters, digits, dots and hyphens: the release the work ships in and the areas it touches, such as `["0.8.0", "search"]`. Quote them as the tools do (`"0.8.0"`); set them with `work_create` and `work_update`; `tag:0.8.0` in the app's search and `work_search` find work by them.                                                                                  |
-| `continues`             | Optional: the work this work continues (follow-ups of work that closed, a next phase), one reference or a list: `work-0023` here, or `folder:work-0023` in another project of the home, by its planning folder's name. Set it with `work_create` or `work_update`.                                                                                                                                      |
-| `parts`                 | Optional: the work this work is made of, other work items of this project in their order, such as `["work-0034", "work-0035"]`. Only the group lists them; a part belongs to one group and has no parts of its own. Set them with `work_create` (`partOf`) or `work_update`.                                                                                                                               |
+| `tags`                  | Optional list of tags, each lowercase letters, digits, dots and hyphens: the release the work ships in and the areas it touches, such as `["0.8.0", "search"]`. Quote them as the tools do (`"0.8.0"`); set them with `work_create` and `work_update`; `tag:0.8.0` in the app's search and `work_search` find work by them.                                                                               |
+| `continues`             | Optional: the work this work continues (follow-ups of work that closed, a next phase), one reference or a list: `work-0023` here, or `folder:work-0023` in another project of the home, by its planning folder's name. Set it with `work_create` or `work_update`.                                                                                                                                        |
+| `projects`              | Optional: the projects the work is in, each by its planning folder's name in the home, such as `["envui", "internal"]`. Without it the work is in the project that keeps it; with it, in exactly those projects, which need not include that one. A part has projects of its own. Set them with `work_create` or `work_update`.                                                                           |
 | `state`                 | Optional: whose turn the work is, as its agents declare it: `planning` or `working` (theirs), `waiting` (on a PR's checks or reviews, or something else), `your_turn` (the user's) or `blocked`, or null. The tools set it as the work changes (created: `planning`; started or reopened: `working`; accepted or closed: none) and agents with `state` at each start and handoff; Coord never guesses it. |
 | `state_note`            | Optional: one line on what for (what the user is to do, what the work waits on, why it is blocked), or null; `waiting`, `your_turn` and `blocked` need one.                                                                                                                                                                                                                                               |
 | `state_since`           | Optional: when the state was set, an ISO time string such as `"2026-11-14T10:20:00.000Z"`, or null.                                                                                                                                                                                                                                                                                                       |
 
-Every field but `summary`, `tags`, `continues`, `parts` and the state's is present. Write dates as quoted strings and unknown values as null, and quote strings that look like YAML booleans, nulls, numbers or timestamps: the checker rejects ambiguous ones.
+Every field but `summary`, `tags`, `continues`, `projects` and the state's is present. Write dates as quoted strings and unknown values as null, and quote strings that look like YAML booleans, nulls, numbers or timestamps: the checker rejects ambiguous ones.
 
 `superseded` and `abandoned` are design dispositions; they do not erase what was implemented. `partial` means some scope is implemented without claiming completion; say in the plan what is left or transferred. Replacement links work IDs, not paths: update both plans. A plan's revisions keep its ID and are tracked by Git.
 

@@ -15,7 +15,7 @@ import { api } from '../api';
 import { documentTarget, hubPlace, isPage, pageAt, pageTarget, placeId, placeProject, scrollKey, settingsPlace, statisticsPlace, workTarget, type Place, type ProjectPlace } from '../navigation/targets';
 import { samePath, siblingProject } from '../reader/links';
 import { canGoBack, canGoForward, currentEntry, keyStep, record, samePlace, startHistory, step } from '../navigation/history';
-import { workNumber } from '../ui/format';
+import { wholeNumber, workNumber } from '../ui/format';
 import { FilesContext, focusPlanFiles, nodeForTarget, placeWork, PlanFiles, type FilesState } from '../files/Explorer';
 import { SearchPopup } from '../navigation/SearchPopup';
 import { SearchButton } from '../navigation/SearchButton';
@@ -225,6 +225,9 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
     && !readFolder.snapshot.work.some(work => work.id === (projectPlace.target as { work: string }).work) ? projectPlace : null;
   useEffect(() => {
     if (!missing) return;
+    // Work that became a part of another work item has a new ID: a place kept under its former one follows it.
+    const now = readFolder?.snapshot?.former?.[(missing.target as { work: string }).work];
+    if (now) { replace({ ...missing, target: { ...missing.target, work: now } } as typeof missing); return; }
     notify(`${workNumber((missing.target as { work: string }).work)} is no longer in ${projects?.find(project => project.id === missing.projectId)?.name ?? 'this project'}.`, 'warning');
     replace(hubPlace(missing.projectId));
   }, [missing]);
@@ -282,6 +285,27 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
       case 'goForward': navigate(1); break;
     }
   }, [go, showStatistics, showSettings, navigate, openSearch]);
+
+  // A link that names work (coord://open/<project>/<part>, from a chat or a document elsewhere): once
+  // the projects are listed, the window takes the work it names and shows it. The project is found by
+  // its planning folder's name, as agents name it; a former ID is followed where a missing plan is noticed.
+  const projectsLoaded = projects !== null;
+  const listedProjects = useRef(projects);
+  listedProjects.current = projects;
+  useEffect(() => {
+    if (!projectsLoaded) return;
+    const take = () => {
+      api.takeLink().then(link => {
+        if (!link) return;
+        const named = link.project.toLowerCase();
+        const project = (listedProjects.current ?? []).find(each => each.path.split(/[\\/]/).filter(Boolean).at(-1)?.toLowerCase() === named);
+        if (project) go({ projectId: project.id, target: workTarget(link.work) });
+        else notify(`A link names the project ${link.project}, which is not on this computer.`, 'warning');
+      }, () => undefined);
+    };
+    take();
+    return api.onLink(take);
+  }, [projectsLoaded, go, notify]);
 
   // Menu commands from main; ignore one that repeats a key this window just took, or left to a field.
   const lastShortcut = useRef<{ command: MenuCommand; time: number } | null>(null);
@@ -465,7 +489,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   const searchScope = useMemo(() => projectPlace && reading && readSnapshot ? { projectId: reading, snapshot: readSnapshot } : null, [Boolean(projectPlace), reading, readSnapshot]);
 
   let content;
-  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.projectId} filters={hubFilters} setFilters={setHubFilters} go={go}
+  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.projectId} filters={hubFilters} setFilters={setHubFilters} go={go} notify={notify}
     computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} newProject={() => setCreatingProject(true)} />;
   else if (isPage(placed) && placed.page === 'settings') content = <SettingsPage section={placed.section} computer={info.computer} go={showSettings} />;
   // All plans' statistics: every active project together.
@@ -610,7 +634,7 @@ function PlanFrame({ work, snapshot, children }: { work: Work | null; snapshot: 
   const [openFor, setOpenFor] = useState<string | null>(null);
   const group = partsGroup(work, snapshot);
   if (!group || !work) return children;
-  const label = 'Parts of ' + workNumber(group.id);
+  const label = 'Parts of ' + wholeNumber(group.id);
   const rail = <PartsRail group={group} shown={work.id} />;
   const beside = size === undefined || !['compact', 'medium'].includes(windowClassOf(size.inlineSize));
   // The page keeps its place in the tree in both forms, so crossing the width doesn't remount it.

@@ -109,6 +109,120 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 /* A plan's project: its avatar, as in the project menu, then its name. */
 .hub-row-project { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; }
 .hub-row-title + .cell-note { margin-inline-start: calc(1.125rem + var(--env-space-2)); }
+/* A work item made of parts has a button before its icon that folds them away; in a hub with such
+   work every row leaves that button's room, so the titles start on one edge and the buttons stand
+   alone before them. Its title is a weight heavier. */
+/* A part's tile is a step darker than the rows, and stays so while its group's surface lights up
+   under the pointer (which darkens that surface in the light theme, so the tiles take a step with
+   it there). Under the pointer a tile moves the way a row does (lighter in the dark theme, darker in
+   the light one) and far enough to stand clear of both its neighbour and the rows' colour around
+   it: in the dark theme past that colour, since any shade between the two blends into one of them.
+   The colours are solid, mixed from the table's surface, so the layers that paint a tile may lie
+   over each other. */
+.hub-list {
+  --hub-fold: 1.5rem;
+  --hub-part-surface: light-dark(color-mix(in srgb, var(--env-color-bg-raised), var(--env-color-fg-default) 9%), color-mix(in srgb, var(--env-color-bg-default) 55%, var(--env-color-bg-page)));
+  --hub-part-lit: light-dark(color-mix(in srgb, var(--env-color-bg-raised), var(--env-color-fg-default) 17%), color-mix(in srgb, var(--env-color-bg-default) 55%, var(--env-color-bg-page)));
+  --hub-part-hover: light-dark(color-mix(in srgb, var(--env-color-bg-raised), var(--env-color-fg-default) 19%), color-mix(in srgb, color-mix(in srgb, var(--env-color-bg-default) 55%, var(--env-color-bg-page)), var(--env-color-fg-default) 21%));
+}
+.hub-row-fold { display: inline-flex; flex: none; align-items: center; justify-content: center; inline-size: var(--hub-fold); margin-inline: calc(-1 * var(--env-space-2)) calc(-1 * var(--env-space-1)); color: var(--env-color-fg-muted); }
+.hub-row-fold svg { inline-size: 1.25rem; block-size: 1.25rem; }
+/* A group's title is the button that folds it, stretched over its row: it reads as the title it is. */
+.hub-row-toggle { flex: 0 1 auto; min-inline-size: 0; max-inline-size: 100%; min-block-size: 0; block-size: auto; margin: 0; padding: 0; border: 0; font: inherit; text-align: start; }
+.hub-row-toggle :is(.env-button-content, .env-button-label) { display: block; overflow: hidden; min-inline-size: 0; text-overflow: ellipsis; white-space: nowrap; }
+.hub-row:has(.hub-row-fold) .hub-row-title + .cell-note { margin-inline-start: calc(var(--hub-fold) - var(--env-space-1) + 1.125rem + var(--env-space-2)); }
+.hub-entry-group > .hub-row:first-child .hub-row-link { font-weight: var(--env-font-weight-semibold); }
+.hub-row-parts-turn { color: var(--env-color-fg-warning); }
+/* A group's number opens its plan: a link that keeps the number's look until it is pointed at. */
+.hub-row-open, .hub-row-open:is(:hover, :active) { color: var(--env-color-fg-muted); background: none; }
+.hub-row-open:is(:hover, :focus-visible) { text-decoration: underline; }
+.hub-row-index { flex: none; inline-size: 1rem; color: var(--env-color-fg-muted); font: var(--env-type-body-sm); font-variant-numeric: tabular-nums; }
+/* A part's title in the Project column's room stops well short of the steps. */
+.hub-row-part > .env-table-cell.hub-row-run { padding-inline-end: var(--env-space-8); }
+.hub-row-part .hub-row-title + .cell-note { margin-inline-start: calc(1rem + 1.125rem + 2 * var(--env-space-2)); }
+/* A work item made of parts has the plain rows' surface, its own row and the room around its parts'
+   tiles alike: every top-level row of the hub is one colour, and the tiles alone are set apart. Its
+   row under the pointer lights the whole group, around its tiles too, as a row lights up (the
+   table's own hover, which is a little lighter in the dark theme): the row folds all of it. */
+.hub-list { --hub-row-hover: var(--env-color-bg-row-hover); }
+.env-theme[data-env-theme='dark']:not([data-env-contrast='high']) .hub-list { --hub-row-hover: oklch(from var(--env-color-bg-row-hover) l c h / calc(alpha * 0.85)); }
+.hub-list.env-table > .env-table-body.hub-entry-group { --hub-group: transparent; }
+.hub-list.env-table > .env-table-body.hub-entry-group:has(> .env-table-row:not(.hub-row-part):is(:hover, :has(:focus-visible))) { --hub-group: var(--hub-row-hover); --hub-part-surface: var(--hub-part-lit); }
+/* The group's own row takes it; around a tile its cells paint it, once (the hover is see-through). */
+.hub-list.env-table > .env-table-body.hub-entry-group > .env-table-row:not(.hub-row-part) { background-color: var(--hub-group); }
+/* Its parts are rows of the same table, so they stay in the table's columns, as a list of their own
+   under the group's row, the way envUI's List joins its rows: each a tile, a surface one quiet step
+   from the rows', set in from both edges of the table and starting under the group's icon, with a
+   little room between one tile and the next and the group's surface around them. The list's outer
+   corners (the first tile's top, the last tile's bottom) are rounder than the corners where tiles
+   meet, which are small, so the tiles read as one block (as envUI's connected rows do). So a group's
+   parts are closed off from the next group's row however many groups follow each other. A part
+   under the pointer lights up as its tile; the surface around it stays as it is.
+   A tile is painted by its row's cells: each fills with the tile's colour, the first and last short
+   of the table's edge, where a quarter circle rounds each corner. (A radius on the cells would cut
+   the row's own surface at the corners.) The room under a tile is its cells' border, which shows
+   the group's surface. */
+.hub-list.env-table > .env-table-body > .env-table-row.hub-row-part {
+  /* The row itself paints nothing, under the pointer either: its cells paint the tile and the room around it. */
+  background: none;
+  --hub-tile: var(--hub-part-surface); --hub-fill: linear-gradient(var(--hub-tile), var(--hub-tile));
+  /* The list's outer corners follow the table's own: its frame's radius less the tiles' distance from its edge, so the two curves share
+     a centre. Where tiles meet, the corners are half as round at most, so the outer ones still read as the list's. */
+  --hub-tile-outer: max(var(--env-radius-xs), calc(var(--env-radius-lg) - var(--env-space-1)));
+  --hub-tile-inner: min(var(--env-radius-row-inner), calc(var(--hub-tile-outer) / 2));
+  --hub-tile-top: var(--hub-tile-inner); --hub-tile-bottom: var(--hub-tile-inner);
+}
+.hub-list.env-table > .env-table-body > .env-table-row:not(.hub-row-part) + .hub-row-part { --hub-tile-top: var(--hub-tile-outer); }
+.hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:last-child { --hub-tile-bottom: var(--hub-tile-outer); }
+.hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:is(:hover, :has(:focus-visible)) { --hub-tile: var(--hub-part-hover); }
+.hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell { border-block-start: 0; background-color: var(--hub-tile); }
+.env-table-region:not([data-stacked]) > .hub-list {
+  --hub-tile-start: calc(var(--env-space-4) + var(--hub-fold) - var(--env-space-2) - var(--env-space-1)); --hub-tile-end: var(--env-space-1);
+  --hub-tile-gap: calc(var(--env-space-1) / 2); --hub-tiles-below: var(--env-space-3);
+  /* How far the layers that paint a tile's ends lie over each other, so no line of the surface shows between them at any zoom. */
+  --hub-tile-lap: 0.125rem;
+}
+.env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell {
+  border-block-end: var(--hub-tile-gap) solid transparent; background: var(--hub-group) var(--hub-fill) no-repeat;
+}
+.env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:last-child > .env-table-cell { border-block-end-width: var(--hub-tiles-below); }
+/* The first and last cells, in three bands (between the corners; beside the top corner; beside the
+   bottom corner) and the two corners, each a quarter circle in a square. The bands and the squares
+   reach a little into the band between the corners (the lap), so they never leave a seam. */
+.env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell:first-child {
+  padding-inline-start: calc(var(--hub-tile-start) + var(--env-space-3));
+  background-image:
+    var(--hub-fill), var(--hub-fill), var(--hub-fill),
+    radial-gradient(circle at var(--hub-tile-top) var(--hub-tile-top), var(--hub-tile) calc(var(--hub-tile-top) - 0.03125rem), transparent var(--hub-tile-top)),
+    radial-gradient(circle at var(--hub-tile-bottom) var(--hub-tile-lap), var(--hub-tile) calc(var(--hub-tile-bottom) - 0.03125rem), transparent var(--hub-tile-bottom));
+  background-position:
+    var(--hub-tile-start) var(--hub-tile-top), calc(var(--hub-tile-start) + var(--hub-tile-top)) 0, left calc(var(--hub-tile-start) + var(--hub-tile-bottom)) bottom 0,
+    var(--hub-tile-start) 0, left var(--hub-tile-start) bottom 0;
+  background-size:
+    calc(100% - var(--hub-tile-start)) calc(100% - var(--hub-tile-top) - var(--hub-tile-bottom)),
+    calc(100% - var(--hub-tile-start) - var(--hub-tile-top)) calc(var(--hub-tile-top) + var(--hub-tile-lap)),
+    calc(100% - var(--hub-tile-start) - var(--hub-tile-bottom)) calc(var(--hub-tile-bottom) + var(--hub-tile-lap)),
+    calc(var(--hub-tile-top) + var(--hub-tile-lap)) calc(var(--hub-tile-top) + var(--hub-tile-lap)),
+    calc(var(--hub-tile-bottom) + var(--hub-tile-lap)) calc(var(--hub-tile-bottom) + var(--hub-tile-lap));
+}
+.env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell:last-child {
+  padding-inline-end: calc(var(--hub-tile-end) + var(--env-space-3));
+  background-image:
+    var(--hub-fill), var(--hub-fill), var(--hub-fill),
+    radial-gradient(circle at var(--hub-tile-lap) var(--hub-tile-top), var(--hub-tile) calc(var(--hub-tile-top) - 0.03125rem), transparent var(--hub-tile-top)),
+    radial-gradient(circle at var(--hub-tile-lap) var(--hub-tile-lap), var(--hub-tile) calc(var(--hub-tile-bottom) - 0.03125rem), transparent var(--hub-tile-bottom));
+  background-position:
+    0 var(--hub-tile-top), 0 0, left 0 bottom 0,
+    right var(--hub-tile-end) top 0, right var(--hub-tile-end) bottom 0;
+  background-size:
+    calc(100% - var(--hub-tile-end)) calc(100% - var(--hub-tile-top) - var(--hub-tile-bottom)),
+    calc(100% - var(--hub-tile-end) - var(--hub-tile-top)) calc(var(--hub-tile-top) + var(--hub-tile-lap)),
+    calc(100% - var(--hub-tile-end) - var(--hub-tile-bottom)) calc(var(--hub-tile-bottom) + var(--hub-tile-lap)),
+    calc(var(--hub-tile-top) + var(--hub-tile-lap)) calc(var(--hub-tile-top) + var(--hub-tile-lap)),
+    calc(var(--hub-tile-bottom) + var(--hub-tile-lap)) calc(var(--hub-tile-bottom) + var(--hub-tile-lap));
+}
+/* In a narrow window, where rows stack, a part is set in under its group. */
+.env-table-region[data-stacked] > .hub-list > .env-table-body > .hub-row-part > .env-table-cell:first-child { padding-inline-start: calc(var(--env-space-4) + var(--hub-fold)); }
 /* A row's state line: what the user is to do in amber, what it waits on muted. */
 .hub-row-note { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hub-row-note[data-status='your_turn'] { color: var(--env-color-fg-warning); }
@@ -481,6 +595,8 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 .pull-mark-state[data-state='draft'], .pull-mark-checks[data-checks='pending'] { color: var(--env-color-fg-muted); }
 .pull-mark-state[data-state='merged'] { color: var(--env-color-fg-accent); }
 .pull-mark-state[data-state='closed'], .pull-mark-checks[data-checks='failing'] { color: var(--env-color-fg-danger); }
+/* On the hub the mark sits above the row's stretched link, as the reference beside it does, so its hint opens on hover. */
+.hub-row-note .pull-mark, .hub-row-blocked .pull-mark { position: relative; z-index: calc(var(--env-z-raised) + 1); }
 /* The first paragraph of a long message, cut to four lines until shown whole. */
 /* A plan's statistics page: its figures, its timeline and its tables. */
 .plan-statistics-page { display: grid; gap: var(--env-space-6); }

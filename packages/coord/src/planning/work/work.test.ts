@@ -8,7 +8,7 @@ import path from 'node:path';
 import { validatePlanning } from '../check/check.ts';
 import { checkPaths, fileCheckers } from '../check/checkPaths.ts';
 import { remoteRepository } from '../references/remotes.ts';
-import { acceptWork, addSteps, archiveWork, proposeSteps, projectTags, searchWork, tagWork, closeWork, createWork, setContinues, setParts, planningLedger, removeStep, renameStep, reopenWork, setState, setStepStatus, startWork, WorkError, workStatus } from './work.ts';
+import { acceptWork, addSteps, archiveWork, proposeSteps, projectTags, searchWork, tagWork, closeWork, createWork, setContinues, planningLedger, removeStep, renameStep, reopenWork, setState, setStepStatus, startWork, updateWork, WorkError, workStatus } from './work.ts';
 import { git, plan, planningFolder, read, temporary, today, write } from '../testing.ts';
 
 const errorsOf = (root: string) => validatePlanning(root).errors;
@@ -46,28 +46,31 @@ test('a work item is created under the next unused number, registered, and valid
   await assert.rejects(setContinues(root, 'work-0005', [continuing.workId], today), /a loop/);
   await setContinues(root, continuing.workId, [], today);
   assert.ok(read(root, continuing.plan).includes('\ncontinues: []\n'));
-  // Parts: new work with partOf becomes its group's last part; work_update sets them in order. Groups
-  // are one level deep, a part belongs to one group, and parts are work items of this project.
+  // Parts: new work with partOf is its work item's next part, whichever part names the work item. A
+  // number alone, or with the 1 written out, names the first part. Work that exists joins a work
+  // item as its next part, and its old ID names it from then on; that number is never given again.
   const part = await createWork(root, { title: 'First part', summary: 'A part.', partOf: 'work-0004' }, today);
-  assert.deepEqual([part.partOf, part.changed.at(-1)], ['work-0004', created.plan]);
-  assert.ok(read(root, created.plan).includes(`\nparts: ["${part.workId}"]\n`));
-  assert.deepEqual((await setParts(root, 'work-0004', ['work-0005', part.workId], today)).parts, ['work-0005', part.workId]);
+  assert.deepEqual([part.workId, part.path, part.partOf, part.parts], ['work-0004-2', 'active/0004-2-first-part', 'work-0004', ['work-0004', 'work-0004-2']]);
+  assert.equal((await createWork(root, { title: 'Third', partOf: 'work-0004-2' }, today)).workId, 'work-0004-3');
+  assert.equal((await workStatus(root, 'work-0004-1')).workId, 'work-0004');
+  const joined = await updateWork(root, 'work-0005', { partOf: 'work-0004-1' }, today) as Awaited<ReturnType<typeof updateWork>> & { formerly?: string };
+  assert.deepEqual([joined.workId, joined.formerly, joined.path], ['work-0004-4', 'work-0005', 'active/0005-custom-name']);
+  assert.equal((await workStatus(root, 'work-0005')).workId, 'work-0004-4', 'the former ID still names it');
+  assert.deepEqual(JSON.parse(read(root, 'planning.json')).former_ids, { 'work-0005': 'work-0004-4' });
+  assert.match(read(root, 'active/0005-custom-name/plan.md'), /^id: work-0004-4$/m);
+  assert.match(read(root, 'active/0005-custom-name/ledger.md'), /^work_id: work-0004-4$/m);
   assert.deepEqual(errorsOf(root), []);
-  for (const [group, parts, message] of [
-    ['work-0004', ['work-9999'], /names no work item/], ['work-0004', ['work-0004'], /its own part/], ['work-0004', ['work-0005', 'work-0005'], /twice/],
-    ['work-0004', [path.basename(root) + ':work-0005'], /not a work item of this project/], ['work-0001', ['work-0005'], /already a part of work-0004/],
-    ['work-0001', ['work-0004'], /has parts of its own/], ['work-0005', ['work-0001'], /is a part of work-0004/],
-  ] as const) await assert.rejects(setParts(root, group, [...parts], today), message);
-  await assert.rejects(createWork(root, { title: 'Nested', partOf: 'work-0005' }, today), /is a part of work-0004/);
-  await setParts(root, 'work-0004', [], today);
-  assert.ok(read(root, created.plan).includes('\nparts: []\n'));
+  await assert.rejects(updateWork(root, 'work-0004-2', { partOf: 'work-0001' }, today), /one of several parts/);
+  await assert.rejects(updateWork(root, 'work-0004-3', { partOf: 'work-0004' }, today), /a part of work-0004 already/);
+  await assert.rejects(createWork(root, { title: 'Elsewhere', partOf: path.basename(root) + ':work-0004' }, today), /not a work item of this project/);
+  assert.equal((await createWork(root, { title: 'After', summary: 'Numbered after every former ID.' }, today)).workId, 'work-0007');
   // A summary goes into the header under the title; without one, the check asks for it.
   const summarized = await createWork(root, { title: 'Refunds', summary: ' Refunds to the card: "partial" ones too. Not started. ' }, today);
   assert.equal(summarized.summary, 'Refunds to the card: "partial" ones too. Not started.');
   assert.match(read(root, summarized.plan), /^title: "Refunds"\nsummary: "Refunds to the card: \\"partial\\" ones too\. Not started\."\ncreated: "2026-10-14"$/m);
   assert.equal(created.summary, null);
   assert.deepEqual(validatePlanning(root).warnings.filter(warning => warning.includes('no summary')).map(warning => warning.split(':')[0]),
-    ['active/0001-existing/plan.md', 'active/0002-other/plan.md', 'active/0004-save-the-cart/plan.md', 'active/0005-custom-name/plan.md']);
+    ['active/0001-existing/plan.md', 'active/0002-other/plan.md', 'active/0004-save-the-cart/plan.md', 'active/0005-custom-name/plan.md', 'active/0004-3-third/plan.md']);
   await assert.rejects(createWork(root, { title: 'X', summary: 'One.\nTwo.' }, today), /The summary must be one line/);
   for (const [request, message] of [
     [{ title: '' }, /title must be nonempty/],
@@ -344,8 +347,8 @@ test('coord check attributes findings to the files asked about and runs register
   assert.deepEqual((await checkPaths([path.join(root, 'active/0001-existing/plan.md')]))[0].errors, whole.errors);
   assert.deepEqual((await checkPaths([path.join(root, 'active/0002-other/plan.md')]))[0].errors, [], 'another file has no findings');
   assert.deepEqual((await checkPaths([path.join(root, 'active/0001-existing')]))[0].errors, whole.errors, 'a folder gets the findings about its files');
-  writeFileSync(path.join(root, 'planning.json'), read(root, 'planning.json').replace('"schema_version": 2', '"schema_version": 1'));
-  assert.deepEqual((await checkPaths([path.join(root, 'planning.json')]))[0].errors, ['registry schema_version must be integer 2']);
+  writeFileSync(path.join(root, 'planning.json'), read(root, 'planning.json').replace('"schema_version": 3', '"schema_version": 1'));
+  assert.deepEqual((await checkPaths([path.join(root, 'planning.json')]))[0].errors, ['registry schema_version must be integer 3']);
   const outside = await checkPaths([tmpdir()]);
   assert.match(outside[0].errors[0], /not inside a planning folder/);
   // Diagram files are checked as diagrams, with the line and column of each problem.
@@ -420,4 +423,26 @@ test('coord check warns about an active plan without a summary, and refuses one 
   writeFileSync(path.join(root, 'active/0002-other/plan.md'), plan('work-0002'));
   await archiveWork(root, 'work-0002', { disposition: 'abandoned', supersededBy: null, reason: 'Not needed.' }, today);
   assert.deepEqual(warned(), []);
+});
+
+test('a work item is in the projects its plan lists: projects of the home, by their planning folders\' names', async t => {
+  const directory = temporary(t);
+  const root = planningFolder(directory, 'main');
+  planningFolder(directory, 'harbor');
+  // Each once, as its folder spells it; the project that keeps the work is listed like any other.
+  const created = await createWork(root, { title: 'Across projects', projects: ['harbor', 'main', caseless ? 'HARBOR' : 'harbor'] }, today);
+  assert.deepEqual(created.projects, ['harbor', 'main']);
+  assert.ok(read(root, created.plan).includes('\nprojects: ["harbor", "main"]\n'));
+  assert.deepEqual(errorsOf(root), []);
+  assert.deepEqual((await updateWork(root, 'work-0001', { projects: ['harbor'] }, today)).projects, ['harbor']);
+  await assert.rejects(updateWork(root, 'work-0001', { projects: ['nowhere'] }, today), /"nowhere" names no project of the home: .*\(harbor, main\)/);
+  // No projects: it is in the project that keeps it again.
+  await updateWork(root, 'work-0001', { projects: [] }, today);
+  assert.equal((await workStatus(root, 'work-0001')).projects, undefined);
+  assert.equal((await updateWork(root, 'work-0002', { projects: [] }, today)).changed.length, 0, 'a plan that never listed projects is left as it is');
+  // The check takes names only, and warns of one that names no project of the home.
+  write(path.join(root, 'active/0002-other/plan.md'), plan('work-0002', { projects: '["nowhere"]' }));
+  assert.ok(validatePlanning(root).warnings.some(message => /projects lists nowhere, which names no project of the home/.test(message)));
+  write(path.join(root, 'active/0002-other/plan.md'), plan('work-0002', { projects: '["a/b"]' }));
+  assert.ok(errorsOf(root).some(message => /projects must be a list of projects/.test(message)));
 });

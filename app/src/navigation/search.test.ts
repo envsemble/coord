@@ -30,8 +30,8 @@ test("the host's results say their project and work item, and the snippet", () =
     result({ kind: 'heading', title: 'Why', snippet: '… the hub …', work: 'work-0023', path: 'active/0023-plans-hub/plan.md', anchor: 'why' }),
     result({ kind: 'project', title: 'Coord' }),
   ], [coord]);
-  assert.deepEqual([plan.label, plan.detail, plan.key], ['Plans hub', 'Coord · #0023', workKey(folder, 'work-0023')]);
-  assert.deepEqual([heading.kind, heading.detail, heading.snippet, heading.key], ['heading', 'Coord · #0023 Plans hub', '… the hub …', null]);
+  assert.deepEqual([plan.label, plan.detail, plan.key], ['Plans hub', 'Coord · #0023-1', workKey(folder, 'work-0023')]);
+  assert.deepEqual([heading.kind, heading.detail, heading.snippet, heading.key], ['heading', 'Coord · #0023-1 Plans hub', '… the hub …', null]);
   assert.deepEqual([project.detail, project.key], ['', null]);
   assert.equal(new Set([plan.id, heading.id, project.id]).size, 3);
 });
@@ -40,7 +40,7 @@ test("an archived project's results are left out", () => {
   const other = 'f-' + '2'.repeat(32);
   const shelved: Project = { ...coord, id: other, name: 'Old', state: 'archived' };
   const listed = hostEntries([result({ work: 'work-0023' }), result({ projectId: other, projectName: 'Old', work: 'work-0001' })], [coord, shelved]);
-  assert.deepEqual(listed.map(item => item.detail), ['Coord · #0023']);
+  assert.deepEqual(listed.map(item => item.detail), ['Coord · #0023-1']);
 });
 
 const entry = (id: string, kind: SearchEntry['kind'], key: string | null = null): SearchEntry => ({ id, kind, label: id, detail: '', snippet: null, destination: { place: { page: 'hub', projectId: null } }, key });

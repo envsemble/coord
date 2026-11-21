@@ -221,6 +221,7 @@ function channels(manager: WindowManager, actions: IpcActions): Record<InvokeCha
     'app:setTheme': { args: [themePreference], handle: (_window, preference: ThemePreference) => { manager.context.state.setTheme(preference); nativeTheme.themeSource = preference; } },
     // About Coord, which the window shows: versions and the data folder, nothing a page could misuse.
     'app:about': { args: [], handle: () => actions.about() },
+    'link:take': { args: [], handle: window => window.takeLink() },
     'app:command': {
       args: [command],
       handle: async (window, name: string) => {

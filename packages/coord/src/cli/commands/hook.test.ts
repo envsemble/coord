@@ -54,7 +54,9 @@ test('hooks give the session its planning context, check and link planning edits
   const context: string = started.hookSpecificOutput.additionalContext;
   assert.ok(context.includes(`Coord project "shop-planning" for this folder: planning folder ${root}.`), context);
   assert.ok(!context.includes('Several projects'), context);
-  assert.ok(context.endsWith('\n- work-0001 "Cart" (draft, not_started): No steps agreed yet. Plan: active/0001-cart/plan.md'), context);
+  assert.ok(context.includes('\n- work-0001 "Cart" (draft, not_started): No steps agreed yet. Plan: active/0001-cart/plan.md\n'), context);
+  // And how to name work to the user so a click opens it in Coord, with this project's work as the example.
+  assert.ok(context.endsWith("[shop-planning#0001-1 Cart](https://coord.envsemble.com/open#shop-planning/0001-1) (the planning folder's name, #, the work item's number and its part's; work-0001 is #0001-1). The Coord tools' answers carry each work item's link."), context);
   const elsewhere = temporary(t);
   assert.equal(await contextIn(env, elsewhere), [
     `Coord: no project covers this folder (${realpathSync.native(elsewhere)}). Active projects in the Coord home:`,
@@ -176,6 +178,12 @@ test('hooks give the session its planning context, check and link planning edits
   assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002', 'work-0003'], 'reads, unregistered work and edits link nothing');
   await shell(`cd somewhere && coord work step set work-0004 "Understand the request" done --planning-dir "${root}"`);
   assert.deepEqual(links().map(item => item.workId), ['work-0001', 'work-0002', 'work-0003', 'work-0004']);
+  // Work named with the project that keeps it, as a session of another project names it, links as well: from a tool and from a shell.
+  for (const title of ['Taxes', 'Tips']) await run(['work', 'create', '--title', title, '--planning-dir', root], { env });
+  const named = (workId: string) => path.basename(root) + ':' + workId;
+  await hook('PostToolUse', { tool_name: 'mcp__plugin_coord_coord__state', tool_input: { work: named('work-0005') }, tool_response: [{ type: 'text', text: JSON.stringify({ workId: 'work-0005', planningFolder: root }) }] });
+  await shell(`coord work state ${named('work-0006')} working`);
+  assert.deepEqual(links().map(item => item.workId).slice(4), ['work-0005', 'work-0006']);
   assert.ok(!existsSync(path.join(root, 'active', '0001-cart', '.coord')), 'nothing is written into the planning folder');
   assert.equal((await run(['check', root], { env })).status, 0);
 });
@@ -259,7 +267,7 @@ test('a work item the session left is reported at its end when no turn end measu
 test('a session in a folder that several projects cover is told to ask which one to plan in', async t => {
   const { checkout, home, env } = homeWithPlanning(t);
   const other = path.join(home, 'planning', 'harbor');
-  write(path.join(other, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Harbor', folders: [checkout], work_items: [] }));
+  write(path.join(other, 'planning.json'), JSON.stringify({ schema_version: 3, name: 'Harbor', folders: [checkout], work_items: [] }));
   const context = await contextIn(env, checkout);
   assert.ok(context.includes('Coord project "shop-planning"') && context.includes(`Coord project "Harbor" for this folder: planning folder ${realpathSync.native(other)}`), context);
   assert.match(context, /Several projects cover this folder \(Harbor, shop-planning\): before planning, ask the user which project to plan in/);
@@ -271,7 +279,7 @@ test('a session in a folder that several projects cover is told to ask which one
   const where = JSON.parse((await run(['where', '--cwd', checkout], { env })).stdout);
   assert.deepEqual(where.matches.map((match: { project: string }) => match.project), ['Harbor', 'shop-planning']);
   // Once Harbor covers only the folder around the checkout, the deeper folder decides.
-  write(path.join(other, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Harbor', folders: [path.dirname(checkout)], work_items: [] }));
+  write(path.join(other, 'planning.json'), JSON.stringify({ schema_version: 3, name: 'Harbor', folders: [path.dirname(checkout)], work_items: [] }));
   assert.match(await contextIn(env, checkout), /^Coord project "shop-planning" for this folder: planning folder .*\.\nActive work \(plans relative to the planning folder\):\n/);
   assert.equal(await contextIn(env, path.dirname(checkout)), `Coord project "Harbor" for this folder: planning folder ${realpathSync.native(other)}.\nNo active work in this project.`);
 });

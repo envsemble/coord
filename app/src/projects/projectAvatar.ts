@@ -19,14 +19,23 @@ export function projectHue(projectId: string): number {
   return hues[hash % hues.length];
 }
 
-/** What the listing says of a project: its open plans, those its agents work on and those that are the person's turn, as the plans declare, and when it changed. */
-export function projectFacts(project: Pick<Project, 'summary'>): { open: number; working: number; waiting: number; updated: string | null } | null {
+/**
+ * What the listing says of a project: its open plans, those its agents work on and those that are the
+ * person's turn, as the plans declare, and when it changed. Its plans are those in it: what it keeps
+ * that lists no other projects, and what any active project of the listing (`projects`) keeps that
+ * lists it.
+ */
+export function projectFacts(project: Pick<Project, 'summary'> & Partial<Pick<Project, 'id'>>, projects: readonly (Pick<Project, 'summary'> & Partial<Pick<Project, 'id' | 'state'>>)[] = [project]): { open: number; working: number; waiting: number; updated: string | null } | null {
   const summary = project.summary;
   if (!summary) return null;
+  const active = projects.filter(each => each === project || each.id === project.id || each.state === 'active').flatMap(each => (each.summary?.active ?? []).filter(work => {
+    const listed = (work.projects ?? []).flatMap(link => link.projectId ? [link.projectId] : []);
+    return listed.length ? project.id !== undefined && listed.includes(project.id) : each === project || each.id === project.id;
+  }));
   return {
-    open: summary.active.filter(work => work.state !== 'closed').length,
-    working: summary.active.filter(work => work.turn?.kind === 'working' || work.turn?.kind === 'planning').length,
-    waiting: summary.active.filter(work => work.turn?.kind === 'your_turn').length,
+    open: active.filter(work => work.state !== 'closed').length,
+    working: active.filter(work => work.turn?.kind === 'working' || work.turn?.kind === 'planning').length,
+    waiting: active.filter(work => work.turn?.kind === 'your_turn').length,
     updated: summary.updated,
   };
 }
