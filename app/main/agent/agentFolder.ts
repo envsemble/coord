@@ -1,5 +1,5 @@
 // The coord command, the Node.js it runs on and the Coord plugin the app carries (resources/agent,
-// assembled by scripts/agent-payload.cjs; one packed file on Windows, agentPack.ts), copied into the Coord home's agent/ folder whenever the
+// assembled by scripts/agent-payload.cjs; the command one packed file on Windows, agentPack.ts), copied into the Coord home's agent/ folder whenever the
 // build there is another. There they have a stable path: the agents read the plugin in place, and
 // the launchers in bin/, on the PATH, run the command on its own Node.js. Nothing runs from or
 // points into the app itself: an AppImage is mounted at a new path on every run, and an MCP server
@@ -124,11 +124,16 @@ async function writeAtomically(file: string, text: string | Buffer, mode = 0o644
   // A file renamed over another keeps the mode it was written with, where modes apply.
   if (process.platform !== 'win32') await chmod(file, mode);
 }
-/** The bundle's parts, put under `to` to be renamed into place: a packed bundle (the Windows app's) unpacked, a folder copied. */
-async function stage(bundle: Bundle, to: string) {
+/**
+ * The bundle's parts, put under `to` to be renamed into place: the command unpacked when the bundle
+ * carries it packed (the Windows app's), copied otherwise, and the plugin and manifests copied.
+ */
+async function stage(bundle: Bundle, to: string, platform: NodeJS.Platform) {
   const packed = path.join(bundle.directory, packName);
-  if (existsSync(packed)) { await unpack(packed, to); return; }
-  for (const part of ['command', 'plugin', '.claude-plugin', '.agents']) await cp(path.join(bundle.directory, part), path.join(to, part), { recursive: true });
+  if (existsSync(packed)) await unpack(packed, path.join(to, 'command'));
+  else await cp(path.join(bundle.directory, 'command'), path.join(to, 'command'), { recursive: true });
+  if (!complete(path.join(to, 'command'), platform)) throw new Error(`The bundle's command has no bin/coord.js or Node.js: ${bundle.directory}`);
+  for (const part of ['plugin', '.claude-plugin', '.agents']) await cp(path.join(bundle.directory, part), path.join(to, part), { recursive: true });
 }
 /** Remove what an earlier, interrupted copy left (best effort: a file still open on Windows stays until next time). */
 async function sweep(folder: string, keep: (name: string) => boolean) {
@@ -153,7 +158,7 @@ export async function installAgentFolder(bundle: Bundle, folder: string, platfor
     // The bundle is staged beside the folders it goes to, under a temporary name, and each part renamed into place.
     const staged = path.join(folder, temporaryName('.copy-'));
     try {
-      await stage(bundle, staged);
+      await stage(bundle, staged, platform);
       // A complete folder of this build is already there when only the plugin was missing.
       if (!complete(command, platform)) {
         await rm(command, { recursive: true, force: true });

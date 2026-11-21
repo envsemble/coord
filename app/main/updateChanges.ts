@@ -59,6 +59,8 @@ export async function fetchChanges(from: string, to: string, fetcher: typeof fet
     headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Coord' },
     signal: AbortSignal.timeout(15_000),
   });
+  // An old nightly's tag is removed after a while: the update's own release still says what it has.
+  if (response.status === 404) return { version: to, changes: [], commits: null, url: `https://github.com/${releaseRepository}/releases/tag/v${encodeURIComponent(to)}` };
   if (!response.ok) throw new Error(`GitHub answered ${response.status} comparing v${from} with v${to}.`);
   return readChanges(await response.json() as Compare, to);
 }

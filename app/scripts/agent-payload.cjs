@@ -196,33 +196,35 @@ exports.assemble = function assemble(repository, destination, version, runtime) 
 };
 
 /**
- * Pack an assembled payload into one file, payload.pack, beside its build.json, removing its
- * folders: the Windows installer spends its time per file, and the payload's thousands of small
- * files made every update minutes slower. The app unpacks it into the agent folder
- * (main/agent/agentPack.ts, which describes the format).
+ * Pack an assembled payload's command into one file, command.pack, in place of its command/ folder:
+ * the Windows installer spends its time per file, and the command's thousands of small files made
+ * every update minutes slower. The plugin and the marketplace manifests stay folders, which the app
+ * reads in place. The app unpacks the command into the agent folder (main/agent/agentPack.ts, which
+ * describes the format).
  */
-exports.pack = function pack(directory) {
+exports.packCommand = function packCommand(directory) {
+  const command = path.join(directory, 'command');
   const files = [];
   const walk = relative => {
-    for (const entry of fs.readdirSync(path.join(directory, relative), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) {
+    for (const entry of fs.readdirSync(path.join(command, relative), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) {
       const name = relative ? relative + '/' + entry.name : entry.name;
       if (entry.isDirectory()) walk(name);
-      else if (entry.isFile() && name !== 'build.json') files.push(name);
+      else if (entry.isFile()) files.push(name);
     }
   };
   walk('');
-  const index = files.map(name => { const stat = fs.statSync(path.join(directory, name)); return { path: name, size: stat.size, mode: stat.mode & 0o777 }; });
+  const index = files.map(name => { const stat = fs.statSync(path.join(command, name)); return { path: name, size: stat.size, mode: stat.mode & 0o777 }; });
   const header = Buffer.from(JSON.stringify(index));
   const length = Buffer.alloc(4);
   length.writeUInt32BE(header.length);
-  const target = path.join(directory, 'payload.pack');
+  const target = path.join(directory, 'command.pack');
   const out = fs.openSync(target + '.tmp', 'w');
   try {
     fs.writeSync(out, length);
     fs.writeSync(out, header);
-    for (const name of files) fs.writeSync(out, fs.readFileSync(path.join(directory, name)));
+    for (const name of files) fs.writeSync(out, fs.readFileSync(path.join(command, name)));
   } finally { fs.closeSync(out); }
-  for (const entry of fs.readdirSync(directory)) if (entry !== 'build.json' && entry !== 'payload.pack.tmp') fs.rmSync(path.join(directory, entry), { recursive: true, force: true });
   fs.renameSync(target + '.tmp', target);
+  fs.rmSync(command, { recursive: true, force: true });
   return { files: files.length };
 };

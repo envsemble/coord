@@ -1,13 +1,14 @@
-// The Windows app carries its agent bundle as one file, resources/agent/payload.pack, beside its
-// build.json (scripts/agent-payload.cjs's pack): the installer spends its time per file, and the
-// bundle's thousands of small files made every update minutes slower. The agent folder unpacks it.
+// The Windows app carries the coord command as one file, resources/agent/command.pack, in place of
+// its command/ folder (scripts/agent-payload.cjs's packCommand): the installer spends its time per
+// file, and the command's thousands of small files made every update minutes slower. The agent
+// folder unpacks it.
 //
 // The file is a 4-byte big-endian length, an index of that length as JSON ([{ path, size, mode }],
 // paths relative with forward slashes), then each file's bytes in the index's order.
 import { chmod, mkdir, open } from 'node:fs/promises';
 import path from 'node:path';
 
-export const packName = 'payload.pack';
+export const packName = 'command.pack';
 
 interface Entry { path: string; size: number; mode: number }
 
@@ -45,7 +46,7 @@ export async function unpack(file: string, destination: string) {
         for (let done = 0; done < entry.size;) {
           const size = Math.min(chunk.length, entry.size - done);
           await read(chunk, size, position + done);
-          await out.write(chunk, 0, size);
+          for (let written = 0; written < size;) written += (await out.write(chunk, written, size - written)).bytesWritten;
           done += size;
         }
       } finally { await out.close(); }

@@ -190,9 +190,10 @@ export interface UpdateChange { title: string; sha: string; pull: number | null 
 /**
  * What the update on offer changes since the running build, from GitHub: the branch's own steps,
  * newest first (a merged pull request is one step), how many commits that is in all, and the
- * comparison's page.
+ * comparison's page; or, when GitHub no longer has the running build's tag (old nightlies are
+ * removed), no steps, no count and the update's release page.
  */
-export interface UpdateChanges { version: string; changes: UpdateChange[]; commits: number; url: string }
+export interface UpdateChanges { version: string; changes: UpdateChange[]; commits: number | null; url: string }
 /** The running build's version, the channel it follows, its update, and that update's changes once GitHub answers. */
 export interface UpdateState { version: string; channel: UpdateChannel; status: UpdateStatus; changes: UpdateChanges | null }
 

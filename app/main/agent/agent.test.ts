@@ -14,7 +14,7 @@ import { chosenProgram } from './programs.ts';
 import { agentCheck } from './verify.ts';
 
 const temporary = () => mkdtempSync(path.join(tmpdir(), 'coord-agent-'));
-const { pack } = createRequire(import.meta.url)('../../scripts/agent-payload.cjs') as { pack: (directory: string) => { files: number } };
+const { packCommand } = createRequire(import.meta.url)('../../scripts/agent-payload.cjs') as { packCommand: (directory: string) => { files: number } };
 
 test('the launchers run the build\'s command on its Node.js, by paths relative to themselves', () => {
   const [sh, cmd] = launchers('1.0.0-a', 'win32');
@@ -33,9 +33,9 @@ test('the launchers run the build\'s command on its Node.js, by paths relative t
 test('the agent folder takes a new build whole, writes its launchers, and keeps the previous command', async () => {
   const directory = temporary(), folder = path.join(directory, 'home', 'agent');
   const first = fakeBundle(path.join(directory, 'one'), '1.0.0-aaa'), second = fakeBundle(path.join(directory, 'two'), '1.0.0-bbb');
-  // The Windows app carries its bundle packed into one file; the update below comes from one.
-  pack(second.directory);
-  assert.deepEqual(readdirSync(second.directory).sort(), ['build.json', 'payload.pack']);
+  // The Windows app carries its command packed into one file; the update below comes from one.
+  packCommand(second.directory);
+  assert.deepEqual(readdirSync(second.directory).sort(), ['.agents', '.claude-plugin', 'build.json', 'command.pack', 'plugin']);
   assert.equal(needsCopy(null, folder, first.build, 'linux'), true);
 
   const installed = await installAgentFolder(first, folder, 'linux');

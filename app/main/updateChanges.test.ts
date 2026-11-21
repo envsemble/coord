@@ -1,7 +1,7 @@
 // An update's changes, read from GitHub's comparison of two release tags.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readChanges } from './updateChanges.ts';
+import { fetchChanges, readChanges } from './updateChanges.ts';
 
 test("an update's changes are the branch's own steps, newest first, with a merged pull request under its title", () => {
   const commit = (sha: string, parents: string[], message: string) => ({ sha, parents: parents.map(parent => ({ sha: parent })), commit: { message } });
@@ -44,4 +44,9 @@ test('a release merged into main lists the pull requests it brings, not itself, 
   assert.deepEqual(changes.map(change => change.pull ? `#${change.pull} ${change.title}` : change.title), [
     'Release 0.10.0', '#63 Coord on envUI 3', 'A commit on dev', '#60 Site: current screenshots',
   ]);
+});
+
+test('when GitHub no longer has the running build\'s tag, the update links to its release instead', async () => {
+  const changes = await fetchChanges('0.9.1-nightly.20261101.1', '0.9.1-nightly.20261119.12', async () => new Response('{}', { status: 404 }));
+  assert.deepEqual(changes, { version: '0.9.1-nightly.20261119.12', changes: [], commits: null, url: 'https://github.com/envsemble/coord/releases/tag/v0.9.1-nightly.20261119.12' });
 });

@@ -4,7 +4,7 @@
 // person's clicks.
 import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { Button, Column, HoverCard, Link, List, Progress, Select, Text } from '@envsemble/envui';
-import type { UpdateChannel, UpdateState } from '../types';
+import type { UpdateChanges, UpdateChannel, UpdateState } from '../types';
 import { api } from '../api';
 import { relativeDate } from '../ui/format';
 import { UpdateIcon } from '../ui/icons';
@@ -63,13 +63,14 @@ function UpdateChangesCard({ version, lead, state }: { version: string; lead: st
         {' '}<Text variant="caption" emphasis="subtle" render={<span />}>{change.pull ? `#${change.pull}` : change.sha.slice(0, 7)}</Text>
       </li>)}
     </ul>}
-    {changes && <Text variant="caption">
-      {changes.changes.length > shown.length && `And ${changes.changes.length - shown.length} more. `}
-      <Link href={changes.url} onClick={event => { event.preventDefault(); void api.openExternal(changes.url).catch(() => {}); }}>
-        {changes.commits === 1 ? '1 commit' : `${changes.commits} commits`} since {state.version}
-      </Link>
-    </Text>}
+    {changes && <Text variant="caption"><ChangesLink changes={changes} since={state.version} /></Text>}
   </Column>;
+}
+
+/** The update's changes on GitHub: the comparison with the running build, or the update's release. */
+function ChangesLink({ changes, since }: { changes: UpdateChanges; since: string }) {
+  const label = changes.commits === null ? 'Release notes on GitHub' : `${changes.commits === 1 ? '1 commit' : `${changes.commits} commits`} since ${since}`;
+  return <Link href={changes.url} onClick={event => { event.preventDefault(); void api.openExternal(changes.url).catch(() => {}); }}>{label}</Link>;
 }
 
 const channels: { value: UpdateChannel; label: string; description: string }[] = [
@@ -117,14 +118,14 @@ function UpdateStatusRow({ state }: { state: UpdateState }) {
       break;
     case 'checking': detail = 'Checking…'; action = checkButton('Check now'); break;
     case 'available':
-      detail = `Coord ${status.version} is out.`;
+      detail = <>Coord {status.version} is out.{state.changes && <> <ChangesLink changes={state.changes} since={state.version} /></>}</>;
       action = <Button variant="primary" start={<UpdateIcon />} onClick={run(api.downloadUpdate)}>Download</Button>;
       break;
     case 'downloading':
       detail = <Progress className="updates-progress" label={`Downloading Coord ${status.version}`} value={status.percent} valueText={`${status.percent}%`} />;
       break;
     case 'ready':
-      detail = `Coord ${status.version} is downloaded.`;
+      detail = <>Coord {status.version} is downloaded.{state.changes && <> <ChangesLink changes={state.changes} since={state.version} /></>}</>;
       action = <Button variant="primary" start={<UpdateIcon />} onClick={run(api.installUpdate)}>Restart to update</Button>;
       break;
     case 'failed':
