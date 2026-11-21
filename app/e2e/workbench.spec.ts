@@ -631,10 +631,13 @@ test('a work item made of parts is one entry on the hub, its parts under its row
   await fold.click();
   await expect(group.locator('.hub-row-part')).toHaveCount(0);
   await expect(group.locator('.hub-row-parts')).toHaveText('2 parts · 1 your turn');
-  await openPlan(window, 'Saved payment methods');
+  // Its number opens its plan; back on the hub it is folded still, and a click on its row, anywhere, unfolds it.
+  await group.getByRole('link', { name: '#0001', exact: true }).click();
+  await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
   await goHome(window);
   await expect(group.locator('.hub-row-part')).toHaveCount(0);
-  await fold.click();
+  await group.locator('.hub-row').first().click({ position: { x: 700, y: 20 } });
+  await expect(group.locator('.hub-row-part')).toHaveCount(2);
   // Harbor's hub has the group whole, as one of its parts is in Harbor; the part's plan names its project.
   await filterHub(window, 'Harbor');
   await expect(group.locator('.hub-row-link')).toHaveText(['Saved payment methods', 'Order fulfilment model', 'Customer order notifications']);

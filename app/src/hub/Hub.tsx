@@ -168,11 +168,12 @@ function InProjects({ projects }: { projects: Project[] }) {
  * the user is to do, what it waits on, why it is blocked), else the step being worked on or next.
  * Its summary shows on the title's hover. The status icon carries the colour; the text stays neutral
  * but for that line, amber on the user's turn. A work item made of parts has a button before its
- * icon that folds them away (`fold`), and says how many they are while they are; the other rows of a
+ * icon that folds them away (`fold`), as a click anywhere on its row does (its number opens its
+ * plan, its parts open theirs), and says how many they are while they are; the other rows of a
  * hub with such work leave that button's room (`gutter`), so every title starts on one edge and the
  * buttons stand alone. A part among its group's (`index`, its place) starts with its number.
  */
-const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resolved, notify, index, only, gutter, fold, toggle }: {
+const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resolved, notify, index, gutter, fold, toggle }: {
   item: HubItem; go(place: Place): void; notify: Notify;
   /** The host's answers about what its project's rows reference. */
   resolved: Resolutions | undefined;
@@ -182,8 +183,8 @@ const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resol
   projects: Project[] | null;
   /** The table says how long work has waited, in place of when it changed. */
   waiting: boolean;
-  /** A part's place among its group's parts; `only`: it is the group's one part, whose place says nothing. */
-  index?: number; only?: boolean;
+  /** A part's place among its group's parts. */
+  index?: number;
   /** The hub has work made of parts: a row leaves the fold button's room before its icon. */
   gutter?: boolean;
   /** A group's parts: whether they show, the rows that hold them, how many they are and how many are the user's turn. */
@@ -200,15 +201,19 @@ const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resol
   // A part listed without its group says whose it is; under its group, its place says so.
   const parts = index === undefined && work.partOf ? partsFacts(work, project) : null;
   return <Table.Row interactive className={'hub-row' + (large ? ' hub-row-large' : facts.size === 'closed' ? ' hub-row-closed' : '') + (index === undefined ? '' : ' hub-row-part')} data-work={work.id} data-size={facts.size}
-    onClick={event => { if (!event.defaultPrevented && !(event.target as Element).closest('a, button') && !window.getSelection()?.toString()) open(event); }}>
+    onClick={event => { if (!event.defaultPrevented && !(event.target as Element).closest('a, button') && !window.getSelection()?.toString()) { if (fold) toggle?.(); else open(event); } }}>
     <Table.Cell colSpan={wide ? 2 : undefined} className={wide ? 'hub-row-run' : undefined}>
       <span className="hub-row-title">
-        {fold ? <IconButton variant="ghost" size="sm" className="hub-row-fold" icon={fold.open ? <IconExpandMore /> : <IconChevronRight />} aria-label={'Parts of ' + work.title} aria-expanded={fold.open} aria-controls={fold.controls} onClick={toggle} />
+        {fold ? <IconButton variant="ghost" size="sm" className="hub-row-fold" data-row-target icon={fold.open ? <IconExpandMore /> : <IconChevronRight />} aria-label={'Parts of ' + work.title} aria-expanded={fold.open} aria-controls={fold.controls} onClick={toggle} />
           : gutter && index === undefined && <span className="hub-row-fold" aria-hidden="true" />}
-        {index !== undefined && (only ? <span className="hub-row-index" aria-hidden="true" /> : <span className="hub-row-index" aria-label={'Part ' + index}>{index}</span>)}
+        {index !== undefined && <span className="hub-row-index" aria-label={'Part ' + index}>{index}</span>}
         <StatusIcon status={status} />
-        <Link href="#" underline={false} className="hub-row-link" data-row-target draggable={false} title={work.summary ?? undefined} onClick={open}>{work.title}</Link>
-        <span className="hub-row-number">{workNumber(work.id)}</span>
+        {/* A group's row folds its parts wherever it is clicked: its title is no link, and its number opens its plan. */}
+        {fold ? <span className="hub-row-link" title={work.summary ?? undefined}>{work.title}</span>
+          : <Link href="#" underline={false} className="hub-row-link" data-row-target draggable={false} title={work.summary ?? undefined} onClick={open}>{work.title}</Link>}
+        {/* eslint-disable-next-line envui/no-link-in-clickable-row -- the row folds the group's parts; its plan needs a way in that is no new button, and the number is it */}
+        {fold ? <Link href="#" underline={false} className="hub-row-number hub-row-open" draggable={false} title={'Open ' + work.title} onClick={open}>{workNumber(work.id)}</Link>
+          : <span className="hub-row-number">{workNumber(work.id)}</span>}
         {parts?.kind === 'part' && <span className="hub-row-parts" data-kind="part">{'Part ' + parts.index + ' of ' + workNumber(parts.group)}</span>}
         {/* Folded away, its parts are said in a word: how many, and how many wait on the user. */}
         {fold && !fold.open && <span className="hub-row-parts" data-kind="group">{plural(fold.count, 'part')}{fold.turn > 0 && <span className="hub-row-parts-turn"> · {fold.turn} your turn</span>}</span>}
@@ -229,7 +234,7 @@ const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resol
     {waiting ? <Table.Cell label="Waiting" numeric nowrap>{waits(status.key) ? <Waited since={facts.since} waited={waited} /> : <span className="muted" title={facts.changed ? 'Not waiting; changed ' + absoluteDate(facts.changed) : undefined}>—</span>}</Table.Cell>
       : <Table.Cell label="Changed" numeric nowrap>{facts.changed ? <Changed value={facts.changed} /> : <span className="muted">—</span>}</Table.Cell>}
   </Table.Row>;
-}, (before, after) => before.go === after.go && before.waiting === after.waiting && before.waited === after.waited && before.resolved === after.resolved && before.notify === after.notify && before.index === after.index && before.only === after.only && before.gutter === after.gutter && before.toggle === after.toggle
+}, (before, after) => before.go === after.go && before.waiting === after.waiting && before.waited === after.waited && before.resolved === after.resolved && before.notify === after.notify && before.index === after.index && before.gutter === after.gutter && before.toggle === after.toggle
   && JSON.stringify(before.fold) === JSON.stringify(after.fold)
   && projectsKey(before.projects) === projectsKey(after.projects) && rowKey(before.item) === rowKey(after.item));
 
@@ -269,7 +274,7 @@ const HubEntryRows = memo(function HubEntryRows({ entry, open, toggleFold, gutte
   return <Table.Body id={facts ? controls : undefined} className={facts ? 'hub-entry hub-entry-group' : 'hub-entry'} data-open={facts && open ? '' : undefined}>
     <HubRow item={item} go={go} projects={showProject ? inProjects(item) : null} waiting={waiting} waited={waited(item)} resolved={resolved} notify={notify}
       gutter={gutter} fold={facts ? { open, controls, ...facts } : undefined} toggle={facts ? toggle : undefined} />
-    {open && parts.map((part, at) => <HubRow key={part.work.id} item={part} index={at + 1} only={parts.length === 1} go={go} projects={showProject ? projectsOf(part).join('\n') === own ? [] : inProjects(part) : null}
+    {open && parts.map((part, at) => <HubRow key={part.work.id} item={part} index={at + 1} go={go} projects={showProject ? projectsOf(part).join('\n') === own ? [] : inProjects(part) : null}
       waiting={waiting} waited={waited(part)} resolved={resolved} notify={notify} />)}
   </Table.Body>;
 }, (before, after) => before.open === after.open && before.toggleFold === after.toggleFold && before.gutter === after.gutter && before.showProject === after.showProject && before.waiting === after.waiting && before.now === after.now

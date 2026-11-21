@@ -109,29 +109,66 @@ html, body, #root { min-block-size: 100%; }
 .hub-row:has(.hub-row-fold) .hub-row-title + .cell-note { margin-inline-start: calc(var(--hub-fold) - var(--env-space-1) + 1.125rem + var(--env-space-2)); }
 .hub-entry-group > .hub-row:first-child .hub-row-link { font-weight: var(--env-font-weight-semibold); }
 .hub-row-parts-turn { color: var(--env-color-fg-warning); }
+/* A group's number opens its plan: a link that keeps the number's look until it is pointed at. */
+.hub-row-open, .hub-row-open:is(:hover, :active) { color: var(--env-color-fg-muted); background: none; }
+.hub-row-open:is(:hover, :focus-visible) { text-decoration: underline; }
 .hub-row-index { flex: none; inline-size: 1rem; color: var(--env-color-fg-muted); font: var(--env-type-body-sm); font-variant-numeric: tabular-nums; }
 /* A part's title in the Project column's room stops well short of the steps. */
 .hub-row-part > .env-table-cell.hub-row-run { padding-inline-end: var(--env-space-8); }
 .hub-row-part .hub-row-title + .cell-note { margin-inline-start: calc(1rem + 1.125rem + 2 * var(--env-space-2)); }
-/* Its parts are rows of the same table, on a panel of their own under its row: a rounded surface
-   one quiet step from the rows', set in from both edges of the table, starting under the group's
-   icon, with the rows' own surface around it. So one group's parts are closed off from the next
-   group's row, however many groups follow each other. The panel is the cells' own fill, kept
-   inside borders that show the surface behind them, so the parts stay in the table's columns. */
-.hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell { border-block-start: 0; background-color: var(--hub-part-surface); }
-.hub-row-part:is(:hover, :has(:focus-visible)) > .env-table-cell { background-color: color-mix(in srgb, var(--hub-part-surface), var(--env-color-fg-default) 5%); }
+/* A work item made of parts lies on a surface a little apart from the plain rows', its own row and
+   the room around its parts' panel alike, so it is told from them folded or not. Its row under the
+   pointer lights up as a row does. */
+.hub-list { --hub-group-surface: color-mix(in srgb, var(--hub-part-surface), var(--env-color-bg-raised)); }
+.hub-list.env-table > .env-table-body.hub-entry-group > .env-table-row { background-color: var(--hub-group-surface); }
+.hub-list.env-table > .env-table-body.hub-entry-group > .env-table-row:not(.hub-row-part):is(:hover, :has(:focus-visible)) { background-color: color-mix(in srgb, var(--hub-group-surface), var(--env-color-fg-default) 6%); }
+/* Its parts are rows of the same table, so they stay in the table's columns, on a panel of their own
+   under its row: a rounded surface one quiet step from the rows', set in from both edges of the
+   table and starting under the group's icon, with the group's surface around it. So one group's
+   parts are closed off from the next group's row, however many groups follow each other. A part
+   under the pointer lights up on the panel; the surface around the panel stays as it is.
+   The panel is painted by the parts' cells: each fills with the panel's colour, the first and last
+   of a row short of the table's edge, and the four cells at the panel's corners round them with a
+   quarter circle. (A radius on the cells would cut the row's own surface at the corners.) */
+.hub-list.env-table > .env-table-body > .env-table-row.hub-row-part { --hub-panel: var(--hub-part-surface); --hub-fill: linear-gradient(var(--hub-panel), var(--hub-panel)); }
+.hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:is(:hover, :has(:focus-visible)) { --hub-panel: color-mix(in srgb, var(--hub-part-surface), var(--env-color-fg-default) 9%); }
+.hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell { border-block-start: 0; background-color: var(--hub-panel); }
 .env-table-region:not([data-stacked]) > .hub-list {
   --hub-panel-start: calc(var(--env-space-4) + var(--hub-fold) - var(--env-space-2) - var(--env-space-1)); --hub-panel-end: var(--env-space-1);
   --hub-panel-below: var(--env-space-3); --hub-panel-radius: var(--env-radius-md);
 }
-.env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row-part > .env-table-cell { background-clip: padding-box; }
-.env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row-part > .env-table-cell:first-child { border-inline-start: var(--hub-panel-start) solid transparent; padding-inline-start: var(--env-space-3); }
-.env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row-part > .env-table-cell:last-child { border-inline-end: var(--hub-panel-end) solid transparent; padding-inline-end: var(--env-space-3); }
-.env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row:not(.hub-row-part) + .hub-row-part > .env-table-cell:first-child { border-start-start-radius: calc(var(--hub-panel-start) + var(--hub-panel-radius)) var(--hub-panel-radius); }
-.env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row:not(.hub-row-part) + .hub-row-part > .env-table-cell:last-child { border-start-end-radius: calc(var(--hub-panel-end) + var(--hub-panel-radius)) var(--hub-panel-radius); }
-.env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row-part:last-child > .env-table-cell { border-block-end: var(--hub-panel-below) solid transparent; }
-.env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row-part:last-child > .env-table-cell:first-child { border-end-start-radius: calc(var(--hub-panel-start) + var(--hub-panel-radius)) calc(var(--hub-panel-below) + var(--hub-panel-radius)); }
-.env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row-part:last-child > .env-table-cell:last-child { border-end-end-radius: calc(var(--hub-panel-end) + var(--hub-panel-radius)) calc(var(--hub-panel-below) + var(--hub-panel-radius)); }
+.env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell { background: var(--hub-group-surface) var(--hub-fill) no-repeat; }
+.env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell:first-child {
+  padding-inline-start: calc(var(--hub-panel-start) + var(--env-space-3));
+  background-position: var(--hub-panel-start) 0; background-size: calc(100% - var(--hub-panel-start)) 100%;
+}
+.env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell:last-child {
+  padding-inline-end: calc(var(--hub-panel-end) + var(--env-space-3));
+  background-position: 0 0; background-size: calc(100% - var(--hub-panel-end)) 100%;
+}
+/* The room under the panel, before the next row: the last part's cells end in a border that shows the group's surface. */
+.env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:last-child > .env-table-cell { border-block-end: var(--hub-panel-below) solid transparent; }
+/* The panel's corners: beside the corner and under (or over) it the cell fills as before; in the corner, a quarter circle. */
+.env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row:not(.hub-row-part) + .hub-row-part > .env-table-cell:first-child {
+  background-image: var(--hub-fill), var(--hub-fill), radial-gradient(circle at 100% 100%, var(--hub-panel) calc(var(--hub-panel-radius) - 0.5px), transparent var(--hub-panel-radius));
+  background-position: calc(var(--hub-panel-start) + var(--hub-panel-radius)) 0, var(--hub-panel-start) var(--hub-panel-radius), var(--hub-panel-start) 0;
+  background-size: calc(100% - var(--hub-panel-start) - var(--hub-panel-radius)) 100%, var(--hub-panel-radius) calc(100% - var(--hub-panel-radius)), var(--hub-panel-radius) var(--hub-panel-radius);
+}
+.env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row:not(.hub-row-part) + .hub-row-part > .env-table-cell:last-child {
+  background-image: var(--hub-fill), var(--hub-fill), radial-gradient(circle at 0 100%, var(--hub-panel) calc(var(--hub-panel-radius) - 0.5px), transparent var(--hub-panel-radius));
+  background-position: 0 0, right var(--hub-panel-end) top var(--hub-panel-radius), right var(--hub-panel-end) top 0;
+  background-size: calc(100% - var(--hub-panel-end) - var(--hub-panel-radius)) 100%, var(--hub-panel-radius) calc(100% - var(--hub-panel-radius)), var(--hub-panel-radius) var(--hub-panel-radius);
+}
+.env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:last-child > .env-table-cell:first-child {
+  background-image: var(--hub-fill), var(--hub-fill), radial-gradient(circle at 100% 0, var(--hub-panel) calc(var(--hub-panel-radius) - 0.5px), transparent var(--hub-panel-radius));
+  background-position: calc(var(--hub-panel-start) + var(--hub-panel-radius)) 0, var(--hub-panel-start) 0, left var(--hub-panel-start) bottom 0;
+  background-size: calc(100% - var(--hub-panel-start) - var(--hub-panel-radius)) 100%, var(--hub-panel-radius) calc(100% - var(--hub-panel-radius)), var(--hub-panel-radius) var(--hub-panel-radius);
+}
+.env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:last-child > .env-table-cell:last-child {
+  background-image: var(--hub-fill), var(--hub-fill), radial-gradient(circle at 0 0, var(--hub-panel) calc(var(--hub-panel-radius) - 0.5px), transparent var(--hub-panel-radius));
+  background-position: 0 0, right var(--hub-panel-end) top 0, right var(--hub-panel-end) bottom 0;
+  background-size: calc(100% - var(--hub-panel-end) - var(--hub-panel-radius)) 100%, var(--hub-panel-radius) calc(100% - var(--hub-panel-radius)), var(--hub-panel-radius) var(--hub-panel-radius);
+}
 /* In a narrow window, where rows stack, a part is set in under its group. */
 .env-table-region[data-stacked] > .hub-list > .env-table-body > .hub-row-part > .env-table-cell:first-child { padding-inline-start: calc(var(--env-space-4) + var(--hub-fold)); }
 /* A row's state line: what the user is to do in amber, what it waits on muted. */

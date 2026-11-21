@@ -199,4 +199,7 @@ test('a work item made of parts is one entry with them, in every project one of 
   assert.deepEqual([projectsOf(entries[0].parts[1]), projectsOf(entries[0].item)], [[harbor.id], [grouped.id]]);
   assert.deepEqual(hubEntries([grouped, harbor], harbor.id).map(entry => [entry.item.work.id, entry.parts.length]), [['work-0005', 2], ['work-0001', 0]]);
   assert.deepEqual(hubEntries([grouped, harbor], grouped.id).map(entry => entry.item.work.id), ['work-0005', 'work-0008']);
+  // Work of one part is no group: it and its part are entries like any other.
+  const single = project('Single', 6, { active: [work('work-0001', 'implementing', { parts: ['work-0002'], partOf: null }), work('work-0002', 'draft', { partOf: 'work-0001' })] });
+  assert.deepEqual(hubEntries([single], null).map(entry => [entry.item.work.id, entry.parts.length]), [['work-0001', 0], ['work-0002', 0]]);
 });

@@ -215,17 +215,20 @@ export function projectsOf(item: HubItem): string[] {
 /**
  * The hub's entries: every plan of every active project, a group with its parts once (each part
  * under its group, in the group's order, and not on its own), or, filtered to a project, the entries
- * with a plan in that project: a group shows whole when it or any of its parts is in it. An archived
+ * with a plan in that project: a group shows whole when it or any of its parts is in it. A group is
+ * work of several parts: work of one part and its part are entries like any other. An archived
  * project, seen only when filtered to, shows the plans it keeps.
  */
 export function hubEntries(projects: Project[], filter: string | null): HubEntry[] {
   const archived = filter !== null && projects.some(project => project.id === filter && project.state !== 'active');
   const items = archived ? hubItems(projects, filter) : hubItems(projects, null);
   const byKey = new Map(items.map(item => [item.project.id + ':' + item.work.id, item]));
-  const partOf = (item: HubItem) => item.work.partOf ? byKey.get(item.project.id + ':' + item.work.partOf) : undefined;
-  const entries = items.filter(item => !partOf(item)).map(item => ({
-    item, parts: (item.work.parts ?? []).flatMap(id => { const part = byKey.get(item.project.id + ':' + id); return part && partOf(part) === item ? [part] : []; }),
-  }));
+  const groupOf = (item: HubItem) => item.work.partOf ? byKey.get(item.project.id + ':' + item.work.partOf) : undefined;
+  const partsOf = (item: HubItem) => (item.work.parts ?? []).flatMap(id => { const part = byKey.get(item.project.id + ':' + id); return part && groupOf(part) === item ? [part] : []; });
+  // Work of one part is work like any other: only work of several parts is a group, with them under it.
+  const several = (item: HubItem) => { const parts = partsOf(item); return parts.length > 1 ? parts : []; };
+  const partOf = (item: HubItem) => { const group = groupOf(item); return group && several(group).includes(item) ? group : undefined; };
+  const entries = items.filter(item => !partOf(item)).map(item => ({ item, parts: several(item) }));
   return filter === null || archived ? entries : entries.filter(entry => members(entry).some(member => projectsOf(member).includes(filter)));
 }
 
