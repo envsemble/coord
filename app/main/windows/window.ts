@@ -425,8 +425,9 @@ export class CoordWindow {
   /** A link named work for this window: it comes forward and is told, and takes the work when it is ready to show it. */
   offerLink(link: LinkedWork) {
     this.link = link;
-    // A window still loading shows itself once it has drawn, and then takes the link: showing it now would show it blank.
-    if (this.win.isVisible()) this.focus();
+    // A window still loading shows itself once it has drawn, and then takes the link: showing it now would show it
+    // blank. One that was shown comes forward, also from being minimized (which counts as not visible).
+    if (this.win.isVisible() || this.win.isMinimized()) this.focus();
     this.send('link:open', true);
   }
   /** The work a link named, once; none for a window that shows another computer by now (a link names a project of this one). */
