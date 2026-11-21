@@ -11,9 +11,11 @@ import { createProtocolHandler, isEntry, isPageFrameUrl, originOf, rendererOrigi
 import { defaultSize, type Bounds, type WindowRow } from '../appState.ts';
 import type { WindowManager } from './windowManager.ts';
 
-/** envUI's canvas colour in the window's theme, shown until the page paints. */
-// envUI 1.0's page colour (--env-color-bg-page), which shows before the page paints.
-const windowBackground = () => nativeTheme.shouldUseDarkColors ? '#1e1f21' : '#eaeaec';
+/**
+ * envUI's page colour (--env-color-bg-page) in the window's theme, which the system shows until the
+ * page paints: the same as the page's own, so starting changes no colour.
+ */
+const windowBackground = () => nativeTheme.shouldUseDarkColors ? '#191a1b' : '#ffffff';
 
 /** The height of the title bar the window draws itself, at 100% zoom. */
 const titleBarHeight = 40;
@@ -93,8 +95,33 @@ export class CoordWindow {
         navigateOnDragDrop: false, spellcheck: false, safeDialogs: true, devTools: context.devTools,
       },
     });
-    if (row.maximized) this.win.maximize();
-    this.win.once('ready-to-show', () => { this.win.show(); context.log.info('Window ready', { computer: this.computer }); });
+    // The window shows once its page has painted. Maximizing shows a window too, so a maximized one
+    // waits as well (maximized at once, Windows drew it blank for a moment before the page). On
+    // Windows it also stays transparent until the page has drawn itself at the maximized size, so it
+    // never shows at its normal size first; it shows after half a second whatever happens. (Linux has
+    // no window opacity, and macOS animates the zoom.)
+    this.win.once('ready-to-show', () => {
+      if (row.maximized && process.platform !== 'win32') this.win.maximize();
+      else if (row.maximized) {
+        const started = performance.now();
+        this.win.setOpacity(0);
+        // The resize maximizing makes (none when the window had the screen's size already), then two frames drawn at it.
+        const resized = new Promise<void>(done => { this.win.once('resize', () => done()); setTimeout(done, 150); });
+        this.win.maximize();
+        let shown = false;
+        const reveal = (how: string) => {
+          if (shown || this.win.isDestroyed()) return;
+          shown = true;
+          this.win.setOpacity(1);
+          context.log.info('Window shown maximized', { how, ms: Math.round(performance.now() - started) });
+        };
+        const fallback = setTimeout(() => reveal('after the longest wait'), 500);
+        void resized.then(() => this.win.isDestroyed() ? undefined : this.win.webContents.executeJavaScript('new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))'))
+          .then(() => 'drawn', error => `without waiting: ${(error as Error).message}`).then(how => { clearTimeout(fallback); reveal(how); });
+      }
+      this.win.show();
+      context.log.info('Window ready', { computer: this.computer });
+    });
     this.win.on('page-title-updated', event => event.preventDefault());
     this.win.on('resize', () => this.scheduleBounds());
     this.win.on('move', () => this.scheduleBounds());
@@ -320,7 +347,10 @@ export class CoordWindow {
 
   /** The window buttons follow the theme and the page zoom (macOS keeps its own traffic lights). */
   updateTitleBar() {
-    if (process.platform !== 'darwin' && !this.win.isDestroyed()) this.win.setTitleBarOverlay(titleBarOverlay(Math.pow(1.2, this.win.webContents.getZoomLevel())));
+    if (this.win.isDestroyed()) return;
+    // What the system shows while the window resizes follows the theme too.
+    this.win.setBackgroundColor(windowBackground());
+    if (process.platform !== 'darwin') this.win.setTitleBarOverlay(titleBarOverlay(Math.pow(1.2, this.win.webContents.getZoomLevel())));
   }
 
   /** Zoom: half a zoom level a step, as Chromium's own, from 25% to 471%; the title bar keeps up. */

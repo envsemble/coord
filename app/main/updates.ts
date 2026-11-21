@@ -4,7 +4,7 @@
 // nightly (a build of dev every six hours); a build starts on its own kind, and the choice is kept in the
 // home database. Moving from nightly to stable never goes back to an older build: the install waits
 // for a stable release newer than itself.
-import { isNightlyVersion, type UpdateChannel, type UpdateState, type UpdateStatus } from '../shared/contract.ts';
+import { isNightlyVersion, type UpdateChanges, type UpdateChannel, type UpdateState, type UpdateStatus } from '../shared/contract.ts';
 
 /** What Coord uses of electron-updater's AppUpdater, so the logic can be tested without Electron. */
 export interface UpdaterEngine {
@@ -13,7 +13,7 @@ export interface UpdaterEngine {
   allowDowngrade: boolean;
   autoDownload: boolean;
   autoInstallOnAppQuit: boolean;
-  checkForUpdates(): Promise<{ isUpdateAvailable?: boolean; updateInfo: { version: string } } | null>;
+  checkForUpdates(): Promise<{ isUpdateAvailable?: boolean; updateInfo: { version: string; releaseDate?: string } } | null>;
   downloadUpdate(): Promise<unknown>;
   quitAndInstall(isSilent?: boolean, isForceRunAfter?: boolean): void;
   on(event: 'download-progress', listener: (progress: { percent: number }) => void): unknown;
@@ -32,6 +32,8 @@ export interface UpdatesOptions {
   log: Log;
   /** Every change of the state, for the windows. */
   onChange(state: UpdateState): void;
+  /** What a newer build changes since this one (main/updateChanges.ts); without it, an update shows none. */
+  changes?(from: string, to: string): Promise<UpdateChanges>;
   /** When the first check runs after start, and how often after that (milliseconds). */
   firstCheck?: number;
   interval?: number;
@@ -52,6 +54,10 @@ export class Updates {
   private channel: UpdateChannel;
   private status: UpdateStatus;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /** The changes of the last build offered, and the build and stage of the update they were last asked for. */
+  private changes: UpdateChanges | null = null;
+  private changesAsked: string | null = null;
+  private changesLoading: string | null = null;
 
   constructor(options: UpdatesOptions) {
     this.options = options;
@@ -78,7 +84,14 @@ export class Updates {
     this.status = { kind: 'idle', checkedAt: null };
   }
 
-  state(): UpdateState { return { version: this.options.version, channel: this.channel, status: this.status }; }
+  state(): UpdateState {
+    // Changes belong to the build on offer, downloading or downloaded, and to no other.
+    const offered = 'version' in this.status ? this.status.version : null;
+    return {
+      version: this.options.version, channel: this.channel, status: this.status,
+      changes: this.changes?.version === offered ? this.changes : null, changesLoading: offered !== null && this.changesLoading === offered,
+    };
+  }
 
   /** Check soon after start, then every few hours while Coord runs. */
   start() {
@@ -102,8 +115,8 @@ export class Updates {
       const result = await engine.checkForUpdates();
       // The channel changed while this check ran: its answer is the other channel's.
       if (this.channel !== channel) { this.status = { kind: 'idle', checkedAt: null }; return this.check(); }
-      const version = result?.updateInfo.version;
-      this.set(result?.isUpdateAvailable && version ? { kind: 'available', version } : { kind: 'idle', checkedAt: new Date().toISOString() });
+      const version = result?.updateInfo.version, released = result?.updateInfo.releaseDate;
+      this.set(result?.isUpdateAvailable && version ? { kind: 'available', version, ...released && { released } } : { kind: 'idle', checkedAt: new Date().toISOString() });
     } catch (error) {
       this.options.log.warn('Update check failed', { channel: this.channel, message: shortMessage(error) });
       this.set({ kind: 'failed', message: shortMessage(error) });
@@ -114,12 +127,12 @@ export class Updates {
   /** Download the build on offer. */
   async download(): Promise<UpdateState> {
     if (!this.engine || this.status.kind !== 'available') return this.state();
-    const { version } = this.status;
-    this.set({ kind: 'downloading', version, percent: 0 });
+    const { version, released } = this.status;
+    this.set({ kind: 'downloading', version, ...released && { released }, percent: 0 });
     try {
       await this.engine.downloadUpdate();
       this.options.log.info('Update downloaded', { version });
-      this.set({ kind: 'ready', version });
+      this.set({ kind: 'ready', version, ...released && { released } });
     } catch (error) {
       this.options.log.warn('Update download failed', { version, message: shortMessage(error) });
       this.set({ kind: 'failed', message: shortMessage(error) });
@@ -158,6 +171,32 @@ export class Updates {
 
   private set(status: UpdateStatus) {
     this.status = status;
+    this.askForChanges();
     this.options.onChange(this.state());
+  }
+
+  /**
+   * Ask what the build on offer changes, once for each stage of its update (offered, downloading,
+   * downloaded): a failed answer is asked for again at the next stage, not at each step of a download.
+   */
+  private askForChanges() {
+    const ask = this.options.changes;
+    const to = 'version' in this.status ? this.status.version : null;
+    // With nothing on offer, the next offer is asked about afresh, even when it is the same build.
+    if (!to) { this.changesAsked = null; return; }
+    const asked = `${to} ${this.status.kind}`;
+    if (!ask || this.changes?.version === to || this.changesLoading === to || this.changesAsked === asked) return;
+    this.changesAsked = asked;
+    this.changesLoading = to;
+    ask(this.options.version, to).then(changes => {
+      // An answer for a build no longer on offer is dropped.
+      if ('version' in this.status && this.status.version === to) this.changes = changes;
+    }, error => {
+      this.options.log.warn('Could not read what the update changes', { version: to, message: shortMessage(error) });
+    }).finally(() => {
+      if (this.changesLoading !== to) return;
+      this.changesLoading = null;
+      if ('version' in this.status && this.status.version === to) this.options.onChange(this.state());
+    });
   }
 }
