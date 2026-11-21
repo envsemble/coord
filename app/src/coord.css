@@ -481,6 +481,8 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 .pull-mark-state[data-state='draft'], .pull-mark-checks[data-checks='pending'] { color: var(--env-color-fg-muted); }
 .pull-mark-state[data-state='merged'] { color: var(--env-color-fg-accent); }
 .pull-mark-state[data-state='closed'], .pull-mark-checks[data-checks='failing'] { color: var(--env-color-fg-danger); }
+/* On the hub the mark sits above the row's stretched link, as the reference beside it does, so its hint opens on hover. */
+.hub-row-note .pull-mark, .hub-row-blocked .pull-mark { position: relative; z-index: calc(var(--env-z-raised) + 1); }
 /* The first paragraph of a long message, cut to four lines until shown whole. */
 /* A plan's statistics page: its figures, its timeline and its tables. */
 .plan-statistics-page { display: grid; gap: var(--env-space-6); }
