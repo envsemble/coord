@@ -105,7 +105,8 @@ export function renamedField(text: string, field: string, old: string, now: stri
   if (!found || fieldOf(text, field) === now) return text;
   const block = found.block.replace(new RegExp(`^(${field}:[ \\t]*)(["']?)${old}\\2([ \\t]*)$`, 'm'), (_, before: string, quote: string, after: string) => before + quote + now + quote + after);
   const next = text.slice(0, found.start) + block + text.slice(found.end);
-  if (fieldOf(next, field) === now) return next;
+  // The line changed where it was: that is the rename, also in a header that does not read for another reason.
+  if (next !== text || fieldOf(next, field) === now) return next;
   try { const set = setFields(text, { [field]: now }); return fieldOf(set, field) === now ? set : text; } catch { return text; }
 }
 /** A header without its `parts` field, written on one line or as a block list (indented or not). */
@@ -126,8 +127,8 @@ const staleAfter = 60_000;
 
 /**
  * The folder's lock for the move: taken, or `moved` when another Coord made the move meanwhile, or
- * `busy` when another is still at it after half a minute (the caller then reads the folder as it is,
- * and says so). A stale lock is taken over with its record.
+ * `busy` when another is still at it after ten seconds (a move takes well under one; the caller then
+ * reads the folder as it is, and says so). A stale lock is taken over with its record.
  */
 async function takeLock(root: string): Promise<'taken' | 'moved' | 'busy'> {
   const lock = path.join(root, lockName), started = Date.now();
@@ -138,7 +139,7 @@ async function takeLock(root: string): Promise<'taken' | 'moved' | 'busy'> {
       if (parse(await readFile(path.join(root, 'planning.json'), 'utf8').catch(() => ''))?.schema_version !== earlierVersion) return 'moved';
       const age = Date.now() - (await stat(lock).then(info => info.mtimeMs, () => Date.now()));
       if (age > staleAfter) { const now = new Date(); await utimes(lock, now, now).catch(() => undefined); return 'taken'; }
-      if (Date.now() - started > 30_000) return 'busy';
+      if (Date.now() - started > 10_000) return 'busy';
       await sleep(100);
     }
   }
