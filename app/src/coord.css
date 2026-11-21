@@ -133,7 +133,7 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 .hub-row-toggle { flex: 0 1 auto; min-inline-size: 0; max-inline-size: 100%; min-block-size: 0; block-size: auto; margin: 0; padding: 0; border: 0; font: inherit; text-align: start; }
 .hub-row-toggle :is(.env-button-content, .env-button-label) { display: block; overflow: hidden; min-inline-size: 0; text-overflow: ellipsis; white-space: nowrap; }
 .hub-row:has(.hub-row-fold) .hub-row-title + .cell-note { margin-inline-start: calc(var(--hub-fold) - var(--env-space-1) + 1.125rem + var(--env-space-2)); }
-.hub-entry-group > .hub-row:first-child .hub-row-link { font-weight: var(--env-font-weight-semibold); }
+.hub-entry-group > .hub-row:not(.hub-row-part) .hub-row-link { font-weight: var(--env-font-weight-semibold); }
 .hub-row-parts-turn { color: var(--env-color-fg-warning); }
 /* What answers when pointed at (an element with a hint, a title's letters) lies above the link that
    covers its row, so the pointer reaches it; a click on it still reaches the row, which opens the
@@ -155,16 +155,22 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 .hub-row-part .hub-row-title + .cell-note { margin-inline-start: calc(1rem + 1.125rem + 2 * var(--env-space-2)); }
 /* The hub's motion says what changed and nothing more (hubMotion.tsx moves the rows). What left the
    list (a group's parts as it folds, a plan that changed groups) fades where it stood, as a copy out
-   of the page's flow (in the groups' column, or in its table's frame) that takes no pointer. What a
-   folded group says of its parts fades in. Other plans (a filter, a project) are shown at once: a
-   fade there would only make the answer to a click later. */
+   of the page's flow (in the groups' column, or in its table's frame) that takes no pointer. Other
+   plans (a filter, a project) are shown at once: a fade there would only make the answer to a click
+   later. */
 .hub-settled { position: relative; }
 .hub-settled:empty { display: none; }
 .hub-ghost { position: absolute; inset-inline: 0; pointer-events: none; }
 /* A copy only fades out: it does not arrive. */
-.hub-ghost, .hub-ghost .hub-row-parts[data-kind='group'], .hub-ghost .hub-row-part { animation: none; }
+.hub-ghost .hub-row-part { animation: none; }
 @keyframes hub-arrive { from { opacity: 0; } }
-.hub-row-parts[data-kind='group'] { animation: hub-arrive var(--env-motion-duration-fast) var(--env-motion-ease-enter); }
+/* What a folded group says of its parts takes its room as the group folds and gives it back as it
+   unfolds, at the fold's pace: the title beside it is cut, or let out, gradually and not at a stroke. */
+.hub-row-parts[data-kind='group'] {
+  overflow: hidden; max-inline-size: 14rem;
+  transition: max-inline-size var(--env-motion-duration-medium) var(--env-motion-ease), padding-inline var(--env-motion-duration-medium) var(--env-motion-ease), margin-inline-start var(--env-motion-duration-medium) var(--env-motion-ease), opacity var(--env-motion-duration-medium) var(--env-motion-ease);
+}
+.hub-entry-group[data-open] > .hub-row:not(.hub-row-part) .hub-row-parts[data-kind='group'] { max-inline-size: 0; margin-inline-start: calc(-1 * var(--env-space-2)); padding-inline: 0; opacity: 0; }
 /* A work item made of parts has the plain rows' surface, its own row and the room around its parts'
    tiles alike: every top-level row of the hub is one colour, and the tiles alone are set apart. Its
    row under the pointer lights the whole group, around its tiles too, as a row lights up (the
@@ -214,13 +220,18 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 }
 .env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell {
   border-block-end: var(--hub-tile-gap) solid transparent; background: var(--hub-group) var(--hub-fill) no-repeat;
+  /* The fill reaches a lap past the cell's sides, where the cell's own edge cuts it: a fill that ended on the edge would be
+     blended there where the edge falls between two device pixels (at 125 % and 175 % zoom), and the surface would show as a
+     line between one cell and the next. */
+  background-position: calc(-1 * var(--hub-tile-lap)) 0; background-size: calc(100% + 2 * var(--hub-tile-lap)) 100%;
   /* The room around a tile lights up with its group's row, at the row's pace. */
   transition: background-color var(--env-motion-duration-fast) var(--env-motion-ease-enter);
 }
 .env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:last-child > .env-table-cell { border-block-end-width: var(--hub-tiles-below); }
 /* The first and last cells, in three bands (between the corners; beside the top corner; beside the
    bottom corner) and the two corners, each a quarter circle in a square. The bands and the squares
-   reach a little into the band between the corners (the lap), so they never leave a seam. */
+   reach a little into the band between the corners (the lap), so they never leave a seam; the bands
+   reach a lap past the side where the next cell begins, for the same reason. */
 .env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell:first-child {
   padding-inline-start: calc(var(--hub-tile-start) + var(--env-space-3));
   background-image:
@@ -231,9 +242,9 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
     var(--hub-tile-start) var(--hub-tile-top), calc(var(--hub-tile-start) + var(--hub-tile-top)) 0, left calc(var(--hub-tile-start) + var(--hub-tile-bottom)) bottom 0,
     var(--hub-tile-start) 0, left var(--hub-tile-start) bottom 0;
   background-size:
-    calc(100% - var(--hub-tile-start)) calc(100% - var(--hub-tile-top) - var(--hub-tile-bottom)),
-    calc(100% - var(--hub-tile-start) - var(--hub-tile-top)) calc(var(--hub-tile-top) + var(--hub-tile-lap)),
-    calc(100% - var(--hub-tile-start) - var(--hub-tile-bottom)) calc(var(--hub-tile-bottom) + var(--hub-tile-lap)),
+    calc(100% - var(--hub-tile-start) + var(--hub-tile-lap)) calc(100% - var(--hub-tile-top) - var(--hub-tile-bottom)),
+    calc(100% - var(--hub-tile-start) - var(--hub-tile-top) + var(--hub-tile-lap)) calc(var(--hub-tile-top) + var(--hub-tile-lap)),
+    calc(100% - var(--hub-tile-start) - var(--hub-tile-bottom) + var(--hub-tile-lap)) calc(var(--hub-tile-bottom) + var(--hub-tile-lap)),
     calc(var(--hub-tile-top) + var(--hub-tile-lap)) calc(var(--hub-tile-top) + var(--hub-tile-lap)),
     calc(var(--hub-tile-bottom) + var(--hub-tile-lap)) calc(var(--hub-tile-bottom) + var(--hub-tile-lap));
 }
@@ -244,12 +255,12 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
     radial-gradient(circle at var(--hub-tile-lap) var(--hub-tile-top), var(--hub-tile) calc(var(--hub-tile-top) - 0.03125rem), transparent var(--hub-tile-top)),
     radial-gradient(circle at var(--hub-tile-lap) var(--hub-tile-lap), var(--hub-tile) calc(var(--hub-tile-bottom) - 0.03125rem), transparent var(--hub-tile-bottom));
   background-position:
-    0 var(--hub-tile-top), 0 0, left 0 bottom 0,
+    calc(-1 * var(--hub-tile-lap)) var(--hub-tile-top), calc(-1 * var(--hub-tile-lap)) 0, left calc(-1 * var(--hub-tile-lap)) bottom 0,
     right var(--hub-tile-end) top 0, right var(--hub-tile-end) bottom 0;
   background-size:
-    calc(100% - var(--hub-tile-end)) calc(100% - var(--hub-tile-top) - var(--hub-tile-bottom)),
-    calc(100% - var(--hub-tile-end) - var(--hub-tile-top)) calc(var(--hub-tile-top) + var(--hub-tile-lap)),
-    calc(100% - var(--hub-tile-end) - var(--hub-tile-bottom)) calc(var(--hub-tile-bottom) + var(--hub-tile-lap)),
+    calc(100% - var(--hub-tile-end) + var(--hub-tile-lap)) calc(100% - var(--hub-tile-top) - var(--hub-tile-bottom)),
+    calc(100% - var(--hub-tile-end) - var(--hub-tile-top) + var(--hub-tile-lap)) calc(var(--hub-tile-top) + var(--hub-tile-lap)),
+    calc(100% - var(--hub-tile-end) - var(--hub-tile-bottom) + var(--hub-tile-lap)) calc(var(--hub-tile-bottom) + var(--hub-tile-lap)),
     calc(var(--hub-tile-top) + var(--hub-tile-lap)) calc(var(--hub-tile-top) + var(--hub-tile-lap)),
     calc(var(--hub-tile-bottom) + var(--hub-tile-lap)) calc(var(--hub-tile-bottom) + var(--hub-tile-lap));
 }
@@ -819,7 +830,7 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 @media (prefers-reduced-motion: reduce) {
   .step-bar > span { transition: none; }
   /* The hub's tiles and marks change at once, as envUI's rows then do. */
-  .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part, .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell, .hub-row-fold svg { transition: none; }
+  .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part, .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell, .hub-row-fold svg, .hub-row-parts[data-kind='group'] { transition: none; }
   /* A group's parts, which then do not slide out from under the rows after them, fade in where they are. */
   .hub-row-part { animation: hub-arrive var(--env-motion-duration-fast) var(--env-motion-ease-enter); }
 }

@@ -5,7 +5,7 @@
 import type { ReactNode } from 'react';
 import { Text } from '@envsemble/envui';
 import type { ProjectWork } from '../types';
-import { cards, cutShort, hints, restDelay, type Asked } from '../ui/Hint';
+import { cardLeaves, cards, cutShort, hints, pressed, restDelay, type Asked } from '../ui/Hint';
 import type { HubItem } from './hubPlans';
 
 /** A hint's lines, one under the other; those with nothing to say are left out. */
@@ -31,10 +31,6 @@ export function stepsHint(work: ProjectWork, planningOnly: boolean): ReactNode {
 /** A group's parts, one a line: its place, its title and whose turn it is. */
 export const partLines = (parts: HubItem[]): string[] => parts.map((part, index) => index + 1 + '. ' + part.work.title + ' · ' + part.status.label);
 
-/** How long the card stays once the pointer has left the title: it holds text only, so it clears the rows it covers about as fast as a hint does. */
-const cardLeaves = 100;
-/** The titles a press is on: none opens its card until the pointer has left it. */
-const pressed = new WeakSet<Element>();
 
 /**
  * A plan's title in its row, with a card of its summary above the row (as the hints open), so the row
@@ -42,8 +38,9 @@ const pressed = new WeakSet<Element>();
  * cuts it short. The card opens when the pointer has rested half a second on the title's letters
  * (lifted above the link that covers the row, so the rest of the row opens nothing; every move starts
  * the wait again), or when keyboard focus rests as long on the row's link. A press never opens it: a
- * click opens the plan or folds the group, and the card would come up over what the click did. A
- * plan without a summary has a card only while its title is cut short. The card is the window's one
+ * click opens the plan or folds the group, and the card would come up over what the click did. The
+ * card stays while the pointer is on the title or on the card, and leaves soon after. A plan without
+ * a summary has a card only while its title is cut short. The card is the window's one
  * hint (`hints`), in the page only while it shows: a row costs no more to draw than without it.
  */
 export function PlanName({ title, summary }: { title: string; summary: string | null }) {

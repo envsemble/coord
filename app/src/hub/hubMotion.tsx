@@ -76,17 +76,19 @@ const surfaceOf = (frame: Element | null) => frame ? getComputedStyle(frame).bac
 
 /**
  * Where a part of the list shows and how tall; for an entry also its rows with where each shows, and
- * the table and the frame it is in, should it or some of its rows leave.
+ * the table and the frame it is in, should it or some of its rows leave; for the list itself also
+ * what of the scrolling page is in the window (`view`, from where to where).
  */
-interface Place { top: number; height: number; rows?: (readonly [Element, number])[]; table?: Element | null; frame?: Element | null }
+interface Place { top: number; height: number; rows?: (readonly [Element, number])[]; table?: Element | null; frame?: Element | null; view?: readonly [number, number] }
 /** The list's groups (a heading and its table), the tables' frames and the entries (a plan's row, with its parts). */
 const groups = '.hub-group', frames = '.env-table-region', entries = '.hub-entry';
 const pieces = [groups, frames, entries].join(',');
 /** Where the list, and every group, frame and entry of it, shows now (mid-move included), down the scrolling page: a place there stays the same when the page scrolls. */
+const scrollerOf = (root: Element) => root.closest('.env-scaffold-body') ?? document.scrollingElement ?? document.documentElement;
 function measure(root: Element): Map<Element, Place> {
-  const scroller = root.closest('.env-scaffold-body') ?? document.scrollingElement ?? document.documentElement;
+  const scroller = scrollerOf(root);
   const offset = scroller.scrollTop - scroller.getBoundingClientRect().top;
-  const places = new Map<Element, Place>([[root, { top: root.getBoundingClientRect().top + offset, height: 0 }]]);
+  const places = new Map<Element, Place>([[root, { top: root.getBoundingClientRect().top + offset, height: 0, view: [scroller.scrollTop, scroller.scrollTop + scroller.clientHeight] }]]);
   for (const element of root.querySelectorAll(pieces)) {
     if (element.closest('.' + ghost)) continue;
     const box = element.getBoundingClientRect();
@@ -133,27 +135,64 @@ function leave(root: Element, before: Map<Element, Place>, motion: Motion, far: 
       body.append(...gone.map(([row]) => row.cloneNode(true)));
       // The first part's upper corners follow the group's row above it, which is not copied.
       (body.firstElementChild as HTMLElement).style.setProperty('--hub-tile-top', 'var(--hub-tile-outer)');
+      // The copy takes no pointer, so it is given the light its group has under one: the room around the tiles does not go dark as they leave.
+      const lit = getComputedStyle(element);
+      for (const name of ['--hub-group', '--hub-part-surface']) body.style.setProperty(name, lit.getPropertyValue(name));
       table.append(body);
     }
-    fade(table, was.frame, gone[0][1] - before.get(was.frame)!.top - was.frame.clientTop);
+    fade(table, was.frame, gone[0][1] - before.get(was.frame)!.top - parseFloat(getComputedStyle(was.frame).borderTopWidth));
   }
+}
+
+/**
+ * A change wholly above the window (a plan arriving or leaving up there, a group folded from the
+ * keyboard while the page is scrolled past it): every row in sight would slide the same distance for
+ * something that cannot be seen. The page scrolls by that distance instead, so the rows being read
+ * stay where they are. Returns whether it did.
+ */
+function hold(root: Element, before: Map<Element, Place>, after: Map<Element, Place>): boolean {
+  const view = before.get(root)?.view;
+  if (!view) return false;
+  let shift: number | null = null;
+  for (const [entry, was] of before) {
+    if (!was.rows || was.top + was.height <= view[0] || was.top >= view[1]) continue;
+    const now = after.get(entry);
+    if (!now || Math.abs(now.height - was.height) > 0.5 || (shift !== null && Math.abs(now.top - was.top - shift) > 0.5)) return false;
+    shift = now.top - was.top;
+  }
+  if (shift === null || Math.abs(shift) <= 0.5) return false;
+  // Nothing new came into sight either.
+  for (const [entry, now] of after) if (now.rows && !before.has(entry) && now.top + now.height > view[0] + shift && now.top < view[1] + shift) return false;
+  const scroller = scrollerOf(root);
+  if (view[0] + shift < 0 || view[0] + shift > scroller.scrollHeight - scroller.clientHeight + 0.5) return false;
+  scroller.scrollTop = view[0] + shift;
+  return true;
 }
 
 /**
  * After the list changed: start everything where it showed before (`before`) and let it settle where
  * it is now. Without `before` (other plans are shown), whatever still moved stops and nothing is
- * followed. Anything that would travel further than the window is tall is not followed either: it is
- * simply there.
+ * followed. A redraw that moved nothing leaves what still moves alone. Anything that would travel
+ * further than the window is tall is not followed: it is simply there.
  */
 function settle(root: Element, before: Map<Element, Place> | null) {
   const motion = motionOf(root);
-  for (const element of root.querySelectorAll(pieces)) for (const animation of element.getAnimations()) if (animation.id === settling) animation.cancel();
-  for (const copy of root.querySelectorAll('.' + ghost)) copy.remove();
-  if (!before || !motion.moves) return;
-  const all = (selector: string) => [...root.querySelectorAll(selector)];
+  const all = (selector: string) => [...root.querySelectorAll(selector)].filter(element => !element.closest('.' + ghost));
+  const stop = () => { for (const element of all(pieces)) for (const animation of element.getAnimations()) if (animation.id === settling) animation.cancel(); };
+  if (!before || !motion.moves) {
+    stop();
+    for (const copy of root.querySelectorAll('.' + ghost)) copy.remove();
+    return;
+  }
+  const near = (a: number, b: number) => Math.abs(a - b) <= 0.5;
+  const shows = measure(root);
+  if (shows.size === before.size && [...shows].every(([element, now]) => { const was = before.get(element); return was && near(was.top, now.top) && near(was.height, now.height) && was.rows?.length === now.rows?.length; })) return;
+  // What still moved is taken over from where it shows; copies that still fade go on fading.
+  stop();
   const far = (distance: number) => Math.abs(distance) > window.innerHeight;
-  const changed = (was: number, now: number) => Math.abs(was - now) > 0.5 && !far(was - now);
+  const changed = (was: number, now: number) => !near(was, now) && !far(was - now);
   const after = measure(root);
+  if (hold(root, before, after)) return;
   leave(root, before, motion, far);
   // A frame whose rows changed grows or shrinks to them, and a group that is new opens from nothing: what follows moves with them.
   const resized = new Set<Element | null>();

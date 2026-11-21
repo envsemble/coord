@@ -61,7 +61,7 @@ function Spent({ facts }: { facts: HubRowFacts }) {
   return <span className="hub-row-stats">
     {model && <span className="hub-row-model"><ModelName model={model.id} effort={model.effort} hint />{model.others > 0 && <Hint content={plural(model.others, 'other model') + ' took part'}><span className="muted">+{model.others}</span></Hint>}</span>}
     {(time || rest) && <small className="cell-note">
-      {time && <Hint content={lines("Every agent's working time, added up", ...stages)}><span>{time.total}</span></Hint>}
+      {time && <Hint side="bottom" content={lines("Every agent's working time, added up", ...stages)}><span>{time.total}</span></Hint>}
       {time && rest ? ' · ' + rest : rest}
     </small>}
   </span>;
@@ -237,8 +237,8 @@ const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resol
         {fold ? <Hint content="Open its plan"><Link href="#" underline={false} className="hub-row-number hub-row-open" draggable={false} onClick={open}>{workNumber(work.id)}</Link></Hint>
           : <span className="hub-row-number">{workNumber(work.id)}</span>}
         {parts?.kind === 'part' && <span className="hub-row-parts" data-kind="part">{'Part ' + parts.index + ' of ' + workNumber(parts.group)}</span>}
-        {/* Folded away, its parts are said in a word: how many, and how many wait on the user. */}
-        {fold && !fold.open && <Hint content={lines(...fold.list)}><span className="hub-row-parts" data-kind="group">{plural(fold.count, 'part')}{fold.turn > 0 && <span className="hub-row-parts-turn"> · {fold.turn} your turn</span>}</span></Hint>}
+        {/* Folded away, its parts are said in a word: how many, and how many wait on the user. Unfolded, the word is there with no room, so it takes and gives its room gradually. */}
+        {fold && <Hint content={fold.open ? null : lines(...fold.list)}><span className="hub-row-parts" data-kind="group" aria-hidden={fold.open || undefined}>{plural(fold.count, 'part')}{fold.turn > 0 && <span className="hub-row-parts-turn"> · {fold.turn} your turn</span>}</span></Hint>}
       </span>
       {/* A line cut short says itself whole once the pointer rests on it, under the row so its title stays in sight; a step says its phase. */}
       {large && (facts.blocked ? <Hint rest cut side="bottom" align="start" content={'Blocked: ' + facts.blocked}><small className="cell-note hub-row-blocked">Blocked: <Note note={facts.blocked} resolved={resolved} notify={notify} /></small></Hint>

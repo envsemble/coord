@@ -68,16 +68,26 @@ export const hints = {
     const end = () => { window.cancelAnimationFrame(entering); shownAt = null; if (showing?.open) show({ ...showing, open: false }); else if (showing) show(null); };
     if (after) closing = window.setTimeout(end, after); else end();
   },
+  /** Keep the hint that shows: the pointer went from its element onto the hint itself (a card is read there). */
+  keep() { window.clearTimeout(closing); },
+  /** Whether the element the hint is for still stands where the hint opened: a list may change under it. */
+  stands() { const now = shownAt?.isConnected ? shownAt.getBoundingClientRect() : null; return now !== null && showing !== null && Math.abs(now.top - showing.box.top) < 1 && Math.abs(now.left - showing.box.left) < 1; },
 };
+/** How long a card stays once the pointer has left it and its element: it holds text only, so it clears what it covers about as fast as a hint does, with time enough to cross from the one to the other. */
+export const cardLeaves = 150;
+
+/** What a press is on: no hint opens there until the pointer has left it. A click acts (it opens a plan, folds a group), and a hint would come up over what it did. */
+export const pressed = new WeakSet<Element>();
 
 /** Elements whose card opens when keyboard focus rests on the link around them: what to show, worked out when it opens. */
 export const cards = new WeakMap<Element, () => Asked | null>();
 
 /**
  * The window's hint: envUI's tooltip (or its hover card) beside an invisible anchor laid over the
- * element it is for, in the page only while it shows. It closes when the page scrolls or a key is
- * pressed, and leaves the page once envUI's fade is over. Keyboard focus resting on a link opens the
- * card of what it holds (see `cards`).
+ * element it is for, in the page only while it shows. It closes when the page scrolls, a key is
+ * pressed, or its element moves or leaves the page (a list changing under it), and leaves the page
+ * once envUI's fade is over. A card stays while the pointer is on it. Keyboard focus resting on a
+ * link opens the card of what it holds (see `cards`).
  */
 export function HintLayer() {
   const shown = useSyncExternalStore(watch, () => showing);
@@ -96,15 +106,21 @@ export function HintLayer() {
     return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('keydown', close, true); window.removeEventListener('focusin', focused); window.removeEventListener('focusout', close); };
   }, []);
   useEffect(() => {
-    if (!shown || shown.open) return;
-    const timer = window.setTimeout(() => { if (showing === shown) show(null); }, fadeOut);
-    return () => window.clearTimeout(timer);
+    if (!shown) return;
+    if (!shown.open) {
+      const timer = window.setTimeout(() => { if (showing === shown) show(null); }, fadeOut);
+      return () => window.clearTimeout(timer);
+    }
+    // While it shows, it is checked every frame against the element it is for.
+    let frame = window.requestAnimationFrame(function check() { if (hints.stands()) frame = window.requestAnimationFrame(check); else hints.close(); });
+    return () => window.cancelAnimationFrame(frame);
   }, [shown]);
   if (!shown) return null;
   const { box, hint } = shown;
   const anchor = <span className="hint-anchor" aria-hidden="true" style={{ left: box.left, top: box.top, width: box.width, height: box.height }} />;
   const closed = (next: boolean) => { if (!next) hints.close(); };
-  return hint.card ? <HoverCard key={shown.id} open={shown.open} onOpenChange={closed} side={hint.side} align={hint.align} width="lg" underline={false} trigger={anchor}>{hint.content}</HoverCard>
+  return hint.card ? <HoverCard key={shown.id} open={shown.open} onOpenChange={closed} side={hint.side} align={hint.align} width="lg" underline={false} trigger={anchor}
+    onPointerEnter={() => hints.keep()} onPointerLeave={() => hints.close(undefined, cardLeaves)}>{hint.content}</HoverCard>
     : <Tooltip key={shown.id} content={hint.content} open={shown.open} onOpenChange={closed} underline={false} side={hint.side} align={hint.align}>{anchor}</Tooltip>;
 }
 
@@ -117,7 +133,7 @@ export function HintLayer() {
  * A control (a link, a button) is wrapped in the tooltip, which then also opens on its keyboard focus
  * and describes it. Plain text and marks only listen for the pointer: resting on one opens its hint
  * in the window's hint layer (a `rest` hint counts from the pointer's last move); leaving it,
- * pressing it, scrolling or a key closes it. `cut` shows the hint only while the element's text is
+ * pressing it, scrolling or a key closes it, and once pressed it stays closed until the pointer has left. `cut` shows the hint only while the element's text is
  * cut short, and never beside the hint of a link or a mark inside it.
  */
 export function Hint({ content, children, rest = false, cut = false, side, align }: {
@@ -131,9 +147,10 @@ export function Hint({ content, children, rest = false, cut = false, side, align
     const element = event.currentTarget;
     // Over a link or a mark inside it, that one's hint is the answer.
     const within = (event.target as Element).closest(inner);
-    if (within && within !== element && element.contains(within)) { hints.close(element); return; }
-    hints.wait(element, rest ? restDelay : hintDelay, asked, () => element.matches(':hover') && !(cut && !cutShort(element)) && !element.querySelector(':is(' + inner + '):hover'));
+    if (pressed.has(element) || (within && within !== element && element.contains(within))) { hints.close(element); return; }
+    hints.wait(element, rest ? restDelay : hintDelay, asked, () => element.matches(':hover') && !pressed.has(element) && !(cut && !cutShort(element)) && !element.querySelector(':is(' + inner + '):hover'));
   };
-  const leave = (event: PointerEvent<HTMLElement>) => hints.close(event.currentTarget);
-  return cloneElement(children, { title: '', 'data-hint': '', onPointerOver: over, onPointerMove: rest ? over : undefined, onPointerLeave: leave, onPointerDown: leave } as object);
+  const leave = ({ currentTarget }: PointerEvent<HTMLElement>) => { pressed.delete(currentTarget); hints.close(currentTarget); };
+  const press = ({ currentTarget }: PointerEvent<HTMLElement>) => { pressed.add(currentTarget); hints.close(currentTarget); };
+  return cloneElement(children, { title: '', 'data-hint': '', onPointerOver: over, onPointerMove: rest ? over : undefined, onPointerLeave: leave, onPointerDown: press } as object);
 }
