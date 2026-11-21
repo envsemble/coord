@@ -126,8 +126,8 @@ html, body, #root { min-block-size: 100%; }
    under the group's row, the way envUI's List joins its rows: each a tile, a surface one quiet step
    from the rows', set in from both edges of the table and starting under the group's icon, with a
    little room between one tile and the next and the group's surface around them. The list's outer
-   corners (the first tile's top, the last tile's bottom) are a surface's, and the corners where
-   tiles meet are small, so the tiles read as one block (envUI's connected rows). So a group's
+   corners (the first tile's top, the last tile's bottom) are rounder than the corners where tiles
+   meet, which are small, so the tiles read as one block (as envUI's connected rows do). So a group's
    parts are closed off from the next group's row however many groups follow each other. A part
    under the pointer lights up as its tile; the surface around it stays as it is.
    A tile is painted by its row's cells: each fills with the tile's colour, the first and last short
@@ -136,10 +136,14 @@ html, body, #root { min-block-size: 100%; }
    the group's surface. */
 .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part {
   --hub-tile: var(--hub-part-surface); --hub-fill: linear-gradient(var(--hub-tile), var(--hub-tile));
-  --hub-tile-top: var(--env-radius-row-inner); --hub-tile-bottom: var(--env-radius-row-inner);
+  /* The list's outer corners follow the table's own: its frame's radius less the tiles' distance from its edge, so the two curves share
+     a centre. Where tiles meet, the corners are half as round at most, so the outer ones still read as the list's. */
+  --hub-tile-outer: max(var(--env-radius-xs), calc(var(--env-radius-lg) - var(--env-space-1)));
+  --hub-tile-inner: min(var(--env-radius-row-inner), calc(var(--hub-tile-outer) / 2));
+  --hub-tile-top: var(--hub-tile-inner); --hub-tile-bottom: var(--hub-tile-inner);
 }
-.hub-list.env-table > .env-table-body > .env-table-row:not(.hub-row-part) + .hub-row-part { --hub-tile-top: var(--env-radius-row-outer); }
-.hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:last-child { --hub-tile-bottom: var(--env-radius-row-outer); }
+.hub-list.env-table > .env-table-body > .env-table-row:not(.hub-row-part) + .hub-row-part { --hub-tile-top: var(--hub-tile-outer); }
+.hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:last-child { --hub-tile-bottom: var(--hub-tile-outer); }
 .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:is(:hover, :has(:focus-visible)) { --hub-tile: color-mix(in srgb, var(--hub-part-surface), var(--env-color-fg-default) 9%); }
 .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell { border-block-start: 0; background-color: var(--hub-tile); }
 .env-table-region:not([data-stacked]) > .hub-list {
