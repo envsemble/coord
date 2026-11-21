@@ -2,6 +2,10 @@
    from envUI components and tokens; nothing here restyles an envUI component's insides. */
 
 html, body, #root { min-block-size: 100%; }
+/* Before the window's own page paints, the first frame already has the title bar's band over the
+   page's colour (with the system's matching window colour behind, main/windows/window.ts), so starting
+   changes no colour. */
+html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-bg-default)) top / 100% max(env(titlebar-area-height, 0rem), var(--env-title-bar-height)) no-repeat, var(--env-color-bg-page); }
 /* envUI's type is regular or medium: emphasis in the interface is medium, not bold. Bold in a
    document's Markdown is its author's and stays. */
 :is(strong, b):not(.env-markdown *) { font-weight: 500; }
@@ -20,7 +24,7 @@ html, body, #root { min-block-size: 100%; }
 .status-icon[data-tone='done'] { color: var(--env-color-fg-done); }
 
 /* A window that is starting, or reading its folder. */
-.page-state { box-sizing: border-box; min-block-size: 100%; display: grid; place-content: center; justify-items: center; gap: var(--env-space-3); color: var(--env-color-fg-muted); }
+.page-state { box-sizing: border-box; min-block-size: calc(100dvh - max(env(titlebar-area-height, 0rem), var(--env-title-bar-height))); display: grid; place-content: center; justify-items: center; gap: var(--env-space-3); color: var(--env-color-fg-muted); }
 
 /* One row at the top, the window's own title bar (envUI's TopBar in a Scaffold): the logo, back and
    forward, Plans, File, View and Help and the computer at the start; search, record health and the

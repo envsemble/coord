@@ -8,7 +8,7 @@
 // line with that project's statistics; the search stays in the title bar. One click opens a plan. A connected agent that does not run Coord (Codex not trusting its hooks, say)
 // has a notice above the plans, linking to Settings › Agents, until it does.
 import { memo, useMemo, type MouseEvent } from 'react';
-import { Alert, Button, IconButton, Link, Menu, Row, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
+import { Alert, Button, IconButton, Link, Menu, Row, SegmentedControl, Table, Text } from '@envsemble/envui';
 import { IconFilterList } from '@envsemble/envui/icons/FilterList';
 import { EmptyState } from '../ui/EmptyState';
 import { StatisticsIcon, WorkIcon } from '../ui/icons';
@@ -25,6 +25,7 @@ import { ModelName } from '../ui/ModelName';
 import { continuation } from '../plan/handoffs';
 import { ContinuedIn } from '../plan/HandoffLinks';
 import { Page } from '../ui/Page';
+import { useLongWait } from '../ui/Loading';
 
 /** The hub's state filter, kept while the window is open. */
 /** Open, closed or all, and the filter menu's filters that are on. */
@@ -67,6 +68,25 @@ const Changed = ({ value }: { value: string | null }) => value ? <span className
  */
 const columnWidths = [44, 13, 15, 18, 10];
 const oneProjectWidths = [55, 17, 18, 10];
+
+/**
+ * The hub while the computer lists its projects: its heading at once, and where the plans will be, a
+ * few rows as envUI's skeleton once the wait is long enough to notice, so the page fills in without
+ * moving.
+ */
+function HubSkeleton() {
+  const long = useLongWait(300);
+  return <Page className="hub" title="Plans" controlSize="sm">
+    <section className="hub-group" aria-busy="true" aria-label="Loading the plans">
+      {long && <Table.Root className="hub-list" aria-label="Loading the plans" skeleton columnWidths={oneProjectWidths}>
+        <Table.Head><Table.Row><Table.HeaderCell>Plan</Table.HeaderCell><Table.HeaderCell>Steps</Table.HeaderCell><Table.HeaderCell>Agents</Table.HeaderCell><Table.HeaderCell numeric>Changed</Table.HeaderCell></Table.Row></Table.Head>
+        <Table.Body>{[0, 1, 2, 3, 4].map(row => <Table.Row key={row}>
+          <Table.Cell>The title of a plan in this project</Table.Cell><Table.Cell>3 of 8</Table.Cell><Table.Cell>Claude Code</Table.Cell><Table.Cell numeric>2 hours ago</Table.Cell>
+        </Table.Row>)}</Table.Body>
+      </Table.Root>}
+    </section>
+  </Page>;
+}
 
 /**
  * A plan: the whole row opens it. A plan under way says under its title what its state is for (what
@@ -136,7 +156,7 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, c
   const unread = choices.filter(project => project.summary === null);
   const agents = useAgentChecks();
   const warnings = <AgentWarnings agents={agents} action={<Button variant="text" underline onClick={() => go(settingsPlace('agents'))}>Settings › Agents</Button>} />;
-  if (!projects) return <div className="page-state" aria-busy="true"><Spinner size="lg" label="Loading the plans" /></div>;
+  if (!projects) return <HubSkeleton />;
   // The computer did not list its projects (another computer that does not answer, say).
   if (!projects.length && error) return <Page className="hub">
     <EmptyState className="page-empty" icon={<WorkIcon />} headingLevel={1} title="The projects can’t be listed right now" description={error + ' Coord lists them again as soon as it can.'} />

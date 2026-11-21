@@ -11,9 +11,11 @@ import { createProtocolHandler, isEntry, isPageFrameUrl, originOf, rendererOrigi
 import { defaultSize, type Bounds, type WindowRow } from '../appState.ts';
 import type { WindowManager } from './windowManager.ts';
 
-/** envUI's canvas colour in the window's theme, shown until the page paints. */
-// envUI 1.0's page colour (--env-color-bg-page), which shows before the page paints.
-const windowBackground = () => nativeTheme.shouldUseDarkColors ? '#1e1f21' : '#eaeaec';
+/**
+ * envUI's page colour (--env-color-bg-page) in the window's theme, which the system shows until the
+ * page paints: the same as the page's own, so starting changes no colour.
+ */
+const windowBackground = () => nativeTheme.shouldUseDarkColors ? '#191a1b' : '#ffffff';
 
 /** The height of the title bar the window draws itself, at 100% zoom. */
 const titleBarHeight = 40;
@@ -93,8 +95,24 @@ export class CoordWindow {
         navigateOnDragDrop: false, spellcheck: false, safeDialogs: true, devTools: context.devTools,
       },
     });
-    if (row.maximized) this.win.maximize();
-    this.win.once('ready-to-show', () => { this.win.show(); context.log.info('Window ready', { computer: this.computer }); });
+    // The window shows once its page has painted. Maximizing shows a window too, so a maximized one
+    // waits as well (maximized at once, Windows drew it blank for a moment before the page), and stays
+    // transparent until the page has drawn itself at the maximized size, so it never shows at its
+    // normal size first. It shows after half a second whatever happens.
+    this.win.once('ready-to-show', () => {
+      if (row.maximized) {
+        this.win.setOpacity(0);
+        this.win.maximize();
+        const reveal = () => { if (!this.win.isDestroyed()) this.win.setOpacity(1); };
+        const fallback = setTimeout(reveal, 500);
+        // The resize (none when the window had the screen's size already), then two frames drawn at it.
+        const resized = new Promise<void>(done => { this.win.once('resize', () => done()); setTimeout(done, 150); });
+        void resized.then(() => this.win.isDestroyed() ? undefined : this.win.webContents.executeJavaScript('new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))', true))
+          .catch(() => undefined).finally(() => { clearTimeout(fallback); reveal(); });
+      }
+      this.win.show();
+      context.log.info('Window ready', { computer: this.computer });
+    });
     this.win.on('page-title-updated', event => event.preventDefault());
     this.win.on('resize', () => this.scheduleBounds());
     this.win.on('move', () => this.scheduleBounds());

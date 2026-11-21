@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import type { LoadedUi, WindowInfo } from './types';
 import { defaultUiState } from '../shared/contract';
 import { api } from './api';
-import { Scaffold, Spinner, TopBar, useToast } from '@envsemble/envui';
+import { Scaffold, TopBar, useToast } from '@envsemble/envui';
+import { Loading } from './ui/Loading';
 import { EmptyState } from './ui/EmptyState';
 import { ErrorIcon } from './ui/icons';
 import { CoordWindow } from './window/Window';
@@ -47,7 +48,7 @@ export default function App() {
 
   const bare = (body: ReactNode) => <Scaffold className="coord-window" scroll="body" topBarSpan="full" topBar={<TopBar titleBar className="window-title-bar" start={<CoordLogo />} />}>{body}</Scaffold>;
   const content = failure ? bare(<div className="page-state"><EmptyState icon={<ErrorIcon />} headingLevel={1} title="Coord could not start this window" description={failure} /></div>)
-    : !info || !ui || onboarding === null ? bare(<div className="page-state"><Spinner size="lg" label="Starting Coord" /></div>)
+    : !info || !ui || onboarding === null ? bare(<Loading label="Starting Coord" />)
     : onboarding ? bare(<Onboarding onDone={() => setOnboarding(false)} />)
     : <CoordWindow info={info} initialUi={ui} />;
   return <AppActionsContext.Provider value={actions}>{content}{about && <AboutDialog onClose={() => setAbout(false)} onError={warn} />}</AppActionsContext.Provider>;
