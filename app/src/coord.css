@@ -121,12 +121,12 @@ html, body, #root { min-block-size: 100%; }
 .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell { border-block-start: 0; background-color: var(--hub-part-surface); }
 .hub-row-part:is(:hover, :has(:focus-visible)) > .env-table-cell { background-color: color-mix(in srgb, var(--hub-part-surface), var(--env-color-fg-default) 5%); }
 .env-table-region:not([data-stacked]) > .hub-list {
-  --hub-panel-start: calc(var(--env-space-4) + var(--hub-fold) - var(--env-space-2) - var(--env-space-1)); --hub-panel-end: var(--env-space-3);
+  --hub-panel-start: calc(var(--env-space-4) + var(--hub-fold) - var(--env-space-2) - var(--env-space-1)); --hub-panel-end: var(--env-space-1);
   --hub-panel-below: var(--env-space-3); --hub-panel-radius: var(--env-radius-md);
 }
 .env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row-part > .env-table-cell { background-clip: padding-box; }
 .env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row-part > .env-table-cell:first-child { border-inline-start: var(--hub-panel-start) solid transparent; padding-inline-start: var(--env-space-3); }
-.env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row-part > .env-table-cell:last-child { border-inline-end: var(--hub-panel-end) solid transparent; padding-inline-end: calc(var(--env-space-4) - var(--hub-panel-end)); }
+.env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row-part > .env-table-cell:last-child { border-inline-end: var(--hub-panel-end) solid transparent; padding-inline-end: var(--env-space-3); }
 .env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row:not(.hub-row-part) + .hub-row-part > .env-table-cell:first-child { border-start-start-radius: calc(var(--hub-panel-start) + var(--hub-panel-radius)) var(--hub-panel-radius); }
 .env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row:not(.hub-row-part) + .hub-row-part > .env-table-cell:last-child { border-start-end-radius: calc(var(--hub-panel-end) + var(--hub-panel-radius)) var(--hub-panel-radius); }
 .env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row-part:last-child > .env-table-cell { border-block-end: var(--hub-panel-below) solid transparent; }

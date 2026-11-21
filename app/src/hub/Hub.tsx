@@ -203,7 +203,7 @@ const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resol
     onClick={event => { if (!event.defaultPrevented && !(event.target as Element).closest('a, button') && !window.getSelection()?.toString()) open(event); }}>
     <Table.Cell colSpan={wide ? 2 : undefined} className={wide ? 'hub-row-run' : undefined}>
       <span className="hub-row-title">
-        {fold ? <IconButton variant="text" size="sm" className="hub-row-fold" icon={fold.open ? <IconExpandMore /> : <IconChevronRight />} aria-label={'Parts of ' + work.title} aria-expanded={fold.open} aria-controls={fold.controls} onClick={toggle} />
+        {fold ? <IconButton variant="ghost" size="sm" className="hub-row-fold" icon={fold.open ? <IconExpandMore /> : <IconChevronRight />} aria-label={'Parts of ' + work.title} aria-expanded={fold.open} aria-controls={fold.controls} onClick={toggle} />
           : gutter && index === undefined && <span className="hub-row-fold" aria-hidden="true" />}
         {index !== undefined && (only ? <span className="hub-row-index" aria-hidden="true" /> : <span className="hub-row-index" aria-label={'Part ' + index}>{index}</span>)}
         <StatusIcon status={status} />
