@@ -11,7 +11,9 @@ import { moveForward } from './moveForward.ts';
 
 /** The folder as registry version 2 wrote it: work-0001 a group whose plan lists its parts, each with a number of its own. */
 function earlier(root: string, parts: string) {
-  write(path.join(root, 'active/0004-late/plan.md'), plan('work-0004'));
+  // A part's own list counted for nothing, and an empty one was written by taking the parts out: both lines go.
+  write(path.join(root, 'active/0004-late/plan.md'), plan('work-0004', { parts: '[]' }));
+  write(path.join(root, 'active/0002-other/plan.md'), plan('work-0002').replace('supersedes: []', 'parts:\n- work-0001\nsupersedes: []'));
   write(path.join(root, 'active/0004-late/ledger.md'), planningLedger('work-0004', '2026-10-02', []));
   write(path.join(root, 'active/0001-existing/plan.md'), plan('work-0001', { parts }));
   const registry = JSON.parse(read(root, 'planning.json'));
@@ -40,7 +42,7 @@ test('a version 2 planning folder moves forward once: parts take their work item
   assert.deepEqual([registry.schema_version, registry.former_ids], [3, { 'work-0004': 'work-0001-2', 'work-0002': 'work-0001-3' }]);
   assert.match(read(root, 'active/0004-late/plan.md'), /^id: work-0001-2$/m);
   assert.match(read(root, 'active/0004-late/ledger.md'), /^work_id: work-0001-2$/m);
-  assert.doesNotMatch(read(root, 'active/0001-existing/plan.md'), /^parts:/m);
+  for (const item of ['0001-existing', '0002-other', '0004-late']) assert.doesNotMatch(read(root, `active/${item}/plan.md`), /^parts:|^- work/m, item);
   assert.deepEqual(validatePlanning(root).errors, []);
   // An old ID still names its work, and the home's rows about it are under the new one.
   assert.equal((await workStatus(root, 'work-0004')).workId, 'work-0001-2');
@@ -69,7 +71,7 @@ test('a reader moves an earlier folder forward by itself, and a move that was cu
   write(path.join(root, 'active/0001-existing/plan.md'), plan('work-0001'));
   write(path.join(root, 'active/0004-late/plan.md'), plan('work-0001-2'));
   mkdirSync(path.join(root, '.coord-move'));
-  writeFileSync(path.join(root, '.coord-move', 'renames.json'), JSON.stringify({ renames: [['work-0004', 'work-0001-2']], groups: ['work-0001'] }));
+  writeFileSync(path.join(root, '.coord-move', 'renames.json'), JSON.stringify({ renames: [['work-0004', 'work-0001-2']], listed: ['work-0001', 'work-0002', 'work-0004'] }));
   const old = new Date(Date.now() - 5 * 60_000);
   utimesSync(path.join(root, '.coord-move'), old, old);
   assert.equal(await moveForward(root, { home: path.join(root, '..', 'no-home') }), true);

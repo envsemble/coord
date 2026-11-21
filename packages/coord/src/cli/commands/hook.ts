@@ -294,7 +294,8 @@ async function registered(root: string): Promise<Registered[]> {
 /** The ID a name of work leads to in a planning folder (its own, or the part a former ID now names); null when it registers none. */
 async function registeredAs(root: string | null, workId: string): Promise<string | null> {
   if (root === null) return null;
-  try { return resolveWorkId(JSON.parse((await readFile(path.join(root, 'planning.json'), 'utf8')).replace(/^﻿/, '')), workId); } catch { return null; }
+  // Through the registry's reader, which moves a folder of the earlier version forward first.
+  try { const { readRegistry } = await import('../../planning/registry/registry.ts'); return resolveWorkId(await readRegistry(root), workId); } catch { return null; }
 }
 
 interface LinkRequest { planningFolder: string; workId: string; amending: boolean }

@@ -437,7 +437,7 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     if (metadata.continues !== undefined && metadata.continues !== null) {
       const { references, invalid } = handoffsOf(metadata.continues);
       if (invalid.length) errors.push(prefix + 'continues must list work items, such as work-0023, or project:work-0023 for another project of the home');
-      else if (references.some(item => item.workId === workId && handoffs.folder(root, item) === root)) errors.push(prefix + 'continues names the work item itself');
+      else if (references.some(item => led(item.workId) === workId && handoffs.folder(root, item) === root)) errors.push(prefix + 'continues names the work item itself');
       else {
         for (const item of references) if (!handoffs.exists(root, item)) warnings.push(prefix + 'continues ' + handoffText(item) + ', which names no work item');
         if (typeof workId === 'string' && handoffs.inLoop(root, workId)) warnings.push(prefix + 'continues work that continues it: the handoffs form a loop');

@@ -419,7 +419,7 @@ export async function createWork(input: string, request: { title: string; slug?:
   if (!slugPattern.test(slug) || slug.length > 80) throw new WorkError('The slug must be lowercase letters and digits joined by hyphens.');
   const folders = (await Promise.all(['active', 'archive'].map(location => readdir(path.join(root, location)).catch(() => [] as string[])))).flat();
   const number = whole ? parseWorkId(whole)!.number : nextNumber(registry.workItems, folders, formerIds(registry.registry.former_ids).keys());
-  const part = whole ? nextPart(registeredIds(registry.workItems), number) : 1;
+  const part = whole ? nextPart([...registeredIds(registry.workItems), ...formerIds(registry.registry.former_ids).values()], number) : 1;
   const workId = partId(number, part), location = `active/${number}-${part === 1 ? '' : part + '-'}${slug}`, plan = location + '/plan.md';
   if (await exists(file(root, location))) throw new WorkError(location + ' already exists.');
   let registryText: string;
@@ -442,7 +442,7 @@ export async function createWork(input: string, request: { title: string; slug?:
   return whole ? { ...await result(root, workId, changed), partOf: whole } : result(root, workId, changed);
 }
 
-/** A work item's next part number: one above its highest. */
+/** A work item's next part number: one above the highest among these IDs (the registered ones and those former IDs lead to, so none is given twice). */
 const nextPart = (registered: string[], number: string) => 1 + Math.max(1, ...registered.map(id => parseWorkId(id)).filter(parsed => parsed?.number === number).map(parsed => parsed!.part));
 
 /** Accept the design: `design_status: accepted`, `accepted_at` today, and every planning step done. */
@@ -598,14 +598,17 @@ export async function joinWork(input: string, name: string, into: string, option
   const old = loaded.entry.id, number = parseWorkId(whole)!.number;
   if (parseWorkId(old)!.number === number) throw new WorkError(`${old} is a part of ${whole} already.`);
   if (partsAmong(loaded.registered, old).length > 1) throw new WorkError(`${old} is one of several parts: only a work item of one part joins another.`);
-  const workId = partId(number, nextPart(loaded.registered, number));
   const registry = await registryOf(loaded.root);
+  const former = formerIds(registry.registry.former_ids);
+  const workId = partId(number, nextPart([...loaded.registered, ...former.values()], number));
   let registryText: string;
   try {
     registryText = updateRegistryEntry(registry.text, 'work_items', old, { id: workId });
-    registryText = setRegistryMember(registryText, 'former_ids', { ...Object.fromEntries(formerIds(registry.registry.former_ids)), [old]: workId }, ['work_items']);
+    // Its old ID leads to it, and so does every ID that led to the old one.
+    registryText = setRegistryMember(registryText, 'former_ids', { ...Object.fromEntries([...former].map(([from, to]) => [from, to === old ? workId : to])), [old]: workId }, ['work_items']);
   } catch (error) { if (error instanceof RegistryFormatError) throw new WorkError(error.message); throw error; }
   const ledger = loaded.entry.path + '/ledger.md';
+  if (await readFile(path.join(loaded.root, 'planning.json'), 'utf8') !== registry.text || registry.text !== loaded.registryText) throw new WorkError('planning.json changed meanwhile; nothing was changed. Try again.');
   await writeText(file(loaded.root, loaded.plan), setFields(renamedField(loaded.planText, 'id', old, workId), { updated: today }));
   await writeText(file(loaded.root, ledger), renamedField(loaded.ledgerText, 'work_id', old, workId));
   await writeText(path.join(loaded.root, 'planning.json'), registryText);

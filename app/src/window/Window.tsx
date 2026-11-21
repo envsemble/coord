@@ -225,6 +225,9 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
     && !readFolder.snapshot.work.some(work => work.id === (projectPlace.target as { work: string }).work) ? projectPlace : null;
   useEffect(() => {
     if (!missing) return;
+    // Work that became a part of another work item has a new ID: a place kept under its former one follows it.
+    const now = readFolder?.snapshot?.former?.[(missing.target as { work: string }).work];
+    if (now) { replace({ ...missing, target: { ...missing.target, work: now } } as typeof missing); return; }
     notify(`${workNumber((missing.target as { work: string }).work)} is no longer in ${projects?.find(project => project.id === missing.projectId)?.name ?? 'this project'}.`, 'warning');
     replace(hubPlace(missing.projectId));
   }, [missing]);
