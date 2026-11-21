@@ -86,6 +86,8 @@ const api: CoordBridge = {
   onChanged: listener => subscribe('project:changed', isChange, listener),
   onProjectsChanged: listener => subscribe('projects:changed', isProjects, listener),
   onMenu: listener => subscribe('menu:command', isMenu, listener),
+  takeLink: () => call('link:take'),
+  onLink: listener => subscribe('link:open', (value: unknown): value is true => value === true, () => listener()),
   onAccessChanged: listener => subscribe('access:changed', isAccess, listener),
   onUpdatesChanged: listener => subscribe('updates:changed', isUpdates, listener),
 };

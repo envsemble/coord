@@ -17,6 +17,7 @@ import { compareWorkIds, firstPartId, formerIds, isWorkId, parseWorkId, partId, 
 import { isProjectName, projectKey, projectsOf } from './projects.ts';
 import { appendRegistryEntries, RegistryFormatError, setRegistryMember, updateRegistryEntry } from '../registry/registryText.ts';
 import { moveForward, registryVersion, renamedField } from '../registry/moveForward.ts';
+import { workLink, workName } from './links.ts';
 import { databaseName, HomeDatabase } from '../../home/database.ts';
 import { coordHome } from '../../home/homePath.ts';
 import { stepLimit, workStatistics } from '../reports/reports.ts';
@@ -39,6 +40,8 @@ export interface WorkStatus {
   projects?: string[];
   /** The parts of its work item, this one among them, in their numbers' order, when it has more than one. */
   parts?: string[];
+  /** How to name it to a person so a click opens it in Coord: its name across projects (`coord#0032-2`) and its link, to write as `[name title](link)`. */
+  name?: string; link?: string;
   location: 'active' | 'archive' | 'other';
   plan: string;
   designStatus: string | null; implementationStatus: string | null;
@@ -197,7 +200,9 @@ async function describe(loaded: Loaded): Promise<WorkStatus> {
   const statistics = (await workStatistics(loaded.root, [{ id: entry.id, path: entry.path, currentPlan: loaded.plan, completed: text(plan.completed_at) }]).catch(() => ({})) as Record<string, { reports: number; agentMs: number; tokens: number | null; primaryModel: string | null }>)[entry.id];
   const projects = projectsOf(plan.projects);
   const parts = partsAmong(loaded.registered, entry.id);
+  const project = path.basename(loaded.root), name = workName(project, entry.id), link = workLink(project, entry.id);
   return {
+    ...name && link && { name, link },
     planningFolder: loaded.root, workId: entry.id, title: text(plan.title) ?? path.posix.basename(entry.path), summary: text(plan.summary)?.trim() || null, tags: tagsOf(plan.tags), ...projects.length && { projects }, ...parts.length > 1 && { parts }, path: entry.path, location: locationOf(entry.path),
     plan: loaded.plan,
     designStatus: text(plan.design_status), implementationStatus: text(plan.implementation_status),

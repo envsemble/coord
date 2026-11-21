@@ -24,6 +24,7 @@ import { fetchChanges } from './updateChanges.ts';
 import { devActions, isCoordDev } from './dev.ts';
 import type { AboutInfo } from '../shared/contract.ts';
 import { isProjectListing } from '../shared/validate.ts';
+import { linkScheme, parseAppLink } from '@envsemble/coord/planning/links';
 
 // Coord keeps its state in the Coord home (~/.coord, shared with the `coord` command). Electron's
 // own files and Chromium's caches stay in Electron's per-user folder, except for a home chosen with
@@ -74,6 +75,9 @@ function refuseHome(reason: string) {
 }
 
 /** The end-to-end test build is packaged with "coordEndToEndBuild": true in its package.json. */
+/** The work a link among the arguments names (the system starts Coord with the link it was asked to open); null without one. */
+const linkIn = (argv: readonly string[]) => argv.map(parseAppLink).find(link => link !== null) ?? null;
+
 function endToEndBuild() {
   try { return JSON.parse(readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')).coordEndToEndBuild === true; } catch { return false; }
 }
@@ -193,10 +197,12 @@ function start(database: HomeDatabase) {
     contents.setWindowOpenHandler(() => ({ action: 'deny' }));
   });
 
-  // Starting Coord again brings it forward.
-  app.on('second-instance', () => {
-    log.info('Second instance');
-    manager.focused()?.focus();
+  // Starting Coord again brings it forward; started by a link that names work (coord://open/<project>/<part>), it opens that work.
+  app.on('second-instance', (_event, argv) => {
+    const link = linkIn(argv);
+    log.info('Second instance', { link: link !== null });
+    if (link) manager.openLink(link);
+    else manager.focused()?.focus();
   });
 
   app.on('window-all-closed', () => app.quit());
@@ -228,6 +234,12 @@ function start(database: HomeDatabase) {
     // After sleep, connections may be dead without either side knowing: try them all again now.
     powerMonitor.on('resume', () => computers.wakeAll());
     manager.restore();
+    // Started by a link that names work: a window opens it once it has its projects.
+    const link = linkIn(process.argv);
+    if (link) manager.openLink(link);
+    // The installed app, on the user's own home, answers such links from now on: a build under test, Coord Dev and a
+    // separate instance (COORD_HOME) leave the system's registration alone.
+    if (app.isPackaged && !process.env.COORD_HOME && !endToEndBuild() && !coordDev) app.setAsDefaultProtocolClient(linkScheme);
     // After the windows open: an update copies the command and the plugin into the home.
     void agents.start().then(() => dev?.start());
     updates.start();

@@ -100,6 +100,16 @@ The work is then in exactly those projects, which need not include the one that 
 
 `where`, and the session start, list with a project's own active work the active work other projects keep that is in it, each with its `planningFolder` and named with the project that keeps it (`envui:work-0048`). The tools and the `coord work` commands take a work item by that name and then work in that project's planning folder, wherever the session is, so a session never changes its own project's work of the same number; a `planningFolder` given as well must be that project's. In the project list, each work item that lists projects has them linked (`projects`: each with the project's ID, `null` when no listed project has that folder, its folder's name and its display name).
 
+### Links to work
+
+An agent can name work in any chat so that a click opens it in Coord, as it can link a PR. Across projects a part is named `coord#0032-2`: its project (its planning folder's name in the home), `#`, its work item's number and its part's. Its link is a page of Coord's site:
+
+```text
+https://coord.envsemble.com/open#coord/0032-2
+```
+
+Every work tool's answer carries the work item's `name` and `link`, and the session start gives the form with the project's own work as the example; agents write `[coord#0032-2 Title](link)`. The page is a file of the site: nothing runs on a server, and what follows the `#` stays in the browser. It forwards to `coord://open/coord/0032-2`, the link the installed app registers itself for with the system; the app, started by such a link or handed it while it runs, shows that plan in a window of this computer, and says so when the computer has no project of that name. The app opens nothing for any other `coord://` address. The rules are in `packages/coord/src/planning/work/links.ts`, which the tools, the app and the page share.
+
 ## Hooks
 
 The plugin runs `coord hook <event>` on these events. Each reads the event's JSON from stdin, and never fails the session: a failure is noted in the home's `logs/hooks.log`. The ones that only record what the session does are marked to run in the background (`async`): Claude Code does not wait for them, Codex does. Most hooks finish in [`bin/coord.js`](../packages/coord/bin/coord.js) before any of Coord's TypeScript loads, so each costs about as much as starting Node: a tool use while the session already works, or one of a session no work is linked to, is settled by a small stamp file per session in the home (`session-state/`) without opening the database, and a `PostToolUse` that neither edited a file in the home's planning folders nor called a Coord tool that changes a work item does nothing.

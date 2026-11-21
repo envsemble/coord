@@ -26,6 +26,7 @@ import { harnessOfTranscript } from '../../agents/activity.ts';
 import type { Whereabouts } from '../../planning/projects/findProject.ts';
 import { contradictions } from '../../planning/work/contradictions.ts';
 import { resolveWorkId, workIdSource } from '../../planning/work/ids.ts';
+import { workLink, workName } from '../../planning/work/links.ts';
 import type { insertReport } from '../../planning/reports/reports.ts';
 import type { PreparedReport } from '../../planning/reports/recordReport.ts';
 import type { Output } from '../args.ts';
@@ -210,6 +211,10 @@ export function sessionContext(where: Whereabouts): string {
     }
     if (match.work.length > 10) lines.push(`- …and ${match.work.length - 10} more (Coord tool where).`);
     if (match.work.some(item => item.planningFolder)) lines.push('Work named with a project (such as envui:work-0048) is in this project too, but that project keeps it: give the Coord tools that name.');
+    // How to name work to the user so a click opens it in Coord, with this project's own work as the example.
+    const own = match.work.find(item => !item.planningFolder), project = path.basename(match.planningFolder);
+    const name = own && workName(project, own.workId), link = own && workLink(project, own.workId);
+    if (own && name && link) lines.push(`When you name work to the user, link it so a click opens it in Coord: [${name} ${own.title}](${link}) (the planning folder's name, #, the work item's number and its part's; ${own.workId} is ${name.slice(name.indexOf('#'))}). The Coord tools' answers carry each work item's link.`);
   }
   // What no longer adds up in the projects' work, for the agent to bring up and fix.
   const found = where.matches.flatMap(match => contradictions(match.work).map(line => (where.matches.length > 1 ? match.project + ': ' : '') + line));

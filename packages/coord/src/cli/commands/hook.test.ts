@@ -54,7 +54,9 @@ test('hooks give the session its planning context, check and link planning edits
   const context: string = started.hookSpecificOutput.additionalContext;
   assert.ok(context.includes(`Coord project "shop-planning" for this folder: planning folder ${root}.`), context);
   assert.ok(!context.includes('Several projects'), context);
-  assert.ok(context.endsWith('\n- work-0001 "Cart" (draft, not_started): No steps agreed yet. Plan: active/0001-cart/plan.md'), context);
+  assert.ok(context.includes('\n- work-0001 "Cart" (draft, not_started): No steps agreed yet. Plan: active/0001-cart/plan.md\n'), context);
+  // And how to name work to the user so a click opens it in Coord, with this project's work as the example.
+  assert.ok(context.endsWith("[shop-planning#0001-1 Cart](https://coord.envsemble.com/open#shop-planning/0001-1) (the planning folder's name, #, the work item's number and its part's; work-0001 is #0001-1). The Coord tools' answers carry each work item's link."), context);
   const elsewhere = temporary(t);
   assert.equal(await contextIn(env, elsewhere), [
     `Coord: no project covers this folder (${realpathSync.native(elsewhere)}). Active projects in the Coord home:`,

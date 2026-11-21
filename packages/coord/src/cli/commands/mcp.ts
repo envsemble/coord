@@ -36,6 +36,7 @@ const instructions = "Coord keeps plans in projects: planning folders in the Coo
   + "When work involves several projects, say which it is in with projects (work_create, work_update), for the whole and for each part; where then lists it in each of them, named project:work-0023 when another project keeps it: give the tools that name. "
   + "Tag work with what it will be searched for later: the release it ships in and the areas it touches, reusing the project's tags (where and work_update count them). "
   + 'Answer questions about past work with work_search. '
+  + "When you name a work item to the user, write it as a link that opens it in Coord: [name title](link), with the name (such as coord#0023-1) and the link the tools' answers give. "
   + 'In planning files, write PRs and issues as owner/repo#N and commits as owner/repo@hash (or their URLs), naming the repository yourself, so Coord links them. '
   + 'The tools never commit; commit planning changes yourself.';
 

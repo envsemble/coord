@@ -286,6 +286,27 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
     }
   }, [go, showStatistics, showSettings, navigate, openSearch]);
 
+  // A link that names work (coord://open/<project>/<part>, from a chat or a document elsewhere): once
+  // the projects are listed, the window takes the work it names and shows it. The project is found by
+  // its planning folder's name, as agents name it; a former ID is followed where a missing plan is noticed.
+  const projectsLoaded = projects !== null;
+  const listedProjects = useRef(projects);
+  listedProjects.current = projects;
+  useEffect(() => {
+    if (!projectsLoaded) return;
+    const take = () => {
+      api.takeLink().then(link => {
+        if (!link) return;
+        const named = link.project.toLowerCase();
+        const project = (listedProjects.current ?? []).find(each => each.path.split(/[\\/]/).filter(Boolean).at(-1)?.toLowerCase() === named);
+        if (project) go({ projectId: project.id, target: workTarget(link.work) });
+        else notify(`A link names the project ${link.project}, which is not on this computer.`, 'warning');
+      }, () => undefined);
+    };
+    take();
+    return api.onLink(take);
+  }, [projectsLoaded, go, notify]);
+
   // Menu commands from main; ignore one that repeats a key this window just took, or left to a field.
   const lastShortcut = useRef<{ command: MenuCommand; time: number } | null>(null);
   const closingPress = useRef(0);

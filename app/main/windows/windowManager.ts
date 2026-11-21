@@ -4,7 +4,7 @@
 import { BrowserWindow, screen } from 'electron';
 import type { HomeDatabase } from '@envsemble/coord/planning';
 import type { AccessState, ClientStatus, OpenProjectState, HostClient, Project } from '@envsemble/coord/host';
-import type { MenuCommand, UpdateState } from '../../shared/contract.ts';
+import type { LinkedWork, MenuCommand, UpdateState } from '../../shared/contract.ts';
 import type { Computers } from '../computers/computers.ts';
 import type { RotatingLog } from '../log.ts';
 import { defaultSize, type AppState, type WindowRow } from '../appState.ts';
@@ -122,6 +122,16 @@ export class WindowManager {
   /** Coord's update moved on: every window shows it. */
   updatesChanged(state: UpdateState) {
     for (const window of this.all()) window.send('updates:changed', state);
+  }
+
+  /**
+   * Open the work a link names: in the focused window when it shows this computer, else in another
+   * window of this computer, else in a new one. A link names a project of this computer's home.
+   */
+  openLink(link: LinkedWork) {
+    const focused = this.focused();
+    const window = focused?.computer === null ? focused : this.all().find(each => each.computer === null) ?? this.create(null);
+    window.offerLink(link);
   }
 
   sendMenu(command: MenuCommand, focusedOnly = false) {

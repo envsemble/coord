@@ -30,10 +30,11 @@ export const invokeChannels = [
   'agents:list', 'agents:checks', 'agents:connect', 'agents:disconnect', 'agents:chooseProgram', 'agents:clearProgram', 'agents:byHand',
   'onboarding:state', 'onboarding:finish',
   'updates:state', 'updates:check', 'updates:download', 'updates:install', 'updates:setChannel',
+  'link:take',
 ] as const;
 export type InvokeChannel = typeof invokeChannels[number];
 
-export const eventChannels = ['project:changed', 'projects:changed', 'menu:command', 'access:changed', 'updates:changed'] as const;
+export const eventChannels = ['project:changed', 'projects:changed', 'menu:command', 'access:changed', 'updates:changed', 'link:open'] as const;
 export type EventChannel = typeof eventChannels[number];
 
 /** Light, dark, or the operating system's choice: kept by main for every window and applied as Electron's native theme. */
@@ -118,6 +119,11 @@ export type Target =
   | { kind: 'file'; path: string; anchor?: string | null };
 /** Something of a project (by its ID): a plan, a diagram or a file. */
 export interface ProjectPlace { projectId: string; target: Target }
+/**
+ * The work a link names (`coord://open/<project>/<part>`, which Coord is registered for with the
+ * system): its project by its planning folder's name, and its work ID as registries write it.
+ */
+export interface LinkedWork { project: string; work: string }
 /** The Settings page's sections: general (the theme), the agents Coord connects on this computer, pairing in both directions, and Coord's updates. */
 export const settingsSections = ['general', 'agents', 'computers', 'updates'] as const;
 export type SettingsSection = typeof settingsSections[number];
@@ -334,6 +340,10 @@ export interface CoordBridge {
   onChanged(listener: (change: ProjectChange) => void): () => void;
   onProjectsChanged(listener: (change: ProjectsChange) => void): () => void;
   onMenu(listener: (command: MenuCommand) => void): () => void;
+  /** The work a link named for this window, once: null when none waits. */
+  takeLink(): Promise<Result<LinkedWork | null>>;
+  /** A link named work for this window: take it. */
+  onLink(listener: () => void): () => void;
   onAccessChanged(listener: (change: AccessChange) => void): () => void;
   onUpdatesChanged(listener: (state: UpdateState) => void): () => void;
 }

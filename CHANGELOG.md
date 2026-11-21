@@ -16,6 +16,11 @@
 - **Nothing written before breaks:** in files and tools a first part is still written with the number alone (`work-0032`), and work that had a number of its own before it became a part keeps it as a former ID, which every tool, link and reference follows. Coord moves each planning folder to the new registry (version 3) by itself the first time it reads it, with the statistics recorded for the renumbered parts, and commits the move in the folder's Git when what it changes had nothing uncommitted. An older Coord says the folder is of a version it does not read: update the app, and the `coord` command with it.
 - **A session sees the work that is in its project** though another project keeps it: `where` and the session start list it, named with that project (`envui:work-0048`), and the tools and `coord work` commands take that name to change it there.
 
+**Links to work**
+
+- **A click in any chat opens a plan in Coord:** agents name work as a link, such as `[coord#0046-2 Hub rows say more](https://coord.envsemble.com/open#coord/0046-2)`, as they link a PR. The link is a page of Coord's site that hands the address to the installed app, which shows that plan, starting first if it was closed. The tools' answers carry each work item's name and link, and the session start shows the form.
+- **Nothing is sent anywhere:** the page is a file, and the project and the number follow the `#` of its address, which browsers keep to themselves. The app registers itself for `coord://open/…` links at its start and opens nothing for any other address.
+
 ## 0.10.0 — Coord on envUI 3 — 2026-11-21
 
 **Search and the hub**

@@ -42,6 +42,8 @@ Record as understanding settles, not only at the end:
 
 Coord shows a plan in a column about 100 characters wide. Keep a table to a few short columns (a word or a phrase each) and put long text in a list or paragraphs below it; A blank line inside a table ends it, and the rows after it show as text. `coord check` warns about a table that will read cramped, and about rows cut off from their table. Link a diagram from the sentence that is about it (`[the order model](diagrams/orders.puml)`): the link shows as the diagram.
 
+Name work to the user as a link that opens it in Coord, as you would link a PR: `[coord#0032-2 Title](https://coord.envsemble.com/open#coord/0032-2)`, the project's planning folder's name, `#`, the work item's number and its part's (`work-0032` is `0032-1`). The tools' answers carry each work item's `name` and `link`; copy them. In planning files keep writing `work-0032-2`, which Coord links itself.
+
 Write PRs, issues and commits in full, naming the repository from the checkout you work in: `owner/repo#12`, `owner/repo@4ab195a`, or their URLs. Coord links these; `#12` and a bare hash stay plain text.
 
 Keep one record per thing, and update it rather than adding summaries. Skip transcripts and command logs. Lessons that outlive the work belong in the repository's own `AGENTS.md` or documentation, not in Coord.
