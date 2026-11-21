@@ -8,7 +8,7 @@
 // so back and forward and a plan's breadcrumb set it), where projects are also made and managed, and a state filter narrow it, on its heading's
 // line with that project's statistics; the search stays in the title bar. One click opens a plan. A connected agent that does not run Coord (Codex not trusting its hooks, say)
 // has a notice above the plans, linking to Settings › Agents, until it does.
-import { memo, useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { Fragment, memo, useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { Alert, Button, IconButton, Link, Menu, Row, SegmentedControl, Spinner, Table, Text } from '@envsemble/envui';
 import { IconFilterList } from '@envsemble/envui/icons/FilterList';
 import { EmptyState } from '../ui/EmptyState';
@@ -138,7 +138,7 @@ function Note({ note, resolved, notify }: { note: string; resolved: Resolutions 
     if (!answer?.url) return part.text;
     const url = answer.url;
     const open = (event: MouseEvent) => { event.preventDefault(); api.openExternal(url).catch(error => { if ((error as { code?: string }).code !== 'cancelled') notify((error as Error).message, 'warning'); }); };
-    return <span key={index} className="hub-row-reference"><Link href={url} title={answer.pull?.title ?? answer.title ?? url} onClick={open}>{part.text}</Link>{answer.pull && <PullMark pull={answer.pull} word />}</span>;
+    return <Fragment key={index}><Link href={url} title={answer.pull?.title ?? answer.title ?? url} onClick={open}>{part.text}</Link>{answer.pull && <PullMark pull={answer.pull} word />}</Fragment>;
   })}</>;
 }
 
