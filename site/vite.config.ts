@@ -10,6 +10,6 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   build: { rollupOptions: { input: { main: path.resolve(import.meta.dirname, 'index.html'), open: path.resolve(import.meta.dirname, 'open.html') } } },
-  server: { port: 5180, host: '127.0.0.1', fs: { allow: [path.resolve(import.meta.dirname, '..')] } },
+  server: { port: 5180, host: '127.0.0.1' },
   preview: { port: 4180, host: '127.0.0.1' },
 });

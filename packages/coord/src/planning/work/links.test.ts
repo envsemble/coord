@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { appLink, appLinkOfFragment, parseAppLink, workLink, workName } from './links.ts';
+import { appLink, linkOfFragment, parseAppLink, workLink, workName } from './links.ts';
 
 test('work is named and linked by its project and its number with its part, and only such a link opens anything', () => {
   // A first part is written with the number alone and named with its 1.
@@ -9,9 +9,9 @@ test('work is named and linked by its project and its number with its part, and 
   assert.equal(appLink('Shop work', 'work-0032'), 'coord://open/Shop%20work/0032-1');
   assert.deepEqual([workLink('a/b', 'work-0001'), workLink('coord', 'nope')], [null, null]);
   // The page writes the app's link afresh from what the fragment names, and from nothing else.
-  assert.equal(appLinkOfFragment('#coord/0032-2'), 'coord://open/coord/0032-2');
-  assert.equal(appLinkOfFragment('#Shop%20work/0032'), 'coord://open/Shop%20work/0032-1');
-  for (const fragment of ['', '#coord', '#coord/32', '#coord/0032-0', '#coord/0032-2/x', '#/0032', '#a:b/0032', '#coord/0032?x=1', '#%E0%A4%A/0032']) assert.equal(appLinkOfFragment(fragment), null, fragment);
+  assert.deepEqual(linkOfFragment('#coord/0032-2'), { name: 'coord#0032-2', link: 'coord://open/coord/0032-2' });
+  assert.deepEqual(linkOfFragment('#Shop%20work/0032'), { name: 'Shop work#0032-1', link: 'coord://open/Shop%20work/0032-1' });
+  for (const fragment of ['', '#coord', '#coord/32', '#coord/0032-0', '#coord/0032-2/x', '#/0032', '#a:b/0032', '#coord/0032?x=1', '#%E0%A4%A/0032', '#%2E%2E/0032', '#a%0Ab/0032']) assert.equal(linkOfFragment(fragment), null, fragment);
   // The app opens the work a link names, as its registry writes the ID, and nothing else.
   assert.deepEqual(parseAppLink('coord://open/coord/0032-2'), { project: 'coord', work: 'work-0032-2' });
   assert.deepEqual(parseAppLink('coord://open/Shop%20work/0032-1/'), { project: 'Shop work', work: 'work-0032' });

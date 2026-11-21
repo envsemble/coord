@@ -74,10 +74,10 @@ function refuseHome(reason: string) {
   });
 }
 
-/** The end-to-end test build is packaged with "coordEndToEndBuild": true in its package.json. */
 /** The work a link among the arguments names (the system starts Coord with the link it was asked to open); null without one. */
 const linkIn = (argv: readonly string[]) => argv.map(parseAppLink).find(link => link !== null) ?? null;
 
+/** The end-to-end test build is packaged with "coordEndToEndBuild": true in its package.json. */
 function endToEndBuild() {
   try { return JSON.parse(readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')).coordEndToEndBuild === true; } catch { return false; }
 }

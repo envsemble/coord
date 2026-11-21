@@ -11,7 +11,8 @@ export const linkPage = 'https://coord.envsemble.com/open';
 /** The scheme the installed app is registered for, and the host of a link that opens work. */
 export const linkScheme = 'coord', linkHost = 'open';
 
-const projectName = /^[^:\\/\s][^:\\/]{0,99}$/;
+/** A planning folder's name: no separator, no control character, and not only dots. */
+const projectName = /^(?!\.+$)[^:\\/\s\u0000-\u001f][^:\\/\u0000-\u001f]{0,99}$/;
 const part = /^([0-9]{4,9})(?:-([1-9][0-9]{0,3}))?$/;
 
 /** A part as a link and people name it: its work item's number and its own, `0032-2`; null for no work ID. */
@@ -57,8 +58,9 @@ export function parseAppLink(value: unknown): { project: string; work: string } 
   return named(value.slice(prefix.length).replace(/\/$/, ''));
 }
 
-/** The app link for the page's fragment (`#coord/0032-2`), written afresh from what it names; null when it names no work. */
-export function appLinkOfFragment(fragment: string): string | null {
+/** What the page's fragment (`#coord/0032-2`) names: the work's name as people read it and the app link, written afresh; null when it names no work. */
+export function linkOfFragment(fragment: string): { name: string; link: string } | null {
   const found = named(fragment.replace(/^#/, ''));
-  return found && appLink(found.project, found.work);
+  const name = found && workName(found.project, found.work), link = found && appLink(found.project, found.work);
+  return name && link ? { name, link } : null;
 }
