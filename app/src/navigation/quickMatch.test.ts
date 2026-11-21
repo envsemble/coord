@@ -13,3 +13,14 @@ test('quick open matches characters in order and ranks names first', () => {
   assert.equal(rankItems(items, 'fulfil')[0].id, '2');
   assert.deepEqual(rankItems(items, 'zzz'), []);
 });
+
+test('words typed as they are outrank letters scattered in order, which drop out; a closed plan goes below an open one', () => {
+  const items = [
+    { id: 'scattered', kind: 'work' as const, label: 'References that open, sessions and links', detail: '#0025' },
+    { id: 'closed', kind: 'work' as const, label: 'Release 0.8.0', detail: '#0028', penalty: 6 },
+    { id: 'open', kind: 'work' as const, label: 'Releases with nightly and stable channels', detail: '#0042' },
+  ];
+  assert.deepEqual(rankItems(items, 'release').map(item => item.id), ['open', 'closed']);
+  // With no item having the words, the letters in order still find something.
+  assert.deepEqual(rankItems(items, 'rfs').map(item => item.id), ['scattered']);
+});

@@ -40,7 +40,7 @@ function Paired({ computer, onClose }: { computer: Computer; onClose(): void }) 
   const [error, setError] = useState('');
   const show = () => { api.switchComputer(computer.hostId, false).then(onClose, failure => setError((failure as Error).message)); };
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }} className="connect-dialog" title="Connect to another Coord"
-    actions={<Button variant="primary" startIcon={<ComputerIcon />} onClick={show}>Show {computer.name}</Button>}>
+    actions={<Button variant="primary" start={<ComputerIcon />} onClick={show}>Show {computer.name}</Button>}>
     <Text>This computer is paired with <strong>{computer.name}</strong>. Choose <strong>{computer.name}</strong> in the computer menu at the top of a window to work on its projects{computer.manageAccess ? '; you can also pair and revoke its devices' : ''}.</Text>
     {error && <Alert tone="danger" announce>{error}</Alert>}
   </Dialog>;

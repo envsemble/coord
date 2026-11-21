@@ -24,7 +24,7 @@ export const invokeChannels = [
   'project:statistics', 'projects:statistics', 'ui:load', 'ui:save',
   'references:resolve', 'work:sessions', 'work:timeline',
   'shell:reveal', 'shell:openExternal', 'shell:openReference', 'shell:copy',
-  'app:command', 'app:theme', 'app:setTheme', 'app:about',
+  'app:command', 'app:theme', 'app:setTheme', 'app:about', 'search:recent', 'search:remember',
   'computers:list', 'computers:switch', 'computers:pair', 'computers:forget',
   'access:state', 'access:update', 'access:pairingCreate', 'access:pairingRevoke', 'access:devices', 'access:deviceRevoke',
   'agents:list', 'agents:checks', 'agents:connect', 'agents:disconnect', 'agents:chooseProgram', 'agents:clearProgram', 'agents:byHand',
@@ -166,7 +166,7 @@ export interface AgentFolder { directory: string; marketplace: string; plugin: s
 /** Whether the onboarding has been finished on this computer; it shows on launch until then. */
 export interface OnboardingState { done: boolean }
 
-/** Where Coord's updates come from: its stable releases, or a build of its development branch each night. */
+/** Where Coord's updates come from: its stable releases, or a build of its development branch every six hours. */
 export const updateChannels = ['stable', 'nightly'] as const;
 export type UpdateChannel = typeof updateChannels[number];
 /** Whether a version is a nightly build's (`0.9.1-nightly.20261114.42`): its updates follow the nightly channel, and its title bar says Nightly. */
@@ -268,6 +268,9 @@ export interface CoordBridge {
   /** The app's theme preference. Windows follow it through `prefers-color-scheme`. */
   theme(): Promise<Result<ThemePreference>>;
   setTheme(preference: ThemePreference): Promise<Result<void>>;
+  /** The places opened from the search lately on a computer (`local` for this one), as the search keeps them (JSON). */
+  recentSearches(computer: string): Promise<Result<string>>;
+  rememberSearches(computer: string, recent: string): Promise<Result<void>>;
   /** The versions and the Coord home About Coord shows. */
   about(): Promise<Result<AboutInfo>>;
   /** This computer and the computers this app paired with, each checked for whether it answers. */

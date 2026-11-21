@@ -220,16 +220,17 @@ async function bundleClient() {
     )
     .join("\n\n")
     .replaceAll("*/", "* /");
-  const { createThemeBootstrapScript } =
-    await import("@envsemble/envui/theme-bootstrap");
+  const { createStoredThemeBootstrapScript } =
+    await import("@envsemble/envui/theme-storage");
   return {
     app: output(".js"),
     // envUI's styles first; its cascade layers rank below the viewer's own.
     styles: output(".css") + styles.outputFiles[0].text,
     notices,
-    themeBootstrap: createThemeBootstrapScript({
-      storageKey: THEME_STORAGE_KEY,
-    }),
+    themeBootstrap: createStoredThemeBootstrapScript(
+      { selection: "accent" },
+      { storageKey: THEME_STORAGE_KEY },
+    ),
   };
 }
 /**

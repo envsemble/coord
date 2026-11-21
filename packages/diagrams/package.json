@@ -1,6 +1,6 @@
 {
   "name": "@envsemble/coord-diagrams",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "description": "Internal Coord diagram package: Coord's PlantUML subset, captures from code and databases, layout, the React viewer and offline export",
   "repository": {
@@ -31,7 +31,7 @@
     "node": ">=22.12.0"
   },
   "devDependencies": {
-    "@envsemble/envui": "1.0.0",
+    "@envsemble/envui": "3.0.0",
     "@types/react": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
     "peggy": "5.1.0",

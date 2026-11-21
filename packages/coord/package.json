@@ -1,6 +1,6 @@
 {
   "name": "@envsemble/coord",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "description": "The coord command, the Coord host and the planning-folder reader they share with the app",
   "repository": {

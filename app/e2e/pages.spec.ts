@@ -16,7 +16,7 @@ test('a page opens in place from its plan link, Files and search, saves a choice
   await openPlan(window, 'Saved payment methods');
   // Its page.json says it needs the person: under the plan's title, on its link and in Files.
   const row = window.locator('.plan-files [role="treeitem"][data-id="d:active/0001-saved-payment-methods/pages/card-picker"]');
-  await expect(window.getByRole('list', { name: 'Pages that need you' })).toContainText('Pick how a customer chooses a saved card');
+  await expect(window.getByRole('list', { name: 'Pages that need you' }).getByRole('button', { name: 'Open card-picker' })).toHaveAttribute('title', 'Pick how a customer chooses a saved card');
   await expect(window.locator('.prose .page-link .attention-dot')).toBeVisible();
   await expect(window.locator('.plan-files [role="treeitem"][data-id="d:active/0001-saved-payment-methods/pages"] .attention-dot')).toBeVisible();
   // The plan's link reads as a page and opens it in place, under the plan's breadcrumb, marked in Files.

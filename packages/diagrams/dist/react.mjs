@@ -1676,7 +1676,7 @@ function createCamera({
   }
   function initialCamera() {
     fit(false);
-    if (camera.scale >= 0.7 || !initialFocus.length) return;
+    if (camera.scale >= 0.6 || !initialFocus.length) return;
     const anchors = initialFocus.map((id) => {
       const node = worldRef.current.querySelector(
         `.node[data-node-id="${id}"]`
@@ -1704,10 +1704,26 @@ function createCamera({
         (area.height - 2 * FIT_PADDING) / Math.max(1, height)
       )
     );
+    const b = worldRef.current.querySelector("svg").viewBox.baseVal;
+    const within = (offset, start, size, extent) => {
+      const low = start + size - FIT_PADDING - extent * scale;
+      const high = start + FIT_PADDING;
+      return low > high ? start + (size - extent * scale) / 2 : Math.min(high, Math.max(low, offset));
+    };
     snapTo({
       scale,
-      x: area.x + area.width / 2 - x * scale,
-      y: area.y + area.height / 2 - y * scale,
+      x: within(
+        area.x + area.width / 2 - x * scale,
+        area.x,
+        area.width,
+        b.width
+      ),
+      y: within(
+        area.y + area.height / 2 - y * scale,
+        area.y,
+        area.height,
+        b.height
+      ),
       fitted: false
     });
   }
@@ -2238,8 +2254,17 @@ function useSVGExport(svgSource, theme, scope, fade = false) {
     const colours = resolvedColours(scope?.current || document.documentElement);
     for (const [name, colour] of colours) svg.style.setProperty(name, colour);
     svg.querySelectorAll(".selected,.dimmed").forEach((n) => n.classList.remove("selected", "dimmed"));
-    const faded = fade ? [...svg.querySelectorAll('[data-change="unchanged"]')] : [];
-    for (const element of faded) element.setAttribute("opacity", "0.32");
+    const unchanged = '[data-change="unchanged"]';
+    const faded = fade ? [
+      ...svg.querySelectorAll(
+        `${unchanged} :is(rect,path,line,polyline,polygon)`
+      )
+    ].map((element) => [element, "0.4"]) : [];
+    if (fade)
+      for (const text of svg.querySelectorAll(`${unchanged} text`))
+        faded.push([text, "0.72"]);
+    for (const [element, opacity] of faded)
+      element.setAttribute("opacity", opacity);
     const backgroundURL = URL.createObjectURL(
       new Blob([new XMLSerializer().serializeToString(svg)], {
         type: "image/svg+xml"
@@ -2253,7 +2278,7 @@ function useSVGExport(svgSource, theme, scope, fade = false) {
     background.setAttribute("height", svg.viewBox.baseVal.height);
     background.setAttribute("fill", colours.get("--canvas") ?? "#ffffff");
     svg.insertBefore(background, svg.firstChild);
-    for (const element of faded) element.removeAttribute("opacity");
+    for (const [element] of faded) element.removeAttribute("opacity");
     const diagramURL = URL.createObjectURL(
       new Blob([new XMLSerializer().serializeToString(svg)], {
         type: "image/svg+xml"
@@ -2325,7 +2350,7 @@ function ToolButton({
       "aria-label": label,
       "aria-pressed": pressed,
       icon,
-      variant: variant ?? (pressed ? "primary" : "secondary")
+      variant: variant ?? (pressed ? "secondary" : "ghost")
     }
   ) });
 }
@@ -2471,7 +2496,7 @@ function ExportMenu({ items }) {
         Menu.Item,
         {
           className: item.key,
-          icon: item.icon,
+          start: item.icon,
           description: item.description,
           onClick: item.onSelect,
           children: item.label
@@ -2483,17 +2508,16 @@ function ExportMenu({ items }) {
 }
 
 // src/ui/Island.jsx
-import { Surface } from "@envsemble/envui";
+import { Surface, Toolbar } from "@envsemble/envui";
 import { jsx as jsx10 } from "react/jsx-runtime";
 function Island({ label, className = "", children, ...props }) {
   return /* @__PURE__ */ jsx10(
     Surface,
     {
-      background: "default",
+      background: "raised",
       radius: "full",
       padding: 1,
-      role: "group",
-      "aria-label": label,
+      render: /* @__PURE__ */ jsx10(Toolbar.Root, { "aria-label": label, size: "sm" }),
       className: `coord-island${className ? ` ${className}` : ""}`,
       ...props,
       children
@@ -2501,7 +2525,7 @@ function Island({ label, className = "", children, ...props }) {
   );
 }
 function IslandDivider() {
-  return /* @__PURE__ */ jsx10("span", { className: "island-divider", "aria-hidden": "true" });
+  return /* @__PURE__ */ jsx10(Toolbar.Separator, {});
 }
 
 // src/ui/ViewSwitcher.jsx
@@ -2680,7 +2704,7 @@ function ProvenanceLabel({ document: document2 }) {
     Badge,
     {
       tone: provenance.tone,
-      icon: /* @__PURE__ */ jsx13(ProvenanceIcon, { provenance, profile: document2?.profile }),
+      start: /* @__PURE__ */ jsx13(ProvenanceIcon, { provenance, profile: document2?.profile }),
       children: provenance.label
     }
   );
@@ -2877,7 +2901,7 @@ function DownloadLink({ data, filename, type, children, ...props }) {
     {
       ...props,
       variant: "text",
-      startIcon: /* @__PURE__ */ jsx15(IconDownload, {}),
+      start: /* @__PURE__ */ jsx15(IconDownload, {}),
       ...href ? { href, download: filename } : { disabled: true },
       children
     }
@@ -3512,19 +3536,17 @@ function useChangeReview({
         {
           content: showing ? "Hide the changes" : "Show every change",
           side: "bottom",
-          children: /* @__PURE__ */ jsxs12(
+          children: /* @__PURE__ */ jsx19(
             Button3,
             {
-              variant: showing ? "primary" : "secondary",
+              variant: showing ? "secondary" : "ghost",
               className: "changes-toggle",
               "aria-pressed": showing,
               "aria-label": `Changes, ${rollup.count}`,
-              startIcon: /* @__PURE__ */ jsx19(IconDifference, {}),
+              start: /* @__PURE__ */ jsx19(IconDifference, {}),
+              end: /* @__PURE__ */ jsx19(Badge3, { count: rollup.count }),
               onClick: onToggle,
-              children: [
-                /* @__PURE__ */ jsx19("span", { className: "collapsible-label", children: "Changes" }),
-                /* @__PURE__ */ jsx19(Badge3, { count: rollup.count })
-              ]
+              children: /* @__PURE__ */ jsx19("span", { className: "collapsible-label", children: "Changes" })
             }
           )
         }

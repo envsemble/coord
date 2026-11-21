@@ -21,7 +21,7 @@ import { plural, relativeDate } from '../ui/format';
 import { FoldersDialog, RenameProjectDialog, type ProjectActions } from './ProjectDialogs';
 
 /** A project's avatar: its initials on a small square in its own hue. */
-export function ProjectAvatar({ project }: { project: Project }) {
+export function ProjectAvatar({ project }: { project: Pick<Project, 'id' | 'name'> }) {
   return <span className="project-avatar" aria-hidden="true" style={{ '--project-hue': projectHue(project.id) } as CSSProperties}>{initials(project.name)}</span>;
 }
 
@@ -47,35 +47,35 @@ export function ProjectMenu({ projects, chosen, computer, local, actions, newPro
   const change = (project: Project, request: ProjectChangeRequest) => { void actions.change(project, request); };
   return <>
     <Menu.Root aria-label="Project" align="end"
-      trigger={<Button variant="secondary" size="sm" className="hub-project" startIcon={chosen ? <ProjectAvatar project={chosen} /> : undefined} endIcon={<IconUnfoldMore />} aria-label={'Project: ' + (chosen?.name ?? 'All projects')}>
+      trigger={<Button variant="secondary" size="sm" className="hub-project" start={chosen ? <ProjectAvatar project={chosen} /> : undefined} end={<IconUnfoldMore />} aria-label={'Project: ' + (chosen?.name ?? 'All projects')}>
         <span className="hub-project-label">{chosen?.name ?? 'All projects'}</span>
       </Button>}>
       {/* The projects as plain items, the one shown marked in grey, each with its avatar so no row keeps an empty slot. */}
       <Menu.Group label="Projects">
-        <Menu.Item className="project-menu-choice" aria-current={chosen ? undefined : 'true'} icon={<span className="project-avatar project-avatar-all" aria-hidden="true"><IconApps /></span>}
+        <Menu.Item className="project-menu-choice" aria-current={chosen ? undefined : 'true'} start={<span className="project-avatar project-avatar-all" aria-hidden="true"><IconApps /></span>}
           onClick={() => actions.go(hubPlace(null))}>All projects</Menu.Item>
-        {active.map(project => <Menu.Item key={project.id} className="project-menu-choice" aria-current={chosen?.id === project.id ? 'true' : undefined} icon={<ProjectAvatar project={project} />}
+        {active.map(project => <Menu.Item key={project.id} className="project-menu-choice" aria-current={chosen?.id === project.id ? 'true' : undefined} start={<ProjectAvatar project={project} />}
           description={facts(project)} onClick={() => actions.go(hubPlace(project.id))}>{project.name}</Menu.Item>)}
       </Menu.Group>
       {chosen && <>
         <Menu.Separator />
         <Menu.Group label={chosen.name}>
-          <Menu.Item icon={<IconFolder />} onClick={() => setDetailed(chosen.id)}>Folders…</Menu.Item>
-          {local && <Menu.Item icon={<IconFolderOpen />} onClick={() => { api.reveal(chosen.id, 'planning.json').catch(failed); }}>Show in Folder</Menu.Item>}
-          <Menu.Item icon={<IconContentCopy />} onClick={() => { api.copy(chosen.path).catch(failed); }}>Copy Path</Menu.Item>
-          <Menu.Item icon={<IconEdit />} onClick={() => setRenaming(chosen)}>Rename…</Menu.Item>
-          <Menu.Item icon={<IconArchive />} onClick={() => { change(chosen, { state: 'archived' }); actions.go(hubPlace()); }}>Archive</Menu.Item>
+          <Menu.Item start={<IconFolder />} onClick={() => setDetailed(chosen.id)}>Folders…</Menu.Item>
+          {local && <Menu.Item start={<IconFolderOpen />} onClick={() => { api.reveal(chosen.id, 'planning.json').catch(failed); }}>Show in Folder</Menu.Item>}
+          <Menu.Item start={<IconContentCopy />} onClick={() => { api.copy(chosen.path).catch(failed); }}>Copy Path</Menu.Item>
+          <Menu.Item start={<IconEdit />} onClick={() => setRenaming(chosen)}>Rename…</Menu.Item>
+          <Menu.Item start={<IconArchive />} onClick={() => { change(chosen, { state: 'archived' }); actions.go(hubPlace()); }}>Archive</Menu.Item>
         </Menu.Group>
       </>}
       {archived.length > 0 && <>
         <Menu.Separator />
-        <Menu.Submenu icon={<IconInventory2 />} label={'Archived projects (' + archived.length + ')'}>
-          {archived.map(project => <Menu.Item key={project.id} icon={<ProjectAvatar project={project} />} onClick={() => change(project, { state: 'active' })}
+        <Menu.Submenu start={<IconInventory2 />} label={'Archived projects (' + archived.length + ')'}>
+          {archived.map(project => <Menu.Item key={project.id} start={<ProjectAvatar project={project} />} onClick={() => change(project, { state: 'active' })}
             aria-label={'Restore ' + project.name} end={<span className="muted">Restore</span>}>{project.name}</Menu.Item>)}
         </Menu.Submenu>
       </>}
       <Menu.Separator />
-      <Menu.Item icon={<NewProjectIcon />} onClick={newProject}>New Project…</Menu.Item>
+      <Menu.Item start={<NewProjectIcon />} onClick={newProject}>New Project…</Menu.Item>
     </Menu.Root>
     {renaming && <RenameProjectDialog project={renaming} onClose={() => setRenaming(null)} onRename={name => actions.update(renaming, { name })} />}
     {details && <FoldersDialog project={details} computer={computer} local={local} onClose={() => setDetailed(null)} onChange={folders => actions.update(details, { folders })} />}

@@ -1,8 +1,8 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { Alert, Text } from '@envsemble/envui';
+import { Alert, Button, Text } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
 import { stepCounts } from '@envsemble/coord/planning/ledger';
-import { AttentionDot } from '../ui/AttentionDot';
+import { PageIcon } from '../ui/icons';
 import type { Document, LedgerStep, ProjectWork, Snapshot, Target, Work, WorkSession } from '../types';
 import { defaultDocument, planDocument, stepPhase } from './work';
 import { pageTarget, workStatisticsTarget, workTarget } from '../navigation/targets';
@@ -15,7 +15,7 @@ import { continuation, handoffs } from './handoffs';
 import { ContinuedIn, HandoffEntries, type OpenHandoff } from './HandoffLinks';
 import { WorkStatisticsSummary } from '../statistics/WorkStatisticsSummary';
 import { SessionsList, StateNote, useWorkSessions } from './WorkSessions';
-import { TargetLink, useWindow } from '../window/windowContext';
+import { TargetLink, useWindow, useWindowActions } from '../window/windowContext';
 import { Trail } from '../ui/Trail';
 import { Page } from '../ui/Page';
 import { TagList } from './TagList';
@@ -121,12 +121,13 @@ function StatusLine({ work, status }: { work: Work; status: StatusLook }) {
 
 /**
  * A work item: its plan (or, without one, its README or first document). The breadcrumb names its
- * project and number; then the title, the status line with whose turn it is and what for, its pages
+ * project and number; then the title, under it the status line with whose turn it is and what for, its pages
  * that need the person, and the plan's summary. Beside it the work's progress, its sessions and
  * statistics. Diagrams open from their cards in the plan.
  */
 export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Snapshot; target: WorkTarget }) {
   const { listed } = useWindow();
+  const { open } = useWindowActions();
   const plan = planDocument(work);
   const reading: Document | undefined = defaultDocument(work);
   const status = statusOf(work);
@@ -137,16 +138,17 @@ export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Sna
   // Its pages that need the person, as their agents said in their page.json.
   const asking = Object.entries(snapshot.attention ?? {}).filter(([page]) => page.startsWith(work.path + '/pages/'));
   return <Page className="work-page" breadcrumbs={<Trail work={work.id} items={[{ label: workNumber(work.id) }]} />}
-    title={work.title} meta={<StatusLine work={work} status={status} />} description={summary}>
+    title={work.title} toolbar={<StatusLine work={work} status={status} />} description={summary}>
     <div className="work-layout">
       <div className="work-main">
         {(listing?.tags?.length || asking.length > 0) && <div className="work-header">
           {listing && <TagList tags={listing.tags ?? []} className="work-tags" />}
           {asking.length > 0 && <ul className="page-attention" aria-label="Pages that need you">
+            {/* The way to what is asked: a button that opens the page. The status line above says what
+                for; what the page asks is the button's description, beside it only when the status line says nothing. */}
             {asking.map(([page, text]) => <li key={page}>
-              <AttentionDot text={text} />
-              <TargetLink target={pageTarget(page)} className="page-link">{page.slice(page.lastIndexOf('/') + 1)}</TargetLink>
-              <span className="page-attention-text">{text}</span>
+              <Button size="sm" variant="primary" start={<PageIcon />} title={text} onClick={() => open(pageTarget(page))}>Open {page.slice(page.lastIndexOf('/') + 1)}</Button>
+              {!work.state?.note && <span className="page-attention-text">{text}</span>}
             </li>)}
           </ul>}
         </div>}

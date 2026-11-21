@@ -1,12 +1,21 @@
-// The pieces the statistics pages share: a headline figure's card, and a model at an effort with its
-// colour.
+// The pieces the statistics pages share: the headline figures, and a model at an effort with its colour.
 import type { ReactNode } from 'react';
-import { Surface } from '@envsemble/envui';
+import { Column, Grid, Surface, Text } from '@envsemble/envui';
 import { shownEffort } from './modelColours';
 import { ModelName } from './ModelName';
 
+/** The headline figures, after envUI's key figures pattern: one raised surface, its figures in even columns. */
+export function KeyFigures({ label, children }: { label: string; children: ReactNode }) {
+  return <Surface role="group" aria-label={label} background="raised" className="stats-grid" render={<Grid name="key-figures" columns="repeat(auto-fit, minmax(min(100%, 11rem), 1fr))" gap={5} />}>{children}</Surface>;
+}
+
+/** A headline figure: its label, the figure, and a note on how it changed or how it is counted. */
 export function StatsCard({ label, value, note }: { label: string; value: ReactNode; note?: ReactNode }) {
-  return <Surface className="stat" padding={4}><span className="stat-label">{label}</span><strong className="stat-value">{value}</strong>{note != null && <small className="stat-note">{note}</small>}</Surface>;
+  return <Column gap={1} className="stat">
+    <Text variant="body-sm" emphasis="muted">{label}</Text>
+    <Text variant="headline" className="stat-value">{value}</Text>
+    {note != null && <Text variant="body-sm" emphasis="muted" className="stat-note">{note}</Text>}
+  </Column>;
 }
 
 /** A model at an effort's colour, from the palette of the models shown with it (`modelPalette`). */

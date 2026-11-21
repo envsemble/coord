@@ -1,17 +1,18 @@
-import { Surface } from "@envsemble/envui";
+import { Surface, Toolbar } from "@envsemble/envui";
 
 /**
- * A floating toolbar over the diagram canvas: an envUI pane holding small
- * controls (its stylesheet sets the container's control height to sm).
+ * A floating toolbar over the diagram canvas: envUI's Toolbar on a raised
+ * pill Surface, which keeps its edge on the canvas in both themes, as envUI's ViewControls example floats one over a diagram. Its
+ * controls are small (its stylesheet sets the container's control height to
+ * sm).
  */
 export function Island({ label, className = "", children, ...props }) {
   return (
     <Surface
-      background="default"
+      background="raised"
       radius="full"
       padding={1}
-      role="group"
-      aria-label={label}
+      render={<Toolbar.Root aria-label={label} size="sm" />}
       className={`coord-island${className ? ` ${className}` : ""}`}
       {...props}
     >
@@ -20,6 +21,7 @@ export function Island({ label, className = "", children, ...props }) {
   );
 }
 
+/** A separator between the toolbar's groups of controls. */
 export function IslandDivider() {
-  return <span className="island-divider" aria-hidden="true" />;
+  return <Toolbar.Separator />;
 }

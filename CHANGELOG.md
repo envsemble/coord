@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.10.0 — Coord on envUI 3 — 2026-11-21
+
+**Search and the hub**
+
+- **Search from anywhere:** the title bar's **Search** opens on Ctrl+K as well as Ctrl+P, and replaces the hub's **Search every project** button. Before you type, it shows the places you opened from it lately (kept per computer, across windows and restarts), searches to try, the plans that are your turn, and pages to go to.
+- **Narrow a search** with `tag:`, `step:`, `doc:`, `diagram:`, `term:` or `project:`, with your tags and projects suggested as you type one; the words you typed are marked in the results.
+- **One filter on the hub:** Open, Closed and All sit with a filter menu (Your turn, Agents working, Blocked, Changed this week), Statistics sits beside the project menu, and each group lists the most recently changed plan first.
+
+**The window, on envUI 3.0**
+
+- **envUI 3.0:** the app and the diagram viewer move from envUI 1.0 to 3.0.0, keeping Coord's pages and behaviour. The theme you chose still applies, and the offline diagram viewer still paints its saved theme before the first frame.
+- **Settings** lists its sections in a column beside them (General, Agents, Computers, Updates), or a segmented control above them in a narrow window. Each setting is a row with its control at the end: Selects for the theme, the update channel and the network address, a switch for remote access, and a short field for the port. Agent rows show their state as a badge, with Choose program…, Check again and Connect by hand… in a More menu. In Computers, pairing a device waits until remote access is on.
+- **Neutral selection:** selected items across the app take a neutral fill instead of blue.
+- **A plan's status line** sits under its title, and the page it asks you to open is its primary button.
+- **The parts rail** is a pane beside the plan, and a sheet that **Parts** opens in a narrow window.
+- **Diagrams:** the floating controls are toolbars, and a proposal's changes are listed as rows.
+
+**Breadcrumbs**
+
+- **They stay in view:** the trail of a plan, a file, a page, a diagram or statistics sits in the window's top left, not in the page's centred column, and stays at the top as the page scrolls.
+- **They float:** the crumbs sit on a pill of the page's own colour rather than a band across the window, so the page shows around them and a click beside them reaches the page.
+- **The project shows with its avatar** before its name.
+
+**Releases**
+
+- **Nightly builds every six hours** (00:00, 06:00, 12:00 and 18:00 UTC) rather than once a night, so a fix reaches the nightly channel the same day.
+
+**Fixes**
+
+- A work item's status line no longer pushes its note below the badge and time when the note names a pull request.
+
+**Website and README**
+
+- The README and coord.envsemble.com show the same four current screenshots in the dark theme: the hub, a plan, a proposal's changes and a project's statistics.
+
 ## 0.9.0 — Coord — 2026-11-15
 
 **Releases and updates**

@@ -5,7 +5,7 @@
 // project's statistics or Settings. A plan and its pages have the plan's own files at their left,
 // and the parts of the work it belongs to in a rail at their right.
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { Alert, Breadcrumbs, Button, Panes, Popover, Scaffold, Spinner, TopBar, useToast } from '@envsemble/envui';
+import { Alert, Breadcrumbs, Button, Panes, Popover, Scaffold, Sheet, Spinner, TopBar, useContainerSize, useToast, windowClassOf } from '@envsemble/envui';
 import { EmptyState } from '../ui/EmptyState';
 import { ErrorIcon, WarningIcon } from '../ui/icons';
 import type { MenuCommand } from '../../shared/contract';
@@ -26,6 +26,7 @@ import { Hub, type HubFilters } from '../hub/Hub';
 import { NewProjectDialog, type ProjectActions } from '../projects/ProjectDialogs';
 import { Gone, Page } from '../ui/Page';
 import { TitleBarStart, type WindowMenus } from '../titleBar/TitleBar';
+import { ProjectAvatar } from '../projects/ProjectMenu';
 import { revealIds } from '../files/explorerModel';
 import { ReadingContext, WindowContext, type Notify, type OpenOptions, type WindowActions, type WindowReading } from './windowContext';
 import { arrived, liveActivity } from '../plan/agentTime';
@@ -43,7 +44,8 @@ const loadingPage = <div className="page-state" aria-busy="true"><Spinner size="
 const toastTones = { info: 'neutral', warning: 'info', danger: 'danger' } as const;
 
 /** Keys handled in the window; the same shortcuts in the application menu are the fallback. */
-const shortcuts: Record<string, MenuCommand> = { 'ctrl+p': 'quickOpen', 'ctrl+shift+e': 'focusFiles', 'ctrl+,': 'settings' };
+// Ctrl+K opens the search, and Ctrl+P too, as editors have it.
+const shortcuts: Record<string, MenuCommand> = { 'ctrl+k': 'quickOpen', 'ctrl+p': 'quickOpen', 'ctrl+shift+e': 'focusFiles', 'ctrl+,': 'settings' };
 /** Where the back and forward keys stay: fields, and open menus, lists and dialogs. */
 const keepsHistoryKeys = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"], [role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
 /** What the mouse's back and forward buttons only close: open menus, lists and dialogs. */
@@ -250,7 +252,7 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   const openSearch = useCallback(() => setSearch(current => current ?? ''), []);
   const closeSearch = useCallback(() => setSearch(null), []);
   const [creatingProject, setCreatingProject] = useState(false);
-  const [hubFilters, setHubFilters] = useState<HubFilters>({ state: 'open' });
+  const [hubFilters, setHubFilters] = useState<HubFilters>({ state: 'open', only: [] });
   const projectOf = useCallback((projectId: string | null) => projects?.find(project => project.id === projectId), [projects]);
 
   /** Statistics, from the menu: all plans'. */
@@ -462,13 +464,13 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
   const searchScope = useMemo(() => projectPlace && reading && readSnapshot ? { projectId: reading, snapshot: readSnapshot } : null, [Boolean(projectPlace), reading, readSnapshot]);
 
   let content;
-  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.projectId} filters={hubFilters} setFilters={setHubFilters} go={go} search={openSearch} platform={info.platform}
+  if (isPage(placed) && placed.page === 'hub') content = <Hub projects={projects} error={projectsError} filter={placed.projectId} filters={hubFilters} setFilters={setHubFilters} go={go}
     computer={info.computer.name} local={info.computer.hostId === null} actions={projectActions} newProject={() => setCreatingProject(true)} />;
   else if (isPage(placed) && placed.page === 'settings') content = <SettingsPage section={placed.section} computer={info.computer} go={showSettings} />;
   // All plans' statistics: every active project together.
-  else if (isPage(placed) && !placed.projectId) content = <Suspense fallback={loadingPage}><AllStatisticsPage revision={statisticsMark} trail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: 'Statistics' }]} />} /></Suspense>;
+  else if (isPage(placed) && !placed.projectId) content = <Suspense fallback={loadingPage}><AllStatisticsPage revision={statisticsMark} trail={<Breadcrumbs className="breadcrumb" wrap={false} items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: 'Statistics' }]} />} /></Suspense>;
   else content = <ProjectContent place={placed} folder={readFolder} project={owner} scope={scope} read={read}
-    statisticsTrail={<Breadcrumbs className="breadcrumb" items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: projectOf(reading)?.name ?? 'Project', onClick: projectOf(reading)?.state === 'archived' ? undefined : () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
+    statisticsTrail={<Breadcrumbs className="breadcrumb" wrap={false} items={[{ label: 'Plans', onClick: () => go(hubPlace()) }, { label: projectOf(reading) ? <><ProjectAvatar project={projectOf(reading)!} />{projectOf(reading)!.name}</> : 'Project', onClick: projectOf(reading)?.state === 'archived' ? undefined : () => go(hubPlace(reading)) }, { label: 'Statistics' }]} />} />;
 
   // The plan's files, in the Scaffold's navigation region at the left from a medium width up, while a
   // plan, its pages or one of its files show.
@@ -479,16 +481,15 @@ export function CoordWindow({ info, initialUi }: { info: WindowInfo; initialUi: 
     navigation={files ? { drawer: files } : undefined} navigationForms={files ? { compact: 'none', medium: 'drawer', expanded: 'drawer', large: 'drawer' } : { compact: 'none', medium: 'none', expanded: 'none', large: 'none' }}
     topBar={<TopBar titleBar className="window-title-bar"
       start={<TitleBarStart info={info} menus={menus} onError={warn} />}
-      actions={<>
-        {/* On the hub, its own search button is the search. */}
-        {!hubShown && <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />}
+      end={<>
+        <SearchButton platform={info.platform} onClick={() => runCommand('quickOpen')} />
         {scope && read && <Health issues={read.snapshot.issues} open={work => go({ projectId: scope.projectId, target: workTarget(work) })} />}
       </>} />}>
     <div className={'window-body' + (fills ? ' is-filled' : '')}>
       <div ref={page} className="window-page">{content}</div>
       <ScrollMemory scroller={scroller} scrollKey={scrollKey(placed)} shown={placeId(placed)} anchored={anchored} entry={currentEntry(history)} content={page} positions={scrollPositions} entryPositions={entryPositions} />
     </div>
-    {search !== null && projects && <SearchPopup projects={projects} open={searchScope} query={search} setQuery={setSearch} onChoose={choose} onClose={closeSearch} />}
+    {search !== null && projects && <SearchPopup hostId={info.computer.hostId} projects={projects} open={searchScope} query={search} setQuery={setSearch} onChoose={choose} onClose={closeSearch} />}
     {creatingProject && <NewProjectDialog computer={info.computer.name} local={info.computer.hostId === null} onClose={() => setCreatingProject(false)} onCreated={projectActions.created} />}
   </Scaffold>;
 }
@@ -596,21 +597,32 @@ function ProjectContent({ place, folder, project, scope, read, statisticsTrail }
 }
 
 /**
- * A page of a plan (the plan, its statistics, a file): with the parts rail beside it, in envUI's
- * supporting pane, when the work item is made of parts or is one of them. In a narrow window the rail
- * is a sheet that Parts opens. A diagram fills the window instead.
+ * A page of a plan (the plan, its statistics, a file): with the parts rail beside it, in a pane of
+ * envUI's Panes, when the work item is made of parts or is one of them. Where the window is narrower
+ * than the expanded class the rail is a sheet that Parts opens instead, which closes as another part
+ * shows. A diagram fills the window instead.
  */
 function PlanFrame({ work, snapshot, children }: { work: Work | null; snapshot: Snapshot; children: ReactNode }) {
-  const [open, setOpen] = useState(false);
+  // The element itself, so the size follows it as it comes and goes with the work's parts.
+  const [frame, setFrame] = useState<HTMLDivElement | null>(null);
+  const size = useContainerSize(frame);
+  const [openFor, setOpenFor] = useState<string | null>(null);
   const group = partsGroup(work, snapshot);
   if (!group || !work) return children;
-  return <Panes.Root behavior="supporting" open={open} onOpenChange={setOpen} defaultWidth={18} className="plan-frame">
-    <Panes.Main label={work.title} className="plan-frame-page">
-      <Panes.Trigger variant="secondary" size="sm" className="parts-trigger">Parts</Panes.Trigger>
-      {children}
-    </Panes.Main>
-    <Panes.Supporting label={'Parts of ' + workNumber(group.id)} className="plan-frame-parts"><PartsRail group={group} shown={work.id} /></Panes.Supporting>
-  </Panes.Root>;
+  const label = 'Parts of ' + workNumber(group.id);
+  const rail = <PartsRail group={group} shown={work.id} />;
+  const beside = size === undefined || !['compact', 'medium'].includes(windowClassOf(size.inlineSize));
+  // The page keeps its place in the tree in both forms, so crossing the width doesn't remount it.
+  return <div ref={setFrame} className="plan-frame">
+    <Panes.Root sized="end" defaultWidth={18} className="plan-frame-panes">
+      <Panes.Pane label={work.title} className="plan-frame-page">
+        {!beside && <Sheet className="parts-sheet" aria-label={label} open={openFor === work.id} onOpenChange={open => setOpenFor(open ? work.id : null)}
+          trigger={<Button variant="secondary" size="sm" className="parts-trigger">Parts</Button>}>{rail}</Sheet>}
+        {children}
+      </Panes.Pane>
+      <Panes.Pane label={label} className="plan-frame-parts" hidden={!beside}>{beside && rail}</Panes.Pane>
+    </Panes.Root>
+  </div>;
 }
 
 /** Record health of the shown project: problems in its planning records, each linking to its work item. */
@@ -619,7 +631,7 @@ function Health({ issues, open }: { issues: Issue[]; open(work: string): void })
   const errors = issues.some(issue => issue.level === 'error');
   const label = issues.length + ' record health ' + (issues.length === 1 ? 'note' : 'notes');
   return <Popover aria-label="Record health" title="Record health" width="lg"
-    trigger={<Button variant="ghost" className={'health-button' + (errors ? ' has-errors' : '')} startIcon={<WarningIcon />} aria-label={label}>{issues.length}</Button>}>
+    trigger={<Button variant="ghost" className={'health-button' + (errors ? ' has-errors' : '')} start={<WarningIcon />} aria-label={label}>{issues.length}</Button>}>
     {close => <ul className="health-list">{issues.map((issue, index) => <li key={index} data-level={issue.level}>
       <WarningIcon className="health-icon" />
       <span>{issue.workId && <><Button variant="text" underline className="health-link" onClick={() => { close(); open(issue.workId!); }}>{workNumber(issue.workId)}</Button>{' '}</>}{issue.message}</span>

@@ -1,6 +1,6 @@
 {
   "name": "coord",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "description": "A desktop app for planning with Claude Code or Codex: the plans, steps, decisions and diagrams your agents work from, kept in your project",
   "repository": {
@@ -47,8 +47,8 @@
   "devDependencies": {
     "@babel/core": "8.1.2",
     "@babel/eslint-parser": "8.1.2",
-    "@envsemble/eslint-plugin-envui": "1.0.0",
-    "@envsemble/stylelint-config-envui": "1.0.0",
+    "@envsemble/eslint-plugin-envui": "3.0.0",
+    "@envsemble/stylelint-config-envui": "3.0.0",
     "eslint": "10.14.0",
     "fflate": "0.8.3",
     "prettier": "3.8.0",

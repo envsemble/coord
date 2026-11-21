@@ -1,6 +1,6 @@
 # Coord desktop app
 
-![The Coord hub on the computer Workstation: three open plans of the project Northwind, grouped as Your turn (Saved payment methods, with what the agent waits on you for: choose how a customer picks a saved card, on the card picker page; Claude Opus 5.5 and two other models, its agent time and tokens), Waiting (Customer order notifications, with why it is blocked) and Later (Order fulfilment model), each with its project, steps done and when it changed; the title bar holds the Coord mark, Plans, Settings and Help and the computer menu, and the heading line the search, the project menu and the Open, Closed and All filter](../assets/hub.png)
+![The Coord hub, dark, on the computer Workstation: the open plans of the projects Coord and envUI, each with its project's avatar, grouped as Your turn (five plans, each saying what the agent waits on you for, such as merging envsemble/envUI#70 and releasing 1.1.0), Working, Waiting (on CI and review bots for a PR) and Later; each row with its steps done, its agents with their time, tokens and subagents, and when it changed; the title bar holds the Coord mark, Plans, Settings and Help, the computer menu and the search, and the heading line the project menu, Statistics and the Open, Closed and All filter](../assets/hub.png)
 
 Coord is a desktop app for your Coord projects and their plans. Every window opens on the hub, one list of every plan of the computer's projects, and shows one place at a time: the hub, a plan, its statistics, a diagram, a file, statistics or Settings. Discuss changes with your agent in chat; the agent edits the records, and Coord shows them as they change.
 
@@ -15,7 +15,7 @@ The app carries the [`coord` command](../docs/command.md) and the Coord plugin f
 
 ### Updates
 
-The installed app updates itself from the [GitHub Releases](../docs/releases.md#github-releases) of envsemble/coord, on one of two channels: **stable**, the releases, or **nightly**, a build of `dev` each night. A build follows its own channel until **Settings › Updates** chooses the other. Coord checks the channel when it starts and every four hours. A newer build shows as **Update** in the title bar and in Settings › Updates: a click downloads it, and **Restart to update** installs it and starts it again (on Windows the installer runs without its pages, into the same folder; on Linux the AppImage replaces itself). Nothing downloads or installs on its own.
+The installed app updates itself from the [GitHub Releases](../docs/releases.md#github-releases) of envsemble/coord, on one of two channels: **stable**, the releases, or **nightly**, a build of `dev` every six hours. A build follows its own channel until **Settings › Updates** chooses the other. Coord checks the channel when it starts and every four hours. A newer build shows as **Update** in the title bar and in Settings › Updates: a click downloads it, and **Restart to update** installs it and starts it again (on Windows the installer runs without its pages, into the same folder; on Linux the AppImage replaces itself). Nothing downloads or installs on its own.
 
 Coord never moves to an older build, whose code may not read the home this one wrote: a nightly switched to stable stays until a stable release newer than it is out. Updates are off in a development build (`npm run dev`), in the end-to-end build, on Linux when Coord does not run as its AppImage, and with `COORD_NO_UPDATES=1`; Settings › Updates then says why. The builds are not code-signed, so an update's integrity rests on HTTPS and the SHA-512 in the channel's update file (`latest.yml` or `nightly.yml`).
 
@@ -47,7 +47,7 @@ A window has one row at the top, its title bar, from the left:
 - **Help**: **Open Logs** and **About Coord**;
 - the **computer menu**, the name of the computer the window works on: this computer and the paired ones (choosing one shows its plans in this window), and **Computer settings…**, which opens **Settings › Computers** (see [Remote computers](#remote-computers));
 - **Update**, beside the computer, while a newer Coord is on offer, downloading or ready (see [Updates](#updates));
-- at the right: **Search** (Ctrl+P; on the hub its own **Search every project** takes its place), record-health notes when the shown project has any, and the system's window buttons.
+- at the right: **Search** (Ctrl+K, or Ctrl+P), on every page, record-health notes when the shown project has any, and the system's window buttons.
 
 The window's other commands (New Window, zoom, full screen) keep their shortcuts, Ctrl+Shift+N, Ctrl++, Ctrl+-, Ctrl+0 and F11. Empty space in the title bar moves the window, and a double click maximizes it.
 
@@ -57,12 +57,12 @@ The window's other commands (New Window, zoom, full screen) keep their shortcuts
 
 **New Window** opens another window on the same computer; Ctrl+Shift+W closes one. Windows open at quit come back at the next start, each with its size, position and place; so does the last window closed. A window whose paired computer does not answer at the start shows the hub at once and its place when the computer answers.
 
-**The search** (Ctrl+P, **Search**, or the hub's **Search every project**) searches every active project of the computer: plans, ledger steps, documents with their headings and text, diagrams and their elements, glossary terms and projects. A plan's tags match as words, and `tag:0.8.0` keeps only the plans tagged `0.8.0` (with words, those that also match them); plans show their tags. Results come grouped by kind, each with its project and plan, and open where they are: a plan, a document at its heading, a diagram at its element, a project's plans in the hub.
+**The search** (Ctrl+K or Ctrl+P, or **Search** in the title bar) searches every active project of the computer: plans, ledger steps, documents with their headings and text, diagrams and their elements, glossary terms and projects. A plan's tags match as words, and `tag:0.8.0` keeps only the plans tagged `0.8.0` (with words, those that also match them); plans show their tags. Results come grouped by kind, each with its project and plan, and open where they are: a plan, a document at its heading, a diagram at its element, a project's plans in the hub.
 
 | Shortcut                 | Action                                 |
 | ------------------------ | -------------------------------------- |
 | Alt+← / Alt+→            | Back / forward                         |
-| Ctrl+P                   | Search                                 |
+| Ctrl+K, Ctrl+P           | Search                                 |
 | Ctrl+Shift+E             | Bring the keyboard to the plan's Files |
 | Ctrl+,                   | Settings                               |
 | Ctrl+Shift+N             | New window                             |
@@ -86,7 +86,7 @@ Every plan is a row; a click anywhere on it opens the plan. A row shows:
 
 ## A plan
 
-![A plan in Coord: Saved payment methods, #0001 of Northwind, under the breadcrumb Plans › Northwind › #0001, marked Your turn with what to do: choose how a customer picks a saved card, on the card picker page, which is linked below the title; its Outcome and Scope, and the current checkout with links into its captured TypeScript model. At the left the plan's files, plan.md marked and the pages folder with a dot for the page that needs you; at the right the side column: Progress (2 of 7 steps done, 5 left), Continues #0004 Inventory reservations at checkout, the steps, and Statistics (Claude Opus 5.5 with Claude Sonnet 4.5 and Claude Haiku 5.5, 4 h 8 min of agent time, 13.8M tokens); Search in the title bar](../assets/plan.png)
+![A plan in Coord, dark: Run a development Coord beside the installed one, #0043 of Coord, under the breadcrumb Plans › Coord › #0043, with its summary and marked Your turn with what to do: say whether to close it; its tags, its folded request and the decisions it settled. At the left the plan's files; at the right Progress (all 10 steps done) with its steps, the sessions that worked on it and its statistics](../assets/plan.png)
 
 A plan's page shows:
 

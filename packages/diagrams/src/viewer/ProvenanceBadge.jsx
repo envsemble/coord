@@ -23,7 +23,7 @@ export function ProvenanceLabel({ document }) {
   return (
     <Badge
       tone={provenance.tone}
-      icon={
+      start={
         <ProvenanceIcon provenance={provenance} profile={document?.profile} />
       }
     >

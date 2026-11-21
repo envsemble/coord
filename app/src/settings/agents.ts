@@ -18,12 +18,6 @@ export interface AgentActivity {
 }
 export const idle: AgentActivity = { running: null, failed: null };
 
-/** An agent's status line: connected (with the plugin's version), not connected, or not on this computer. */
-export function agentStatus(agent: AgentState): string {
-  if (agent.connected) return agent.version ? 'Connected · plugin ' + agent.version : 'Connected';
-  return agent.found ? 'Not connected' : 'Not found on this computer';
-}
-
 /**
  * A connected agent's check as its row says it, and whether it is a warning. Codex's hooks not
  * running, when its configuration says they are trusted, are usually trusted for an earlier
