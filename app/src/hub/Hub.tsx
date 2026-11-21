@@ -269,8 +269,11 @@ const HubEntryRows = memo(function HubEntryRows({ entry, columns, open, toggleFo
     </Table.Row>}
   </Table.Body>;
 }, (before, after) => before.columns === after.columns && before.open === after.open && before.toggleFold === after.toggleFold && before.showProject === after.showProject && before.waiting === after.waiting && before.now === after.now
-  && before.byId === after.byId && before.go === after.go && before.resolved === after.resolved && before.notify === after.notify
+  && before.go === after.go && before.resolved === after.resolved && before.notify === after.notify && inProjectsKey(before.entry, before.byId) === inProjectsKey(after.entry, after.byId)
   && members(before.entry).length === members(after.entry).length && members(before.entry).every((member, at) => rowKey(member) === rowKey(members(after.entry)[at])));
+
+/** The projects an entry's plans are in, as the listing has them, as text: an entry is drawn again when one is renamed or listed anew, not whenever the projects are listed. */
+const inProjectsKey = (entry: HubEntry, byId: ReadonlyMap<string, Project>) => members(entry).map(member => projectsOf(member).map(id => id + ':' + (byId.get(id)?.name ?? '')).join(',')).join('\n');
 
 /** An entry's key: its plan's, among every project's. */
 const entryKey = (entry: HubEntry) => entry.item.project.id + ':' + entry.item.work.id;
