@@ -28,6 +28,9 @@ test('a version 2 planning folder moves forward once: parts take their work item
   earlier(root, '["work-0004", "work-0002", "work-0009"]');
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'As version 2 wrote it');
+  // The move commits as whoever commits in the folder: here, someone Git knows (a runner may know nobody).
+  git(root, 'config', 'user.name', 'Coord Test');
+  git(root, 'config', 'user.email', 'test@example.com');
   mkdirSync(home, { recursive: true });
   const database = HomeDatabase.open(home);
   const project = database.addProject(root, 'Planning');
