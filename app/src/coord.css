@@ -351,12 +351,15 @@ html, body, #root { min-block-size: 100%; }
 /* A page: its frame fills the body below the plan's breadcrumb, on the page's own background. */
 .page-view { display: flex; flex: 1; flex-direction: column; min-block-size: 22rem; }
 /* The breadcrumbs of every page, in the top left of the window, not in the page's centred column. */
-.page-view-trail { padding: var(--env-space-3) var(--env-space-5) 0; }
-/* A page's trail stays at the top of the body as the page scrolls under it, on the page's background,
-   on one line; what else sticks on the page (the plan's side column, a heading scrolled to) sits
-   below it, and the page under it starts a little higher, as its header did under the trail. */
+.page-view-trail { padding: calc(var(--env-space-3) - var(--env-space-1)) var(--env-space-3) 0; }
+/* A page's trail stays at the top of the body as the page scrolls under it, on one line, floating on
+   its pill (.breadcrumb, below) rather than on a band across the window, so the page shows around
+   it; the band lets clicks through to the page. What else sticks on the page (the plan's side column,
+   a heading scrolled to) sits below it, and the page under it starts a little higher, as its header
+   did under the trail. */
 .window-body { --coord-trail-size: calc(var(--env-space-3) * 2 + var(--env-control-height-sm)); }
-.page-trail { position: sticky; inset-block-start: var(--app-sticky-top); z-index: var(--env-z-sticky); box-sizing: border-box; display: flex; align-items: center; block-size: var(--coord-trail-size); padding: var(--env-space-3) var(--env-space-5); background: var(--env-color-bg-page); }
+.page-trail { position: sticky; inset-block-start: var(--app-sticky-top); z-index: var(--env-z-sticky); box-sizing: border-box; display: flex; align-items: center; block-size: var(--coord-trail-size); padding: var(--env-space-3) var(--env-space-3); pointer-events: none; }
+.page-trail .breadcrumb { pointer-events: auto; }
 .page-trail ~ .env-page { --coord-sticky-top: calc(var(--app-sticky-top) + var(--coord-trail-size)); padding-block-start: var(--env-space-1); }
 /* A project's avatar before its name, in the line of the crumb's label, as far from it as in the hub and the project menu. */
 .breadcrumb .project-avatar { display: inline-grid; vertical-align: middle; margin-inline-end: var(--env-space-2); }
@@ -405,8 +408,10 @@ html, body, #root { min-block-size: 100%; }
 /* A plan's diagrams: the canvas fills the panel. */
 .diagrams { position: relative; display: flex; flex: 1; flex-direction: column; min-block-size: 22rem; }
 .diagrams-canvas { position: relative; flex: 1; min-block-size: 0; isolation: isolate; }
-/* The plan's breadcrumb over a diagram, on a pill of the page's colour so the diagram does not show through. */
-.diagrams .coord-overlay-sections .breadcrumb, .diagrams-trail .breadcrumb { padding: var(--env-space-1) var(--env-space-3); border-radius: var(--env-radius-full); background-color: color-mix(in srgb, var(--env-color-bg-page) 92%, transparent); }
+/* Every page's breadcrumbs (a plan, a file, a page, a diagram, statistics) float on a pill of the page's
+   own colour, all but invisible: over a diagram or a page scrolling under them they keep what is under
+   them from showing through, without a band across the window. */
+.breadcrumb { padding: var(--env-space-1) var(--env-space-3); border-radius: var(--env-radius-full); background-color: var(--env-color-bg-page); }
 /* While a diagram loads, the plan's breadcrumb is where the diagram's toolbar puts it. */
 .diagrams-trail { position: absolute; inset-block-start: var(--env-space-3); inset-inline-start: var(--env-space-3); z-index: calc(var(--env-z-raised) + 1); }
 .diagrams-state { position: absolute; inset: 0; display: grid; place-content: center; padding: var(--env-space-6); background: var(--env-color-bg-page); }

@@ -14,7 +14,8 @@ export function Page({ title, breadcrumbs, meta, description, actions, toolbar, 
   className?: string; children: ReactNode;
 }) {
   // The trail sits in the window's top left, as on a page view and in most apps, not in the page's
-  // centred column, so it stays put whatever the page's width.
+  // centred column, so it stays put whatever the page's width; it floats over the page as it scrolls
+  // (coord.css's .breadcrumb).
   return <>
     {breadcrumbs != null && <div className="page-trail">{breadcrumbs}</div>}
     <EnvPage className={'page' + (className ? ' ' + className : '')} width={width}
