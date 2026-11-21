@@ -5,7 +5,7 @@
 // home database (main/appState.ts).
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { app, dialog, Menu, nativeTheme, powerMonitor, protocol, shell } from 'electron';
+import { app, dialog, Menu, nativeTheme, net, powerMonitor, protocol, shell } from 'electron';
 import { coordHome, electronDataDirectory, HomeDatabase, prepareHome } from '@envsemble/coord/planning';
 import icon from '../build/app-1024.png?asset';
 import { Computers } from './computers/computers.ts';
@@ -20,6 +20,7 @@ import { Agents } from './agent/agents.ts';
 import { WindowManager } from './windows/windowManager.ts';
 import updater, { type BaseUpdater } from 'electron-updater';
 import { Updates, type UpdaterEngine } from './updates.ts';
+import { fetchChanges } from './updateChanges.ts';
 import { devActions, isCoordDev } from './dev.ts';
 import type { AboutInfo } from '../shared/contract.ts';
 import { isProjectListing } from '../shared/validate.ts';
@@ -177,6 +178,8 @@ function start(database: HomeDatabase) {
     engine: updaterEngine(),
     setting: { get: () => database.setting('updateChannel'), set: value => database.setSetting('updateChannel', value) },
     onChange: state => manager?.updatesChanged(state),
+    // Through Chromium's network stack, so a system proxy applies as it does to the update itself.
+    changes: (from, to) => fetchChanges(from, to, net.fetch as typeof fetch),
   });
 
   manager = new WindowManager({

@@ -85,7 +85,23 @@ export default defineConfig({
     publicDir: resolve(import.meta.dirname, '../packages/diagrams/assets'),
     // Minified: the window parses less as it starts (electron-vite leaves the renderer unminified).
     // The window, and the frame each page runs in.
-    build: { minify: true, rolldownOptions: { input: { index: resolve(import.meta.dirname, 'index.html'), 'page-frame': resolve(import.meta.dirname, 'page-frame.html') } } },
+    build: {
+      minify: true,
+      rolldownOptions: {
+        input: { index: resolve(import.meta.dirname, 'index.html'), 'page-frame': resolve(import.meta.dirname, 'page-frame.html') },
+        // A page can import any of envUI's 4,000 icons (page/frame.tsx), and each would be a file of
+        // its own: installing an update writes, copies and removes every file, so those icons go into
+        // chunks of about 100 kB. Icons the window or envUI imports itself keep their own small chunks.
+        output: {
+          codeSplitting: {
+            groups: [{
+              name: (id, context) => /[\\/]envui[\\/]dist[\\/]icons[\\/]/.test(id) && context.getModuleInfo(id)?.importers.length === 0 ? 'page-icons' : null,
+              maxSize: 100_000,
+            }],
+          },
+        },
+      },
+    },
     resolve: { dedupe: ['react', 'react-dom'], ...(envUISource && { conditions: ['envui-source', ...defaultClientConditions] }) },
     ...(envUISource && { optimizeDeps: { exclude: ['@envsemble/envui'] } }),
     ...(envUIRoot && { server: { fs: { allow: [searchForWorkspaceRoot(import.meta.dirname), envUIRoot] } } }),

@@ -77,11 +77,12 @@ const commandFiles = relative => /^(?:bin|src|templates)(?:\/|$)/.test(relative)
 const diagramFiles = relative => !/^(?:development|downloads|scripts|examples|tests)(?:\/|$)|^(?:index\.html|vite\.config\.mjs|tsconfig\.contracts\.json)$/.test(relative);
 
 /**
- * A dependency's files without its type declarations and read-me files, which nothing loads (the
- * TypeScript capture keeps the compiler's own: its lib/*.d.ts are what it type-checks with). Fewer
- * files make the copy into the home quicker; licences stay.
+ * A dependency's files without what nothing loads: TypeScript (its sources and type declarations,
+ * which Node does not run from node_modules), Markdown, and its tools' dot-files (the TypeScript
+ * capture keeps the compiler's own: its lib/*.d.ts are what it type-checks with). Every file costs
+ * the installer and the copy into the home time; licences stay.
  */
-const dependencyFiles = relative => !/\.d\.[cm]?ts$|(?:^|\/)(?:readme|changelog|history)(?:\.\w+)?$/i.test(relative);
+const dependencyFiles = relative => !/\.[cm]?tsx?$|\.md$|(?:^|\/)\.|(?:^|\/)(?:readme|changelog|history)(?:\.\w+)?$/i.test(relative);
 
 /** Peers of the diagram package that only its standalone viewer loads. */
 const viewerOnly = new Set(['@envsemble/envui']);
@@ -192,4 +193,36 @@ exports.assemble = function assemble(repository, destination, version, runtime) 
   const build = version + '-' + hash.digest('hex').slice(0, 12);
   fs.writeFileSync(path.join(destination, 'build.json'), JSON.stringify({ version, build }, null, 2) + '\n');
   return { build, files, bytes };
+};
+
+/**
+ * Pack an assembled payload into one file, payload.pack, beside its build.json, removing its
+ * folders: the Windows installer spends its time per file, and the payload's thousands of small
+ * files made every update minutes slower. The app unpacks it into the agent folder
+ * (main/agent/agentPack.ts, which describes the format).
+ */
+exports.pack = function pack(directory) {
+  const files = [];
+  const walk = relative => {
+    for (const entry of fs.readdirSync(path.join(directory, relative), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) {
+      const name = relative ? relative + '/' + entry.name : entry.name;
+      if (entry.isDirectory()) walk(name);
+      else if (entry.isFile() && name !== 'build.json') files.push(name);
+    }
+  };
+  walk('');
+  const index = files.map(name => { const stat = fs.statSync(path.join(directory, name)); return { path: name, size: stat.size, mode: stat.mode & 0o777 }; });
+  const header = Buffer.from(JSON.stringify(index));
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(header.length);
+  const target = path.join(directory, 'payload.pack');
+  const out = fs.openSync(target + '.tmp', 'w');
+  try {
+    fs.writeSync(out, length);
+    fs.writeSync(out, header);
+    for (const name of files) fs.writeSync(out, fs.readFileSync(path.join(directory, name)));
+  } finally { fs.closeSync(out); }
+  for (const entry of fs.readdirSync(directory)) if (entry !== 'build.json' && entry !== 'payload.pack.tmp') fs.rmSync(path.join(directory, entry), { recursive: true, force: true });
+  fs.renameSync(target + '.tmp', target);
+  return { files: files.length };
 };

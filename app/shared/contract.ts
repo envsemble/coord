@@ -185,8 +185,16 @@ export type UpdateStatus =
   | { kind: 'downloading'; version: string; percent: number }
   | { kind: 'ready'; version: string }
   | { kind: 'failed'; message: string };
-/** The running build's version, the channel it follows, and its update. */
-export interface UpdateState { version: string; channel: UpdateChannel; status: UpdateStatus }
+/** One change an update brings: a merged pull request (with its number) or a commit made on the branch itself. */
+export interface UpdateChange { title: string; sha: string; pull: number | null }
+/**
+ * What the update on offer changes since the running build, from GitHub: the branch's own steps,
+ * newest first (a merged pull request is one step), how many commits that is in all, and the
+ * comparison's page.
+ */
+export interface UpdateChanges { version: string; changes: UpdateChange[]; commits: number; url: string }
+/** The running build's version, the channel it follows, its update, and that update's changes once GitHub answers. */
+export interface UpdateState { version: string; channel: UpdateChannel; status: UpdateStatus; changes: UpdateChanges | null }
 
 /** What the menu's About Coord shows. */
 export interface AboutInfo {

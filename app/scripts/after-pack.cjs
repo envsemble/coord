@@ -1,11 +1,11 @@
 // electron-builder afterPack hook: drop the diagram package's dependencies that only its command-line
 // features use (PostgreSQL and TypeScript capture), which the desktop app never loads; and assemble
 // resources/agent, the coord command (which keeps them), the Node.js it runs on and the plugin
-// (agent-payload.cjs).
+// (agent-payload.cjs), packed into one file on Windows.
 const fs = require('node:fs');
 const path = require('node:path');
 const { Arch } = require('electron-builder');
-const { assemble, nodeRuntime } = require('./agent-payload.cjs');
+const { assemble, nodeRuntime, pack } = require('./agent-payload.cjs');
 
 /** Dependencies of @envsemble/coord-diagrams the app never loads, with everything only they need. */
 const unused = new Set(['pg', 'typescript-compiler']);
@@ -77,4 +77,10 @@ exports.default = async function afterPack(context) {
   const runtime = await nodeRuntime(repository, context.electronPlatformName, Arch[context.arch]);
   const agent = assemble(repository, path.join(resources, 'agent'), context.packager.appInfo.version, runtime);
   console.log(`  • assembled the coord command on Node.js ${runtime.version} and the plugin, build ${agent.build} (${agent.files} files, ${(agent.bytes / 1048576).toFixed(1)} MB)`);
+  // The Windows installer writes, copies and removes file by file, so its payload goes as one file;
+  // an AppImage is a single file already, and keeps the folders.
+  if (context.electronPlatformName === 'win32') {
+    const packed = pack(path.join(resources, 'agent'));
+    console.log(`  • packed the agent payload's ${packed.files} files into resources/agent/payload.pack`);
+  }
 };

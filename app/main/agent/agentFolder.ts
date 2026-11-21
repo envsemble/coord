@@ -1,5 +1,5 @@
 // The coord command, the Node.js it runs on and the Coord plugin the app carries (resources/agent,
-// assembled by scripts/agent-payload.cjs), copied into the Coord home's agent/ folder whenever the
+// assembled by scripts/agent-payload.cjs; one packed file on Windows, agentPack.ts), copied into the Coord home's agent/ folder whenever the
 // build there is another. There they have a stable path: the agents read the plugin in place, and
 // the launchers in bin/, on the PATH, run the command on its own Node.js. Nothing runs from or
 // points into the app itself: an AppImage is mounted at a new path on every run, and an MCP server
@@ -27,6 +27,7 @@ import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import type { AgentId } from '@envsemble/coord/agents';
 import { pointPluginAtCommand } from './pluginCommands.ts';
+import { packName, unpack } from './agentPack.ts';
 
 /** What resources/agent/build.json says: the app's version, and the build (the version and a hash of the files). */
 export interface Bundle { directory: string; version: string; build: string }
@@ -123,11 +124,11 @@ async function writeAtomically(file: string, text: string | Buffer, mode = 0o644
   // A file renamed over another keeps the mode it was written with, where modes apply.
   if (process.platform !== 'win32') await chmod(file, mode);
 }
-/** Copy a folder in under a temporary name beside `to`, then rename it into place. */
-async function placeFolder(from: string, to: string) {
-  const temporary = path.join(path.dirname(to), temporaryName('.copy-'));
-  await cp(from, temporary, { recursive: true });
-  await moveInto(temporary, to);
+/** The bundle's parts, put under `to` to be renamed into place: a packed bundle (the Windows app's) unpacked, a folder copied. */
+async function stage(bundle: Bundle, to: string) {
+  const packed = path.join(bundle.directory, packName);
+  if (existsSync(packed)) { await unpack(packed, to); return; }
+  for (const part of ['command', 'plugin', '.claude-plugin', '.agents']) await cp(path.join(bundle.directory, part), path.join(to, part), { recursive: true });
 }
 /** Remove what an earlier, interrupted copy left (best effort: a file still open on Windows stays until next time). */
 async function sweep(folder: string, keep: (name: string) => boolean) {
@@ -149,26 +150,32 @@ export async function installAgentFolder(bundle: Bundle, folder: string, platfor
     await mkdir(path.join(folder, 'command'), { recursive: true });
     await sweep(folder, name => !name.startsWith('.copy-') && !name.startsWith('.old-'));
     await sweep(path.join(folder, 'command'), name => !name.startsWith('.copy-'));
-    // A complete folder of this build is already there when only the plugin was missing.
-    if (!complete(command, platform)) {
-      await rm(command, { recursive: true, force: true });
-      await placeFolder(path.join(bundle.directory, 'command'), command);
-    }
-    // The plugin's folder keeps its path (Claude Code reads it there): the new one replaces it whole.
-    const plugin = path.join(folder, 'plugin'), old = path.join(folder, temporaryName('.old-'));
-    const fresh = path.join(folder, temporaryName('.copy-'));
-    await cp(path.join(bundle.directory, 'plugin'), fresh, { recursive: true });
-    await pointPluginAtCommand(fresh, folder, bundle.build, platform);
-    // The old one stays until the new one is in place, and comes back when it cannot be.
-    const replacing = existsSync(plugin);
-    if (replacing) await moveInto(plugin, old);
-    try { await moveInto(fresh, plugin); } catch (error) {
-      if (replacing) await moveInto(old, plugin);
-      throw error;
-    }
-    await rm(old, { recursive: true, force: true, maxRetries: 2 }).catch(() => undefined);
-    for (const manifest of [path.join('.claude-plugin', 'marketplace.json'), path.join('.agents', 'plugins', 'marketplace.json')]) {
-      await writeAtomically(path.join(folder, manifest), readFileSync(path.join(bundle.directory, manifest)));
+    // The bundle is staged beside the folders it goes to, under a temporary name, and each part renamed into place.
+    const staged = path.join(folder, temporaryName('.copy-'));
+    try {
+      await stage(bundle, staged);
+      // A complete folder of this build is already there when only the plugin was missing.
+      if (!complete(command, platform)) {
+        await rm(command, { recursive: true, force: true });
+        await moveInto(path.join(staged, 'command'), command);
+      }
+      // The plugin's folder keeps its path (Claude Code reads it there): the new one replaces it whole.
+      const plugin = path.join(folder, 'plugin'), old = path.join(folder, temporaryName('.old-'));
+      const fresh = path.join(staged, 'plugin');
+      await pointPluginAtCommand(fresh, folder, bundle.build, platform);
+      // The old one stays until the new one is in place, and comes back when it cannot be.
+      const replacing = existsSync(plugin);
+      if (replacing) await moveInto(plugin, old);
+      try { await moveInto(fresh, plugin); } catch (error) {
+        if (replacing) await moveInto(old, plugin);
+        throw error;
+      }
+      await rm(old, { recursive: true, force: true, maxRetries: 2 }).catch(() => undefined);
+      for (const manifest of [path.join('.claude-plugin', 'marketplace.json'), path.join('.agents', 'plugins', 'marketplace.json')]) {
+        await writeAtomically(path.join(folder, manifest), readFileSync(path.join(staged, manifest)));
+      }
+    } finally {
+      await rm(staged, { recursive: true, force: true, maxRetries: 2 }).catch(() => undefined);
     }
   }
   const agents = readAgentRecords(folder);

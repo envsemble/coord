@@ -2,8 +2,8 @@
 // it follows (stable or nightly), and the title bar's update button, which shows only while a newer build
 // is on offer, downloading or ready. Main checks on its own; downloading and restarting are the
 // person's clicks.
-import { useEffect, useState, type ReactNode } from 'react';
-import { Button, List, Progress, Select, Text, Tooltip } from '@envsemble/envui';
+import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
+import { Button, Column, HoverCard, Link, List, Progress, Select, Text } from '@envsemble/envui';
 import type { UpdateChannel, UpdateState } from '../types';
 import { api } from '../api';
 import { relativeDate } from '../ui/format';
@@ -24,24 +24,52 @@ export function useUpdates() {
 /** Run an update action; a refused one shows in the section's status as main reports it. */
 const run = (action: () => Promise<unknown>) => () => { void action().catch(() => {}); };
 
-/** The title bar's update button: Update (download it), its progress, then Restart to update. */
+/** The title bar's update button: Update (download it), its progress, then Restart to update. Hovering it shows what the update changes. */
 export function UpdateButton() {
   const state = useUpdates();
   const status = state?.status;
-  if (status?.kind === 'available') {
-    return <Tooltip content={`Coord ${status.version} is out`} side="bottom">
-      <Button size="sm" variant="primary" start={<UpdateIcon />} onClick={run(api.downloadUpdate)}>Update</Button>
-    </Tooltip>;
-  }
-  if (status?.kind === 'downloading') {
-    return <Button size="sm" variant="secondary" start={<UpdateIcon />} pending aria-label={`Downloading Coord ${status.version}, ${status.percent}%`}>{status.percent}%</Button>;
-  }
-  if (status?.kind === 'ready') {
-    return <Tooltip content={`Restart into Coord ${status.version}`} side="bottom">
-      <Button size="sm" variant="primary" start={<UpdateIcon />} onClick={run(api.installUpdate)}>Restart to update</Button>
-    </Tooltip>;
-  }
-  return null;
+  if (!state || !status) return null;
+  let button: ReactElement, lead: string;
+  if (status.kind === 'available') {
+    button = <Button size="sm" variant="primary" start={<UpdateIcon />} onClick={run(api.downloadUpdate)}>Update</Button>;
+    lead = 'Out now. Update downloads it; nothing changes until you restart.';
+  } else if (status.kind === 'downloading') {
+    button = <Button size="sm" variant="secondary" start={<UpdateIcon />} pending aria-label={`Downloading Coord ${status.version}, ${status.percent}%`}>{status.percent}%</Button>;
+    lead = `Downloading, ${status.percent}%.`;
+  } else if (status.kind === 'ready') {
+    button = <Button size="sm" variant="primary" start={<UpdateIcon />} onClick={run(api.installUpdate)}>Restart to update</Button>;
+    lead = 'Downloaded. Restart to update.';
+  } else return null;
+  return <HoverCard trigger={button} side="bottom" align="start" width="lg">
+    <UpdateChangesCard version={status.version} lead={lead} state={state} />
+  </HoverCard>;
+}
+
+/** How many of an update's changes the card lists; the comparison on GitHub has them all. */
+const listed = 8;
+
+/** The update's version, where it stands, and what it changes since the running build. */
+function UpdateChangesCard({ version, lead, state }: { version: string; lead: string; state: UpdateState }) {
+  const { changes } = state;
+  const shown = changes?.changes.slice(0, listed) ?? [];
+  return <Column gap={3} className="update-card">
+    <Column gap={1}>
+      <Text variant="title" render={<strong />}>Coord {version}</Text>
+      <Text variant="body-sm">{lead}</Text>
+    </Column>
+    {shown.length > 0 && <ul className="update-changes" aria-label="What changed">
+      {shown.map(change => <li key={change.sha}>
+        <Text variant="body-sm" emphasis="default" render={<span />}>{change.title}</Text>
+        {' '}<Text variant="caption" emphasis="subtle" render={<span />}>{change.pull ? `#${change.pull}` : change.sha.slice(0, 7)}</Text>
+      </li>)}
+    </ul>}
+    {changes && <Text variant="caption">
+      {changes.changes.length > shown.length && `And ${changes.changes.length - shown.length} more. `}
+      <Link href={changes.url} onClick={event => { event.preventDefault(); void api.openExternal(changes.url).catch(() => {}); }}>
+        {changes.commits === 1 ? '1 commit' : `${changes.commits} commits`} since {state.version}
+      </Link>
+    </Text>}
+  </Column>;
 }
 
 const channels: { value: UpdateChannel; label: string; description: string }[] = [

@@ -601,6 +601,8 @@ html, body, #root { min-block-size: 100%; }
 .settings-group .pairing-label { max-inline-size: 36rem; }
 .updates-progress { inline-size: min(100%, 24rem); }
 .updates-failure { color: var(--env-color-fg-danger); }
+/* The update button's card: the update's changes as a short bulleted list. */
+.update-changes { display: grid; gap: var(--env-space-1); margin: 0; padding-inline-start: var(--env-space-4); }
 
 /* The agents on this computer: each one's mark and name over its status, its action at the end of the
    row. One not on this computer is greyed, with its install link; a change on its way shows in its row. */
