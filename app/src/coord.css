@@ -113,8 +113,15 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
    work every row leaves that button's room, so the titles start on one edge and the buttons stand
    alone before them. Its title is a weight heavier. */
 /* A part's tile is a step darker than the rows: in the light theme a see-through shade, so it stays
-   darker than its group's surface while that lights up under the pointer (which darkens it there). */
-.hub-list { --hub-fold: 1.5rem; --hub-part-surface: light-dark(color-mix(in srgb, var(--env-color-fg-default) 7%, transparent), color-mix(in srgb, var(--env-color-bg-default) 75%, var(--env-color-bg-page))); }
+   darker than its group's surface while that lights up under the pointer (which darkens it there).
+   Under the pointer a tile moves the way a row does (lighter in the dark theme, darker in the light
+   one) and far enough to stand clear of both its neighbour and the rows' colour around it: in the
+   dark theme past that colour, since any shade between the two blends into one of them. */
+.hub-list {
+  --hub-fold: 1.5rem;
+  --hub-part-surface: light-dark(color-mix(in srgb, var(--env-color-fg-default) 9%, transparent), color-mix(in srgb, var(--env-color-bg-default) 55%, var(--env-color-bg-page)));
+  --hub-part-hover: light-dark(color-mix(in srgb, var(--env-color-fg-default) 19%, transparent), color-mix(in srgb, color-mix(in srgb, var(--env-color-bg-default) 55%, var(--env-color-bg-page)), var(--env-color-fg-default) 21%));
+}
 .hub-row-fold { display: inline-flex; flex: none; align-items: center; justify-content: center; inline-size: var(--hub-fold); margin-inline: calc(-1 * var(--env-space-2)) calc(-1 * var(--env-space-1)); color: var(--env-color-fg-muted); }
 .hub-row-fold svg { inline-size: 1.25rem; block-size: 1.25rem; }
 /* A group's title is the button that folds it, stretched over its row: it reads as the title it is. */
@@ -153,6 +160,8 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
    the row's own surface at the corners.) The room under a tile is its cells' border, which shows
    the group's surface. */
 .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part {
+  /* The row itself paints nothing, under the pointer either: its cells paint the tile and the room around it. */
+  background: none;
   --hub-tile: var(--hub-part-surface); --hub-fill: linear-gradient(var(--hub-tile), var(--hub-tile));
   /* The list's outer corners follow the table's own: its frame's radius less the tiles' distance from its edge, so the two curves share
      a centre. Where tiles meet, the corners are half as round at most, so the outer ones still read as the list's. */
@@ -162,7 +171,7 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 }
 .hub-list.env-table > .env-table-body > .env-table-row:not(.hub-row-part) + .hub-row-part { --hub-tile-top: var(--hub-tile-outer); }
 .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:last-child { --hub-tile-bottom: var(--hub-tile-outer); }
-.hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:is(:hover, :has(:focus-visible)) { --hub-tile: color-mix(in srgb, var(--hub-part-surface), var(--env-color-fg-default) 9%); }
+.hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:is(:hover, :has(:focus-visible)) { --hub-tile: var(--hub-part-hover); }
 .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell { border-block-start: 0; background-color: var(--hub-tile); }
 .env-table-region:not([data-stacked]) > .hub-list {
   --hub-tile-start: calc(var(--env-space-4) + var(--hub-fold) - var(--env-space-2) - var(--env-space-1)); --hub-tile-end: var(--env-space-1);
