@@ -203,9 +203,12 @@ export function sessionContext(where: Whereabouts): string {
       const doing = item.steps.filter(step => step.status === 'doing').map(step => step.title);
       const state = [item.designStatus, item.implementationStatus].filter(Boolean).join(', ');
       const turn = item.state ? `; ${item.state.kind === 'your_turn' ? 'your turn' : item.state.kind}${item.state.note ? ': ' + item.state.note : ''}` : '';
-      lines.push(`- ${item.workId} "${item.title}"${state ? ' (' + state + ')' : ''}: ${item.progress}${doing.length ? '; doing: ' + doing.join('; ') : ''}${item.blocked ? '; BLOCKED: ' + item.blocked : turn}. Plan: ${item.plan ?? item.path}`);
+      // Work another project keeps has its plan in that project's planning folder.
+      const plan = item.planningFolder ? path.join(item.planningFolder, ...(item.plan ?? item.path).split('/')) : item.plan ?? item.path;
+      lines.push(`- ${item.workId} "${item.title}"${state ? ' (' + state + ')' : ''}: ${item.progress}${doing.length ? '; doing: ' + doing.join('; ') : ''}${item.blocked ? '; BLOCKED: ' + item.blocked : turn}. Plan: ${plan}`);
     }
     if (match.work.length > 10) lines.push(`- …and ${match.work.length - 10} more (Coord tool where).`);
+    if (match.work.some(item => item.planningFolder)) lines.push('Work named with a project (such as envui:work-0048) is in this project too, but that project keeps it: give the Coord tools that name.');
   }
   // What no longer adds up in the projects' work, for the agent to bring up and fix.
   const found = where.matches.flatMap(match => contradictions(match.work).map(line => (where.matches.length > 1 ? match.project + ': ' : '') + line));

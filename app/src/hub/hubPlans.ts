@@ -193,3 +193,66 @@ export function partsFacts(work: ProjectWork, project: Project): PartsFacts | nu
   }
   return null;
 }
+
+// ---- Entries: a plan on its own, or a group with its parts ---------------------------------------
+
+/** An entry of the hub: a plan on its own, or a work item made of parts with them in their order, closed ones too. */
+export interface HubEntry { item: HubItem; parts: HubItem[] }
+export interface HubEntryGroup { id: HubGroupId; label: string; entries: HubEntry[] }
+
+/** An entry's plans: itself, then its parts. */
+export const members = (entry: HubEntry): HubItem[] => [entry.item, ...entry.parts];
+
+/**
+ * The projects a plan is in, by their IDs: those its plan lists that the listing has, else the
+ * project that keeps it (also when none it lists is listed, so it stays in sight).
+ */
+export function projectsOf(item: HubItem): string[] {
+  const listed = (item.work.projects ?? []).flatMap(project => project.projectId ? [project.projectId] : []);
+  return listed.length ? [...new Set(listed)] : [item.project.id];
+}
+
+/**
+ * The hub's entries: every plan of every active project, a group with its parts once (each part
+ * under its group, in the group's order, and not on its own), or, filtered to a project, the entries
+ * with a plan in that project: a group shows whole when it or any of its parts is in it. An archived
+ * project, seen only when filtered to, shows the plans it keeps.
+ */
+export function hubEntries(projects: Project[], filter: string | null): HubEntry[] {
+  const archived = filter !== null && projects.some(project => project.id === filter && project.state !== 'active');
+  const items = archived ? hubItems(projects, filter) : hubItems(projects, null);
+  const byKey = new Map(items.map(item => [item.project.id + ':' + item.work.id, item]));
+  const partOf = (item: HubItem) => item.work.partOf ? byKey.get(item.project.id + ':' + item.work.partOf) : undefined;
+  const entries = items.filter(item => !partOf(item)).map(item => ({
+    item, parts: (item.work.parts ?? []).flatMap(id => { const part = byKey.get(item.project.id + ':' + id); return part && partOf(part) === item ? [part] : []; }),
+  }));
+  return filter === null || archived ? entries : entries.filter(entry => members(entry).some(member => projectsOf(member).includes(filter)));
+}
+
+/** Whether an entry is in the state the hub shows: open while it or any of its parts is. */
+export const entryInState = (entry: HubEntry, state: HubState) => state === 'all' || (state === 'closed') === members(entry).every(member => member.work.state === 'closed');
+
+/** Whether an entry matches the filter menu's filters: one of its plans matches every one that is on. */
+export const entryMatchesOnly = (entry: HubEntry, only: readonly HubOnly[], now: number) => members(entry).some(member => matchesOnly(member, only, now));
+
+/** When an entry last changed: the latest change of its plans. */
+export const entryChange = (entry: HubEntry): string | null => members(entry).map(member => lastChange(member.work) ?? '').sort().at(-1) || null;
+
+/** The group an entry is in: where its most pressing open plan is (the user's turn before work under way, before waiting, before later); closed once all of it is. */
+function entryGroup(entry: HubEntry): HubGroupId {
+  const groups = members(entry).filter(member => member.work.state !== 'closed').map(member => groupOf(member.status.key));
+  return groupOrder.find(id => groups.includes(id)) ?? 'closed';
+}
+
+/** The entries in the state asked for, in their groups (only those with entries), each group the most recently changed first. */
+export function hubEntryGroups(entries: HubEntry[], state: HubState): HubEntryGroup[] {
+  const shown = entries.filter(entry => entryInState(entry, state)).sort((a, b) =>
+    (entryChange(b) ?? '').localeCompare(entryChange(a) ?? '') || a.item.project.position - b.item.project.position || b.item.work.id.localeCompare(a.item.work.id));
+  return groupOrder.map(id => ({ id, label: groupLabels[id], entries: shown.filter(entry => entryGroup(entry) === id) })).filter(group => group.entries.length);
+}
+
+/** What a group's row says of its parts: how many, how many of them are closed, and how many are the user's turn. */
+export function groupFacts(entry: HubEntry): { count: number; closed: number; turn: number } | null {
+  if (!entry.parts.length) return null;
+  return { count: entry.parts.length, closed: entry.parts.filter(part => part.work.state === 'closed').length, turn: entry.parts.filter(part => part.status.key === 'your_turn').length };
+}

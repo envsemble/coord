@@ -10,6 +10,7 @@ import path from 'node:path';
 import { agreed, ledgerStatus } from '../work/ledger.ts';
 import { isTag, tagLimit } from '../work/tags.ts';
 import { isWorkId } from '../work/parts.ts';
+import { isProjectName, projectKey } from '../work/projects.ts';
 import { stateProblems } from '../work/state.ts';
 import { tableProblems } from './tables.ts';
 import { HandoffGraph, handoffsOf, handoffText } from '../handoffs/handoffs.ts';
@@ -36,9 +37,9 @@ export type Metadata = Record<string, MetadataValue>;
 /** In a ledger header, `steps` holds a block list of flat mappings. */
 const ledgerEntryLists = ['steps'];
 /** Fields that may start a block list of scalars on the following lines. */
-const scalarListFields = new Set(['supersedes', 'continues', 'tags', 'parts']);
+const scalarListFields = new Set(['supersedes', 'continues', 'tags', 'parts', 'projects']);
 /** The plan header's optional fields. */
-const optionalPlanFields = ['summary', 'continues', 'tags', 'parts', 'state', 'state_note', 'state_since'];
+const optionalPlanFields = ['summary', 'continues', 'tags', 'parts', 'projects', 'state', 'state_note', 'state_since'];
 
 /** A metadata header the checker cannot certify; the message names the offending construct. */
 export class FrontmatterError extends Error {
@@ -402,6 +403,14 @@ export function validatePlanning(inputRoot: string): { errors: string[]; warning
     if (tags !== undefined && tags !== null) {
       if (!Array.isArray(tags) || !tags.every(isTag)) errors.push(prefix + `tags must be a list of tags: lowercase letters, digits, dots and hyphens, at most ${tagLimit} characters, such as ["0.8.0", "search"]`);
       else if (new Set(tags).size !== tags.length) errors.push(prefix + 'tags lists a tag twice');
+    }
+    // The projects it is in: projects of the home by their planning folders' names, each once; one
+    // that names no project is only a warning (the project may be made, or the folder checked alone).
+    const projects = metadata.projects;
+    if (projects !== undefined && projects !== null) {
+      if (!Array.isArray(projects) || !projects.every(isProjectName)) errors.push(prefix + 'projects must be a list of projects by their planning folders\' names, such as ["envui", "internal"]');
+      else if (new Set((projects as string[]).map(projectKey)).size !== projects.length) errors.push(prefix + 'projects lists a project twice');
+      else for (const project of projects as string[]) if (!handoffs.folder(root, { project, workId: 'work-0000' })) warnings.push(prefix + 'projects lists ' + project + ', which names no project of the home');
     }
     const replaced = metadata.supersedes;
     if (!Array.isArray(replaced) || replaced.some(item => typeof item !== 'string' || !workIds.has(item))) errors.push(prefix + 'supersedes must list registered work IDs');

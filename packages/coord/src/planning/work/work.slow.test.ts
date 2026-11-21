@@ -6,8 +6,8 @@ import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { withDatabase } from '../../home/database.ts';
-import { findPlanning, resolvePlanningFolder } from '../projects/findProject.ts';
-import { acceptWork, startWork } from './work.ts';
+import { findPlanning, resolvePlanningFolder, resolveWork } from '../projects/findProject.ts';
+import { acceptWork, startWork, updateWork } from './work.ts';
 import { plan, planningFolder, temporary, today } from '../testing.ts';
 
 /** Set the folders a planning folder's project covers. */
@@ -108,4 +108,25 @@ test('a folder in a project\'s folder belongs to that project, the deepest folde
   assert.deepEqual(matched(await findPlanning(path.join(root, 'active'), { home })), [['Planning', ['inside']]]);
   assert.equal((await findPlanning(path.join(root, 'active'), { home })).matches[0].work[0].summary, 'Carts that last. Planned, not started.');
   assert.deepEqual(matched(await findPlanning(path.join(directory, 'elsewhere-notes'), { home })).map(([name]) => name), ['Broad']);
+});
+
+test('work another project keeps is listed in the projects it is in, named with the project that keeps it', async t => {
+  const directory = temporary(t);
+  const home = path.join(directory, 'home');
+  const main = planningFolder(path.join(home, 'planning'), 'main'), harbor = planningFolder(path.join(home, 'planning'), 'harbor');
+  const shop = path.join(directory, 'shop'), dock = path.join(directory, 'dock');
+  for (const folder of [shop, dock]) mkdirSync(folder, { recursive: true });
+  setFolders(main, [shop]);
+  setFolders(harbor, [dock]);
+  await updateWork(main, 'work-0002', { projects: ['harbor'] }, today);
+  // A session in Harbor's folder sees Harbor's work, then main's work that is in Harbor, by the name the tools take.
+  const where = await findPlanning(dock, { home });
+  assert.deepEqual(where.matches[0].work.map(item => [item.workId, item.planningFolder]), [['work-0001', undefined], ['work-0002', undefined], ['main:work-0002', main]]);
+  // The project that keeps it lists it still, with the projects it is in.
+  assert.deepEqual((await findPlanning(shop, { home })).matches[0].work.map(item => [item.workId, item.projects]), [['work-0001', undefined], ['work-0002', ['harbor']]]);
+  // Named with its project, a work item is in that project, wherever the session is; bare, in the session's.
+  assert.deepEqual(await resolveWork({ cwd: dock, home, work: 'main:work-0002' }), { root: main, work: 'work-0002' });
+  assert.deepEqual(await resolveWork({ cwd: dock, home, work: 'work-0002' }), { root: harbor, work: 'work-0002' });
+  await assert.rejects(resolveWork({ cwd: dock, home, work: 'nowhere:work-0002' }), /names no project of the Coord home/);
+  await assert.rejects(resolveWork({ cwd: dock, home, planningFolder: harbor, work: 'main:work-0002' }), /give one or the other/);
 });

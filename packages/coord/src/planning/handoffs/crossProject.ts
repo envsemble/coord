@@ -43,6 +43,24 @@ export function linkHandoffs(projects: ListedProject[]) {
   }
 }
 
+/**
+ * Fill in the projects each work item is in (its plan's `projects`), in place: each named project
+ * found among the listed ones by its planning folder's name, as a handoff finds a project, with its
+ * ID and its name. A name no listed project has stays, without an ID.
+ */
+export function linkProjects(projects: ListedProject[]) {
+  const byName = new Map(projects.map(project => [keyOf(path.basename(path.resolve(project.folder))), project]));
+  for (const project of projects) {
+    for (const item of [...project.summary?.active ?? [], ...project.summary?.closed ?? []]) {
+      if (!item.projects) continue;
+      item.projects = item.projects.map(named => {
+        const found = byName.get(keyOf(named.project));
+        return found ? { projectId: found.projectId, project: path.basename(found.folder), projectName: found.name } : { projectId: null, project: named.project, projectName: named.project };
+      });
+    }
+  }
+}
+
 /** Each listed project's handoffs by work item, for the plans its folder's snapshot shows. */
 export function handoffsByWork(project: ListedProject) {
   const found = new Map<string, { continues: HandoffLink[]; continuedIn: HandoffLink[] }>();

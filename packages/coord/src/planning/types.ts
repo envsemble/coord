@@ -44,6 +44,12 @@ export interface HandoffLink {
   projectId: string | null; project: string; projectName: string; workId: string;
   title: string | null; state: 'blocked' | 'implementing' | 'draft' | 'other' | 'closed' | null; outcome: 'complete' | 'superseded' | 'abandoned' | null;
 }
+/**
+ * A project a work item is in, as its plan names it: `project` its planning folder's name in the
+ * home, `projectId` the project's ID (null when no listed project of the home has that planning
+ * folder) and `projectName` its name (the folder's name until it is found).
+ */
+export interface ProjectLink { projectId: string | null; project: string; projectName: string }
 /** One agent's working time on a work item: a session's own (subagent null) or one of its subagents'. */
 export interface AgentShare { session: string | null; subagent: string | null; model: string | null; effort: string | null; agentMs: number }
 /** Tokens by kind: new input, input read from the prompt cache, input written to it, and output. */
