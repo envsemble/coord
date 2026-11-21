@@ -150,22 +150,22 @@ html, body, #root { min-block-size: 100%; }
 .env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:last-child > .env-table-cell { border-block-end: var(--hub-panel-below) solid transparent; }
 /* The panel's corners: beside the corner and under (or over) it the cell fills as before; in the corner, a quarter circle. */
 .env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row:not(.hub-row-part) + .hub-row-part > .env-table-cell:first-child {
-  background-image: var(--hub-fill), var(--hub-fill), radial-gradient(circle at 100% 100%, var(--hub-panel) calc(var(--hub-panel-radius) - 0.5px), transparent var(--hub-panel-radius));
+  background-image: var(--hub-fill), var(--hub-fill), radial-gradient(circle at 100% 100%, var(--hub-panel) calc(var(--hub-panel-radius) - 0.03125rem), transparent var(--hub-panel-radius));
   background-position: calc(var(--hub-panel-start) + var(--hub-panel-radius)) 0, var(--hub-panel-start) var(--hub-panel-radius), var(--hub-panel-start) 0;
   background-size: calc(100% - var(--hub-panel-start) - var(--hub-panel-radius)) 100%, var(--hub-panel-radius) calc(100% - var(--hub-panel-radius)), var(--hub-panel-radius) var(--hub-panel-radius);
 }
 .env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row:not(.hub-row-part) + .hub-row-part > .env-table-cell:last-child {
-  background-image: var(--hub-fill), var(--hub-fill), radial-gradient(circle at 0 100%, var(--hub-panel) calc(var(--hub-panel-radius) - 0.5px), transparent var(--hub-panel-radius));
+  background-image: var(--hub-fill), var(--hub-fill), radial-gradient(circle at 0 100%, var(--hub-panel) calc(var(--hub-panel-radius) - 0.03125rem), transparent var(--hub-panel-radius));
   background-position: 0 0, right var(--hub-panel-end) top var(--hub-panel-radius), right var(--hub-panel-end) top 0;
   background-size: calc(100% - var(--hub-panel-end) - var(--hub-panel-radius)) 100%, var(--hub-panel-radius) calc(100% - var(--hub-panel-radius)), var(--hub-panel-radius) var(--hub-panel-radius);
 }
 .env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:last-child > .env-table-cell:first-child {
-  background-image: var(--hub-fill), var(--hub-fill), radial-gradient(circle at 100% 0, var(--hub-panel) calc(var(--hub-panel-radius) - 0.5px), transparent var(--hub-panel-radius));
+  background-image: var(--hub-fill), var(--hub-fill), radial-gradient(circle at 100% 0, var(--hub-panel) calc(var(--hub-panel-radius) - 0.03125rem), transparent var(--hub-panel-radius));
   background-position: calc(var(--hub-panel-start) + var(--hub-panel-radius)) 0, var(--hub-panel-start) 0, left var(--hub-panel-start) bottom 0;
   background-size: calc(100% - var(--hub-panel-start) - var(--hub-panel-radius)) 100%, var(--hub-panel-radius) calc(100% - var(--hub-panel-radius)), var(--hub-panel-radius) var(--hub-panel-radius);
 }
 .env-table-region:not([data-stacked]) > .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part:last-child > .env-table-cell:last-child {
-  background-image: var(--hub-fill), var(--hub-fill), radial-gradient(circle at 0 0, var(--hub-panel) calc(var(--hub-panel-radius) - 0.5px), transparent var(--hub-panel-radius));
+  background-image: var(--hub-fill), var(--hub-fill), radial-gradient(circle at 0 0, var(--hub-panel) calc(var(--hub-panel-radius) - 0.03125rem), transparent var(--hub-panel-radius));
   background-position: 0 0, right var(--hub-panel-end) top 0, right var(--hub-panel-end) bottom 0;
   background-size: calc(100% - var(--hub-panel-end) - var(--hub-panel-radius)) 100%, var(--hub-panel-radius) calc(100% - var(--hub-panel-radius)), var(--hub-panel-radius) var(--hub-panel-radius);
 }
