@@ -2,6 +2,10 @@
    from envUI components and tokens; nothing here restyles an envUI component's insides. */
 
 html, body, #root { min-block-size: 100%; }
+/* Before the window's own page paints, the first frame already has the title bar's band over the
+   page's colour (with the system's matching window colour behind, main/windows/window.ts), so starting
+   changes no colour. */
+html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-bg-default)) top / 100% max(env(titlebar-area-height, 0rem), var(--env-title-bar-height)) no-repeat, var(--env-color-bg-page); }
 /* envUI's type is regular or medium: emphasis in the interface is medium, not bold. Bold in a
    document's Markdown is its author's and stays. */
 :is(strong, b):not(.env-markdown *) { font-weight: 500; }
@@ -21,6 +25,10 @@ html, body, #root { min-block-size: 100%; }
 
 /* A window that is starting, or reading its folder. */
 .page-state { box-sizing: border-box; min-block-size: 100%; display: grid; place-content: center; justify-items: center; gap: var(--env-space-3); color: var(--env-color-fg-muted); }
+/* A window's own wait or failure takes the body below the title bar, so it sits in the window's middle;
+   under a page's heading, a wait takes a modest height there. */
+.page-state:not(.env-page .page-state) { min-block-size: calc(100dvh - max(env(titlebar-area-height, 0rem), var(--env-title-bar-height))); }
+.env-page .page-state { min-block-size: 16rem; }
 
 /* One row at the top, the window's own title bar (envUI's TopBar in a Scaffold): the logo, back and
    forward, Plans, File, View and Help and the computer at the start; search, record health and the
@@ -599,8 +607,24 @@ html, body, #root { min-block-size: 100%; }
 .access-address { inline-size: 17rem; }
 .access-port { flex: none; inline-size: 7rem; }
 .settings-group .pairing-label { max-inline-size: 36rem; }
-.updates-progress { inline-size: min(100%, 24rem); }
 .updates-failure { color: var(--env-color-fg-danger); }
+/* The update button: while it downloads, its percentage, at one width as the number grows. */
+.update-progress-button { min-inline-size: 5.25rem; font-variant-numeric: tabular-nums; }
+/* Its card, on envUI's popup surface: one width whatever it holds, the changes as rows with their pull
+   request at the end, and the comparison on GitHub. */
+.update-card { inline-size: min(26rem, calc(100vw - 3rem)); }
+.update-card-heading :is(h2, h3), .update-card-caption :is(h2, h3) { margin: 0; }
+.update-card-caption h3 { font-weight: 500; }
+.update-card-changes { padding-inline: var(--env-space-2); }
+.update-card-heading, .update-card-caption { display: flex; align-items: baseline; justify-content: space-between; gap: var(--env-space-3); }
+.update-changes { display: grid; gap: var(--env-space-2); margin: 0; padding: 0; list-style: none; max-block-size: min(20rem, 45vh); overflow-y: auto; }
+.update-changes > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--env-space-2); align-items: baseline; }
+.update-change-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.update-change-ref { color: var(--env-color-fg-muted); white-space: nowrap; }
+.update-card-loading { display: flex; align-items: center; gap: var(--env-space-2); color: var(--env-color-fg-muted); }
+.update-card-link svg { inline-size: 1em; block-size: 1em; margin-inline-start: var(--env-space-1); vertical-align: -0.125em; }
+.updates-percent { font-variant-numeric: tabular-nums; }
+.updates-changes-line { display: block; }
 
 /* The agents on this computer: each one's mark and name over its status, its action at the end of the
    row. One not on this computer is greyed, with its install link; a change on its way shows in its row. */
