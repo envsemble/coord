@@ -13,9 +13,9 @@ interface Compare { html_url: string; total_commits: number; commits: CompareCom
 
 /**
  * The comparison's steps along the branch, newest first: from its newest commit, each commit's first
- * parent, which leaves out the commits inside a merged pull request. A merge that brings pull
- * requests of its own (a release merging dev into main) is replaced by its steps, and a merge that
- * brings nothing new (main merged back into a release or into dev) is left out.
+ * parent, which leaves out the commits inside a merged pull request. A release's pull request (from
+ * a release-<version> branch, merging dev into main) or a merge between branches is replaced by its
+ * steps, and a merge that brings nothing new (main merged back into a release or into dev) is left out.
  */
 export function readChanges(compare: Compare, version: string): UpdateChanges {
   const bySha = new Map(compare.commits.map(commit => [commit.sha, commit]));
@@ -36,7 +36,11 @@ export function readChanges(compare: Compare, version: string): UpdateChanges {
       if (changes.length >= kept) return;
       if (commit.parents.length < 2) { changes.push(change(commit)); continue; }
       const side = line(commit.parents[1]!.sha);
-      if (side.some(merged => pullRequest(merged))) steps(side);
+      // A release (a pull request from a release-<version> branch) or a merge between branches is
+      // expanded into the pull requests it brings; a feature's pull request stays one step, even with
+      // pull requests of its own inside.
+      const merge = pullRequest(commit);
+      if (side.some(merged => pullRequest(merged)) && (!merge || /^release[-/]v?\d/.test(merge[2]!.split('/').slice(1).join('/')))) steps(side);
       // A pull request whose commits are all on the branch already (main merged back into dev) brings
       // nothing; when GitHub cut the comparison short, its commits may only be missing from it.
       else if (side.length || (pullRequest(commit) && truncated)) changes.push(change(commit));

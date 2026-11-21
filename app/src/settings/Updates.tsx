@@ -122,7 +122,10 @@ function UpdateStatusRow({ state }: { state: UpdateState }) {
       action = <Button variant="primary" start={<UpdateIcon />} onClick={run(api.downloadUpdate)}>Download</Button>;
       break;
     case 'downloading':
-      detail = <Progress className="updates-progress" label={`Downloading Coord ${status.version}`} value={status.percent} valueText={`${status.percent}%`} />;
+      detail = <>
+        <Progress className="updates-progress" label={`Downloading Coord ${status.version}`} value={status.percent} valueText={`${status.percent}%`} />
+        {state.changes && <ChangesLink changes={state.changes} since={state.version} />}
+      </>;
       break;
     case 'ready':
       detail = <>Coord {status.version} is downloaded.{state.changes && <> <ChangesLink changes={state.changes} since={state.version} /></>}</>;
