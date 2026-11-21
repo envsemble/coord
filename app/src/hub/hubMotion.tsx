@@ -190,6 +190,8 @@ function settle(root: Element, before: Map<Element, Place> | null) {
   if (!before || !motion.moves || document.visibilityState !== 'visible') {
     stop();
     for (const copy of root.querySelectorAll('.' + ghost)) copy.remove();
+    // Where nothing may move, a change above the window still leaves the rows in sight where they are.
+    if (before && document.visibilityState === 'visible') hold(root, before, measure(root));
     return;
   }
   const near = (a: number, b: number) => Math.abs(a - b) <= 0.5;

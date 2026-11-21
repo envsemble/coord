@@ -5,7 +5,7 @@
 import type { ReactNode } from 'react';
 import { Text } from '@envsemble/envui';
 import type { ProjectWork } from '../types';
-import { cardLeaves, cards, cutShort, hints, pressed, restDelay, type Asked } from '../ui/Hint';
+import { cardLeaves, cutShort, hinted, hints, pressed, restDelay, type Asked } from '../ui/Hint';
 import type { HubItem } from './hubPlans';
 
 /** A hint's lines, one under the other; those with nothing to say are left out. */
@@ -49,7 +49,7 @@ export function PlanName({ title, summary }: { title: string; summary: string | 
     if (!summary && !cut) return null;
     return { card: true, side: 'top', align: 'start', content: <>{cut && <Text render={<strong />}>{title}</Text>}{summary && <Text emphasis="muted">{summary}</Text>}</> };
   };
-  return <span className="hub-row-name" data-card="" ref={name => { if (name) cards.set(name, card(name)); }}
+  return <span className="hub-row-name" data-card="" ref={name => hinted(name, name ? card(name) : () => null)}
     onPointerMove={({ currentTarget: name }) => { if (!pressed.has(name)) hints.wait(name, restDelay, card(name), () => name.matches(':hover') && !pressed.has(name)); }}
     onPointerDown={({ currentTarget: name }) => { pressed.add(name); hints.close(name); }}
     onPointerLeave={({ currentTarget: name }) => { pressed.delete(name); hints.close(name, cardLeaves); }}>{title}</span>;

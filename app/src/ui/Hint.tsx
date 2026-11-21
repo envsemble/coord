@@ -33,6 +33,9 @@ interface Showing { id: number; box: DOMRect; open: boolean; hint: Asked }
 let showing: Showing | null = null;
 let shownAt: Element | null = null;
 let shownText: string | null = null;
+let shownFrom: unknown = null;
+/** What each element with a hint says now, as its last drawing gave it: a hint that shows closes when this changes under it. */
+const says = new WeakMap<Element, Asked | (() => Asked | null)>();
 let waitingAt: Element | null = null;
 let waiting = 0, closing = 0, entering = 0, shows = 0;
 /** Where the pointer was last pressed, until it has moved away from there: a click acts, and what it changes under the resting pointer opens no hint. */
@@ -59,6 +62,7 @@ export const hints = {
       window.clearTimeout(closing);
       shownAt = element;
       shownText = element.textContent;
+      shownFrom = says.get(element);
       // It enters the page closed and opens in the next frame, so envUI's fade plays.
       show({ id: ++shows, box: element.getBoundingClientRect(), open: false, hint: asked });
       window.cancelAnimationFrame(entering);
@@ -77,8 +81,11 @@ export const hints = {
   hide() { if (shownAt) hints.close(shownAt); },
   /** Keep the hint that shows: the pointer went from its element onto the hint itself (a card is read there). */
   keep() { window.clearTimeout(closing); },
-  /** Whether the element the hint is for still stands where the hint opened and says what it said: a list may change under it. */
-  stands() { const now = shownAt?.isConnected ? shownAt.getBoundingClientRect() : null; return now !== null && showing !== null && shownAt!.textContent === shownText && Math.abs(now.top - showing.box.top) < 1 && Math.abs(now.left - showing.box.left) < 1; },
+  /** Whether the element the hint is for still stands where the hint opened and says what it said (on the page, and in its hint): a list may change under it. */
+  stands() {
+    const now = shownAt?.isConnected ? shownAt.getBoundingClientRect() : null;
+    return now !== null && showing !== null && shownAt!.textContent === shownText && says.get(shownAt!) === shownFrom && Math.abs(now.top - showing.box.top) < 1 && Math.abs(now.left - showing.box.left) < 1;
+  },
 };
 /** How long a card stays once the pointer has left it and its element: it holds text only, so it clears what it covers about as fast as a hint does, with time enough to cross from the one to the other. */
 export const cardLeaves = 150;
@@ -86,15 +93,15 @@ export const cardLeaves = 150;
 /** What a press is on: no hint opens there until the pointer has left it. A click acts (it opens a plan, folds a group), and a hint would come up over what it did. */
 export const pressed = new WeakSet<Element>();
 
-/** Elements whose card opens when keyboard focus rests on the link around them: what to show, worked out when it opens. */
-export const cards = new WeakMap<Element, () => Asked | null>();
+/** Say what an element's hint is, as it is drawn: the hint is asked for with this, and closes when it is said anew. */
+export const hinted = (element: Element | null, hint: Asked | (() => Asked | null)) => { if (element) says.set(element, hint); };
 
 /**
  * The window's hint: envUI's tooltip (or its hover card) beside an invisible anchor laid over the
  * element it is for, in the page only while it shows. It closes when the page scrolls, a key is
  * pressed, or its element moves, changes its text or leaves the page (a list changing under it), and leaves the page
  * once envUI's fade is over. A card stays while the pointer is on it. Keyboard focus resting on a
- * link opens the card of what it holds (see `cards`). After a press, no hint opens for the pointer
+ * link opens the card of what it holds (an element marked `data-card`). After a press, no hint opens for the pointer
  * until it has moved away from where it pressed: what a click changes under a resting pointer (a
  * label that appears there) says nothing unasked.
  */
@@ -106,7 +113,7 @@ export function HintLayer() {
     const focused = (event: FocusEvent) => {
       const link = event.target instanceof Element && event.target.matches(':focus-visible') ? event.target : null;
       const held = link?.querySelector('[data-card]');
-      const asked = held && cards.get(held);
+      const asked = held && says.get(held);
       if (link && held && asked) hints.wait(held, restDelay, asked, () => link.matches(':focus-visible'), true);
     };
     const press = (event: MouseEvent) => { pressedAt = { x: event.clientX, y: event.clientY }; };
@@ -165,9 +172,9 @@ export function Hint({ content, children, rest = false, cut = false, side, align
     // Over a link or a mark inside it, that one's hint is the answer.
     const within = (event.target as Element).closest(inner);
     if (pressed.has(element) || (within && within !== element && element.contains(within))) { hints.close(element); return; }
-    hints.wait(element, rest ? restDelay : hintDelay, asked, () => element.matches(':hover') && !pressed.has(element) && !(cut && !cutShort(element)) && !element.querySelector(':is(' + inner + '):hover'));
+    hints.wait(element, rest ? restDelay : hintDelay, says.get(element) ?? asked, () => element.matches(':hover') && !pressed.has(element) && !(cut && !cutShort(element)) && !element.querySelector(':is(' + inner + '):hover'));
   };
   const leave = ({ currentTarget }: PointerEvent<HTMLElement>) => { pressed.delete(currentTarget); hints.close(currentTarget); };
   const press = ({ currentTarget }: PointerEvent<HTMLElement>) => { pressed.add(currentTarget); hints.close(currentTarget); };
-  return cloneElement(children, { title: '', 'data-hint': '', onPointerOver: over, onPointerMove: rest ? over : undefined, onPointerLeave: leave, onPointerDown: press } as object);
+  return cloneElement(children, { title: '', 'data-hint': '', ref: (element: Element | null) => hinted(element, asked), onPointerOver: over, onPointerMove: rest ? over : undefined, onPointerLeave: leave, onPointerDown: press } as object);
 }
