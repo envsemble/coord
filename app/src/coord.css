@@ -103,13 +103,24 @@ html, body, #root { min-block-size: 100%; }
 .hub-row-title + .cell-note { margin-inline-start: calc(1.125rem + var(--env-space-2)); }
 /* A work item made of parts is one block: a rail down its start edge, from its own row to its last
    part's, its title a weight heavier, and its parts under it on a surface one quiet step from the
-   rows', set in to its title's edge and numbered, with no line between them. */
-.hub-entry-group > .hub-row > .env-table-cell:first-child { box-shadow: inset 0.1875rem 0 0 var(--env-color-border-default); }
+   rows', set in to its title's edge and numbered, with no line between them. The rail is a bar of
+   its own, short of the lines above and below it, so two groups in a row stay two. */
+.hub-entry-group > .hub-row > .env-table-cell:first-child {
+  --hub-rail: linear-gradient(var(--env-color-border-default), var(--env-color-border-default));
+  background-image: var(--hub-rail); background-repeat: no-repeat; background-size: 0.1875rem 100%; background-position: 0.25rem 0;
+}
+.hub-entry-group > .hub-row:first-child > .env-table-cell:first-child { background-size: 0.1875rem calc(100% - 0.5rem); background-position: 0.25rem 100%; }
+.hub-entry-group > .hub-row:last-child > .env-table-cell:first-child { background-size: 0.1875rem calc(100% - 0.5rem); }
 .hub-entry-group > .hub-row:first-child .hub-row-link { font-weight: var(--env-font-weight-semibold); }
 .hub-row-index { flex: none; inline-size: 1rem; color: var(--env-color-fg-muted); font: var(--env-type-body-sm); font-variant-numeric: tabular-nums; }
 .hub-row-part > .env-table-cell:first-child { padding-inline-start: calc(var(--env-space-4) + 1.125rem + var(--env-space-2)); }
+/* A part's title in the Project column's room stops well short of the steps. */
+.hub-row-part > .env-table-cell.hub-row-run { padding-inline-end: var(--env-space-8); }
 .hub-row-part .hub-row-title + .cell-note { margin-inline-start: calc(1rem + 1.125rem + 2 * var(--env-space-2)); }
-.hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell { border-block-start: 0; background: var(--env-color-bg-default); }
+.hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell {
+  border-block-start: 0;
+  background-color: light-dark(color-mix(in srgb, var(--env-color-bg-default), var(--env-color-bg-muted)), var(--env-color-bg-default));
+}
 /* A row's state line: what the user is to do in amber, what it waits on muted. */
 .hub-row-note { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hub-row-note[data-status='your_turn'] { color: var(--env-color-fg-warning); }

@@ -165,7 +165,7 @@ function InProjects({ projects }: { projects: Project[] }) {
  * but for that line, amber on the user's turn. A part among its group's (`index`, its place) is set
  * in under its group and starts with its number.
  */
-const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resolved, notify, index }: {
+const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resolved, notify, index, only }: {
   item: HubItem; go(place: Place): void; notify: Notify;
   /** The host's answers about what its project's rows reference. */
   resolved: Resolutions | undefined;
@@ -175,7 +175,8 @@ const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resol
   projects: Project[] | null;
   /** The table says how long work has waited, in place of when it changed. */
   waiting: boolean;
-  index?: number;
+  /** A part's place among its group's parts; `only`: it is the group's one part, whose place says nothing. */
+  index?: number; only?: boolean;
 }) {
   const { work, project, status } = item;
   const facts = hubRowFacts(work, status);
@@ -189,9 +190,9 @@ const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resol
   const parts = index === undefined && work.partOf ? partsFacts(work, project) : null;
   return <Table.Row interactive className={'hub-row' + (large ? ' hub-row-large' : facts.size === 'closed' ? ' hub-row-closed' : '') + (index === undefined ? '' : ' hub-row-part')} data-work={work.id} data-size={facts.size}
     onClick={event => { if (!event.defaultPrevented && !(event.target as Element).closest('a, button') && !window.getSelection()?.toString()) open(event); }}>
-    <Table.Cell colSpan={wide ? 2 : undefined}>
+    <Table.Cell colSpan={wide ? 2 : undefined} className={wide ? 'hub-row-run' : undefined}>
       <span className="hub-row-title">
-        {index !== undefined && <span className="hub-row-index" aria-label={'Part ' + index}>{index}</span>}
+        {index !== undefined && (only ? <span className="hub-row-index" aria-hidden="true" /> : <span className="hub-row-index" aria-label={'Part ' + index}>{index}</span>)}
         <StatusIcon status={status} />
         <Link href="#" underline={false} className="hub-row-link" data-row-target draggable={false} title={work.summary ?? undefined} onClick={open}>{work.title}</Link>
         <span className="hub-row-number">{workNumber(work.id)}</span>
@@ -213,7 +214,7 @@ const HubRow = memo(function HubRow({ item, go, projects, waiting, waited, resol
     {waiting ? <Table.Cell label="Waiting" numeric nowrap>{waits(status.key) ? <Waited since={facts.since} waited={waited} /> : <span className="muted" title={facts.changed ? 'Not waiting; changed ' + absoluteDate(facts.changed) : undefined}>—</span>}</Table.Cell>
       : <Table.Cell label="Changed" numeric nowrap>{facts.changed ? <Changed value={facts.changed} /> : <span className="muted">—</span>}</Table.Cell>}
   </Table.Row>;
-}, (before, after) => before.go === after.go && before.waiting === after.waiting && before.waited === after.waited && before.resolved === after.resolved && before.notify === after.notify && before.index === after.index
+}, (before, after) => before.go === after.go && before.waiting === after.waiting && before.waited === after.waited && before.resolved === after.resolved && before.notify === after.notify && before.index === after.index && before.only === after.only
   && projectsKey(before.projects) === projectsKey(after.projects) && rowKey(before.item) === rowKey(after.item));
 
 /** The projects a row names, as text: the row is drawn again only when they change. */
@@ -244,7 +245,7 @@ const HubEntryRows = memo(function HubEntryRows({ entry, showProject, waiting, n
   const waited = (plan: HubItem) => waits(plan.status.key) ? elapsed(plan.work.turn?.since, now) || null : null;
   return <Table.Body className={parts.length ? 'hub-entry hub-entry-group' : 'hub-entry'}>
     <HubRow item={item} go={go} projects={showProject ? inProjects(item) : null} waiting={waiting} waited={waited(item)} resolved={resolved} notify={notify} />
-    {parts.map((part, at) => <HubRow key={part.work.id} item={part} index={at + 1} go={go} projects={showProject ? projectsOf(part).join('\n') === own ? [] : inProjects(part) : null}
+    {parts.map((part, at) => <HubRow key={part.work.id} item={part} index={at + 1} only={parts.length === 1} go={go} projects={showProject ? projectsOf(part).join('\n') === own ? [] : inProjects(part) : null}
       waiting={waiting} waited={waited(part)} resolved={resolved} notify={notify} />)}
   </Table.Body>;
 }, (before, after) => before.showProject === after.showProject && before.waiting === after.waiting && before.now === after.now
