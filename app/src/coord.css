@@ -101,28 +101,39 @@ html, body, #root { min-block-size: 100%; }
 /* A plan's project: its avatar, as in the project menu, then its name. */
 .hub-row-project { display: flex; align-items: center; gap: var(--env-space-2); min-inline-size: 0; }
 .hub-row-title + .cell-note { margin-inline-start: calc(1.125rem + var(--env-space-2)); }
-/* A work item made of parts is one block: a rail down its start edge, from its own row to its last
-   part's, its title a weight heavier, and its parts under it on a surface one quiet step from the
-   rows', set in to its title's edge and numbered, with no line between them. The rail is a bar of
-   its own, short of the lines above and below it, so two groups in a row stay two. */
-.hub-entry-group > .hub-row > .env-table-cell:first-child {
-  --hub-rail: linear-gradient(var(--env-color-border-default), var(--env-color-border-default));
-  background-image: var(--hub-rail); background-repeat: no-repeat; background-size: 0.1875rem 100%; background-position: 0.25rem 0; background-origin: border-box;
-}
-.hub-entry-group > .hub-row:first-child > .env-table-cell:first-child { background-size: 0.1875rem calc(100% - 0.5rem); background-position: 0.25rem 100%; }
-.hub-entry-group > .hub-row:last-child > .env-table-cell:first-child { background-size: 0.1875rem calc(100% - 0.5rem); }
+/* A work item made of parts has a button before its icon that folds them away; in a hub with such
+   work every row leaves that button's room, so the titles start on one edge and the buttons stand
+   alone before them. Its title is a weight heavier. */
+.hub-list { --hub-fold: 1.5rem; --hub-part-surface: light-dark(color-mix(in srgb, var(--env-color-bg-default), var(--env-color-bg-muted)), color-mix(in srgb, var(--env-color-bg-default) 75%, var(--env-color-bg-page))); }
+.hub-row-fold { flex: none; inline-size: var(--hub-fold); min-inline-size: var(--hub-fold); margin-inline: calc(-1 * var(--env-space-2)) calc(-1 * var(--env-space-1)); }
+.hub-row:has(.hub-row-fold) .hub-row-title + .cell-note { margin-inline-start: calc(var(--hub-fold) - var(--env-space-1) + 1.125rem + var(--env-space-2)); }
 .hub-entry-group > .hub-row:first-child .hub-row-link { font-weight: var(--env-font-weight-semibold); }
+.hub-row-parts-turn { color: var(--env-color-fg-warning); }
 .hub-row-index { flex: none; inline-size: 1rem; color: var(--env-color-fg-muted); font: var(--env-type-body-sm); font-variant-numeric: tabular-nums; }
-.hub-row-part > .env-table-cell:first-child { padding-inline-start: calc(var(--env-space-4) + 1.125rem + var(--env-space-2)); }
 /* A part's title in the Project column's room stops well short of the steps. */
 .hub-row-part > .env-table-cell.hub-row-run { padding-inline-end: var(--env-space-8); }
 .hub-row-part .hub-row-title + .cell-note { margin-inline-start: calc(1rem + 1.125rem + 2 * var(--env-space-2)); }
-/* The parts' surface: lighter than the header in light, and above the page in dark. */
-.hub-list { --hub-part-surface: light-dark(color-mix(in srgb, var(--env-color-bg-default), var(--env-color-bg-muted)), color-mix(in srgb, var(--env-color-bg-default) 75%, var(--env-color-bg-page))); }
+/* Its parts are rows of the same table, on a panel of their own under its row: a rounded surface
+   one quiet step from the rows', set in from both edges of the table, starting under the group's
+   icon, with the rows' own surface around it. So one group's parts are closed off from the next
+   group's row, however many groups follow each other. The panel is the cells' own fill, kept
+   inside borders that show the surface behind them, so the parts stay in the table's columns. */
 .hub-list.env-table > .env-table-body > .env-table-row.hub-row-part > .env-table-cell { border-block-start: 0; background-color: var(--hub-part-surface); }
-/* The group's surface begins at its own row, part of the way to its parts', where its rail begins; room parts one part from the next. */
-.hub-entry-group > .hub-row:first-child > .env-table-cell { background-color: light-dark(color-mix(in srgb, var(--hub-part-surface) 66%, var(--env-color-bg-raised)), color-mix(in srgb, var(--hub-part-surface), var(--env-color-bg-raised))); }
-.hub-list.env-table > .env-table-body > .env-table-row.hub-row-part + .hub-row-part > .env-table-cell { border-block-start: 0.5rem solid transparent; }
+.hub-row-part:is(:hover, :has(:focus-visible)) > .env-table-cell { background-color: color-mix(in srgb, var(--hub-part-surface), var(--env-color-fg-default) 5%); }
+.env-table-region:not([data-stacked]) > .hub-list {
+  --hub-panel-start: calc(var(--env-space-4) + var(--hub-fold) - var(--env-space-2) - var(--env-space-1)); --hub-panel-end: var(--env-space-3);
+  --hub-panel-below: var(--env-space-3); --hub-panel-radius: var(--env-radius-md);
+}
+.env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row-part > .env-table-cell { background-clip: padding-box; }
+.env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row-part > .env-table-cell:first-child { border-inline-start: var(--hub-panel-start) solid transparent; padding-inline-start: var(--env-space-3); }
+.env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row-part > .env-table-cell:last-child { border-inline-end: var(--hub-panel-end) solid transparent; padding-inline-end: calc(var(--env-space-4) - var(--hub-panel-end)); }
+.env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row:not(.hub-row-part) + .hub-row-part > .env-table-cell:first-child { border-start-start-radius: calc(var(--hub-panel-start) + var(--hub-panel-radius)) var(--hub-panel-radius); }
+.env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row:not(.hub-row-part) + .hub-row-part > .env-table-cell:last-child { border-start-end-radius: calc(var(--hub-panel-end) + var(--hub-panel-radius)) var(--hub-panel-radius); }
+.env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row-part:last-child > .env-table-cell { border-block-end: var(--hub-panel-below) solid transparent; }
+.env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row-part:last-child > .env-table-cell:first-child { border-end-start-radius: calc(var(--hub-panel-start) + var(--hub-panel-radius)) calc(var(--hub-panel-below) + var(--hub-panel-radius)); }
+.env-table-region:not([data-stacked]) > .hub-list > .env-table-body > .hub-row-part:last-child > .env-table-cell:last-child { border-end-end-radius: calc(var(--hub-panel-end) + var(--hub-panel-radius)) calc(var(--hub-panel-below) + var(--hub-panel-radius)); }
+/* In a narrow window, where rows stack, a part is set in under its group. */
+.env-table-region[data-stacked] > .hub-list > .env-table-body > .hub-row-part > .env-table-cell:first-child { padding-inline-start: calc(var(--env-space-4) + var(--hub-fold)); }
 /* A row's state line: what the user is to do in amber, what it waits on muted. */
 .hub-row-note { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hub-row-note[data-status='your_turn'] { color: var(--env-color-fg-warning); }

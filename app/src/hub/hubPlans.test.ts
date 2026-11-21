@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { entryMatchesOnly, hubEntries, hubEntryGroups, hubGroups, hubItems, hubRowFacts, hubStatus, inState, lastChange, matchesOnly, noteParts, partsFacts, projectsOf } from './hubPlans.ts';
+import { entryMatchesOnly, groupFacts, hubEntries, hubEntryGroups, hubGroups, hubItems, hubRowFacts, hubStatus, inState, lastChange, matchesOnly, noteParts, partsFacts, projectsOf } from './hubPlans.ts';
 import { compactNumber, duration } from '../ui/format.ts';
 import type { Project, ProjectSummary, ProjectWork } from '../types.ts';
 
@@ -193,6 +193,7 @@ test('a work item made of parts is one entry with them, in every project one of 
   // The group is where its most pressing part is, once, and open while one of its plans is.
   assert.deepEqual(hubEntryGroups(entries, 'open').map(group => [group.label, group.entries.map(entry => entry.item.work.id)]), [['Your turn', ['work-0005']], ['Later', ['work-0001', 'work-0008']]]);
   assert.deepEqual(hubEntryGroups(entries, 'closed'), []);
+  assert.deepEqual([groupFacts(entries[0]), groupFacts(entries[1])], [{ count: 2, turn: 1 }, null]);
   assert.equal(entryMatchesOnly(entries[0], ['your_turn'], Date.parse('2026-10-15T10:00:00Z')), true, 'a filter one of its parts matches keeps the group');
   // A plan is in the projects its plan lists, else in the one that keeps it; a project's hub has the groups with a plan in it, whole.
   assert.deepEqual([projectsOf(entries[0].parts[1]), projectsOf(entries[0].item)], [[harbor.id], [grouped.id]]);

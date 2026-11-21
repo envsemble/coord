@@ -251,3 +251,8 @@ export function hubEntryGroups(entries: HubEntry[], state: HubState): HubEntryGr
   return groupOrder.map(id => ({ id, label: groupLabels[id], entries: shown.filter(entry => entryGroup(entry) === id) })).filter(group => group.entries.length);
 }
 
+/** What a group says of its parts while they are folded away: how many, and how many of them are the user's turn. */
+export function groupFacts(entry: HubEntry): { count: number; turn: number } | null {
+  if (!entry.parts.length) return null;
+  return { count: entry.parts.length, turn: entry.parts.filter(part => part.status.key === 'your_turn').length };
+}
