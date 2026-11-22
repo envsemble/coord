@@ -364,7 +364,8 @@ html { background: linear-gradient(var(--env-color-bg-default), var(--env-color-
 .parts-rail-meta { color: var(--env-color-fg-muted); font-variant-numeric: tabular-nums; }
 .parts-rail-list { display: grid; gap: var(--env-space-1); margin: 0; padding: 0; list-style: none; }
 /* A part's place in its group, or a group's parts, beside its number in the hub. */
-.hub-row-parts { flex: none; padding-inline: var(--env-space-2); border-radius: var(--env-radius-sm); background: var(--env-color-bg-neutral-muted); color: var(--env-color-fg-muted); font: var(--env-type-body-sm); white-space: nowrap; }
+/* A folded group's word for its parts is on the surface its parts' tiles have: it stands for them. */
+.hub-row-parts { flex: none; padding-inline: var(--env-space-2); border-radius: var(--env-radius-sm); background: var(--hub-part-surface, var(--env-color-bg-neutral-muted)); color: var(--env-color-fg-muted); font: var(--env-type-body-sm); white-space: nowrap; }
 /* Create project: its folders as rows, then a card to add one. */
 .folder-list-section { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--env-space-2); min-inline-size: 0; }
 .folder-list-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--env-space-3); }
