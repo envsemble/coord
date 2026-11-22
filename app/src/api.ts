@@ -89,6 +89,8 @@ export const api: Omit<Unwrapped, 'snapshot'> & { snapshot(projectId: string): P
   onChanged: listener => bridge().onChanged(listener),
   onProjectsChanged: listener => bridge().onProjectsChanged(listener),
   onMenu: listener => bridge().onMenu(listener),
+  takeLink: () => unwrap(bridge().takeLink()),
+  onLink: listener => bridge().onLink(listener),
   onAccessChanged: listener => bridge().onAccessChanged(listener),
   onUpdatesChanged: listener => bridge().onUpdatesChanged(listener),
 };

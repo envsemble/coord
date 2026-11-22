@@ -8,6 +8,7 @@
 import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { ledgerStatus } from '../work/ledger.ts';
+import { resolveWorkId } from '../work/ids.ts';
 import { normalizedLocation, readDocument } from '../reading/planningIndex.ts';
 import { harnessSessions, measureSession, sessionLogs, transcriptLogs, type Harness, type LogOptions, type SessionCandidate, type SessionMeasure } from './sessionLog.ts';
 import { createReport, fitStep, insertReport, storedReports, WorkReportError, type Measured, type ReportInput, type WorkReport } from './reports.ts';
@@ -54,7 +55,7 @@ export async function recordWorkReport(inputRoot: string, workId: string, input:
  * Measure a report without recording it, so a hook can record it in one transaction with what else
  * changes then. The database names every model and subagent, so the report keeps them all.
  */
-export async function prepareWorkReport(inputRoot: string, workId: string, input: WorkReportInput, options: WorkReportOptions = {}): Promise<PreparedReport> {
+export async function prepareWorkReport(inputRoot: string, named: string, input: WorkReportInput, options: WorkReportOptions = {}): Promise<PreparedReport> {
   const warnings: string[] = [];
   // A long or multi-line step is recorded shortened rather than losing the whole report.
   let step = input.step ?? null;
@@ -74,6 +75,8 @@ export async function prepareWorkReport(inputRoot: string, workId: string, input
   catch { throw new WorkReportError('The planning folder needs a readable planning.json registry.'); }
   const items = (registry as { work_items?: unknown })?.work_items;
   if (!Array.isArray(items)) throw new WorkReportError('The planning registry has no work_items list.');
+  // The work by any of its names: its ID as the registry writes it, else the part a former ID now names.
+  const workId = resolveWorkId(registry as { work_items?: unknown; former_ids?: unknown }, named) ?? named;
   const item = items.find(entry => entry && typeof entry === 'object' && (entry as { id?: unknown }).id === workId) as { path?: unknown; current_plan?: unknown } | undefined;
   if (!item) throw new WorkReportError(workId + ' is not a registered work item.');
   const location = normalizedLocation(item.path);

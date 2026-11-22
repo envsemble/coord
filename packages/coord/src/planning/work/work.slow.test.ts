@@ -21,7 +21,7 @@ test('a folder finds its planning folders in the home: in one of their folders, 
   const home = path.join(directory, 'home');
   const root = planningFolder(path.join(home, 'planning'), 'main');
   const unrelated = planningFolder(path.join(home, 'planning'), 'unrelated');
-  writeFileSync(path.join(unrelated, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'unrelated', folders: [path.join(directory, 'other')], work_items: [] }));
+  writeFileSync(path.join(unrelated, 'planning.json'), JSON.stringify({ schema_version: 3, name: 'unrelated', folders: [path.join(directory, 'other')], work_items: [] }));
   const shop = path.join(directory, 'shop');
   mkdirSync(path.join(shop, 'src'), { recursive: true });
   setFolders(root, [shop]);
@@ -47,7 +47,7 @@ test('a folder finds its planning folders in the home: in one of their folders, 
   assert.equal(await resolvePlanningFolder({ planningFolder: root, home }), root);
   await assert.rejects(resolvePlanningFolder({ cwd: directory, home }), /No project in the Coord home .* covers/);
   // A second project covers the shop too: both are listed by name, and the tools need the one to plan in.
-  writeFileSync(path.join(unrelated, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Harbor', folders: [shop], work_items: [] }));
+  writeFileSync(path.join(unrelated, 'planning.json'), JSON.stringify({ schema_version: 3, name: 'Harbor', folders: [shop], work_items: [] }));
   const several = await findPlanning(shop, { home });
   assert.deepEqual(several.matches.map(match => match.project), ['Planning', 'Harbor']);
   await assert.rejects(resolvePlanningFolder({ cwd: shop, home }), /Several projects cover this folder: Planning \(.*\), Harbor \(.*\)\. Ask the user which project to plan in/);
@@ -80,7 +80,7 @@ test('a folder in a project\'s folder belongs to that project, the deepest folde
   const project = (name: string, folders: string[]) => {
     const folder = path.join(base, name.toLowerCase());
     mkdirSync(folder, { recursive: true });
-    writeFileSync(path.join(folder, 'planning.json'), JSON.stringify({ schema_version: 2, name, folders, work_items: [] }));
+    writeFileSync(path.join(folder, 'planning.json'), JSON.stringify({ schema_version: 3, name, folders, work_items: [] }));
     return realpathSync(folder);
   };
   const caseless = process.platform === 'win32' || process.platform === 'darwin';

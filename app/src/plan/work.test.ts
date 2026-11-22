@@ -15,7 +15,7 @@ test('a work item reads its plan, never its ledger, whatever its implementation'
     const root = path.join(temporary, 'planning');
     const folder = 'active/0001-example';
     await mkdir(path.join(root, folder, 'supporting'), { recursive: true });
-    await writeFile(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Example', folders: [], work_items: [{ id: 'work-0001', path: folder, current_plan: folder + '/plan.md' }] }));
+    await writeFile(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 3, name: 'Example', folders: [], work_items: [{ id: 'work-0001', path: folder, current_plan: folder + '/plan.md' }] }));
     await writeFile(path.join(root, folder, 'supporting/ledger.md'), '# Historical phase evidence');
     const ledger = path.join(root, folder, 'ledger.md');
     await writeFile(ledger, '---\nschema_version: 2\nkind: ledger\nwork_id: work-0001\nupdated: "2026-10-07"\nblocked: null\nsteps:\n  - title: "Verifying"\n    status: doing\n  - title: "Review"\n    status: todo\n---\n\n# Ledger\n');

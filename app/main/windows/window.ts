@@ -4,7 +4,7 @@
 // its `coord:` file protocol can only ever see the projects it follows.
 import { BrowserWindow, dialog, nativeTheme, screen, session as electronSession, shell, type Session } from 'electron';
 import type { HostClient, Project } from '@envsemble/coord/host';
-import type { EventChannel, ProjectChangeRequest, WindowInfo } from '../../shared/contract.ts';
+import type { EventChannel, LinkedWork, ProjectChangeRequest, WindowInfo } from '../../shared/contract.ts';
 import { CoordError } from '../errors.ts';
 import { ProjectView } from '../computers/projectView.ts';
 import { createProtocolHandler, isEntry, isPageFrameUrl, originOf, rendererOrigin, scheme } from './protocol.ts';
@@ -59,6 +59,8 @@ export class CoordWindow {
   readonly rowId: number;
   /** The computer whose projects the window shows: a paired computer's host ID, or null for this one. */
   computer: string | null;
+  /** The work a link named, until the window takes it. */
+  private link: LinkedWork | null = null;
   /** The projects the window follows, by their IDs. */
   readonly views = new Map<string, ProjectView>();
   /** Projects still being followed: a request for one waits for it. */
@@ -420,6 +422,20 @@ export class CoordWindow {
     if (!this.win.isDestroyed()) this.win.webContents.send(channel, payload);
   }
 
+  /** A link named work for this window: it comes forward and is told, and takes the work when it is ready to show it. */
+  offerLink(link: LinkedWork) {
+    this.link = link;
+    // A window still loading shows itself once it has drawn, and then takes the link: showing it now would show it
+    // blank. One that was shown comes forward, also from being minimized (which counts as not visible).
+    if (this.win.isVisible() || this.win.isMinimized()) this.focus();
+    this.send('link:open', true);
+  }
+  /** The work a link named, once; none for a window that shows another computer by now (a link names a project of this one). */
+  takeLink(): LinkedWork | null {
+    const link = this.link;
+    this.link = null;
+    return this.computer === null ? link : null;
+  }
   focus() {
     if (this.win.isMinimized()) this.win.restore();
     this.win.show();

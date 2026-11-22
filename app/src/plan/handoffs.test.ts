@@ -8,7 +8,7 @@ const link = (change: Partial<HandoffLink>): HandoffLink => ({ projectId: own, p
 
 test('a plan\'s handoffs: by number and title, another project\'s by its name too, opening the plan unless it cannot be found', () => {
   const { continues, continuedIn } = handoffs({ continues: [link({})], continuedIn: [link({ projectId: other, project: 'shop', projectName: 'Shop', workId: 'work-0002', title: 'Checkout' }), link({ projectId: null, project: 'gone', projectName: '', workId: 'work-0009', title: null })] }, own);
-  assert.deepEqual(continues.map(item => [item.number, item.title, item.project, item.open]), [['#0023', 'Plans hub', null, { projectId: own, work: 'work-0023' }]]);
+  assert.deepEqual(continues.map(item => [item.number, item.title, item.project, item.open]), [['#0023-1', 'Plans hub', null, { projectId: own, work: 'work-0023' }]]);
   assert.deepEqual(continuedIn.map(item => [item.title, item.project, item.open]), [['Checkout', 'Shop', { projectId: other, work: 'work-0002' }], [null, 'gone', null]]);
   assert.deepEqual(handoffs({}, own), { continues: [], continuedIn: [] });
   assert.equal(continuation(true, { continuedIn: [link({})] }, own).length, 1, 'closed work says where it continues');

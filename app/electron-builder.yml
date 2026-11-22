@@ -45,6 +45,13 @@ electronFuses:
   onlyLoadAppFromAsar: false
   loadBrowserProcessSpecificV8Snapshot: false
   grantFileProtocolExtraPrivileges: false
+# The links that open work in Coord (coord://open/<project>/<part>, which a page of the site forwards
+# to): the package says Coord answers them, for systems that read it from the package (a desktop
+# entry's MimeType on Linux). On Windows the installed app registers itself at its start (main/index.ts).
+protocols:
+  - name: Coord
+    schemes:
+      - coord
 win:
   target:
     - target: nsis

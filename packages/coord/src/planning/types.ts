@@ -27,8 +27,8 @@ export interface Work {
    */
   continues?: HandoffLink[]; continuedIn?: HandoffLink[];
   /**
-   * The work items this one is made of (its plan's `parts`: well-formed work IDs of this project, in
-   * order, each once), and the group that lists it among its parts (the first, should several), or null.
+   * Its work item's other parts, on the first part (the IDs that share its number, in their numbers'
+   * order), and on each of those the first part, which stands for the whole; else none and null.
    */
   parts?: string[]; partOf?: string | null;
   /** The state its plan's header declares, or null when it declares none. */
@@ -151,6 +151,8 @@ export interface PlanningIndex {
   name: string;
   loadedAt: string; caseSensitivePaths: boolean; normalizationInsensitivePaths: boolean; work: Work[];
   documents: Document[]; history: HistoryEntry[]; issues: Issue[]; gitAvailable: boolean;
+  /** The registry's former IDs: each an ID that work had before it became a part, and the ID it has now. */
+  former?: Record<string, string>;
 }
 export interface DocumentContent {
   path: string; title: string; body: string; format: string;

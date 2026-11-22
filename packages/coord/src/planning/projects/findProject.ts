@@ -15,6 +15,7 @@ import { folderKey, inactiveProjectFolders, planningName } from '../../home/data
 import { stateOf } from '../work/state.ts';
 import { inProject, projectKey, projectsOf } from '../work/projects.ts';
 import { parseHandoff } from '../handoffs/handoffs.ts';
+import { resolveWorkId } from '../work/ids.ts';
 import type { LedgerStep, WorkState } from '../types.ts';
 
 export interface ActiveWork {
@@ -207,7 +208,8 @@ export async function resolvePlanningFolder(options: { planningFolder?: string |
     const registering: string[] = [];
     for (const folder of candidates) {
       const registry = await readRegistry(folder).catch(() => null);
-      if (registry?.work_items.some(item => item?.id === options.work)) registering.push(folder);
+      // By any of its names: its ID, its first part's with the 1 written out, or a former ID.
+      if (resolveWorkId(registry, options.work) !== null) registering.push(folder);
     }
     candidates = registering;
   }

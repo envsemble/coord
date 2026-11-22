@@ -17,7 +17,7 @@ export const planningUsage = `  coord where [--cwd <dir>]
   coord work status <work-id> [--planning-dir <dir>]
   coord work create --title <title> [--summary <text>] [--slug <slug>] [--continues <work>...] [--tag <tag>...] [--part-of <work-id>] [--project <name>...] [--planning-dir <dir>]
   coord work state <work-id> <planning|working|waiting|your_turn|blocked|none> [<note>] [--planning-dir <dir>]
-  coord work update <work-id> [--add-tag <tag>...] [--remove-tag <tag>...] [--continues <work>... | --no-continues] [--parts <work-id>... | --no-parts] [--project <name>... | --no-projects] [--planning-dir <dir>]
+  coord work update <work-id> [--add-tag <tag>...] [--remove-tag <tag>...] [--continues <work>... | --no-continues] [--part-of <work-id>] [--project <name>... | --no-projects] [--planning-dir <dir>]
   coord work search [<word>...] [--tag <tag>...] [--status open|closed|all] [--planning-dir <dir>]
   coord work accept <work-id> [--planning-dir <dir>]
   coord work start <work-id> [--step <title>...] [--planning-dir <dir>]
@@ -107,15 +107,14 @@ export async function work(operation: string | undefined, args: string[], out: O
       return 0;
     }
     case 'update': {
-      const { positional, values, lists, flags } = parseOptions(args, { values: ['planning-dir'], lists: ['add-tag', 'remove-tag', 'continues', 'parts', 'project'], flags: ['no-continues', 'no-parts', 'no-projects'] }, line);
+      const { positional, values, lists, flags } = parseOptions(args, { values: ['part-of', 'planning-dir'], lists: ['add-tag', 'remove-tag', 'continues', 'project'], flags: ['no-continues', 'no-projects'] }, line);
       const [named] = positionals(positional, ['work-id'], line);
       if (flags.has('no-continues') && lists.continues) throw new UsageError('give --continues or --no-continues, not both', line);
-      if (flags.has('no-parts') && lists.parts) throw new UsageError('give --parts or --no-parts, not both', line);
       if (flags.has('no-projects') && lists.project) throw new UsageError('give --project or --no-projects, not both', line);
       const { root, work: id } = await workOf(values, named);
       print(out, await updateWork(root, id, {
         addTags: lists['add-tag'], removeTags: lists['remove-tag'],
-        continues: flags.has('no-continues') ? [] : lists.continues, parts: flags.has('no-parts') ? [] : lists.parts,
+        continues: flags.has('no-continues') ? [] : lists.continues, partOf: values['part-of'],
         projects: flags.has('no-projects') ? [] : lists.project,
       }));
       return 0;

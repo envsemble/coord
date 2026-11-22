@@ -350,6 +350,20 @@ export class HomeDatabase {
     });
   }
   removeProject(id: number) { this.db.prepare('DELETE FROM project WHERE id = ?').run(id); }
+
+  /**
+   * Give a project's work its new IDs wherever the database names it (sessions' links and waits, their
+   * commits, the reports): each `from` becomes its `to`. Rows already under a new ID stay.
+   */
+  renameWork(projectId: number, renames: Iterable<[from: string, to: string]>) {
+    this.transaction(() => {
+      for (const [from, to] of renames) {
+        for (const table of ['session_work', 'session_wait', 'session_commit', 'work_report']) {
+          this.db.prepare(`UPDATE OR IGNORE ${table} SET work_id = ? WHERE project_id = ? AND work_id = ?`).run(to, projectId, from);
+        }
+      }
+    });
+  }
 }
 
 /** Open the home's database for one operation, and close it again. */

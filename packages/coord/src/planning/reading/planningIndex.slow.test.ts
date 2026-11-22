@@ -10,7 +10,7 @@ import { filesystemCaseSensitive, filesystemNormalizesUnicode } from '../../plat
 import { header, readerFixture as fixture, relativeDocumentPath } from '../testing.ts';
 
 /** A registry of these work items. */
-const registryOf = (items: unknown[]) => ({ schema_version: 2, name: 'Example', folders: [], work_items: items });
+const registryOf = (items: unknown[]) => ({ schema_version: 3, name: 'Example', folders: [], work_items: items });
 const gitIn = (root: string) => {
   const git = (...arguments_: string[]) => execFileSync('git', ['-C', root, '-c', 'commit.gpgsign=false', ...arguments_], { stdio: 'pipe' });
   git('init'); git('config', 'user.name', 'Dashboard fixture'); git('config', 'user.email', 'fixture@example.test');

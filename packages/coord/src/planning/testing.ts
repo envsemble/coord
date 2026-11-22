@@ -47,7 +47,7 @@ export function plan(id: string, fields: Record<string, string> = {}) {
   const values: Record<string, string> = { title: '"Existing work"', created: '"2026-10-01"', updated: '"2026-10-02"', design_status: 'draft', implementation_status: 'not_started', accepted_at: 'null', completed_at: 'null', ...fields };
   return ['---', 'schema_version: 2', 'kind: plan', 'id: ' + id, ...Object.entries(values).map(([key, value]) => key + ': ' + value), 'supersedes: []', 'superseded_by: null', '---', '', '# Existing work', '', 'See [the other work](../0002-other/plan.md) and [the glossary](../../notes/glossary.md).', ''].join('\n');
 }
-const registry = (directory: string) => JSON.stringify({ schema_version: 2, name: 'Planning', folders: [path.join(directory, 'shop')], work_items: [
+const registry = (directory: string) => JSON.stringify({ schema_version: 3, name: 'Planning', folders: [path.join(directory, 'shop')], work_items: [
   { id: 'work-0001', path: 'active/0001-existing', current_plan: 'active/0001-existing/plan.md' },
   { id: 'work-0002', path: 'active/0002-other', current_plan: 'active/0002-other/plan.md' },
 ] }, null, 2) + '\n';

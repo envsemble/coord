@@ -170,3 +170,20 @@ test('a home without projects opens on the hub, which makes one; About Coord, fr
   await window.keyboard.press('Escape');
   await expect(about).toHaveCount(0);
 });
+
+test('a link that names work opens it: when it starts Coord, and when Coord already runs', async () => {
+  const home = projectHome();
+  homes.push(home.dataDirectory);
+  // Started by the link, as the system starts Coord for one it is registered for: the window opens on that plan.
+  launched = await launch({ dataDirectory: home.dataDirectory, args: ['coord://open/northwind/0002-1'] });
+  const { window } = launched;
+  await expect(window.locator('.work-page h1')).toHaveText('Order fulfilment model');
+  // Clicked while Coord runs: the second launch hands the link over and ends, and the window shows that work.
+  // The project is named as its planning folder is, whatever its case; a number alone names the first part.
+  expect(secondInstance(home.dataDirectory, ['coord://open/Northwind/0001'])).toBe(0);
+  await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
+  // A link to a project this computer does not have says so, and the window stays where it is.
+  expect(secondInstance(home.dataDirectory, ['coord://open/elsewhere/0001-1'])).toBe(0);
+  await expect(window.getByText('A link names the project elsewhere, which is not on this computer.').first()).toBeVisible();
+  await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
+});

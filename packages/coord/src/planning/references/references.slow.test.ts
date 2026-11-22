@@ -26,7 +26,7 @@ test('a paired device has gh asked only about the GitHub repositories checked ou
   mkdirSync(path.join(workspace, 'notes'));
   const root = path.join(directory, 'planning');
   mkdirSync(root);
-  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'Shop', folders: [workspace], work_items: [] }));
+  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 3, name: 'Shop', folders: [workspace], work_items: [] }));
   assert.deepEqual([...await checkedOutRepositories(root)].sort(), ['example/docs', 'example/shop', 'someone/shop']);
   // A commit's subject comes from the checkout that has it, without asking gh.
   const shop = path.join(workspace, 'shop');

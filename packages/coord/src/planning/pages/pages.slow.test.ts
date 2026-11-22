@@ -10,7 +10,7 @@ function planning(t: test.TestContext) {
   const root = path.join(temporary(t), 'planning');
   const page = path.join(root, 'active', '0001-cart', 'pages', 'layout');
   mkdirSync(page, { recursive: true });
-  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 2, name: 'shop', folders: [], work_items: [{ id: 'work-0001', path: 'active/0001-cart', current_plan: null }] }));
+  writeFileSync(path.join(root, 'planning.json'), JSON.stringify({ schema_version: 3, name: 'shop', folders: [], work_items: [{ id: 'work-0001', path: 'active/0001-cart', current_plan: null }] }));
   return { root, page };
 }
 
