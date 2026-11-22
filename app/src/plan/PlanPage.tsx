@@ -92,9 +92,9 @@ function PlanAside({ work, snapshot, found, listed, sessions }: {
  * The status line under a plan's title: its status and what its state says it is for (what the user
  * is to do, what it waits on, why it is blocked), with since when; without a note, one fact, muted:
  * the steps done of work under way, the planning step of a draft, when closed work ended; and whether
- * it is archived.
+ * it is archived. Work that is in other projects than the one that keeps it names them.
  */
-function StatusLine({ work, status }: { work: Work; status: StatusLook }) {
+function StatusLine({ work, status, projects }: { work: Work; status: StatusLook; projects?: ProjectWork['projects'] }) {
   const steps = work.progress?.steps ?? null;
   const counts = steps?.length ? stepCounts(steps) : null;
   const planning = (state: LedgerStep['status']) => steps?.find(step => stepPhase(step) === 'planning' && step.status === state);
@@ -115,6 +115,7 @@ function StatusLine({ work, status }: { work: Work; status: StatusLook }) {
     {note ? <span className="work-status-note"><StateNote note={note} /></span> : fact && <span className="work-status-fact">{fact}</span>}
     {state?.since && <span className="work-status-fact" title={'Since ' + absoluteDate(state.since)}>{relativeDate(state.since)}</span>}
     {continued.length > 0 && <span className="work-status-fact"><ContinuedIn items={continued} open={to => go({ projectId: to.projectId, target: workTarget(to.work) })} /></span>}
+    {projects && projects.length > 0 && <span className="work-status-fact" title="The projects this work is in">in {projects.map(project => project.projectName).join(', ')}</span>}
     {work.location === 'archived' && <span className="work-status-fact">archived</span>}
   </div>;
 }
@@ -138,7 +139,7 @@ export function PlanPage({ work, snapshot, target }: { work: Work; snapshot: Sna
   // Its pages that need the person, as their agents said in their page.json.
   const asking = Object.entries(snapshot.attention ?? {}).filter(([page]) => page.startsWith(work.path + '/pages/'));
   return <Page className="work-page" breadcrumbs={<Trail work={work.id} items={[{ label: workNumber(work.id) }]} />}
-    title={work.title} toolbar={<StatusLine work={work} status={status} />} description={summary}>
+    title={work.title} toolbar={<StatusLine work={work} status={status} projects={listing?.projects} />} description={summary}>
     <div className="work-layout">
       <div className="work-main">
         {(listing?.tags?.length || asking.length > 0) && <div className="work-header">

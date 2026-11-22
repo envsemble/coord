@@ -26,8 +26,8 @@ export function ProjectAvatar({ project }: { project: Pick<Project, 'id' | 'name
 }
 
 /** What agents do on a project now, its open plans and when it changed, on one line. */
-function facts(project: Project): string {
-  const known = projectFacts(project);
+function facts(project: Project, projects: Project[]): string {
+  const known = projectFacts(project, projects);
   if (!known) return 'Its planning folder could not be read';
   return [known.waiting > 0 && known.waiting + ' your turn', known.working > 0 && known.working + ' working', plural(known.open, 'open plan'), known.updated && 'changed ' + relativeDate(known.updated)].filter(Boolean).join(' · ');
 }
@@ -55,7 +55,7 @@ export function ProjectMenu({ projects, chosen, computer, local, actions, newPro
         <Menu.Item className="project-menu-choice" aria-current={chosen ? undefined : 'true'} start={<span className="project-avatar project-avatar-all" aria-hidden="true"><IconApps /></span>}
           onClick={() => actions.go(hubPlace(null))}>All projects</Menu.Item>
         {active.map(project => <Menu.Item key={project.id} className="project-menu-choice" aria-current={chosen?.id === project.id ? 'true' : undefined} start={<ProjectAvatar project={project} />}
-          description={facts(project)} onClick={() => actions.go(hubPlace(project.id))}>{project.name}</Menu.Item>)}
+          description={facts(project, projects)} onClick={() => actions.go(hubPlace(project.id))}>{project.name}</Menu.Item>)}
       </Menu.Group>
       {chosen && <>
         <Menu.Separator />

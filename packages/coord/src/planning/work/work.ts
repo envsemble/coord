@@ -5,6 +5,7 @@
 // `updated`, and changes files the way a careful person would (only the lines that change). Nothing
 // is committed: agents commit planning changes themselves.
 import { randomUUID } from 'node:crypto';
+import { existsSync, readdirSync } from 'node:fs';
 import { mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseFrontmatter, type Metadata } from '../check/check.ts';
@@ -12,8 +13,13 @@ import { appendToSection, setFields, setSteps, yamlValue } from './headerText.ts
 import { HandoffGraph, parseHandoff, type HandoffReference } from '../handoffs/handoffs.ts';
 import { agreed, ledgerStatus, ledgerStepStatuses, stepCounts, stepSummary } from './ledger.ts';
 import { normalTag, tagCounts, tagsOf } from './tags.ts';
-import { isWorkId, partsOf } from './parts.ts';
-import { appendRegistryEntries, RegistryFormatError, updateRegistryEntry } from '../registry/registryText.ts';
+import { compareWorkIds, firstPartId, formerIds, isWorkId, parseWorkId, partId, resolveWorkId, writtenWorkId } from './ids.ts';
+import { isProjectName, projectKey, projectsOf } from './projects.ts';
+import { appendRegistryEntries, RegistryFormatError, setRegistryMember, updateRegistryEntry } from '../registry/registryText.ts';
+import { moveForward, registryVersion, renamedField } from '../registry/moveForward.ts';
+import { workLink, workName } from './links.ts';
+import { databaseName, HomeDatabase } from '../../home/database.ts';
+import { coordHome } from '../../home/homePath.ts';
 import { stepLimit, workStatistics } from '../reports/reports.ts';
 import { isStateKind, stateKinds, stateNeedsNote, stateNoteLimit, stateOf } from './state.ts';
 import type { LedgerStep, LedgerStepStatus, StateKind, WorkState } from '../types.ts';
@@ -30,6 +36,12 @@ export interface WorkStatus {
   summary: string | null;
   /** The plan's `tags`: the release it ships in and the areas it touches. */
   tags: string[];
+  /** The projects it is in, by their planning folders' names, when its plan lists them (`projects`); without them it is in the project that keeps it. */
+  projects?: string[];
+  /** The parts of its work item, this one among them, in their numbers' order, when it has more than one. */
+  parts?: string[];
+  /** How to name it to a person so a click opens it in Coord: its name across projects (`coord#0032-2`) and its link, to write as `[name title](link)`. */
+  name?: string; link?: string;
   location: 'active' | 'archive' | 'other';
   plan: string;
   designStatus: string | null; implementationStatus: string | null;
@@ -56,7 +68,6 @@ function stateHeader(kind: StateKind | null, note: string | null, options: Opera
 }
 
 const BOM = String.fromCharCode(0xfeff);
-const workIdentity = /^work-([0-9]{4,})$/;
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ignoredFolders = new Set(['node_modules', '__pycache__', 'dist', 'build']);
 
@@ -109,6 +120,8 @@ const file = (root: string, relative: string) => path.join(root, ...relative.spl
 interface Entry { id: string; path: string; current_plan: string | null }
 interface Loaded {
   root: string; registryText: string; entry: Entry; plan: string;
+  /** Every work ID the registry has, for the parts of this one's work item. */
+  registered: string[];
   planText: string; planMetadata: Metadata;
   ledgerText: string; ledgerSteps: LedgerStep[]; blocked: string | null;
 }
@@ -117,14 +130,23 @@ async function planningRoot(input: string) {
   return realpath(input).catch(() => { throw new WorkError('The planning folder does not exist: ' + input); });
 }
 async function registryOf(root: string) {
+  // A folder of the earlier registry version is moved forward first.
+  await moveForward(root);
   let text: string;
   try { text = await readFile(path.join(root, 'planning.json'), 'utf8'); }
   catch { throw new WorkError('The planning folder has no readable planning.json: ' + root); }
-  let registry: { schema_version?: unknown; work_items?: unknown };
+  let registry: { schema_version?: unknown; work_items?: unknown; former_ids?: unknown };
   try { registry = JSON.parse(text.startsWith(BOM) ? text.slice(1) : text); } catch (error) { throw new WorkError('planning.json is not valid JSON: ' + (error as Error).message); }
-  if (registry?.schema_version !== 2) throw new WorkError('planning.json is not schema version 2; coord check says what to change.');
+  if (registry?.schema_version !== registryVersion) throw new WorkError(`planning.json is not schema version ${registryVersion}; coord check says what to change.`);
   if (!Array.isArray(registry.work_items)) throw new WorkError('planning.json needs a work_items list.');
-  return { text, workItems: registry.work_items as Partial<Entry>[] };
+  return { text, workItems: registry.work_items as Partial<Entry>[], registry };
+}
+/** The registry's work IDs. */
+const registeredIds = (workItems: Partial<Entry>[]) => workItems.map(item => item?.id).filter((id): id is string => typeof id === 'string');
+/** The parts of a work item among the registered IDs, in their numbers' order. */
+function partsAmong(registered: string[], workId: string): string[] {
+  const number = parseWorkId(workId)?.number;
+  return registered.filter(id => parseWorkId(id)?.number === number).sort(compareWorkIds);
 }
 
 function ledgerOf(text: string, workId: string) {
@@ -137,12 +159,14 @@ function ledgerOf(text: string, workId: string) {
   return { steps: status.steps, blocked: status.blocked };
 }
 
-async function load(input: string, workId: string): Promise<Loaded> {
-  if (typeof workId !== 'string' || !workIdentity.test(workId)) throw new WorkError('Give the work item as its ID, such as work-0001.');
+/** A work item by any of its names: its ID, its first part's with the 1 written out, or a former ID. */
+async function load(input: string, name: string): Promise<Loaded> {
+  if (!isWorkId(name)) throw new WorkError('Give the work item as its ID, such as work-0001 or, for a later part, work-0001-2.');
   const root = await planningRoot(input);
   const registry = await registryOf(root);
-  const entry = registry.workItems.find(item => item?.id === workId);
-  if (!entry) throw new WorkError(`${workId} is not registered in ${root}.`);
+  const workId = resolveWorkId(registry.registry, name);
+  const entry = workId === null ? undefined : registry.workItems.find(item => item?.id === workId);
+  if (!entry || workId === null) throw new WorkError(`${name} is not registered in ${root}.`);
   if (typeof entry.path !== 'string' || !entry.path || entry.path.includes('\\') || entry.path.split('/').includes('..')) throw new WorkError(`${workId} has an invalid path in planning.json.`);
   const folder = entry.path.replace(/\/+$/, ''), plan = folder + '/plan.md';
   // The plan is written: it is the work folder's plan.md, as `coord check` requires.
@@ -157,7 +181,7 @@ async function load(input: string, workId: string): Promise<Loaded> {
   try { ledgerText = await readFile(file(root, folder + '/ledger.md'), 'utf8'); } catch { throw new WorkError(`${workId} has no readable ledger.md; coord check says what to fix.`); }
   const ledger = ledgerOf(ledgerText, workId);
   return {
-    root, registryText: registry.text, entry: { id: workId, path: folder, current_plan: plan },
+    root, registryText: registry.text, entry: { id: workId, path: folder, current_plan: plan }, registered: registeredIds(registry.workItems),
     plan, planText, planMetadata, ledgerText, ledgerSteps: ledger.steps, blocked: ledger.blocked,
   };
 }
@@ -174,8 +198,12 @@ export async function workStatus(root: string, workId: string): Promise<WorkStat
 async function describe(loaded: Loaded): Promise<WorkStatus> {
   const { entry, planMetadata: plan } = loaded;
   const statistics = (await workStatistics(loaded.root, [{ id: entry.id, path: entry.path, currentPlan: loaded.plan, completed: text(plan.completed_at) }]).catch(() => ({})) as Record<string, { reports: number; agentMs: number; tokens: number | null; primaryModel: string | null }>)[entry.id];
+  const projects = projectsOf(plan.projects);
+  const parts = partsAmong(loaded.registered, entry.id);
+  const project = path.basename(loaded.root), name = workName(project, entry.id), link = workLink(project, entry.id);
   return {
-    planningFolder: loaded.root, workId: entry.id, title: text(plan.title) ?? path.posix.basename(entry.path), summary: text(plan.summary)?.trim() || null, tags: tagsOf(plan.tags), path: entry.path, location: locationOf(entry.path),
+    ...name && link && { name, link },
+    planningFolder: loaded.root, workId: entry.id, title: text(plan.title) ?? path.posix.basename(entry.path), summary: text(plan.summary)?.trim() || null, tags: tagsOf(plan.tags), ...projects.length && { projects }, ...parts.length > 1 && { parts }, path: entry.path, location: locationOf(entry.path),
     plan: loaded.plan,
     designStatus: text(plan.design_status), implementationStatus: text(plan.implementation_status),
     created: text(plan.created), updated: text(plan.updated), acceptedAt: text(plan.accepted_at), completedAt: text(plan.completed_at),
@@ -203,11 +231,12 @@ async function writeLedger(loaded: Loaded, next: string, location = loaded.entry
   return location + '/ledger.md';
 }
 
-function nextNumber(registered: Partial<Entry>[], folders: string[]) {
+/** The next work item's number: above every registered one and every former ID's (a number is never given twice), and no folder's. */
+function nextNumber(registered: Partial<Entry>[], folders: string[], former: Iterable<string> = []) {
   let highest = 0;
-  for (const item of registered) {
-    const match = typeof item?.id === 'string' ? workIdentity.exec(item.id) : null;
-    if (match) highest = Math.max(highest, Number(match[1]));
+  for (const id of [...registered.map(item => item?.id), ...former]) {
+    const parsed = parseWorkId(id);
+    if (parsed) highest = Math.max(highest, Number(parsed.number));
   }
   const taken = new Set(folders.map(name => /^([0-9]+)-/.exec(name)?.[1]).filter(Boolean).map(Number));
   let next = highest + 1;
@@ -303,13 +332,15 @@ function checkedHandoffs(root: string, values: unknown, workId: string | null): 
     const item = parseHandoff(value);
     if (!item) throw new WorkError(`${JSON.stringify(value)} is not a work item: write work-0023, or project:work-0023 for another project of the home (its planning folder's name).`);
     const folder = graph.folder(root, item);
-    if (!folder || !graph.exists(root, item)) throw new WorkError(String(value).trim() + ' names no work item' + (item.project ? ' (is ' + item.project + ' the planning folder\'s name in the home?)' : ' in this project') + '.');
-    if (item.workId === workId && folder === root) throw new WorkError('A work item cannot continue itself.');
+    // The ID its registry writes: a former ID leads to the part it now names.
+    const id = folder ? graph.resolve(folder, item.workId) : null;
+    if (!folder || !id) throw new WorkError(String(value).trim() + ' names no work item' + (item.project ? ' (is ' + item.project + ' the planning folder\'s name in the home?)' : ' in this project') + '.');
+    if (id === workId && folder === root) throw new WorkError('A work item cannot continue itself.');
     // Written as the reference resolves: bare in its own project, by the folder's real name in another; each once.
-    const text = folder === root ? item.workId : path.basename(folder) + ':' + item.workId;
+    const text = folder === root ? id : path.basename(folder) + ':' + id;
     if (written.includes(text)) continue;
     written.push(text);
-    references.push({ project: folder === root ? null : path.basename(folder), workId: item.workId });
+    references.push({ project: folder === root ? null : path.basename(folder), workId: id });
   }
   if (workId !== null && written.length) {
     graph.assume(root, workId, references);
@@ -318,30 +349,28 @@ function checkedHandoffs(root: string, values: unknown, workId: string | null): 
   return written;
 }
 
+/** The home's projects by their planning folders' names: the folders beside this one that have a registry. */
+function homeProjects(root: string): string[] {
+  const planning = path.dirname(root);
+  try { return readdirSync(planning, { withFileTypes: true }).filter(entry => entry.isDirectory() && !entry.name.startsWith('.') && existsSync(path.join(planning, entry.name, 'planning.json'))).map(entry => entry.name).sort((a, b) => a.localeCompare(b)); }
+  catch { return []; }
+}
+
 /**
- * A group's parts as its header writes them, refused unless each is a registered work item of this
- * project, other than the group, listed once, in no other group and without parts of its own, and
- * the group (when it gets parts) is not itself a part: groups are one level deep.
+ * The projects a work item is in, as its header writes them: each a project of the home, by its
+ * planning folder's name as the folder spells it, each once. An empty list records none: the work
+ * is then in the project that keeps it.
  */
-async function checkedParts(root: string, values: unknown, groupId: string): Promise<string[]> {
-  if (!Array.isArray(values)) throw new WorkError('Give the parts as a list, such as ["work-0034", "work-0035"].');
-  const plans = await registeredPlans(root);
-  const registered = new Set((await registryOf(root)).workItems.map(item => item?.id));
-  const partsOfPlan = new Map(plans.map(item => [item.id, partsOf(item.metadata.parts, item.id)]));
+function checkedProjects(root: string, values: unknown): string[] {
+  if (!Array.isArray(values)) throw new WorkError('Give the projects as a list of their planning folders\' names, such as ["envui", "internal"].');
+  const known = homeProjects(root);
   const written: string[] = [];
   for (const value of values) {
-    const id = typeof value === 'string' ? value.trim() : value;
-    if (!isWorkId(id)) throw new WorkError(`${JSON.stringify(value)} is not a work item of this project: write work-0034 (parts are always in the group's project).`);
-    if (!registered.has(id)) throw new WorkError(`${id} names no work item in this project.`);
-    if (id === groupId) throw new WorkError('A work item cannot be its own part.');
-    if (written.includes(id)) throw new WorkError(`${id} is listed twice: each part once, in its place.`);
-    const other = [...partsOfPlan].find(([group, parts]) => group !== groupId && parts.includes(id))?.[0];
-    if (other) throw new WorkError(`${id} is already a part of ${other}; take it out there first (work_update with its parts, on ${other}).`);
-    if (partsOfPlan.get(id)?.length) throw new WorkError(`${id} has parts of its own; groups are one level deep.`);
-    written.push(id);
+    const name = typeof value === 'string' ? value.trim() : value;
+    const found = isProjectName(name) ? known.find(project => projectKey(project) === projectKey(name)) : undefined;
+    if (!found) throw new WorkError(`${JSON.stringify(value)} names no project of the home: name each by its planning folder's name${known.length ? ' (' + known.join(', ') + ')' : ''}.`);
+    if (!written.includes(found)) written.push(found);
   }
-  const outer = [...partsOfPlan].find(([group, parts]) => group !== groupId && parts.includes(groupId))?.[0];
-  if (written.length && outer) throw new WorkError(`${groupId} is a part of ${outer}, so it cannot have parts: groups are one level deep.`);
   return written;
 }
 
@@ -370,10 +399,12 @@ const implementationStep = (step: LedgerStep) => !step.phase;
 /**
  * Create and register a work item: the next unused number across active, archived and registered
  * work, `active/NNNN-slug/plan.md` with a draft plan header (with its summary, when given), its
- * ledger with the planning steps, and its planning.json entry. With `partOf`, a work item of this
- * project, it becomes the last of that group's parts.
+ * ledger with the planning steps, and its planning.json entry. With `partOf`, any part of a work
+ * item of this project, it is that work item's next part instead (`work-0034-3` in
+ * `active/0034-3-slug`). With `projects`, it is in those projects of the home rather than in the
+ * one that keeps it.
  */
-export async function createWork(input: string, request: { title: string; slug?: string | null; summary?: string | null; continues?: string[] | null; tags?: string[] | null; partOf?: string | null }, options: OperationOptions = {}): Promise<WorkResult & { partOf?: string }> {
+export async function createWork(input: string, request: { title: string; slug?: string | null; summary?: string | null; continues?: string[] | null; tags?: string[] | null; partOf?: string | null; projects?: string[] | null }, options: OperationOptions = {}): Promise<WorkResult & { partOf?: string }> {
   const today = dateOf(options);
   const title = oneLine(request.title, 'The title');
   const summary = request.summary == null || String(request.summary).trim() === '' ? null : oneLine(request.summary, 'The summary', summaryLimit);
@@ -381,26 +412,26 @@ export async function createWork(input: string, request: { title: string; slug?:
   const registry = await registryOf(root);
   const continues = request.continues?.length ? checkedHandoffs(root, request.continues, null) : [];
   const tags = request.tags?.length ? checkedTags(request.tags) : [];
-  // The group it is a part of, which must not be a part itself: groups are one level deep.
-  let group: Loaded | null = null;
+  const projects = request.projects?.length ? checkedProjects(root, request.projects) : [];
+  // The work item it is a part of, named by any of its parts.
+  let whole: string | null = null;
   if (request.partOf != null && String(request.partOf).trim() !== '') {
-    const groupId = String(request.partOf).trim();
-    if (!isWorkId(groupId)) throw new WorkError(`${JSON.stringify(request.partOf)} is not a work item of this project: write work-0034 (parts are always in the group's project).`);
-    group = await load(root, groupId);
-    const outer = (await registeredPlans(root)).find(item => item.id !== groupId && partsOf(item.metadata.parts, item.id).includes(groupId));
-    if (outer) throw new WorkError(`${groupId} is a part of ${outer.id}, so it cannot have parts: groups are one level deep.`);
+    const given = String(request.partOf).trim();
+    if (!isWorkId(given)) throw new WorkError(`${JSON.stringify(request.partOf)} is not a work item of this project: write work-0034 (a part is always in its work item's project).`);
+    whole = firstPartId((await load(root, given)).entry.id);
   }
   const slug = request.slug ? request.slug : slugOf(title);
   if (!slugPattern.test(slug) || slug.length > 80) throw new WorkError('The slug must be lowercase letters and digits joined by hyphens.');
   const folders = (await Promise.all(['active', 'archive'].map(location => readdir(path.join(root, location)).catch(() => [] as string[])))).flat();
-  const number = nextNumber(registry.workItems, folders);
-  const workId = 'work-' + number, location = `active/${number}-${slug}`, plan = location + '/plan.md';
+  const number = whole ? parseWorkId(whole)!.number : nextNumber(registry.workItems, folders, formerIds(registry.registry.former_ids).keys());
+  const part = whole ? nextPart([...registeredIds(registry.workItems), ...formerIds(registry.registry.former_ids).values()], number) : 1;
+  const workId = partId(number, part), location = `active/${number}-${part === 1 ? '' : part + '-'}${slug}`, plan = location + '/plan.md';
   if (await exists(file(root, location))) throw new WorkError(location + ' already exists.');
   let registryText: string;
   try { registryText = appendRegistryEntries(registry.text, 'work_items', [{ id: workId, path: location, current_plan: plan }]); }
   catch (error) { if (error instanceof RegistryFormatError) throw new WorkError(error.message); throw error; }
   const planText = ['---', 'schema_version: 2', 'kind: plan', 'id: ' + workId, 'title: ' + JSON.stringify(title), ...summary ? ['summary: ' + JSON.stringify(summary)] : [],
-    `created: "${today}"`, `updated: "${today}"`, 'design_status: draft', 'implementation_status: not_started', 'accepted_at: null', 'completed_at: null', 'supersedes: []', 'superseded_by: null', ...continues.length ? ['continues: ' + yamlValue('continues', continues)] : [], ...tags.length ? ['tags: ' + yamlValue('tags', tags)] : [],
+    `created: "${today}"`, `updated: "${today}"`, 'design_status: draft', 'implementation_status: not_started', 'accepted_at: null', 'completed_at: null', 'supersedes: []', 'superseded_by: null', ...continues.length ? ['continues: ' + yamlValue('continues', continues)] : [], ...tags.length ? ['tags: ' + yamlValue('tags', tags)] : [], ...projects.length ? ['projects: ' + yamlValue('projects', projects)] : [],
     ...Object.entries(stateHeader('planning', null, options)).map(([field, value]) => field + ': ' + yamlValue(field, value)), '---', '', '# ' + title, ''].join('\n');
   await mkdir(file(root, location), { recursive: true });
   try {
@@ -413,10 +444,11 @@ export async function createWork(input: string, request: { title: string; slug?:
     throw error;
   }
   const changed = [plan, location + '/ledger.md', 'planning.json'];
-  if (!group) return result(root, workId, changed);
-  changed.push(await writePlan(group, { parts: [...partsOf(group.planMetadata.parts, group.entry.id), workId] }, today));
-  return { ...await result(root, workId, changed), partOf: group.entry.id };
+  return whole ? { ...await result(root, workId, changed), partOf: whole } : result(root, workId, changed);
 }
+
+/** A work item's next part number: one above the highest among these IDs (the registered ones and those former IDs lead to, so none is given twice). */
+const nextPart = (registered: string[], number: string) => 1 + Math.max(1, ...registered.map(id => parseWorkId(id)).filter(parsed => parsed?.number === number).map(parsed => parsed!.part));
 
 /** Accept the design: `design_status: accepted`, `accepted_at` today, and every planning step done. */
 export async function acceptWork(root: string, workId: string, options: OperationOptions = {}): Promise<WorkResult> {
@@ -552,20 +584,60 @@ export async function removeStep(root: string, workId: string, title: string, op
  */
 export async function setContinues(input: string, workId: string, continues: string[], options: OperationOptions = {}) {
   const loaded = await load(input, workId);
-  const written = checkedHandoffs(loaded.root, continues, workId);
+  const written = checkedHandoffs(loaded.root, continues, loaded.entry.id);
   const changed = [await writePlan(loaded, { continues: written }, dateOf(options))];
   return { ...await result(loaded.root, workId, changed), continues: written };
 }
 
 /**
- * Set the work a work item is made of (its header's `parts`), in order, replacing what was
- * recorded: to reorder them, add existing work or take a part out. An empty list records none.
+ * Make a work item a part of another: it becomes that work item's next part (`work-0050` joining
+ * `work-0046` as `work-0046-4`), and its old ID a former one, which still names it and whose number
+ * is never given again. Only a work item of one part joins another; its plan, ledger and folder stay
+ * where they are, and the home database's rows about it take the new ID.
  */
-export async function setParts(input: string, workId: string, parts: string[], options: OperationOptions = {}) {
+export async function joinWork(input: string, name: string, into: string, options: OperationOptions = {}) {
+  const today = dateOf(options);
+  const loaded = await load(input, name);
+  if (!isWorkId(into)) throw new WorkError(`${JSON.stringify(into)} is not a work item of this project: write work-0034 (a part is always in its work item's project).`);
+  const whole = firstPartId((await load(loaded.root, into)).entry.id)!;
+  const old = loaded.entry.id, number = parseWorkId(whole)!.number;
+  if (parseWorkId(old)!.number === number) throw new WorkError(`${old} is a part of ${whole} already.`);
+  if (partsAmong(loaded.registered, old).length > 1) throw new WorkError(`${old} is one of several parts: only a work item of one part joins another.`);
+  const registry = await registryOf(loaded.root);
+  const former = formerIds(registry.registry.former_ids);
+  const workId = partId(number, nextPart([...loaded.registered, ...former.values()], number));
+  let registryText: string;
+  try {
+    registryText = updateRegistryEntry(registry.text, 'work_items', old, { id: workId });
+    // Its old ID leads to it, and so does every ID that led to the old one.
+    registryText = setRegistryMember(registryText, 'former_ids', { ...Object.fromEntries([...former].map(([from, to]) => [from, to === old ? workId : to])), [old]: workId }, ['work_items']);
+  } catch (error) { if (error instanceof RegistryFormatError) throw new WorkError(error.message); throw error; }
+  const ledger = loaded.entry.path + '/ledger.md';
+  if (await readFile(path.join(loaded.root, 'planning.json'), 'utf8') !== registry.text || registry.text !== loaded.registryText) throw new WorkError('planning.json changed meanwhile; nothing was changed. Try again.');
+  await writeText(file(loaded.root, loaded.plan), setFields(renamedField(loaded.planText, 'id', old, workId), { updated: today }));
+  await writeText(file(loaded.root, ledger), renamedField(loaded.ledgerText, 'work_id', old, workId));
+  await writeText(path.join(loaded.root, 'planning.json'), registryText);
+  // What the home recorded about it follows it; a home that cannot be opened keeps its rows under the former ID.
+  const home = coordHome();
+  if (existsSync(path.join(home, databaseName))) {
+    try {
+      const database = HomeDatabase.open(home);
+      try { const project = database.projectByFolder(loaded.root); if (project) database.renameWork(project.id, [[old, workId]]); } finally { database.close(); }
+    } catch { /* Its statistics stay under the former ID. */ }
+  }
+  return { ...await result(loaded.root, workId, [loaded.plan, ledger, 'planning.json']), partOf: whole, formerly: old };
+}
+
+/**
+ * Set the projects a work item is in (its header's `projects`), replacing what was recorded. An
+ * empty list records none: the work is then in the project that keeps it.
+ */
+export async function setProjects(input: string, workId: string, projects: string[], options: OperationOptions = {}) {
   const loaded = await load(input, workId);
-  const written = await checkedParts(loaded.root, parts, workId);
-  const changed = [await writePlan(loaded, { parts: written }, dateOf(options))];
-  return { ...await result(loaded.root, workId, changed), parts: written };
+  const written = checkedProjects(loaded.root, projects);
+  // A plan that never listed projects stays without the field when none are given.
+  const changed = !written.length && loaded.planMetadata.projects === undefined ? [] : [await writePlan(loaded, { projects: written }, dateOf(options))];
+  return { ...await result(loaded.root, workId, changed), projects: written };
 }
 
 /**
@@ -587,16 +659,18 @@ export async function setState(root: string, workId: string, request: { kind: st
   return result(loaded.root, workId, changed);
 }
 
-/** Change a work item's tags, the work it continues and its parts, each only when given. */
-export async function updateWork(root: string, workId: string, request: { addTags?: string[]; removeTags?: string[]; continues?: string[]; parts?: string[] }, options: OperationOptions = {}): Promise<WorkResult & { projectTags?: Record<string, number> }> {
-  const { addTags, removeTags, continues, parts } = request;
-  if (addTags === undefined && removeTags === undefined && continues === undefined && parts === undefined) throw new WorkError('Give what changes: tags to add or remove, the work it continues, or its parts.');
+/** Change a work item's tags, the work it continues, the work item it is a part of and the projects it is in, each only when given. */
+export async function updateWork(root: string, workId: string, request: { addTags?: string[]; removeTags?: string[]; continues?: string[]; partOf?: string; projects?: string[] }, options: OperationOptions = {}): Promise<WorkResult & { projectTags?: Record<string, number> }> {
+  const { addTags, removeTags, continues, partOf, projects } = request;
+  if (addTags === undefined && removeTags === undefined && continues === undefined && partOf === undefined && projects === undefined) throw new WorkError('Give what changes: tags to add or remove, the work it continues, the work item it is a part of, or the projects it is in.');
   const changed = new Set<string>();
   let last: (WorkResult & { projectTags?: Record<string, number> }) | null = null;
   if (addTags !== undefined || removeTags !== undefined) last = await tagWork(root, workId, { add: addTags, remove: removeTags }, options);
   for (const item of last?.changed ?? []) changed.add(item);
   if (continues !== undefined) { const done = await setContinues(root, workId, continues, options); for (const item of done.changed) changed.add(item); last = { ...done, projectTags: last?.projectTags }; }
-  if (parts !== undefined) { const done = await setParts(root, workId, parts, options); for (const item of done.changed) changed.add(item); last = { ...done, projectTags: last?.projectTags }; }
+  if (projects !== undefined) { const done = await setProjects(root, workId, projects, options); for (const item of done.changed) changed.add(item); last = { ...done, projectTags: last?.projectTags }; }
+  // Last: it changes the work's ID, which the answer then carries.
+  if (partOf !== undefined) { const done = await joinWork(root, workId, partOf, options); for (const item of done.changed) changed.add(item); last = { ...done, projectTags: last?.projectTags }; }
   return { ...last!, changed: [...changed] };
 }
 
@@ -709,19 +783,22 @@ export async function archiveWork(root: string, workId: string, request: Archive
   if (locationOf(loaded.entry.path) !== 'active') throw new WorkError(`${workId} is not in active/ (${loaded.entry.path}).`);
   const complete = loaded.planMetadata.implementation_status === 'complete' && !openItems(loaded).length;
   if (!disposition && !complete) throw new WorkError(`${workId} is not complete: archive it as superseded (by the work that replaces it) or abandoned (with the reason), or close it once its items are done.`, openItems(loaded));
+  // The work that supersedes it, as the registry writes it.
+  let by: string | null = null;
   if (disposition === 'superseded') {
-    if (typeof supersededBy !== 'string' || !workIdentity.test(supersededBy) || supersededBy === workId) throw new WorkError('Name the work item that supersedes it, such as work-0012.');
-    const registry = await registryOf(loaded.root);
-    if (!registry.workItems.some(item => item?.id === supersededBy)) throw new WorkError(`${supersededBy} is not registered in ${loaded.root}.`);
+    if (!isWorkId(supersededBy) || writtenWorkId(supersededBy) === loaded.entry.id) throw new WorkError('Name the work item that supersedes it, such as work-0012.');
+    by = resolveWorkId((await registryOf(loaded.root)).registry, supersededBy);
+    if (!by) throw new WorkError(`${supersededBy} is not registered in ${loaded.root}.`);
+    if (by === loaded.entry.id) throw new WorkError('Name the work item that supersedes it, such as work-0012.');
   } else if (supersededBy) throw new WorkError('Only superseded work names the work that supersedes it.');
   if (disposition === 'abandoned' && !reason) throw new WorkError('Give the reason the work is abandoned.');
   const moved = await move(loaded, 'archive');
   const changed = [...moved];
   if (disposition) {
-    const note = `archived as ${disposition}${supersededBy ? ' by ' + supersededBy : ''}${reason ? ': ' + reason.replace(/\.$/, '') : ''}.`;
+    const note = `archived as ${disposition}${by ? ' by ' + by : ''}${reason ? ': ' + reason.replace(/\.$/, '') : ''}.`;
     loaded.planText = appendToSection(loaded.planText, `- ${today}: ${note[0].toUpperCase() + note.slice(1)}`, '## Outcome');
   }
-  changed.push(await writePlan(loaded, { ...disposition ? { design_status: disposition, ...supersededBy && { superseded_by: supersededBy } } : {}, ...declaredState(loaded) }, today));
+  changed.push(await writePlan(loaded, { ...disposition ? { design_status: disposition, ...by && { superseded_by: by } } : {}, ...declaredState(loaded) }, today));
   return result(loaded.root, workId, [...new Set(changed)]);
 }
 

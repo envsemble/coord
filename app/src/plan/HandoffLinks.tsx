@@ -6,6 +6,7 @@ import { Link } from '@envsemble/envui';
 import { IconArrowBack as ArrowBack } from '@envsemble/envui/icons/ArrowBack';
 import { IconArrowForward as ArrowForward } from '@envsemble/envui/icons/ArrowForward';
 import type { Handoff } from './handoffs';
+import { Hint } from '../ui/Hint';
 
 /** Opens another plan: its project's ID and its work ID. */
 export type OpenHandoff = (to: { projectId: string; work: string }) => void;
@@ -14,10 +15,10 @@ export type OpenHandoff = (to: { projectId: string; work: string }) => void;
 function HandoffRef({ item, open, short = false }: { item: Handoff; open: OpenHandoff; short?: boolean }) {
   const text = [item.number, !short && item.title, item.project].filter(Boolean).join(' · ');
   const title = [item.number, item.title, item.project].filter(Boolean).join(' · ');
-  if (!item.open) return <span className="handoff-ref muted" title={title + ' (not found)'}>{text}</span>;
+  if (!item.open) return <Hint content={title + ' (not found)'}><span className="handoff-ref muted">{text}</span></Hint>;
   const to = item.open;
   const activate = (event: MouseEvent) => { event.preventDefault(); event.stopPropagation(); open(to); };
-  return <Link href="#" underline={false} className="handoff-ref" title={title} draggable={false} onClick={activate}>{text}</Link>;
+  return <Hint content={title}><Link href="#" underline={false} className="handoff-ref" draggable={false} onClick={activate}>{text}</Link></Hint>;
 }
 
 /** The ledger's entries for the plan's handoffs: `continues` before its steps, `continuedIn` after them; list items. */

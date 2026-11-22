@@ -6,7 +6,7 @@ import type { HandoffLink } from '../types.ts';
 import type { ProjectWork } from '../projects/projectSummary.ts';
 
 /** A listed project: its ID, its planning folder, its name, and its summary (null when it could not be read). */
-export interface ListedProject { projectId: string; folder: string; name: string; summary: { active: ProjectWork[]; closed: ProjectWork[] } | null }
+export interface ListedProject { projectId: string; folder: string; name: string; summary: { active: ProjectWork[]; closed: ProjectWork[]; former?: Record<string, string> } | null }
 
 const caseless = process.platform === 'win32' || process.platform === 'darwin';
 const keyOf = (value: string) => caseless ? value.toLowerCase() : value;
@@ -35,9 +35,29 @@ export function linkHandoffs(projects: ListedProject[]) {
         if (seen.has(key)) return [];
         seen.add(key);
         if (!target) return [{ ...named, projectId: null, projectName: named.project, title: null, state: null, outcome: null }];
-        const found = work(target).find(other => other.id === named.workId);
+        // A former ID leads to the part it now names.
+        const id = target.summary?.former?.[named.workId] ?? named.workId;
+        const found = work(target).find(other => other.id === id);
         if (found) found.continuedIn!.push(link(project, item, item.id));
-        return [link(target, found, named.workId)];
+        return [link(target, found, found ? id : named.workId)];
+      });
+    }
+  }
+}
+
+/**
+ * Fill in the projects each work item is in (its plan's `projects`), in place: each named project
+ * found among the listed ones by its planning folder's name, as a handoff finds a project, with its
+ * ID and its name. A name no listed project has stays, without an ID.
+ */
+export function linkProjects(projects: ListedProject[]) {
+  const byName = new Map(projects.map(project => [keyOf(path.basename(path.resolve(project.folder))), project]));
+  for (const project of projects) {
+    for (const item of [...project.summary?.active ?? [], ...project.summary?.closed ?? []]) {
+      if (!item.projects) continue;
+      item.projects = item.projects.map(named => {
+        const found = byName.get(keyOf(named.project));
+        return found ? { projectId: found.projectId, project: path.basename(found.folder), projectName: found.name } : { projectId: null, project: named.project, projectName: named.project };
       });
     }
   }

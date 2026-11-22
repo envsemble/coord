@@ -6,17 +6,18 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseFrontmatter } from '../check/check.ts';
+import { formerIds, workIdSource, writtenWorkId } from '../work/ids.ts';
 
 export interface HandoffReference { project: string | null; workId: string }
 
-const reference = /^(?:([^:\\/\s][^:\\/]{0,99}):)?(work-[0-9]{4,})$/;
+const reference = new RegExp('^(?:([^:\\\\/\\s][^:\\\\/]{0,99}):)?(' + workIdSource + ')$');
 const caseless = process.platform === 'win32' || process.platform === 'darwin';
 const same = (a: string, b: string) => caseless ? a.toLowerCase() === b.toLowerCase() : a === b;
 
-/** A reference as a plan writes it; null for anything else. */
+/** A reference as a plan writes it, its work ID as registries write it (work-0023-1 is work-0023); null for anything else. */
 export function parseHandoff(value: unknown): HandoffReference | null {
   const match = typeof value === 'string' ? reference.exec(value.trim()) : null;
-  return match ? { project: match[1] ?? null, workId: match[2] } : null;
+  return match ? { project: match[1] ?? null, workId: writtenWorkId(match[2])! } : null;
 }
 export const handoffText = (item: HandoffReference) => (item.project ? item.project + ':' : '') + item.workId;
 
@@ -43,6 +44,7 @@ type Entry = { current_plan?: unknown };
  */
 export class HandoffGraph {
   private registries = new Map<string, Map<string, Entry> | null>();
+  private former = new Map<string, Map<string, string>>();
   private headers = new Map<string, Record<string, unknown> | null>();
   private siblings = new Map<string, string[]>();
   private edgeLists = new Map<string, HandoffNode[]>();
@@ -66,15 +68,25 @@ export class HandoffGraph {
   registry(folder: string) {
     const key = keyOf(folder);
     if (!this.registries.has(key)) {
-      const items = readJson(path.join(folder, 'planning.json'))?.work_items;
+      const registry = readJson(path.join(folder, 'planning.json'));
+      const items = registry?.work_items;
+      this.former.set(key, formerIds(registry?.former_ids));
       this.registries.set(key, Array.isArray(items) ? new Map(items.filter(item => item && typeof item === 'object' && typeof (item as { id?: unknown }).id === 'string').map(item => [(item as { id: string }).id, item as Entry])) : null);
     }
     return this.registries.get(key)!;
   }
+  /** The ID a name leads to in a planning folder: its own when registered, else the part a former ID now names; null for neither. */
+  resolve(folder: string, workId: string): string | null {
+    const registry = this.registry(folder);
+    if (!registry) return null;
+    if (registry.has(workId)) return workId;
+    const now = this.former.get(keyOf(folder))?.get(workId);
+    return now !== undefined && registry.has(now) ? now : null;
+  }
   /** Whether a reference names a registered work item. */
   exists(root: string, item: HandoffReference) {
     const folder = this.folder(root, item);
-    return folder !== null && this.registry(folder)?.has(item.workId) === true;
+    return folder !== null && this.resolve(folder, item.workId) !== null;
   }
   /** A registered work item's plan header; null when it has none that reads. */
   header(folder: string, workId: string): Record<string, unknown> | null {
@@ -95,7 +107,7 @@ export class HandoffGraph {
     const found = new Map<string, HandoffNode>();
     for (const item of references) {
       const folder = this.folder(root, item);
-      if (folder) { const node = this.node(folder, item.workId); if (!found.has(node.key)) found.set(node.key, node); }
+      if (folder) { const node = this.node(folder, this.resolve(folder, item.workId) ?? item.workId); if (!found.has(node.key)) found.set(node.key, node); }
     }
     return [...found.values()];
   }

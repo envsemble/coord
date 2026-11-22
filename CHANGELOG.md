@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+**The hub**
+
+- **A row's ask shows its PRs live:** the line under a plan's title (what you are to do, what it waits on, why it is blocked) links each PR, issue or commit it names, and a PR shows its state as a small mark after it, as on the plan's page (open, draft, merged or closed, and its checks). The link opens the PR in the browser; the rest of the row still opens the plan. The hub asks again when its window comes forward, so a PR merged meanwhile shows as merged.
+- **Hints open quickly:** what a reference leads to and what a PR's mark stands for show in a tooltip of the app's own as soon as the pointer rests on them, on the hub and in a plan, in place of the system's slower one.
+- **How long work has waited:** in **Your turn** and **Waiting** the last column is **Waiting** and says how long the state has stood (5 hours, 3 days), with the date when pointed at; the other groups keep **Changed**.
+- **Every part of a row answers when pointed at:** the status icon, the steps (done of all, planning and implementation apart, and the step worked on or next), the model, the agents' time by stage, the dates, the projects behind their avatars, a group's chevron and number, and a folded group's parts answer almost at once. A plan's title opens a card with its summary once the pointer has rested on its letters for half a second, and no longer from anywhere on its row; a line cut short says itself whole the same way. Before, the summary was the only hint a row gave, over all of it, and the hints of the steps, the dates and the projects never showed.
+- **Changes move instead of jumping:** a group's parts fold away and come back as a panel does, in 160 ms; when plans change while you look (an agent reports, a state changes), the rows that stay slide to their places, the tables grow or shrink with their rows, a new row is uncovered where it lands and one that leaves fades where it stood. A part's tile changes colour under the pointer as the rows do, and the heading line keeps its height when a project is chosen, so the plans no longer shift by a pixel. A change above the window leaves the rows you are reading where they are. Another project or filter still shows at once. Nothing moves when the system asks for reduced motion.
+- **A table at every width:** in a narrow window the hub keeps its columns and scrolls sideways, in place of stacking every row into a block.
+- **No line between a tile's cells:** at 125 % and 175 % zoom a one-pixel line of the surface showed between the first and second cell of a part's tile; the cells' fills now lap each other.
+
+**Work in several projects**
+
+- **A work item can be in several projects**, and each of its parts in projects of its own: its plan lists them (`projects`, by their planning folders' names), set with `work_create` and `work_update` (`coord work create --project`, `coord work update --project`). The hub's Project column shows every project a plan is in, a project's hub lists the plans that are in it, and the plan page names them.
+- **A group and its parts are one entry on the hub:** the group's row has its parts under it, in their order, set in and numbered, each with its state, what it is for, its steps and its agents, as a list of tiles of their own, so groups that follow each other stay apart. A click on the group's row folds its parts away (its number opens its plan, a part's row the part), and a folded group says how many parts it has and how many are your turn. Work of one part is listed like any other work. The group sits where its most pressing part does.
+- **A work item keeps one number, and its parts are numbered under it:** #0032-1, #0032-2, in place of a number of its own for every part. Every plan shows its work item's number and its part's, a work item of one part too. On the hub a work item of several parts is a row for the whole (#0032: its parts' steps, agents and time added up, and whose turn it is as its most pressing part says) with every part under it; a part's page names its work item in its breadcrumb and lists the parts beside it; the search finds a part by `#0032-2` and all of a work item by `#0032`. New parts are made with `work_create` and `partOf` (`coord work create --part-of`), and work that exists joins a work item with `work_update` and `partOf` (`coord work update --part-of`), which replaces the list of parts in a plan.
+- **Nothing written before breaks:** in files and tools a first part is still written with the number alone (`work-0032`), and work that had a number of its own before it became a part keeps it as a former ID, which every tool, link and reference follows. Coord moves each planning folder to the new registry (version 3) by itself the first time it reads it, with the statistics recorded for the renumbered parts, and commits the move in the folder's Git when what it changes had nothing uncommitted. An older Coord says the folder is of a version it does not read: update the app, and the `coord` command with it.
+- **A session sees the work that is in its project** though another project keeps it: `where` and the session start list it, named with that project (`envui:work-0048`), and the tools and `coord work` commands take that name to change it there.
+
+**Links to work**
+
+- **A click in any chat opens a plan in Coord:** agents name work as a link, such as `[coord#0046-2 Hub rows say more](https://coord.envsemble.com/open#coord/0046-2)`, as they link a PR. The link is a page of Coord's site that hands the address to the installed app, which shows that plan, starting first if it was closed. The tools' answers carry each work item's name and link, and the session start shows the form.
+- **Nothing is sent anywhere:** the page is a file, and the project and the number follow the `#` of its address, which browsers keep to themselves. The app registers itself for `coord://open/…` links at its start and opens nothing for any other address.
+
 ## 0.10.0 — Coord on envUI 3 — 2026-11-21
 
 **Search and the hub**

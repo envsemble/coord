@@ -27,8 +27,8 @@ export interface Work {
    */
   continues?: HandoffLink[]; continuedIn?: HandoffLink[];
   /**
-   * The work items this one is made of (its plan's `parts`: well-formed work IDs of this project, in
-   * order, each once), and the group that lists it among its parts (the first, should several), or null.
+   * Its work item's other parts, on the first part (the IDs that share its number, in their numbers'
+   * order), and on each of those the first part, which stands for the whole; else none and null.
    */
   parts?: string[]; partOf?: string | null;
   /** The state its plan's header declares, or null when it declares none. */
@@ -44,6 +44,12 @@ export interface HandoffLink {
   projectId: string | null; project: string; projectName: string; workId: string;
   title: string | null; state: 'blocked' | 'implementing' | 'draft' | 'other' | 'closed' | null; outcome: 'complete' | 'superseded' | 'abandoned' | null;
 }
+/**
+ * A project a work item is in, as its plan names it: `project` its planning folder's name in the
+ * home, `projectId` the project's ID (null when no listed project of the home has that planning
+ * folder) and `projectName` its name (the folder's name until it is found).
+ */
+export interface ProjectLink { projectId: string | null; project: string; projectName: string }
 /** One agent's working time on a work item: a session's own (subagent null) or one of its subagents'. */
 export interface AgentShare { session: string | null; subagent: string | null; model: string | null; effort: string | null; agentMs: number }
 /** Tokens by kind: new input, input read from the prompt cache, input written to it, and output. */
@@ -145,6 +151,8 @@ export interface PlanningIndex {
   name: string;
   loadedAt: string; caseSensitivePaths: boolean; normalizationInsensitivePaths: boolean; work: Work[];
   documents: Document[]; history: HistoryEntry[]; issues: Issue[]; gitAvailable: boolean;
+  /** The registry's former IDs: each an ID that work had before it became a part, and the ID it has now. */
+  former?: Record<string, string>;
 }
 export interface DocumentContent {
   path: string; title: string; body: string; format: string;

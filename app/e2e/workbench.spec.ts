@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { setState, updateWork } from '@envsemble/coord/planning';
 import {
   addProject, applicationMenu, close, closeMenus, expectArchived, expectHub, expectProjects, titleButton, filesSidebar, filterHub, goHome, hubRows, launch, launchProject, openPlan,
   openProjectMenu, pageScroll, settledScroll, listedProjects, projectAction, projectButton, projectDetails, projectHome, removeDirectory, restoreProject, searchPopup, showFiles, temporaryDirectory, titleBar, type Launched,
@@ -28,7 +29,7 @@ test('a window opens on the hub: every plan of every active project, grouped by 
   await expect(window.locator('.hub-group-heading')).toHaveText([/^Your turn\s*2$/, /^Waiting\s*2$/, /^Later\s*2$/]);
   await expect(groupRows(window, 'Your turn').first().locator('.hub-row-note')).toHaveText('Choose how a customer picks a saved card, on the card picker page');
   await expect(groupRows(window, 'Waiting').locator('.status-icon').first()).toHaveAttribute('aria-label', 'Blocked');
-  await expect(groupRows(window, 'Later')).toHaveText([/Order fulfilment model\s*#0002\s*(Project)?[NH]?(Northwind|Harbor)/, /Order fulfilment model\s*#0002\s*(Project)?[NH]?(Northwind|Harbor)/]);
+  await expect(groupRows(window, 'Later')).toHaveText([/Order fulfilment model\s*#0002-1\s*(Project)?[NH]?(Northwind|Harbor)/, /Order fulfilment model\s*#0002-1\s*(Project)?[NH]?(Northwind|Harbor)/]);
   await expect(hubRows(window, 'Saved payment methods').locator('.hub-row-project-name')).toHaveText(['Northwind', 'Harbor']);
   // One click on the row, away from its title, opens the plan; Back returns to the hub.
   const plan = hubRows(window, 'Customer order notifications').first();
@@ -36,6 +37,11 @@ test('a window opens on the hub: every plan of every active project, grouped by 
   const number = (await plan.locator('.hub-row-number').boundingBox())!;
   await window.mouse.click(number.x + number.width / 2, number.y + number.height / 2);
   await expect(window.locator('.work-page h1')).toHaveText('Customer order notifications');
+  await window.getByRole('button', { name: 'Back', exact: true }).click();
+  await expectHub(window);
+  // So does a click on what answers when pointed at: the line under the title lies above the row's link, for its hint.
+  await groupRows(window, 'Your turn').first().locator('.hub-row-note').click();
+  await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
   await window.getByRole('button', { name: 'Back', exact: true }).click();
   await expectHub(window);
   // Plans › All Plans leads back to the hub from anywhere.
@@ -103,9 +109,17 @@ test("the hub's search button opens the search and it never filters the hub; the
   await expect(window.locator('.hub-group-heading')).toHaveText([/^Closed\s*1$/]);
   await expect(window.getByRole('region', { name: 'Closed' }).locator('.hub-row .status-icon')).toHaveAttribute('aria-label', 'Complete');
   await expect(window.getByRole('region', { name: 'Closed' }).locator('.hub-row')).toContainText('Inventory reservations');
-  await expect(window.getByRole('region', { name: 'Closed' }).locator('.hub-row .handoff-continued')).toHaveText('continued in #0001');
+  await expect(window.getByRole('region', { name: 'Closed' }).locator('.hub-row .handoff-continued')).toHaveText('continued in #0001-1');
   await state.getByRole('radio', { name: /^All/ }).click();
   await expect(hubRows(window, 'Saved payment methods')).toHaveCount(1);
+  // The filter menu beside it narrows them further: its button, which has a hint, opens its menu.
+  await window.getByRole('button', { name: 'Filters', exact: true }).click();
+  await window.getByRole('menuitemcheckbox', { name: 'Your turn' }).click();
+  await expect(hubRows(window)).toHaveCount(1);
+  await window.keyboard.press('Escape');
+  await window.getByRole('button', { name: 'Filters, 1 on', exact: true }).click();
+  await window.getByRole('menuitem', { name: 'Clear filters' }).click();
+  await expect(hubRows(window)).toHaveCount(4);
   // The state filter stays while the window shows something else.
   await openPlan(window, 'Saved payment methods');
   // On a plan, the title bar's search finds the documents of its project too.
@@ -131,9 +145,10 @@ test("a plan opens from the hub with its summary and its side column, and with i
   writeFileSync(plan, readFileSync(plan, 'utf8').replace('## Problem', '## Request (Jacob, 2026-09-07)\n\n> Model how an order is fulfilled before we build it.\n\n### Later\n\nAnd split shipments too.\n\n## Problem\n\nAs [asked later](#later).'));
   launched = await launchProject(home);
   const { window } = launched;
-  // The hub shows the summary on the title's hover, and the steps done with the planning ones in their colour.
+  // The hub shows the summary in a card once the pointer rests on the title, and the steps done with the planning ones in their colour.
   const row = hubRows(window, 'Saved payment methods');
-  await expect(row.getByRole('link')).toHaveAttribute('title', summary);
+  await row.locator('.hub-row-name').hover();
+  await expect(window.locator('.env-hover-card')).toContainText(summary);
   await expect(row.locator('.hub-row-steps')).toHaveText('2 of 7');
   await expect(row.locator('.step-bar-planning-done')).toHaveCount(1);
   await openPlan(window, 'Saved payment methods');
@@ -150,16 +165,16 @@ test("a plan opens from the hub with its summary and its side column, and with i
   // The side column keeps progress, dates and statistics.
   await expect(window.locator('.plan-aside .ledger-progress-summary')).toHaveText('2 of 7 steps done · 5 left');
   await expect(window.locator('.plan-aside .ledger-step')).toHaveCount(7);
-  await expect(window.locator('.window-page .breadcrumb')).toHaveText(/^Plans.*Northwind.*#0001$/);
-  await expect(trailEnd(window)).toHaveText('#0001');
+  await expect(window.locator('.window-page .breadcrumb')).toHaveText(/^Plans.*Northwind.*#0001-1$/);
+  await expect(trailEnd(window)).toHaveText('#0001-1');
   // The work it continues opens its ledger, not as a step, and leads to that plan, whose status line and hub row say where it continues.
   const handoff = window.locator('.plan-aside .ledger-steps > .ledger-handoff');
-  await expect(handoff).toHaveText('Continues #0004 · Inventory reservations at checkout');
+  await expect(handoff).toHaveText('Continues #0004-1 · Inventory reservations at checkout');
   await expect(window.locator('.plan-aside .ledger-steps > li').first()).toHaveClass(/ledger-handoff/);
   await handoff.getByRole('link').click();
   await expect(window.locator('.work-page h1')).toHaveText('Inventory reservations at checkout');
-  await expect(window.locator('.work-status')).toContainText('continued in #0001');
-  await expect(window.locator('.plan-aside .ledger-handoff')).toHaveText('Continued in #0001 · Saved payment methods');
+  await expect(window.locator('.work-status')).toContainText('continued in #0001-1');
+  await expect(window.locator('.plan-aside .ledger-handoff')).toHaveText('Continued in #0001-1 · Saved payment methods');
   await window.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
   // A diagram opens from its link in the plan; Back returns to the plan.
@@ -217,7 +232,7 @@ test('a window shows one place at a time, and shows it again at the next start',
   window = launched.window;
   await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
   await expect(window.locator('.window-page .breadcrumb')).toContainText('Harbor');
-  await expect(trailEnd(window)).toHaveText('#0001');
+  await expect(trailEnd(window)).toHaveText('#0001-1');
   await showFiles(window);
 });
 
@@ -264,7 +279,7 @@ test("the plan's files are beside its pages with the plan's own folder, open a f
   await files.locator(row('f:active/0001-saved-payment-methods/CONTEXT.md')).click();
   await expect(files.locator(row('f:active/0001-saved-payment-methods/CONTEXT.md'))).toHaveAttribute('aria-selected', 'true');
   // The file is on the page as the plan is: under its plan's breadcrumb (Plans, project, plan), not a crumb of its own, its name below its title, with Show in folder beside it.
-  await expect(window.locator('.window-page .breadcrumb')).toHaveText(/^Plans.*Northwind.*#0001$/);
+  await expect(window.locator('.window-page .breadcrumb')).toHaveText(/^Plans.*Northwind.*#0001-1$/);
   await expect(window.locator('.file-page .file-name')).toHaveText('CONTEXT.md');
   await expect(window.locator('.file-page').getByRole('button', { name: 'Show in folder' })).toBeVisible();
   await expect(window.locator('.file-page .reader .prose')).toBeVisible();
@@ -346,7 +361,7 @@ test("the hub's project menu makes a project from a name and a folder, gives a p
   await expect(dialog).toHaveCount(0);
   const folder = path.join(home.dataDirectory, 'planning', 'harbor');
   const registry = JSON.parse(readFileSync(path.join(folder, 'planning.json'), 'utf8'));
-  expect([registry.schema_version, registry.name, registry.folders, 'repositories' in registry]).toEqual([2, 'Harbor', [workspace], false]);
+  expect([registry.schema_version, registry.name, registry.folders, 'repositories' in registry]).toEqual([3, 'Harbor', [workspace], false]);
   expect(existsSync(path.join(folder, '.git')) && existsSync(path.join(folder, 'AGENTS.md'))).toBe(true);
   await expectProjects(window, ['Northwind', 'Harbor']);
   // Rename: the name goes into its planning.json.
@@ -528,7 +543,7 @@ test("the search shows the host's results grouped by kind with their project, wo
   await expect.poll(asked).toEqual(['qqq']);
   for (const group of ['Elements', 'Headings', 'Documents', 'Steps', 'Projects']) await expect(palette.getByRole('group', { name: group })).toHaveCount(1);
   const heading = palette.getByRole('option', { name: /^Current checkout/ });
-  await expect(heading).toContainText('Northwind · #0001 Saved payment methods');
+  await expect(heading).toContainText('Northwind · #0001-1 Saved payment methods');
   await expect(heading).toContainText('card details are typed in again on every order');
   // The keyboard moves through them.
   await input.press('ArrowDown');
@@ -604,4 +619,48 @@ test('the side column of a plan stays still while the page scrolls, and scrolls 
   await window.waitForTimeout(400);
   expect(await pageScroll(window)).toBe(page);
   expect(Math.abs(await top() - resting)).toBeLessThan(1);
+});
+
+test('a work item of several parts is one entry on the hub, a row for the whole and its parts under it, in every project one of them is in', async () => {
+  const home = projectHome();
+  homes.push(home.dataDirectory);
+  addProject(home.dataDirectory, 'harbor', 'Harbor');
+  // Northwind's Saved payment methods gets two more parts: work that existed joins it and takes its number.
+  // The second part is in Harbor alone, the third in both projects.
+  await updateWork(home.folder, 'work-0002', { partOf: 'work-0001' });
+  await updateWork(home.folder, 'work-0003', { partOf: 'work-0001' });
+  await updateWork(home.folder, 'work-0001-2', { projects: ['harbor'] });
+  await updateWork(home.folder, 'work-0001-3', { projects: ['northwind', 'harbor'] });
+  // Its former ID still names the second part.
+  await setState(home.folder, 'work-0002', { kind: 'your_turn', note: 'Try the picker' });
+  launched = await launch({ dataDirectory: home.dataDirectory });
+  const { window } = launched;
+  await expectHub(window);
+  // The work item once: a row for the whole, then every part in its number's order, each with its ID and, where they are not the whole's, its projects.
+  const group = window.locator('.hub-entry-group');
+  await expect(group.locator('.hub-row-link')).toHaveText(['Saved payment methods', 'Saved payment methods', 'Order fulfilment model', 'Customer order notifications']);
+  await expect(group.locator('.hub-row-index')).toHaveText(['1', '2', '3']);
+  await expect(group.locator('.hub-row-number')).toHaveText(['#0001', '#0001-1', '#0001-2', '#0001-3']);
+  await expect(group.locator('.hub-row-part').nth(1).locator('.hub-row-project-name')).toHaveText('Harbor');
+  // Northwind's parts are not listed on their own as well: only Harbor's own plan of that name is.
+  await expect(window.locator('.hub-entry:not(.hub-entry-group)').getByRole('link', { name: 'Order fulfilment model', exact: true })).toHaveCount(1);
+  // Folded, the work item says what waits in it, and stays folded as the hub is left and shown again.
+  const fold = group.getByRole('button', { name: 'Saved payment methods', exact: true });
+  await fold.click();
+  await expect(group.locator('.hub-row-part')).toHaveCount(0);
+  await expect(group.locator('.hub-row-parts')).toHaveText('3 parts · 2 your turn');
+  // Its number opens its first part; back on the hub it is folded still, and a click on its row, anywhere, unfolds it.
+  await group.getByRole('link', { name: '#0001', exact: true }).click();
+  await expect(window.locator('.work-page h1')).toHaveText('Saved payment methods');
+  await expect(trailEnd(window)).toHaveText('#0001-1');
+  await goHome(window);
+  await expect(group.locator('.hub-row-part')).toHaveCount(0);
+  await group.locator('.hub-row').first().click({ position: { x: 700, y: 20 } });
+  await expect(group.locator('.hub-row-part')).toHaveCount(3);
+  // Harbor's hub has the work item whole, as one of its parts is in Harbor; the part's plan names its project.
+  await filterHub(window, 'Harbor');
+  await expect(group.locator('.hub-row-link')).toHaveText(['Saved payment methods', 'Saved payment methods', 'Order fulfilment model', 'Customer order notifications']);
+  await group.getByRole('link', { name: 'Order fulfilment model', exact: true }).click();
+  await expect(window.locator('.work-status')).toContainText('in Harbor');
+  await expect(trailEnd(window)).toHaveText('#0001-2');
 });

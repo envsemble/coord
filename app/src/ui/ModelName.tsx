@@ -5,6 +5,7 @@ import { useId } from 'react';
 import { Icon } from '@envsemble/envui';
 import { IconSmartToy as SmartToy } from '@envsemble/envui/icons/SmartToy';
 import { aiModel, providerNames, type Provider } from './aiModels';
+import { Hint } from './Hint';
 
 /** One path each in a 24-unit box: Claude's spark for Anthropic, OpenAI's blossom, Gemini's sparkle, Mistral's M and DeepSeek's whale. */
 const marks: Record<Provider, string> = {
@@ -31,12 +32,15 @@ function ProviderMark({ provider, plain = false }: { provider: Provider | null; 
  * A model by name with its provider's mark, and the reasoning effort it worked at when known ("Claude
  * Opus 5.5 · high"); its title gives the identifier, the provider and any detail. Wherever Coord names
  * a model it does so with this, so the mark, its size and the effort read the same; no model (none
- * was recorded) is "Model not recorded" beside a neutral mark.
+ * was recorded) is "Model not recorded" beside a neutral mark. With `hint` the title is a quick hint
+ * instead, for a row whose link covers the name, where a native title would never show.
  */
-export function ModelName({ model, plain, detail, className, effort }: { model: string | null; plain?: boolean; detail?: string; className?: string; effort?: string | null }) {
+export function ModelName({ model, plain, detail, className, effort, hint }: { model: string | null; plain?: boolean; detail?: string; className?: string; effort?: string | null; hint?: boolean }) {
   if (!model) return <span className={'model-name model-unrecorded' + (className ? ' ' + className : '')} title={detail}><ProviderMark provider={null} /><span className="model-name-text">Model not recorded</span></span>;
   const { name, provider } = aiModel(model);
-  return <span className={'model-name' + (className ? ' ' + className : '')} title={[model, provider && providerNames[provider], effort && effort + ' effort', detail].filter(Boolean).join(' · ')}>
+  const title = [model, provider && providerNames[provider], effort && effort + ' effort', detail].filter(Boolean).join(' · ');
+  const named = <span className={'model-name' + (className ? ' ' + className : '')} title={hint ? undefined : title}>
     <ProviderMark provider={provider} plain={plain} /><span className="model-name-text">{name}</span>{effort && <span className="model-effort"> · {effort}</span>}
   </span>;
+  return hint ? <Hint content={title}>{named}</Hint> : named;
 }
