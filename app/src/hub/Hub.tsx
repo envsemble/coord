@@ -391,7 +391,7 @@ export function Hub({ projects, error, filter: asked, filters, setFilters, go, n
       const waiting = group.id === 'your_turn' || group.id === 'waiting';
       return <section key={group.id} className="hub-group" aria-label={group.label}>
         <Text render={<h2 />} variant="title" className="hub-group-heading">{group.label} <span className="muted">{group.entries.length}</span></Text>
-        <Table.Root className="hub-list" aria-label={group.label} narrowLayout="stack" stackBelow="46rem" columnWidths={showProject ? columnWidths : oneProjectWidths}>
+        <Table.Root className="hub-list" aria-label={group.label} columnWidths={showProject ? columnWidths : oneProjectWidths}>
           <Table.Head><Table.Row><Table.HeaderCell>Plan</Table.HeaderCell>{showProject && <Table.HeaderCell>Project</Table.HeaderCell>}<Table.HeaderCell>{group.id === 'closed' ? 'Ended' : 'Steps'}</Table.HeaderCell><Table.HeaderCell>Agents</Table.HeaderCell><Table.HeaderCell numeric>{waiting ? 'Waiting' : 'Changed'}</Table.HeaderCell></Table.Row></Table.Head>
           {group.entries.map(entry => <HubEntryRows key={entryKey(entry)} entry={entry} open={!folded.has(entryKey(entry))} toggleFold={toggleFold} gutter={gutter}
             showProject={showProject} waiting={waiting} now={now} byId={byId} go={go} resolved={resolved.get(entry.item.project.id)} notify={notify} />)}
